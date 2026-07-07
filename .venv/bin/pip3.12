@@ -1,0 +1,8 @@
+#!/tmp/zero-human-sandbox/24e3535f-f0e7-46a6-91a9-b15ed2a5b1e8/f859d37d-c4d2-4d44-8ad9-c00ade8d3765/.venv/bin/python
+# -*- coding: utf-8 -*-
+import re
+import sys
+from pip._internal.cli.main import main
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
+    sys.exit(main())

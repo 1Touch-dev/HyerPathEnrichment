@@ -1,0 +1,36 @@
+version: "3.9"
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: backend/docker/Dockerfile.api
+    environment:
+      API_TOKEN: change-me
+      DATABASE_URL: sqlite+aiosqlite:///./hyrepath.db
+    ports:
+      - "8000:8000"
+  worker:
+    build:
+      context: ../..
+      dockerfile: backend/docker/Dockerfile.worker
+    environment:
+      API_TOKEN: change-me
+      DATABASE_URL: sqlite+aiosqlite:///./hyrepath.db
+  redis:
+    image: redis:7-alpine
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+  social-analyzer:
+    image: nginx:alpine
+  reacher:
+    image: nginx:alpine
+  google-maps-scraper:
+    image: nginx:alpine
+  langfuse:
+    image: nginx:alpine
+  litellm:
+    image: nginx:alpine
+  changedetection:
+    image: nginx:alpine
