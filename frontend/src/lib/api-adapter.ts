@@ -57,6 +57,24 @@ function readMetadataTiers(metadata: Record<string, unknown>): RequestedTier[] {
   );
 }
 
+function mapGithub(github: BackendDossier['github']): Dossier['github'] | undefined {
+  if (!github || typeof github !== 'object') {
+    return undefined;
+  }
+
+  const raw = github as Record<string, unknown>;
+  const organizations = raw.organizations;
+  const publicCommits = raw.public_commits ?? raw.publicCommits;
+
+  return {
+    profile: typeof raw.profile === 'string' ? raw.profile : undefined,
+    organizations: Array.isArray(organizations)
+      ? organizations.filter((org): org is string => typeof org === 'string')
+      : [],
+    publicCommits: typeof publicCommits === 'number' ? publicCommits : 0,
+  };
+}
+
 function mapDossier(dossier: BackendDossier): Dossier {
   const metadata = dossier.metadata ?? {};
 
@@ -83,7 +101,7 @@ function mapDossier(dossier: BackendDossier): Dossier {
       confidence: email.confidence,
       source: email.source,
     })),
-    github: dossier.github,
+    github: mapGithub(dossier.github),
     coworkers: dossier.coworkers ?? [],
     jobs: dossier.jobs ?? [],
     business: dossier.business,

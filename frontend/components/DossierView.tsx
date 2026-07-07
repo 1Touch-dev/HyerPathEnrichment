@@ -66,7 +66,7 @@ export function DossierView({ dossier }: DossierViewProps) {
         <article className="card">
           <h3>Employment & organizations</h3>
           <ul className="list">
-            {dossier.github?.organizations.map((org) => (
+            {(dossier.github?.organizations ?? []).map((org) => (
               <li key={org}>{org}</li>
             ))}
           </ul>
