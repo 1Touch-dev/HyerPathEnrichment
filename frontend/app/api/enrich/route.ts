@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createMockJob } from '@/src/lib/mock-data';
+import { BackendJobResponse, mapBackendJobToFrontend, toBackendEnrichmentRequest } from '@/src/lib/api-adapter';
 import { EnrichmentInput } from '@/src/lib/types';
 
 export async function POST(request: NextRequest) {
@@ -23,14 +23,41 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'At least one identifier is required.' }, { status: 400 });
   }
 
-  return NextResponse.json(
-    {
-      ...createMockJob(input),
-      metadata: {
-        backendPath: '/backend',
-        note: 'Frontend mock route remains for local UI preview; production backend now lives in the backend/ folder.',
+  const backendUrl = process.env.BACKEND_API_URL ?? 'http://localhost:8000';
+  const apiToken = process.env.BACKEND_API_TOKEN ?? 'change-me';
+
+  let backendResponse: Response;
+  try {
+    backendResponse = await fetch(`${backendUrl}/enrich/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiToken}`,
       },
-    },
-    { status: 200 },
-  );
+      body: JSON.stringify(toBackendEnrichmentRequest(input)),
+    });
+  } catch {
+    return NextResponse.json({ message: 'Unable to reach enrichment backend.' }, { status: 502 });
+  }
+
+  if (!backendResponse.ok) {
+    const detail = await backendResponse.text();
+    let message = detail || 'Backend error';
+
+    try {
+      const parsed = JSON.parse(detail) as { detail?: string | Array<{ msg?: string }> };
+      if (typeof parsed.detail === 'string') {
+        message = parsed.detail;
+      } else if (Array.isArray(parsed.detail)) {
+        message = parsed.detail.map((item) => item.msg).filter(Boolean).join(', ') || message;
+      }
+    } catch {
+      // keep raw detail text
+    }
+
+    return NextResponse.json({ message }, { status: backendResponse.status });
+  }
+
+  const backendJob = (await backendResponse.json()) as BackendJobResponse;
+  return NextResponse.json(mapBackendJobToFrontend(backendJob, input), { status: 200 });
 }

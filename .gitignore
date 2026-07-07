@@ -6,7 +6,9 @@ build/
 out/
 *.tsbuildinfo
 coverage/
-.env
+.env/
 .env.local
 *.log
 .DS_Store
+backend/.env
+frontend/.env.local
