@@ -29,13 +29,23 @@ const normalizeIdentifierSummary = (input: EnrichmentInput) => {
   return values.join(' • ');
 };
 
-export const createMockJob = (input: EnrichmentInput): EnrichmentJob => {
+const SAMPLE_STABLE_ID = 'job_alexhyrepath_demo';
+const SAMPLE_STABLE_TIMESTAMP = '2026-01-01T12:00:00.000Z';
+
+type MockJobOptions = {
+  stableId?: string;
+  stableGeneratedAt?: string;
+};
+
+export const createMockJob = (input: EnrichmentInput, options?: MockJobOptions): EnrichmentJob => {
   const username = input.username || input.email?.split('@')[0] || 'candidate';
   const requestedTiers: RequestedTier[] = input.requestedTiers.length ? input.requestedTiers : ['tier1', 'tier2', 'tier3', 'tier4'];
   const pipelineId = `pipe_${username}_${requestedTiers.join('_')}`;
+  const jobId = options?.stableId ?? `job_${username}_${Date.now()}`;
+  const generatedAt = options?.stableGeneratedAt ?? new Date().toISOString();
 
   return {
-    id: `job_${username}_${Date.now()}`,
+    id: jobId,
     status: 'completed',
     input: {
       ...input,
@@ -46,7 +56,7 @@ export const createMockJob = (input: EnrichmentInput): EnrichmentJob => {
         ? {
             source: 'linkedin-photo',
             assetUrl: 'https://cdn.hyrepath.local/assets/linkedin-photo.jpg',
-            capturedAt: new Date().toISOString(),
+            capturedAt: generatedAt,
             confidence: 0.84,
           }
         : undefined,
@@ -113,7 +123,7 @@ export const createMockJob = (input: EnrichmentInput): EnrichmentJob => {
       ],
       sources: ['linkedin-photo', 'Sherlock', 'Social Analyzer', 'GitRecon', 'Reacher', 'JobSpy'],
       metadata: {
-        generatedAt: new Date().toISOString(),
+        generatedAt,
         pipelineId,
         requestedTiers,
         identifierSummary: normalizeIdentifierSummary(input),
@@ -123,12 +133,15 @@ export const createMockJob = (input: EnrichmentInput): EnrichmentJob => {
 };
 
 export const sampleJobs = [
-  createMockJob({
-    email: 'alex@hyrepath.dev',
-    linkedinUrl: 'https://www.linkedin.com/in/alex-hyrepath',
-    username: 'alexhyrepath',
-    company: 'Hyrepath',
-    jobSearch: 'Staff Backend Engineer',
-    requestedTiers: ['tier1', 'tier2', 'tier3', 'tier4'],
-  }),
+  createMockJob(
+    {
+      email: 'alex@hyrepath.dev',
+      linkedinUrl: 'https://www.linkedin.com/in/alex-hyrepath',
+      username: 'alexhyrepath',
+      company: 'Hyrepath',
+      jobSearch: 'Staff Backend Engineer',
+      requestedTiers: ['tier1', 'tier2', 'tier3', 'tier4'],
+    },
+    { stableId: SAMPLE_STABLE_ID, stableGeneratedAt: SAMPLE_STABLE_TIMESTAMP },
+  ),
 ];

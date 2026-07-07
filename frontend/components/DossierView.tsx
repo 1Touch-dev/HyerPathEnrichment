@@ -15,7 +15,7 @@ export function DossierView({ dossier }: DossierViewProps) {
         </div>
         <div className="meta-badges">
           <span>{dossier.metadata.pipelineId}</span>
-          <span>{new Date(dossier.metadata.generatedAt).toLocaleString()}</span>
+          <span>{dossier.metadata.generatedAt.replace('T', ' ').slice(0, 19)} UTC</span>
         </div>
       </div>
 
