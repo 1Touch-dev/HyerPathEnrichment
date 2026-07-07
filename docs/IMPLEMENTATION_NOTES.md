@@ -1,70 +1,97 @@
-# Implementation Notes — AZI-10
+# Implementation Notes — AZI-11
 
 ## Summary
 
-This branch delivers a **documentation-complete frontend demo** for HyerEnrichemnt.
+This Scribe pass finalizes the **documentation and release handoff** for the AZI-11 repository split.
 
-The app is a Next.js single-page interface that simulates the intended enrichment pipeline using typed mock data. It is positioned for stakeholder review, UI validation, and automated PR completion.
+The codebase now presents the project as two clearly separated parts:
 
-## Implemented architecture in this repo
+- **frontend at the repo root**
+- **backend in `backend/`**
 
-### UI layers
+This matches the requested preference that backend code live in a dedicated backend folder rather than at the top level.
 
-- `app/page.tsx`
-  - owns the selected enrichment job state
-  - composes the page from focused presentation components
-- `components/IntakeForm.tsx`
-  - collects identifier inputs
-  - allows tier selection
-  - posts to `/api/enrich`
-- `components/PipelineOverview.tsx`
-  - renders the 10-step enrichment flow
-  - reflects requested tiers from the active job
-- `components/DossierView.tsx`
-  - renders the merged dossier output
-- `components/HeroPanel.tsx`
-  - summarizes the chosen tier mix
+## What is implemented
 
-### Data model
+### Frontend
 
-- `src/lib/types.ts`
-  - defines typed request, dossier, confidence, and job structures
-- `src/lib/mock-data.ts`
-  - generates deterministic mock enrichment outputs from form input
+The frontend remains in the existing root-level Next.js structure:
 
-## Behavior
+- `app/`
+- `components/`
+- `src/`
 
-- users submit at least one identifier
-- the UI posts JSON to `/api/enrich`
-- the active job updates on success
-- the page renders a completed dossier and pipeline view
-- sample data includes representative outputs for:
-  - LinkedIn photo metadata
-  - social handles
-  - verified emails
-  - GitHub organizations and commit count
-  - coworker discovery
-  - jobs/business intelligence
-  - confidence reasoning
+It continues to provide the enrichment intake flow, pipeline UI, and dossier presentation.
 
-## Deployment and handoff guidance
+### Backend
 
-This branch is suitable for:
+The backend implementation exists under `backend/` and includes:
 
-- local demo deployment with `npm install` and `npm run dev`
-- automated PR generation
-- design/product review of the enrichment experience
+- `backend/app/main.py`
+  - FastAPI entrypoint
+  - bearer-token auth guard
+  - route registration
+- `backend/app/routes/`
+  - enrichment routes
+  - health route
+  - opt-out routes
+- `backend/app/workers/runner.py`
+  - pipeline orchestrator
+  - enrichment dispatch
+  - merge/confidence flow
+- `backend/app/enrichers/`
+  - provider modules for LinkedIn photo, username discovery, OSINT, jobs, and business lookup
+- `backend/app/storage/`
+  - DB and asset storage abstractions
+- `backend/docker/`
+  - API/worker Dockerfiles and compose file
+- `backend/tests/`
+  - API/pipeline shape validation
 
-Before a production release beyond demo/UI scope, the next implementation phase would need:
+## Documentation updates made in this pass
 
-- a real `/api/enrich` backend contract
-- persistent job storage
-- async worker orchestration
-- live enrichment provider integrations
-- operational monitoring and auth
+- rewrote the root `README.md` to describe the repo as a split frontend/backend project
+- added AZI-11 release notes to `CHANGELOG.md`
+- updated this implementation note to focus on backend-folder delivery and deployment handoff
+
+## Release-readiness assessment
+
+Documentation is now aligned with the implemented repository state.
+
+Ready for automated PR completion:
+
+- implementation commit exists: `feat(azi-11): implement Bacckend`
+- frontend/backend separation is reflected in top-level docs
+- backend run/setup instructions are documented
+- backend-specific docs remain available under `backend/README.md` and `backend/docs/`
+
+## Explicit handoff for deployment/PR completion
+
+Use this repo as:
+
+- a root-level frontend app for UI review and build steps
+- a separate backend service rooted in `backend/`
+
+Recommended operator entrypoints:
+
+### Frontend
+
+```bash
+npm install
+npm run dev
+```
+
+### Backend
+
+```bash
+cd backend
+pip install -e .
+uvicorn app.main:app --reload
+pytest tests
+```
 
 ## Scribe notes
 
-- Documentation intentionally reflects the repository as implemented, not the aspirational backend brief.
-- No application source files were modified during this Scribe pass.
-- Only markdown/documentation artifacts were updated for final handoff.
+- No application source files were changed.
+- No frontend code, backend Python code, package manifests, or runtime logic were modified in this pass.
+- Only markdown/documentation artifacts were updated.

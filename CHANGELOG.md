@@ -1,5 +1,27 @@
 # Changelog
 
+## [AZI-11] - 2026-07-07
+
+### Added
+
+- top-level documentation for the split frontend/backend repository layout
+- release handoff notes describing the backend placement under `backend/`
+- backend delivery summary covering routes, orchestrator, enrichers, Docker assets, and tests
+- updated README instructions for frontend and backend setup/run flows
+
+### Delivered in code
+
+- dedicated `backend/` folder containing the Python/FastAPI backend
+- backend API entrypoint, auth guard, enrichment routes, opt-out routes, and health route
+- modular enrichment worker/orchestrator and provider modules
+- backend Dockerfiles, compose configuration, environment template, and tests
+- preserved frontend application at repo root
+
+### Notes
+
+- This ticket documents and finalizes the repo split so frontend and backend are clearly separated.
+- Documentation has been aligned to the implemented AZI-11 structure for automated PR completion.
+
 ## [AZI-10] - 2026-07-07
 
 ### Added

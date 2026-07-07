@@ -23,5 +23,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'At least one identifier is required.' }, { status: 400 });
   }
 
-  return NextResponse.json(createMockJob(input), { status: 200 });
+  return NextResponse.json(
+    {
+      ...createMockJob(input),
+      metadata: {
+        backendPath: '/backend',
+        note: 'Frontend mock route remains for local UI preview; production backend now lives in the backend/ folder.',
+      },
+    },
+    { status: 200 },
+  );
 }
