@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +27,11 @@ from app.enrichers import (
 from app.enrichers.base import Enricher
 from app.llm_router import LiteLLMDisambiguator
 from app.models import ConfidenceBreakdown, Dossier, EnrichmentRequest, JobRecord, JobListing, JobStatus, PhotoAsset, SocialHandle, SuppressionRecord, VerifiedEmail, BusinessProfile
+from app.storage.redis_client import get_redis_client
+
+logger = logging.getLogger(__name__)
+
+SUPPRESSION_SET_KEY = "suppression:hashes"
 
 
 class PipelineOrchestrator:
@@ -69,14 +76,32 @@ class PipelineOrchestrator:
         return await self.db.get(JobRecord, job_id)
 
     async def add_suppression(self, identifier: str, reason: str | None = None) -> None:
-        record = SuppressionRecord(identifier_hash=self._hash(identifier), reason=reason or "")
+        identifier_hash = self._hash(identifier)
+        record = SuppressionRecord(identifier_hash=identifier_hash, reason=reason or "")
         await self.db.merge(record)
         await self.db.commit()
+        try:
+            await get_redis_client().sadd(SUPPRESSION_SET_KEY, identifier_hash)
+        except RedisError:
+            # SQL is the durable record; reads fall back to SQL on Redis miss.
+            logger.warning("redis unavailable during add_suppression; SQL record persisted")
 
     async def check_suppression(self, identifier: str) -> bool:
-        statement = select(SuppressionRecord).where(SuppressionRecord.identifier_hash == self._hash(identifier))
+        identifier_hash = self._hash(identifier)
+        try:
+            if await get_redis_client().sismember(SUPPRESSION_SET_KEY, identifier_hash):
+                return True
+        except RedisError:
+            logger.warning("redis unavailable during check_suppression; falling back to SQL")
+        statement = select(SuppressionRecord).where(SuppressionRecord.identifier_hash == identifier_hash)
         result = await self.db.execute(statement)
-        return result.scalar_one_or_none() is not None
+        suppressed = result.scalar_one_or_none() is not None
+        if suppressed:
+            try:
+                await get_redis_client().sadd(SUPPRESSION_SET_KEY, identifier_hash)
+            except RedisError:
+                pass
+        return suppressed
 
     async def _is_suppressed(self, request: EnrichmentRequest) -> bool:
         identifiers = [request.email, request.linkedin_url, request.username, request.company, request.business, request.job_search]

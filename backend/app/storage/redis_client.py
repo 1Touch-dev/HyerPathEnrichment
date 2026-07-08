@@ -16,7 +16,14 @@ def get_redis_client() -> Redis:
     global _redis
     if _redis is None:
         settings = get_settings()
-        _redis = Redis.from_url(settings.redis_url, decode_responses=True)
+        # Short timeouts so an unreachable Redis degrades fast instead of
+        # stalling request paths that fall back to SQL.
+        _redis = Redis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
     return _redis
 
 
