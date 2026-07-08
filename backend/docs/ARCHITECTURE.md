@@ -30,7 +30,7 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | R2 uploads go to Cloudflare | Writes to **local** `backend/.asset-cache/` |
 | LiteLLM disambiguation is live | **Heuristic stub** in `llm_router.py` |
 | Opt-out is unauthenticated | **Bearer token required** (compliance gap vs target) |
-| Suppression lives in Redis | **SQL table** `suppression_list` (SHA-256 hashes); Redis is target |
+| Suppression lives in Redis only | **SQL table** `suppression_list` is the durable record; Redis set `suppression:hashes` is a fast-path cache (dual-write, SQL fallback) |
 | Sidecars are real services | Docker compose uses **nginx placeholders** |
 
 ### Task routing — where to start
@@ -307,7 +307,11 @@ Each enricher returns a partial dict (`photo`, `handles`, `emails`, `verified_em
 - Rate limiting
 - Audit log hashes (5-year retention per request)
 
-Configured via `REDIS_URL`. Present in docker-compose. A shared async client exists in `app/storage/redis_client.py` (`get_redis` FastAPI dependency, opened/closed in the app lifespan, lazy connection). Queue, suppression set, and rate limiting are **not yet wired** to it.
+Configured via `REDIS_URL`. Present in docker-compose. A shared async client exists in `app/storage/redis_client.py` (`get_redis` FastAPI dependency, opened/closed in the app lifespan, lazy connection).
+
+**Wired today:** suppression fast path. `add_suppression()` writes SQL first (durable record), then `SADD suppression:hashes`. `check_suppression()` tries `SISMEMBER` first; on a miss or Redis error it falls back to the authoritative SQL table and backfills Redis on a hit. Opt-out is never weakened by a Redis outage — no TTL on suppression hashes.
+
+**Not yet wired:** queue (RQ) and rate limiting.
 
 ---
 
@@ -529,7 +533,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | API routes + auth | FastAPI + Bearer | Implemented |
 | Orchestrator + tier dispatch | `runner.py` | Implemented |
 | Enricher modules (11) | Real tool integrations | Scaffold payloads / mocks |
-| Redis client | Queue + suppression + rate limits | Shared async client wired in lifespan; no feature uses it yet |
+| Redis client | Queue + suppression + rate limits | Shared async client wired in lifespan; suppression fast path uses it; queue + rate limits pending |
 | Async job queue | Redis + RQ, worker process | Inline in API process |
 | Database | PostgreSQL + JSONB | SQLite default |
 | R2 photo cache | `aioboto3` → Cloudflare R2 | Local `.asset-cache/` fallback |
