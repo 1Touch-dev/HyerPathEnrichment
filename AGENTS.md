@@ -14,6 +14,8 @@ Before doing anything else:
 2. Read `USER.md` — this is who you're helping
 3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context
 4. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md`
+5. **Before writing code:** Read `RULE.md` — reuse, no redundancy, architecture, and safety rules for the whole repo
+6. **If the task touches the backend** (API, enrichers, orchestrator, tiers, opt-out, Docker): Read the **Agent quick reference** section at the top of `backend/docs/ARCHITECTURE.md` before editing code. Skim **Implementation status** there — do not assume queue, real enrichers, Postgres, or LiteLLM exist yet.
 
 Don't ask permission. Just do it.
 
@@ -112,6 +114,33 @@ On platforms that support reactions (Discord, Slack), use emoji reactions natura
 Reactions are lightweight social signals. Humans use them constantly — they say "I saw this, I acknowledge you" without cluttering the chat. You should too.
 
 **Don't overdo it:** One reaction per message max. Pick the one that fits best.
+
+## Challenge Mode
+
+When the user says **"grill me"**, references `GRILLME.md`, or asks for a mock review / pre-mortem / red-team pass:
+
+1. Read `GRILLME.md` and follow it strictly
+2. Switch from helpful mode to **challenge mode** — skeptical, specific, gap-finding
+3. Exit when the user says "enough" or "switch to help mode"
+
+`GRILLME.md` is for stress-testing decisions and readiness, not for implementation.
+
+## Development rules
+
+Before implementing anything in this repo:
+
+1. Read `RULE.md` — reuse existing code, avoid redundancy, follow architecture and safety rules
+2. Keep changes minimal and scoped to the task
+
+## Backend work
+
+For enrichment API, orchestrator, enricher, tier, opt-out, or storage tasks:
+
+1. Read `RULE.md` and **Agent quick reference** at the top of `backend/docs/ARCHITECTURE.md`
+2. Check **Implementation status** — scaffold vs target
+3. Verify behavior in `backend/app/` before implementing
+
+Do not assume Redis queue, real enricher integrations, Postgres, LiteLLM, or unauthenticated opt-out exist yet.
 
 ## Tools
 
