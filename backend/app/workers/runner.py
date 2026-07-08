@@ -44,21 +44,54 @@ class PipelineOrchestrator:
         self.tier4: list[Enricher] = [JobSpyEnricher(), LocalBusinessEnricher()]
 
     async def run(self, request: EnrichmentRequest) -> JobRecord:
-        suppressed = await self._is_suppressed(request)
+        """Synchronous path: create a job and run the pipeline inline."""
+        job = await self._create_job(request, JobStatus.running)
+        await self.db.flush()
+        return await self._execute(job, request)
+
+    async def create_queued_job(self, request: EnrichmentRequest) -> JobRecord:
+        """Async path: persist a queued job for a worker to pick up later."""
+        job = await self._create_job(request, JobStatus.queued)
+        await self.db.commit()
+        await self.db.refresh(job)
+        return job
+
+    async def execute_job(self, job_id: str) -> JobRecord | None:
+        """Worker path: load a queued job by id and run the pipeline."""
+        job = await self.get_job(job_id)
+        if job is None:
+            logger.warning("execute_job called for unknown job")
+            return None
+        request = EnrichmentRequest.model_validate(job.request_payload)
+        job.status = JobStatus.running.value
+        try:
+            return await self._execute(job, request)
+        except Exception:
+            await self.db.rollback()
+            failed = await self.db.get(JobRecord, job_id)
+            if failed is not None:
+                failed.status = JobStatus.failed.value
+                failed.updated_at = datetime.now(timezone.utc)
+                await self.db.commit()
+            raise
+
+    async def _create_job(self, request: EnrichmentRequest, status: JobStatus) -> JobRecord:
         job = JobRecord(
             id=f"job_{uuid4().hex}",
-            status=JobStatus.suppressed.value if suppressed else JobStatus.running.value,
+            status=status.value,
             request_payload=request.model_dump(mode="json"),
             dossier_payload={},
         )
         self.db.add(job)
-        await self.db.flush()
+        return job
 
-        if suppressed:
+    async def _execute(self, job: JobRecord, request: EnrichmentRequest) -> JobRecord:
+        if await self._is_suppressed(request):
             dossier = self._base_dossier(request)
             dossier.metadata["suppressed"] = True
             job.status = JobStatus.suppressed.value
             job.dossier_payload = dossier.model_dump(mode="json")
+            job.updated_at = datetime.now(timezone.utc)
             await self.db.commit()
             await self.db.refresh(job)
             return job

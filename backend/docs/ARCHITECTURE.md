@@ -24,7 +24,7 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 
 | Assumption | Reality today |
 |------------|---------------|
-| `POST /enrich` is async via queue | Runs orchestrator **inline** in API process (same as `/enrich/sync`) |
+| `POST /enrich` runs inline | Enqueues to **Redis + RQ**; the worker process runs the orchestrator. `/enrich/sync` still runs inline. Needs a shared DB (Postgres) to poll across processes |
 | Enrichers call real tools | Most return **scaffold/mock payloads** |
 | Database is Postgres | Default is **SQLite** (`sqlite+aiosqlite:///./hyrepath.db`) |
 | R2 uploads go to Cloudflare | Writes to **local** `backend/.asset-cache/` |
@@ -185,18 +185,21 @@ business ──────────┘         └──────┬─�
 
 1. `POST /enrich` or `POST /enrich/sync` hits `app/routes/enrich.py`
 2. `verify_token` dependency checks `Authorization: Bearer <API_TOKEN>`
-3. `EnrichmentRequest` validates at least one identifier and optional `requested_tiers`
-4. `PipelineOrchestrator.run()`:
-   - checks suppression via `_is_suppressed()` (hashed identifiers in `suppression_list`)
-   - creates a `JobRecord` in the database
+3. Per-route rate-limit dependency enforces the sync/async limit (Redis counter, `429` over-limit)
+4. `EnrichmentRequest` validates at least one identifier and optional `requested_tiers`
+5. **`POST /enrich` (async):** `create_queued_job()` persists a `JobRecord` with status `queued`, then `enqueue_enrichment(job.id)` pushes it to the RQ `enrichment` queue; returns `202`. If Redis is unreachable the job is marked `failed` and the API returns `503`.
+6. **`POST /enrich/sync` (inline):** `PipelineOrchestrator.run()` executes the pipeline in the API process and returns the completed dossier.
+7. The pipeline body (`_execute()`, shared by both paths and the worker):
+   - checks suppression via `_is_suppressed()` (Redis set, SQL fallback)
    - if suppressed → returns dossier with `metadata.suppressed = true`
    - else dispatches enrichers for requested tiers in parallel (`asyncio.gather`)
    - merges payloads into a canonical `Dossier`
    - runs confidence scoring + LLM disambiguation pass
-   - persists dossier JSON and marks job `completed`
-5. `GET /enrich/{job_id}` polls the stored job
+   - persists dossier JSON and marks job `completed` (or `failed` on error)
+8. The **worker** (`app/workers/rq_worker.py`) dequeues, opens its own DB session, and calls `execute_job(job_id)` → `_execute()`
+9. `GET /enrich/{job_id}` polls the stored job (`queued` → `running` → `completed`/`failed`/`suppressed`)
 
-**Target:** `POST /enrich` enqueues to Redis/RQ; a separate worker process dequeues and runs the same orchestrator. **Today:** both `/enrich` and `/enrich/sync` run the orchestrator inline in the API process.
+**Cross-process caveat:** the async path is only end-to-end when the API and worker share a database. The default SQLite is per-container, so promote both to Postgres (open question #4) for a real deployment.
 
 ---
 
@@ -313,8 +316,9 @@ Configured via `REDIS_URL`. Present in docker-compose. A shared async client exi
 
 - *Suppression fast path.* `add_suppression()` writes SQL first (durable record), then `SADD suppression:hashes`. `check_suppression()` tries `SISMEMBER` first; on a miss or Redis error it falls back to the authoritative SQL table and backfills Redis on a hit. Opt-out is never weakened by a Redis outage — no TTL on suppression hashes.
 - *Rate limiting.* Fixed-window counters (`ratelimit:{sync|async}:{token-hash}`) via `check_rate_limit()`. `POST /enrich` enforces `MAX_ASYNC_REQUESTS_PER_MINUTE`; `POST /enrich/sync` enforces `MAX_SYNC_REQUESTS_PER_MINUTE`. Dependencies live in `app/routes/rate_limit.py`. Over-limit returns `429`. **Fails open** on Redis error — protection, not correctness. Scope is per API token (SHA-256, first 16 hex chars); raw tokens are never logged.
+- *Job queue (RQ).* `POST /enrich` enqueues to the `enrichment` queue via `app/workers/queue.py` (synchronous `redis-py` connection — RQ is not async-compatible). The worker (`app/workers/rq_worker.py`) dequeues and calls `run_enrichment_job` (`app/workers/jobs.py`), which bridges to the async orchestrator with `asyncio.run` and a fresh DB session. Enqueue failure marks the job `failed` and returns `503`.
 
-**Not yet wired:** queue (RQ).
+**Redis roles now wired:** suppression fast path, rate limiting, job queue. Audit-log hashes remain target-only.
 
 ---
 
@@ -536,8 +540,8 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | API routes + auth | FastAPI + Bearer | Implemented |
 | Orchestrator + tier dispatch | `runner.py` | Implemented |
 | Enricher modules (11) | Real tool integrations | Scaffold payloads / mocks |
-| Redis client | Queue + suppression + rate limits | Shared async client wired in lifespan; suppression fast path + rate limiting use it; queue pending |
-| Async job queue | Redis + RQ, worker process | Inline in API process |
+| Redis client | Queue + suppression + rate limits | Shared async client wired in lifespan; suppression, rate limiting, and queue all use it |
+| Async job queue | Redis + RQ, worker process | Implemented — `/enrich` enqueues, `rq_worker` executes; needs shared Postgres for cross-process polling |
 | Database | PostgreSQL + JSONB | SQLite default |
 | R2 photo cache | `aioboto3` → Cloudflare R2 | Local `.asset-cache/` fallback |
 | Multilogin + Playwright | CDP browser session | Client stub; mock photo bytes |
@@ -567,6 +571,29 @@ cd backend
 pytest tests
 ```
 
+### Local Redis E2E (Option A)
+
+Requires Redis on `REDIS_URL` (see `.env`), plus API and worker in separate terminals:
+
+```bash
+# Terminal 1 — API
+cd backend
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Terminal 2 — RQ worker
+cd backend
+python -m app.workers.rq_worker
+```
+
+Automated check (API + worker must already be running):
+
+```bash
+cd backend
+python scripts/e2e_redis_test.py
+```
+
+**Windows:** RQ's default `Worker` uses `os.fork` and `SIGALRM` (unavailable on Windows). `rq_worker.py` automatically uses `SimpleWorker` + a no-op death penalty locally; Linux/Docker production keeps the default fork-based worker.
+
 ### Rate limits to respect (production)
 
 - **LinkedIn:** ~20–25 profile views/day per Multilogin profile
@@ -590,7 +617,7 @@ pytest tests
 
 Track these as architecture decisions mature:
 
-1. Wire Redis/RQ so `/enrich` is truly async and `/enrich/sync` excludes Tier 1 browser work
+1. ~~Wire Redis/RQ so `/enrich` is truly async~~ (done) — remaining: make `/enrich/sync` exclude Tier 1 browser work, and promote to Postgres (#4) so API + worker share job state
 2. Replace enricher mocks with subprocess/library integrations per upstream repo
 3. Remove Bearer auth from `POST /api/opt-out` for compliance accessibility
 4. Promote SQLite → PostgreSQL in default docker-compose wiring

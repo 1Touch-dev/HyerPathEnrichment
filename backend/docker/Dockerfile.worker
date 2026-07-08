@@ -3,4 +3,5 @@ WORKDIR /app
 COPY backend/pyproject.toml /app/pyproject.toml
 RUN pip install --no-cache-dir .
 COPY backend /app/backend
-CMD ["python", "-m", "app.workers.runner"]
+ENV PYTHONPATH=/app/backend
+CMD ["python", "-m", "app.workers.rq_worker"]

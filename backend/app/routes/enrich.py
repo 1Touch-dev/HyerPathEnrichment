@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Dossier, EnrichmentJobResponse, EnrichmentRequest, JobStatus
 from app.routes.rate_limit import enforce_async_rate_limit, enforce_sync_rate_limit
 from app.services import get_orchestrator
 from app.storage.db import get_db_session
+from app.workers.queue import enqueue_enrichment
 
 router = APIRouter(tags=["enrichment"])
 
@@ -20,7 +22,16 @@ async def create_enrichment_job(
     db: AsyncSession = Depends(get_db_session),
 ) -> EnrichmentJobResponse:
     orchestrator = get_orchestrator(db)
-    job = await orchestrator.run(request)
+    job = await orchestrator.create_queued_job(request)
+    try:
+        enqueue_enrichment(job.id)
+    except RedisError:
+        job.status = JobStatus.failed.value
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="job queue unavailable",
+        )
     return EnrichmentJobResponse(
         id=job.id,
         status=JobStatus(job.status),
