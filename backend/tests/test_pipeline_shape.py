@@ -2,12 +2,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.routes import rate_limit
 from app.workers import runner
 
 
 class _FakeRedis:
     def __init__(self) -> None:
         self._sets: dict[str, set[str]] = {}
+        self._counters: dict[str, int] = {}
 
     async def sadd(self, key: str, *values: str) -> int:
         members = self._sets.setdefault(key, set())
@@ -18,13 +20,22 @@ class _FakeRedis:
     async def sismember(self, key: str, value: str) -> bool:
         return value in self._sets.get(key, set())
 
+    async def incr(self, key: str) -> int:
+        self._counters[key] = self._counters.get(key, 0) + 1
+        return self._counters[key]
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        return key in self._counters
+
 
 @pytest.fixture(autouse=True)
-def _fake_redis(monkeypatch: pytest.MonkeyPatch) -> None:
+def _fake_redis(monkeypatch: pytest.MonkeyPatch) -> _FakeRedis:
     # No live external calls in CI: replace the Redis client used by the
-    # orchestrator with an in-memory stand-in.
+    # orchestrator and rate limiter with a single shared in-memory stand-in.
     fake = _FakeRedis()
     monkeypatch.setattr(runner, "get_redis_client", lambda: fake)
+    monkeypatch.setattr(rate_limit, "get_redis_client", lambda: fake)
+    return fake
 
 
 def test_health_endpoint() -> None:
@@ -77,3 +88,18 @@ def test_opt_out_suppresses_enrichment() -> None:
     payload = response.json()
     assert payload["status"] == "suppressed"
     assert payload["dossier"]["metadata"]["suppressed"] is True
+
+
+def test_sync_rate_limit_returns_429(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "max_sync_requests_per_minute", 2)
+    client = TestClient(app)
+    headers = {"Authorization": "Bearer change-me"}
+    body = {"username": "ratelimited", "requested_tiers": ["tier2"]}
+
+    assert client.post("/enrich/sync", headers=headers, json=body).status_code == 200
+    assert client.post("/enrich/sync", headers=headers, json=body).status_code == 200
+    third = client.post("/enrich/sync", headers=headers, json=body)
+    assert third.status_code == 429
+    assert third.json()["detail"] == "rate limit exceeded"

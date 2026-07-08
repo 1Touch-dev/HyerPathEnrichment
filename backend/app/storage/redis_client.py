@@ -32,6 +32,21 @@ async def get_redis() -> AsyncIterator[Redis]:
     yield get_redis_client()
 
 
+async def check_rate_limit(client: Redis, scope: str, limit: int, window_seconds: int = 60) -> bool:
+    """Fixed-window counter. Returns True if the request is within the limit.
+
+    Increments the per-scope counter and sets the window TTL on the first hit,
+    so the key auto-resets when the window ends. Callers decide fail-open vs
+    fail-closed on RedisError; rate limiting fails open (protection, not
+    correctness).
+    """
+    key = f"ratelimit:{scope}"
+    count = await client.incr(key)
+    if count == 1:
+        await client.expire(key, window_seconds)
+    return count <= limit
+
+
 async def close_redis() -> None:
     global _redis
     if _redis is not None:
