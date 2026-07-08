@@ -11,6 +11,7 @@ dependencies = [
   "pydantic-settings>=2.3,<3.0",
   "sqlalchemy>=2.0,<3.0",
   "aiosqlite>=0.20,<1.0",
+  "asyncpg>=0.29,<1.0",
   "httpx>=0.27,<1.0",
   "redis>=5.0,<6.0",
   "rq>=1.16,<2.0",
@@ -23,6 +24,13 @@ dev = [
   "pytest-asyncio>=0.23,<1.0",
   "mypy>=1.10,<2.0",
   "ruff>=0.5,<1.0"
+]
+# Real enricher backends (Phase 1/2/3). All are lazily imported / shelled out
+# so the app degrades gracefully when a tool is absent; install for production.
+enrichers = [
+  "dnspython>=2.6,<3.0",
+  "playwright>=1.44,<2.0",
+  "python-jobspy>=1.1,<2.0"
 ]
 
 [build-system]

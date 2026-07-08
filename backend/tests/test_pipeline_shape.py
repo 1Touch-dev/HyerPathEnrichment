@@ -1,6 +1,21 @@
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
+from app.enrichers import (
+    CrossLinkedEnricher,
+    EmailDiscoverEnricher,
+    EmailVerifyEnricher,
+    GitReconEnricher,
+    JobSpyEnricher,
+    LinkedInPhotoEnricher,
+    LocalBusinessEnricher,
+    MaigretEnricher,
+    SherlockEnricher,
+    SocialAnalyzerEnricher,
+    TheHarvesterEnricher,
+)
 from app.main import app
 from app.models import EnrichmentRequest
 from app.routes import enrich as enrich_route
@@ -40,6 +55,152 @@ def _fake_redis(monkeypatch: pytest.MonkeyPatch) -> _FakeRedis:
     monkeypatch.setattr(runner, "get_redis_client", lambda: fake)
     monkeypatch.setattr(rate_limit, "get_redis_client", lambda: fake)
     return fake
+
+
+def _stub(fragment: dict[str, Any]):
+    async def _fetch(self, request: EnrichmentRequest) -> dict[str, Any]:
+        return dict(fragment)
+
+    return _fetch
+
+
+@pytest.fixture(autouse=True)
+def _offline_enrichers(monkeypatch: pytest.MonkeyPatch) -> None:
+    # No live external calls in CI: replace every enricher's backend seam
+    # (_fetch) with deterministic offline fragments. The base Enricher.run
+    # wrapper still tags sources, so this exercises the real merge + scoring
+    # path without shelling out to tools or hitting sidecars.
+    monkeypatch.setattr(
+        SherlockEnricher,
+        "_fetch",
+        _stub(
+            {
+                "handles": [
+                    {
+                        "platform": "X",
+                        "username": "candidate",
+                        "profile_url": "https://x.com/candidate",
+                        "confidence": 0.75,
+                        "metadata": {"provider": "Sherlock", "matched": True},
+                    }
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        MaigretEnricher,
+        "_fetch",
+        _stub(
+            {
+                "handles": [
+                    {
+                        "platform": "Reddit",
+                        "username": "candidate",
+                        "profile_url": "https://reddit.com/u/candidate",
+                        "confidence": 0.71,
+                        "metadata": {"provider": "Maigret", "matched": True},
+                    }
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        SocialAnalyzerEnricher,
+        "_fetch",
+        _stub(
+            {
+                "handles": [
+                    {
+                        "platform": "Linkedin",
+                        "username": "candidate",
+                        "profile_url": "https://linkedin.com/in/candidate",
+                        "confidence": 0.88,
+                        "metadata": {"provider": "Social Analyzer", "matched": True},
+                    }
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        GitReconEnricher,
+        "_fetch",
+        _stub(
+            {
+                "handles": [
+                    {
+                        "platform": "GitHub",
+                        "username": "candidate",
+                        "profile_url": "https://github.com/candidate",
+                        "confidence": 0.9,
+                        "metadata": {"provider": "GitRecon", "matched": True},
+                    }
+                ],
+                "github": {"profile": "https://github.com/candidate", "organizations": [], "public_commits": 12},
+                "emails": ["candidate@example.com"],
+            }
+        ),
+    )
+    monkeypatch.setattr(TheHarvesterEnricher, "_fetch", _stub({"emails": ["candidate@example.com"]}))
+    monkeypatch.setattr(EmailDiscoverEnricher, "_fetch", _stub({"emails": ["candidate@example.com"]}))
+    monkeypatch.setattr(
+        EmailVerifyEnricher,
+        "_fetch",
+        _stub(
+            {
+                "verified_emails": [
+                    {"value": "candidate@example.com", "status": "deliverable", "confidence": 0.55, "source": "mx"}
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(CrossLinkedEnricher, "_fetch", _stub({"coworkers": ["Jamie Flores"]}))
+    monkeypatch.setattr(
+        JobSpyEnricher,
+        "_fetch",
+        _stub(
+            {
+                "jobs": [
+                    {
+                        "title": "Staff Backend Engineer",
+                        "company": "Hyrepath Labs",
+                        "location": "Remote",
+                        "remote": True,
+                        "source": "JobSpy",
+                    }
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        LocalBusinessEnricher,
+        "_fetch",
+        _stub(
+            {
+                "business": {
+                    "name": "Example Business",
+                    "address": "123 Market Street",
+                    "website": "https://example.com",
+                    "rating": 4.7,
+                    "phone": "+1 (415) 555-0133",
+                    "metadata": {"provider": "Google Maps Scraper"},
+                }
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        LinkedInPhotoEnricher,
+        "_fetch",
+        _stub(
+            {
+                "photo": {
+                    "source": "linkedin-photo",
+                    "asset_url": "https://cdn.example.com/linkedin/candidate.jpg",
+                    "captured_at": "2026-07-08T00:00:00+00:00",
+                    "confidence": 0.84,
+                }
+            }
+        ),
+    )
 
 
 def test_health_endpoint() -> None:

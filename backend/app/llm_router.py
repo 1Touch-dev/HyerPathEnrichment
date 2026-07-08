@@ -1,18 +1,36 @@
-from dataclasses import dataclass
+from app.config import get_settings
+from app.providers.llm import (
+    LLMDecision,
+    heuristic_compare,
+    litellm_compare,
+    ollama_compare,
+    trace,
+)
 
-
-@dataclass(slots=True)
-class LLMDecision:
-    same_identity: bool
-    confidence: float
-    reason: str
+__all__ = ["LLMDecision", "LiteLLMDisambiguator"]
 
 
 class LiteLLMDisambiguator:
+    """Identity disambiguator with a config-selected backend.
+
+    ``LLM_MODE=stub`` (free default) keeps the heuristic string match.
+    ``ollama`` uses a local model; ``litellm`` uses the LiteLLM proxy with a
+    fallback chain. The ``compare`` signature is unchanged so the orchestrator
+    and confidence scoring never need to know which backend answered.
+    """
+
     async def compare(self, left: str, right: str) -> LLMDecision:
-        normalized_left = left.strip().lower()
-        normalized_right = right.strip().lower()
-        same = normalized_left == normalized_right or normalized_left in normalized_right or normalized_right in normalized_left
-        confidence = 0.91 if same else 0.24
-        reason = "heuristic match pending LiteLLM integration"
-        return LLMDecision(same_identity=same, confidence=confidence, reason=reason)
+        settings = get_settings()
+        mode = settings.llm_mode.strip().lower()
+        if mode == "litellm":
+            decision = await litellm_compare(left, right, settings)
+        elif mode == "ollama":
+            decision = await ollama_compare(left, right, settings)
+        else:
+            decision = heuristic_compare(left, right)
+
+        trace(
+            "identity-disambiguation",
+            {"mode": mode, "same_identity": decision.same_identity, "confidence": decision.confidence},
+        )
+        return decision

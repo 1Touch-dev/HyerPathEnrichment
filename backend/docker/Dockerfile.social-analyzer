@@ -1,0 +1,8 @@
+FROM node:18-alpine
+WORKDIR /usr/src/app
+RUN apk add --no-cache git firefox-esr \
+    && git clone --depth 1 https://github.com/qeeqbox/social-analyzer.git . \
+    && npm ci \
+    && npm install lodash
+EXPOSE 9005
+ENTRYPOINT ["npm", "start", "--", "--docker"]

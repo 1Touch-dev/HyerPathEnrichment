@@ -1,9 +1,20 @@
+import asyncio
 import os
 
 from rq import Queue, SimpleWorker, Worker
 from rq.timeouts import BaseDeathPenalty
 
+from app.storage.db import engine, init_db
 from app.workers.queue import QUEUE_NAME, get_redis_connection
+
+
+async def _init_db_once() -> None:
+    # Dispose afterwards: pooled connections are bound to this startup event
+    # loop and would break the per-job asyncio.run loops in jobs.py.
+    try:
+        await init_db()
+    finally:
+        await engine.dispose()
 
 
 class _NoOpDeathPenalty(BaseDeathPenalty):
@@ -17,6 +28,9 @@ class _NoOpDeathPenalty(BaseDeathPenalty):
 
 
 def main() -> None:
+    # Ensure tables exist before the first job runs — the worker must not
+    # depend on the API having started first (shared Postgres in Docker).
+    asyncio.run(_init_db_once())
     connection = get_redis_connection()
     queue = Queue(QUEUE_NAME, connection=connection)
     # RQ's default Worker forks (no os.fork on Windows) and uses SIGALRM

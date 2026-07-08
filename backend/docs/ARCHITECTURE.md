@@ -24,14 +24,14 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 
 | Assumption | Reality today |
 |------------|---------------|
-| `POST /enrich` runs inline | Enqueues to **Redis + RQ**; the worker process runs the orchestrator. `/enrich/sync` still runs inline. Needs a shared DB (Postgres) to poll across processes |
-| Enrichers call real tools | Most return **scaffold/mock payloads** |
-| Database is Postgres | Default is **SQLite** (`sqlite+aiosqlite:///./hyrepath.db`) |
+| `POST /enrich` runs inline | Enqueues to **Redis + RQ**; the worker process runs the orchestrator. `/enrich/sync` still runs inline. In Docker, API + worker share Postgres so polling works cross-process |
+| Enrichers call real tools | They do (subprocess/library/sidecar) behind the `app/providers/` layer, but **degrade to empty fragments** when a tool/sidecar/key is missing. Defaults are fully free/self-hosted; free -> paid is an env flip |
+| Database is Postgres everywhere | Local dev default is **SQLite** (`sqlite+aiosqlite:///./hyrepath.db`); **Docker compose uses Postgres** (`postgresql+asyncpg://...@postgres:5432/hyrepath`) shared by API + worker |
 | R2 uploads go to Cloudflare | Writes to **local** `backend/.asset-cache/` |
-| LiteLLM disambiguation is live | **Heuristic stub** in `llm_router.py` |
+| LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in |
 | Opt-out is unauthenticated | **Bearer token required** (compliance gap vs target) |
 | Suppression lives in Redis only | **SQL table** `suppression_list` is the durable record; Redis set `suppression:hashes` is a fast-path cache (dual-write, SQL fallback) |
-| Sidecars are real services | Docker compose uses **nginx placeholders** |
+| Sidecars are real services | Compose uses **real images**; free-mode ones default-on, paid/heavy ones behind `profiles:` |
 
 ### Task routing — where to start
 
@@ -199,7 +199,7 @@ business ──────────┘         └──────┬─�
 8. The **worker** (`app/workers/rq_worker.py`) dequeues, opens its own DB session, and calls `execute_job(job_id)` → `_execute()`
 9. `GET /enrich/{job_id}` polls the stored job (`queued` → `running` → `completed`/`failed`/`suppressed`)
 
-**Cross-process caveat:** the async path is only end-to-end when the API and worker share a database. The default SQLite is per-container, so promote both to Postgres (open question #4) for a real deployment.
+**Cross-process caveat:** the async path is only end-to-end when the API and worker share a database. Docker compose wires both containers to the same Postgres (`postgres` service); local dev with SQLite works because API and worker run in the same working directory and share one DB file. The worker runs `init_db()` at startup so tables exist regardless of which process boots first.
 
 ---
 
@@ -255,7 +255,7 @@ Results are merged, deduplicated, and scored. Handles below **0.7** go to the LL
 - Traced in **Langfuse** for cost and quality review
 - Only kept if LLM confidence **≥ 0.7**
 
-**Current:** heuristic string-match stub with a placeholder reason. **Target:** real LiteLLM + Langfuse integration per `docs/architecture-plan-azi-10-hyre-enrichment.md`.
+**Current:** backend is config-selected via `LLM_MODE` (`app/providers/llm.py`): `stub` (default, heuristic string match, no network), `ollama` (local model), or `litellm` (proxy + fallback chain). `LiteLLMDisambiguator.compare()` signature is unchanged so the orchestrator and confidence scoring are untouched. Langfuse tracing runs via `providers.llm.trace()` and is a no-op until `LANGFUSE_*` is set.
 
 ---
 
@@ -294,8 +294,9 @@ Each enricher returns a partial dict (`photo`, `handles`, `emails`, `verified_em
 | `jobs` | Job id, status, request JSON, dossier JSONB, timestamps |
 | `suppression_list` | SHA-256 hashed identifiers + opt-out reason |
 
-**Target:** PostgreSQL via `DATABASE_URL`.  
-**Current default:** SQLite (`sqlite+aiosqlite:///./hyrepath.db`) for local development.
+**Docker / production:** PostgreSQL via `DATABASE_URL` (`postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath` in compose; API and worker share it).  
+**Local dev default:** SQLite (`sqlite+aiosqlite:///./hyrepath.db`).  
+Schema is created by `init_db()` (`create_all`) at API lifespan and worker startup — no Alembic migrations yet. Dossier JSON uses the portable `JSON` type (not `JSONB`) for now.
 
 ### Object storage (R2)
 
@@ -316,7 +317,7 @@ Configured via `REDIS_URL`. Present in docker-compose. A shared async client exi
 
 - *Suppression fast path.* `add_suppression()` writes SQL first (durable record), then `SADD suppression:hashes`. `check_suppression()` tries `SISMEMBER` first; on a miss or Redis error it falls back to the authoritative SQL table and backfills Redis on a hit. Opt-out is never weakened by a Redis outage — no TTL on suppression hashes.
 - *Rate limiting.* Fixed-window counters (`ratelimit:{sync|async}:{token-hash}`) via `check_rate_limit()`. `POST /enrich` enforces `MAX_ASYNC_REQUESTS_PER_MINUTE`; `POST /enrich/sync` enforces `MAX_SYNC_REQUESTS_PER_MINUTE`. Dependencies live in `app/routes/rate_limit.py`. Over-limit returns `429`. **Fails open** on Redis error — protection, not correctness. Scope is per API token (SHA-256, first 16 hex chars); raw tokens are never logged.
-- *Job queue (RQ).* `POST /enrich` enqueues to the `enrichment` queue via `app/workers/queue.py` (synchronous `redis-py` connection — RQ is not async-compatible). The worker (`app/workers/rq_worker.py`) dequeues and calls `run_enrichment_job` (`app/workers/jobs.py`), which bridges to the async orchestrator with `asyncio.run` and a fresh DB session. Enqueue failure marks the job `failed` and returns `503`.
+- *Job queue (RQ).* `POST /enrich` enqueues to the `enrichment` queue via `app/workers/queue.py` (synchronous `redis-py` connection — RQ is not async-compatible). The worker (`app/workers/rq_worker.py`) runs `init_db()` at startup (so tables exist even if the API hasn't booted), then dequeues and calls `run_enrichment_job` (`app/workers/jobs.py`), which bridges to the async orchestrator with `asyncio.run` and a fresh DB session. Because each job gets its own event loop, the job disposes the shared async Redis client and DB engine pool in a `finally` — loop-bound connections leaking into the next job cause "Event loop is closed" failures. Enqueue failure marks the job `failed` and returns `503`.
 
 **Redis roles now wired:** suppression fast path, rate limiting, job queue. Audit-log hashes remain target-only.
 
@@ -440,7 +441,7 @@ Copy `backend/.env.example` → `backend/.env`.
 | Variable | Purpose |
 |----------|---------|
 | `API_TOKEN` | Bearer token for protected routes |
-| `DATABASE_URL` | Async DB URL (SQLite default; Postgres in production) |
+| `DATABASE_URL` | Async DB URL (SQLite local default; Postgres in Docker/production) |
 | `REDIS_URL` | Redis connection (queue + suppression target) |
 | `R2_BUCKET` | R2 bucket name |
 | `R2_PUBLIC_BASE_URL` | CDN base for cached photos |
@@ -496,9 +497,9 @@ Copy `backend/.env.example` → `backend/.env`.
 | `google-maps-scraper` | Local business sidecar (Tier 4) |
 | `litellm` | LLM proxy |
 | `langfuse` | LLM observability |
-| `changedetection` | Company change signals (future webhooks) |
+| `changedetection` | Company change signals via `POST /api/signals/changedetection` |
 
-**Current:** sidecar images are placeholders (`nginx:alpine`). Enrichers return scaffold payloads until real integrations land.
+**Current:** compose uses real images. Free-mode sidecars (`social-analyzer`, `google-maps-scraper`) start by default; paid/heavy services (`reacher`, `litellm`, `ollama`, `scrapoxy`, `langfuse`, `changedetection`) sit behind compose `profiles:` so a plain `docker compose up` stays free. Enrichers call real tools (subprocess/library/sidecar) selected by the Phase 0 provider layer (`app/providers/`), and **degrade to a valid empty fragment** when a tool, sidecar, or key is missing — never a crash. Free -> paid is an env flip via the mode flags in `config.py` (`PROXY_MODE`, `BROWSER_MODE`, `LLM_MODE`, `EMAIL_VERIFY_LEVEL`, `ENABLE_TIER1`).
 
 ### AGPL isolation
 
@@ -539,17 +540,19 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 |------|---------------------|------------------|
 | API routes + auth | FastAPI + Bearer | Implemented |
 | Orchestrator + tier dispatch | `runner.py` | Implemented |
-| Enricher modules (11) | Real tool integrations | Scaffold payloads / mocks |
+| Enricher modules (11) | Real tool integrations | Real subprocess/library/sidecar calls behind `app/providers/`; degrade to empty fragments when a backend is absent |
+| Provider layer (Phase 0) | Config-selected free/paid backends | `app/providers/` (proxy, browser, llm, email_verify, sidecar, process); 5 mode flags in `config.py` |
 | Redis client | Queue + suppression + rate limits | Shared async client wired in lifespan; suppression, rate limiting, and queue all use it |
-| Async job queue | Redis + RQ, worker process | Implemented — `/enrich` enqueues, `rq_worker` executes; needs shared Postgres for cross-process polling |
-| Database | PostgreSQL + JSONB | SQLite default |
+| Async job queue | Redis + RQ, worker process | Implemented — `/enrich` enqueues, `rq_worker` executes; Docker compose shares Postgres for cross-process polling |
+| Database | PostgreSQL + JSONB | Postgres in Docker compose (asyncpg, `JSON` type); SQLite default for local dev; `create_all`, no Alembic |
 | R2 photo cache | `aioboto3` → Cloudflare R2 | Local `.asset-cache/` fallback |
-| Multilogin + Playwright | CDP browser session | Client stub; mock photo bytes |
-| LiteLLM disambiguation | Routed LLM calls | Heuristic string match |
-| Langfuse tracing | Per disambiguation call | Not wired |
-| Sidecars | 5+ isolated services | Placeholder containers |
+| Multilogin + Playwright | CDP browser session | `BrowserProvider` (`BROWSER_MODE=local|multilogin`); Tier 1 gated by `ENABLE_TIER1` (default off), degrades if Playwright absent |
+| LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
+| Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
+| Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:` |
 | Opt-out auth | Unauthenticated POST | Bearer required (gap) |
-| Scrapoxy proxy pool | Rate-limit hardening | Not integrated |
+| Scrapoxy proxy pool | Rate-limit hardening | `ProxyProvider` (`PROXY_MODE=none|scrapoxy|paid`, default none = direct) |
+| Change signals | changedetection.io webhook | `POST /api/signals/changedetection` consumer (optional shared-secret header) |
 | Prometheus metrics | `/metrics` endpoint | Optional dependency |
 
 Use this table when reviewing PRs, running `GRILLME.md` sessions, or planning the next delivery slice.
@@ -594,6 +597,16 @@ python scripts/e2e_redis_test.py
 
 **Windows:** RQ's default `Worker` uses `os.fork` and `SIGALRM` (unavailable on Windows). `rq_worker.py` automatically uses `SimpleWorker` + a no-op death penalty locally; Linux/Docker production keeps the default fork-based worker.
 
+### Docker Compose E2E (shared Postgres)
+
+Proves the async path end-to-end when API + worker share one Postgres. Requires a Docker daemon (on Windows, Docker Engine inside WSL2 works headlessly).
+
+```bash
+bash backend/scripts/e2e_compose_test.sh
+```
+
+The script brings up `api`, `worker`, `redis`, `postgres`, then asserts: `/health` 200 → `POST /enrich` 202 `queued` → poll `completed` → opt-out blocks enrichment (suppression row in Postgres) → **worker restart** leaves the old job `completed` (data survives in the `postgres_data` volume). Verified 2026-07-08: all checks pass; `jobs` ends with one `completed` + one `suppressed` row, `suppression_list` with one row.
+
 ### Rate limits to respect (production)
 
 - **LinkedIn:** ~20–25 profile views/day per Multilogin profile
@@ -617,11 +630,11 @@ python scripts/e2e_redis_test.py
 
 Track these as architecture decisions mature:
 
-1. ~~Wire Redis/RQ so `/enrich` is truly async~~ (done) — remaining: make `/enrich/sync` exclude Tier 1 browser work, and promote to Postgres (#4) so API + worker share job state
-2. Replace enricher mocks with subprocess/library integrations per upstream repo
+1. ~~Wire Redis/RQ so `/enrich` is truly async~~ (done) — remaining: make `/enrich/sync` exclude Tier 1 browser work (Tier 1 now gated by `ENABLE_TIER1`, so it is off by default there)
+2. ~~Replace enricher mocks with subprocess/library integrations per upstream repo~~ (done) — remaining: tune upstream CLI/API contracts (gitrecon JSON schema, social-analyzer/GMaps sidecar endpoints) against live deployments
 3. Remove Bearer auth from `POST /api/opt-out` for compliance accessibility
-4. Promote SQLite → PostgreSQL in default docker-compose wiring
-5. Connect LiteLLM + Langfuse in `llm_router.py`
-6. Swap nginx sidecar placeholders for real Reacher, social-analyzer, and GMaps images
+4. ~~Promote SQLite → PostgreSQL in default docker-compose wiring~~ (done) — remaining: Alembic migrations and `JSONB` columns when the schema stabilizes
+5. ~~Connect LiteLLM + Langfuse in `llm_router.py`~~ (done, opt-in) — remaining: real prompt tuning + cost dashboards once `LLM_MODE=litellm` is exercised
+6. ~~Swap nginx sidecar placeholders for real Reacher, social-analyzer, and GMaps images~~ (done) — remaining: verify each real image's health/endpoints in a staging compose run
 
 For tier-specific issues, use `[Tier N]` in issue titles (e.g. `[Tier 3] Reacher fallback fails on catch-all`).
