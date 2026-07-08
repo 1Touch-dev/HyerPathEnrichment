@@ -309,9 +309,12 @@ Each enricher returns a partial dict (`photo`, `handles`, `emails`, `verified_em
 
 Configured via `REDIS_URL`. Present in docker-compose. A shared async client exists in `app/storage/redis_client.py` (`get_redis` FastAPI dependency, opened/closed in the app lifespan, lazy connection).
 
-**Wired today:** suppression fast path. `add_suppression()` writes SQL first (durable record), then `SADD suppression:hashes`. `check_suppression()` tries `SISMEMBER` first; on a miss or Redis error it falls back to the authoritative SQL table and backfills Redis on a hit. Opt-out is never weakened by a Redis outage — no TTL on suppression hashes.
+**Wired today:**
 
-**Not yet wired:** queue (RQ) and rate limiting.
+- *Suppression fast path.* `add_suppression()` writes SQL first (durable record), then `SADD suppression:hashes`. `check_suppression()` tries `SISMEMBER` first; on a miss or Redis error it falls back to the authoritative SQL table and backfills Redis on a hit. Opt-out is never weakened by a Redis outage — no TTL on suppression hashes.
+- *Rate limiting.* Fixed-window counters (`ratelimit:{sync|async}:{token-hash}`) via `check_rate_limit()`. `POST /enrich` enforces `MAX_ASYNC_REQUESTS_PER_MINUTE`; `POST /enrich/sync` enforces `MAX_SYNC_REQUESTS_PER_MINUTE`. Dependencies live in `app/routes/rate_limit.py`. Over-limit returns `429`. **Fails open** on Redis error — protection, not correctness. Scope is per API token (SHA-256, first 16 hex chars); raw tokens are never logged.
+
+**Not yet wired:** queue (RQ).
 
 ---
 
@@ -463,7 +466,7 @@ Copy `backend/.env.example` → `backend/.env`.
 | `LITELLM_API_KEY`, `LITELLM_API_BASE` | LiteLLM proxy config |
 | `DISAMBIGUATION_THRESHOLD` | Default `0.7` |
 
-### Rate limits (configured, enforcement TBD)
+### Rate limits (enforced per API token via Redis fixed-window counters)
 
 | Variable | Default |
 |----------|---------|
@@ -533,7 +536,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | API routes + auth | FastAPI + Bearer | Implemented |
 | Orchestrator + tier dispatch | `runner.py` | Implemented |
 | Enricher modules (11) | Real tool integrations | Scaffold payloads / mocks |
-| Redis client | Queue + suppression + rate limits | Shared async client wired in lifespan; suppression fast path uses it; queue + rate limits pending |
+| Redis client | Queue + suppression + rate limits | Shared async client wired in lifespan; suppression fast path + rate limiting use it; queue pending |
 | Async job queue | Redis + RQ, worker process | Inline in API process |
 | Database | PostgreSQL + JSONB | SQLite default |
 | R2 photo cache | `aioboto3` → Cloudflare R2 | Local `.asset-cache/` fallback |
