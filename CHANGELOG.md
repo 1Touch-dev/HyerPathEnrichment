@@ -1,5 +1,26 @@
 # Changelog
 
+## [Enrichers] - 2026-07-08
+
+### Added
+
+- Phase 0 provider layer (`backend/app/providers/`): `ProxyProvider`, `BrowserProvider`, config-selected LLM disambiguation (`llm.py`), `EmailVerifier` chain, `SidecarClient`, and a shared `run_command` subprocess helper
+- Five free/paid mode flags in `config.py` + `.env.example` (`PROXY_MODE`, `BROWSER_MODE`, `LLM_MODE`, `EMAIL_VERIFY_LEVEL`, `ENABLE_TIER1`) plus per-tier optional settings
+- `POST /api/signals/changedetection` webhook consumer (optional shared-secret header)
+- `tests/test_enrichers.py` per-enricher unit tests (mocked subprocess/HTTP); `enrichers` optional-dependency group in `pyproject.toml`
+
+### Changed
+
+- All 11 enrichers now call real backends (subprocess/library/sidecar) selected by the provider layer and degrade to a valid empty fragment when a tool/sidecar/key is missing; the `Enricher.run` template wraps a new `_fetch` seam
+- Tier 1 LinkedIn photo gated behind `ENABLE_TIER1` and routed through `BrowserProvider`
+- `docker-compose.yml`: real sidecar images; free-mode ones default-on, paid/heavy ones behind `profiles:`
+- `llm_router.LiteLLMDisambiguator` is mode-aware (same `compare()` signature) with a Langfuse trace no-op hook
+
+### Notes
+
+- No orchestrator, `Enricher` protocol, or `Dossier` shape changes: free -> paid is an env flip only
+- Upstream CLI/sidecar contracts (gitrecon JSON, social-analyzer/GMaps endpoints) are best-effort and need tuning against live deployments
+
 ## [AZI-11] - 2026-07-07
 
 ### Added

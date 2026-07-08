@@ -25,13 +25,13 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Assumption | Reality today |
 |------------|---------------|
 | `POST /enrich` runs inline | Enqueues to **Redis + RQ**; the worker process runs the orchestrator. `/enrich/sync` still runs inline. In Docker, API + worker share Postgres so polling works cross-process |
-| Enrichers call real tools | Most return **scaffold/mock payloads** |
+| Enrichers call real tools | They do (subprocess/library/sidecar) behind the `app/providers/` layer, but **degrade to empty fragments** when a tool/sidecar/key is missing. Defaults are fully free/self-hosted; free -> paid is an env flip |
 | Database is Postgres everywhere | Local dev default is **SQLite** (`sqlite+aiosqlite:///./hyrepath.db`); **Docker compose uses Postgres** (`postgresql+asyncpg://...@postgres:5432/hyrepath`) shared by API + worker |
 | R2 uploads go to Cloudflare | Writes to **local** `backend/.asset-cache/` |
-| LiteLLM disambiguation is live | **Heuristic stub** in `llm_router.py` |
+| LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in |
 | Opt-out is unauthenticated | **Bearer token required** (compliance gap vs target) |
 | Suppression lives in Redis only | **SQL table** `suppression_list` is the durable record; Redis set `suppression:hashes` is a fast-path cache (dual-write, SQL fallback) |
-| Sidecars are real services | Docker compose uses **nginx placeholders** |
+| Sidecars are real services | Compose uses **real images**; free-mode ones default-on, paid/heavy ones behind `profiles:` |
 
 ### Task routing — where to start
 
@@ -255,7 +255,7 @@ Results are merged, deduplicated, and scored. Handles below **0.7** go to the LL
 - Traced in **Langfuse** for cost and quality review
 - Only kept if LLM confidence **≥ 0.7**
 
-**Current:** heuristic string-match stub with a placeholder reason. **Target:** real LiteLLM + Langfuse integration per `docs/architecture-plan-azi-10-hyre-enrichment.md`.
+**Current:** backend is config-selected via `LLM_MODE` (`app/providers/llm.py`): `stub` (default, heuristic string match, no network), `ollama` (local model), or `litellm` (proxy + fallback chain). `LiteLLMDisambiguator.compare()` signature is unchanged so the orchestrator and confidence scoring are untouched. Langfuse tracing runs via `providers.llm.trace()` and is a no-op until `LANGFUSE_*` is set.
 
 ---
 
@@ -497,9 +497,9 @@ Copy `backend/.env.example` → `backend/.env`.
 | `google-maps-scraper` | Local business sidecar (Tier 4) |
 | `litellm` | LLM proxy |
 | `langfuse` | LLM observability |
-| `changedetection` | Company change signals (future webhooks) |
+| `changedetection` | Company change signals via `POST /api/signals/changedetection` |
 
-**Current:** sidecar images are placeholders (`nginx:alpine`). Enrichers return scaffold payloads until real integrations land.
+**Current:** compose uses real images. Free-mode sidecars (`social-analyzer`, `google-maps-scraper`) start by default; paid/heavy services (`reacher`, `litellm`, `ollama`, `scrapoxy`, `langfuse`, `changedetection`) sit behind compose `profiles:` so a plain `docker compose up` stays free. Enrichers call real tools (subprocess/library/sidecar) selected by the Phase 0 provider layer (`app/providers/`), and **degrade to a valid empty fragment** when a tool, sidecar, or key is missing — never a crash. Free -> paid is an env flip via the mode flags in `config.py` (`PROXY_MODE`, `BROWSER_MODE`, `LLM_MODE`, `EMAIL_VERIFY_LEVEL`, `ENABLE_TIER1`).
 
 ### AGPL isolation
 
@@ -540,17 +540,19 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 |------|---------------------|------------------|
 | API routes + auth | FastAPI + Bearer | Implemented |
 | Orchestrator + tier dispatch | `runner.py` | Implemented |
-| Enricher modules (11) | Real tool integrations | Scaffold payloads / mocks |
+| Enricher modules (11) | Real tool integrations | Real subprocess/library/sidecar calls behind `app/providers/`; degrade to empty fragments when a backend is absent |
+| Provider layer (Phase 0) | Config-selected free/paid backends | `app/providers/` (proxy, browser, llm, email_verify, sidecar, process); 5 mode flags in `config.py` |
 | Redis client | Queue + suppression + rate limits | Shared async client wired in lifespan; suppression, rate limiting, and queue all use it |
 | Async job queue | Redis + RQ, worker process | Implemented — `/enrich` enqueues, `rq_worker` executes; Docker compose shares Postgres for cross-process polling |
 | Database | PostgreSQL + JSONB | Postgres in Docker compose (asyncpg, `JSON` type); SQLite default for local dev; `create_all`, no Alembic |
 | R2 photo cache | `aioboto3` → Cloudflare R2 | Local `.asset-cache/` fallback |
-| Multilogin + Playwright | CDP browser session | Client stub; mock photo bytes |
-| LiteLLM disambiguation | Routed LLM calls | Heuristic string match |
-| Langfuse tracing | Per disambiguation call | Not wired |
-| Sidecars | 5+ isolated services | Placeholder containers |
+| Multilogin + Playwright | CDP browser session | `BrowserProvider` (`BROWSER_MODE=local|multilogin`); Tier 1 gated by `ENABLE_TIER1` (default off), degrades if Playwright absent |
+| LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
+| Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
+| Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:` |
 | Opt-out auth | Unauthenticated POST | Bearer required (gap) |
-| Scrapoxy proxy pool | Rate-limit hardening | Not integrated |
+| Scrapoxy proxy pool | Rate-limit hardening | `ProxyProvider` (`PROXY_MODE=none|scrapoxy|paid`, default none = direct) |
+| Change signals | changedetection.io webhook | `POST /api/signals/changedetection` consumer (optional shared-secret header) |
 | Prometheus metrics | `/metrics` endpoint | Optional dependency |
 
 Use this table when reviewing PRs, running `GRILLME.md` sessions, or planning the next delivery slice.
@@ -628,11 +630,11 @@ The script brings up `api`, `worker`, `redis`, `postgres`, then asserts: `/healt
 
 Track these as architecture decisions mature:
 
-1. ~~Wire Redis/RQ so `/enrich` is truly async~~ (done) — remaining: make `/enrich/sync` exclude Tier 1 browser work
-2. Replace enricher mocks with subprocess/library integrations per upstream repo
+1. ~~Wire Redis/RQ so `/enrich` is truly async~~ (done) — remaining: make `/enrich/sync` exclude Tier 1 browser work (Tier 1 now gated by `ENABLE_TIER1`, so it is off by default there)
+2. ~~Replace enricher mocks with subprocess/library integrations per upstream repo~~ (done) — remaining: tune upstream CLI/API contracts (gitrecon JSON schema, social-analyzer/GMaps sidecar endpoints) against live deployments
 3. Remove Bearer auth from `POST /api/opt-out` for compliance accessibility
 4. ~~Promote SQLite → PostgreSQL in default docker-compose wiring~~ (done) — remaining: Alembic migrations and `JSONB` columns when the schema stabilizes
-5. Connect LiteLLM + Langfuse in `llm_router.py`
-6. Swap nginx sidecar placeholders for real Reacher, social-analyzer, and GMaps images
+5. ~~Connect LiteLLM + Langfuse in `llm_router.py`~~ (done, opt-in) — remaining: real prompt tuning + cost dashboards once `LLM_MODE=litellm` is exercised
+6. ~~Swap nginx sidecar placeholders for real Reacher, social-analyzer, and GMaps images~~ (done) — remaining: verify each real image's health/endpoints in a staging compose run
 
 For tier-specific issues, use `[Tier N]` in issue titles (e.g. `[Tier 3] Reacher fallback fails on catch-all`).

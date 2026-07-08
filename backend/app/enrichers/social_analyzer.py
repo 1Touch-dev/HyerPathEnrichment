@@ -1,5 +1,24 @@
+from __future__ import annotations
+
+import uuid
+from typing import Any
+
+from app.config import get_settings
 from app.enrichers.base import Enricher
 from app.models import EnrichmentRequest
+from app.providers import SidecarClient
+
+
+def _parse_rate(raw: Any, default: float = 0.8) -> float:
+    if raw is None or raw == "":
+        return default
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    text = str(raw).strip().lstrip("%")
+    try:
+        return float(text)
+    except ValueError:
+        return default
 
 
 class SocialAnalyzerEnricher(Enricher):
@@ -8,17 +27,46 @@ class SocialAnalyzerEnricher(Enricher):
     async def validate(self, request: EnrichmentRequest) -> bool:
         return bool(request.username)
 
-    async def run(self, request: EnrichmentRequest) -> dict[str, object]:
-        username = request.username or "candidate"
-        return {
-            "handles": [
+    async def _fetch(self, request: EnrichmentRequest) -> dict[str, Any]:
+        settings = get_settings()
+        client = SidecarClient(settings.social_analyzer_url, timeout=180.0)
+        data = await client.post_json(
+            "/analyze_string",
+            json={
+                "string": request.username,
+                "uuid": uuid.uuid4().hex,
+                "option": ["FindUserProfilesFast"],
+                "output": "json",
+                "filter": ["all"],
+                "profiles": ["detected"],
+            },
+        )
+        if not isinstance(data, dict) or data == "Error":
+            return {}
+
+        candidates = data.get("user_info_normal", {}).get("data", [])
+        if not isinstance(candidates, list):
+            candidates = data.get("detected") or data.get("results") or []
+
+        handles: list[dict[str, Any]] = []
+        for item in candidates:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("good", "true")).lower() not in {"true", "1"}:
+                continue
+            url = item.get("link") or item.get("url")
+            platform = item.get("type") or item.get("app") or item.get("platform")
+            if not url or not platform:
+                continue
+            rate = _parse_rate(item.get("rate", 0.8) or 0.8)
+            confidence = rate / 100 if rate > 1 else rate
+            handles.append(
                 {
-                    "platform": "LinkedIn",
-                    "username": username,
-                    "profile_url": f"https://linkedin.com/in/{username}",
-                    "confidence": 0.88,
+                    "platform": str(platform),
+                    "username": str(request.username),
+                    "profile_url": str(url),
+                    "confidence": confidence,
                     "metadata": {"provider": self.source_name, "matched": True},
                 }
-            ],
-            "sources": [self.source_name],
-        }
+            )
+        return {"handles": handles} if handles else {}

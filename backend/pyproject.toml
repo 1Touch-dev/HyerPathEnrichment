@@ -25,6 +25,13 @@ dev = [
   "mypy>=1.10,<2.0",
   "ruff>=0.5,<1.0"
 ]
+# Real enricher backends (Phase 1/2/3). All are lazily imported / shelled out
+# so the app degrades gracefully when a tool is absent; install for production.
+enrichers = [
+  "dnspython>=2.6,<3.0",
+  "playwright>=1.44,<2.0",
+  "python-jobspy>=1.1,<2.0"
+]
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
