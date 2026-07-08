@@ -2,13 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Dossier, EnrichmentJobResponse, EnrichmentRequest, JobStatus
+from app.routes.rate_limit import enforce_async_rate_limit, enforce_sync_rate_limit
 from app.services import get_orchestrator
 from app.storage.db import get_db_session
 
 router = APIRouter(tags=["enrichment"])
 
 
-@router.post("/enrich", response_model=EnrichmentJobResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/enrich",
+    response_model=EnrichmentJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(enforce_async_rate_limit)],
+)
 async def create_enrichment_job(
     request: EnrichmentRequest,
     db: AsyncSession = Depends(get_db_session),
@@ -38,7 +44,11 @@ async def get_enrichment_job(
     )
 
 
-@router.post("/enrich/sync", response_model=EnrichmentJobResponse)
+@router.post(
+    "/enrich/sync",
+    response_model=EnrichmentJobResponse,
+    dependencies=[Depends(enforce_sync_rate_limit)],
+)
 async def create_sync_enrichment(
     request: EnrichmentRequest,
     db: AsyncSession = Depends(get_db_session),
