@@ -1,0 +1,22 @@
+{
+  "ID": "465ded79-b858-4ada-abeb-c5b8f4944e6c",
+  "Name": "e2e-probe",
+  "Date": "2026-07-08T10:29:37Z",
+  "Status": "working",
+  "Data": {
+    "keywords": [
+      "coffee shop San Francisco"
+    ],
+    "lang": "en",
+    "zoom": 0,
+    "lat": "",
+    "lon": "",
+    "fast_mode": false,
+    "radius": 0,
+    "depth": 1,
+    "email": false,
+    "extra_reviews": false,
+    "max_time": 180000000000,
+    "proxies": null
+  }
+}

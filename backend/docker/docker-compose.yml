@@ -8,6 +8,10 @@ services:
       API_TOKEN: change-me
       DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
+      # Free-mode sidecars (default-on). Enrichers degrade to empty fragments
+      # if these are unreachable, so this stays safe if a sidecar is skipped.
+      SOCIAL_ANALYZER_URL: http://social-analyzer:9005
+      GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
     depends_on:
       postgres:
         condition: service_healthy
@@ -23,6 +27,8 @@ services:
       API_TOKEN: change-me
       DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
+      SOCIAL_ANALYZER_URL: http://social-analyzer:9005
+      GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,17 +50,75 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  # ── Free-mode sidecars (default-on) ─────────────────────────────
+  # AGPL tools stay isolated behind HTTP; never imported into app/.
   social-analyzer:
-    image: nginx:alpine
-  reacher:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.social-analyzer
+    ports:
+      - "9005:9005"
+    restart: unless-stopped
   google-maps-scraper:
-    image: nginx:alpine
-  langfuse:
-    image: nginx:alpine
+    image: gosom/google-maps-scraper:latest
+    command: ["-web", "-addr", "0.0.0.0:8080", "-data-folder", "/gmapsdata"]
+    ports:
+      - "8080:8080"
+    volumes:
+      - gmaps_playwright_cache:/opt
+      - gmaps_data:/gmapsdata
+    restart: unless-stopped
+
+  # ── Paid / heavy services (opt-in via `--profile`) ──────────────
+  # Free-mode `docker compose up` never launches these. Flip the matching
+  # provider mode flag AND start the profile when you pay.
+  reacher:
+    image: reacherhq/backend:latest
+    profiles: ["paid"]
+    environment:
+      RCH_HTTP_HOST: 0.0.0.0
+    restart: unless-stopped
   litellm:
-    image: nginx:alpine
+    image: ghcr.io/berriai/litellm:main-latest
+    profiles: ["llm", "paid"]
+    command: ["--port", "4000"]
+    restart: unless-stopped
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["llm"]
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+  scrapoxy:
+    image: scrapoxy/scrapoxy:latest
+    profiles: ["paid"]
+    restart: unless-stopped
+  # NOTE: langfuse (v3) needs its own datastore stack; kept behind a profile so
+  # a plain `docker compose up` stays light. LLMProvider.trace() is a no-op
+  # until LANGFUSE_* is set, so free mode runs without it.
+  langfuse:
+    image: langfuse/langfuse:2
+    profiles: ["observability"]
+    environment:
+      DATABASE_URL: postgresql://hyrepath:hyrepath@postgres:5432/hyrepath
+      NEXTAUTH_SECRET: change-me
+      SALT: change-me
+      NEXTAUTH_URL: http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
   changedetection:
-    image: nginx:alpine
+    image: ghcr.io/dgtlmoon/changedetection.io:latest
+    profiles: ["observability"]
+    volumes:
+      - changedetection_data:/datastore
+    restart: unless-stopped
 volumes:
   postgres_data:
+  ollama_data:
+  changedetection_data:
+  gmaps_playwright_cache:
+  gmaps_data:

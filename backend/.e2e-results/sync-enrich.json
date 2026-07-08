@@ -1,0 +1,61 @@
+{
+  "id": "job_b5658cbc51bb4e72af6b89413c8c42ec",
+  "status": "completed",
+  "dossier": {
+    "photo": null,
+    "handles": [],
+    "emails": [
+      "octocat@github.com"
+    ],
+    "verified_emails": [
+      {
+        "value": "octocat@github.com",
+        "status": "unknown",
+        "confidence": 0.3,
+        "source": "syntax"
+      }
+    ],
+    "github": {},
+    "coworkers": [],
+    "jobs": [],
+    "business": null,
+    "confidence": [
+      {
+        "label": "identity-match",
+        "score": 0.44,
+        "evidence": [
+          "cross-source handles: 0",
+          "llm confirmation: False (heuristic string match)"
+        ]
+      },
+      {
+        "label": "email-verification",
+        "score": 0.89,
+        "evidence": [
+          "verified emails: 1"
+        ]
+      },
+      {
+        "label": "coverage",
+        "score": 0.4,
+        "evidence": [
+          "sources: Email Sleuth, Email Verify"
+        ]
+      }
+    ],
+    "sources": [
+      "Email Sleuth",
+      "Email Verify"
+    ],
+    "metadata": {
+      "generated_at": "2026-07-08T10:35:29.873443+00:00",
+      "pipeline_id": "pipe_78417905a67040a784b4041b5d4c19e5",
+      "requested_tiers": [
+        "tier2",
+        "tier3",
+        "tier4"
+      ],
+      "identifier_summary": "octocat \u2022 github \u2022 Starbucks San Francisco \u2022 software engineer"
+    }
+  }
+}
