@@ -6,7 +6,12 @@ services:
       dockerfile: backend/docker/Dockerfile.api
     environment:
       API_TOKEN: change-me
+      # NOTE: async /enrich needs a DB shared with the worker to poll results.
+      # SQLite is per-container; switch both to Postgres (open question #4).
       DATABASE_URL: sqlite+aiosqlite:///./hyrepath.db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
     ports:
       - "8000:8000"
   worker:
@@ -16,8 +21,12 @@ services:
     environment:
       API_TOKEN: change-me
       DATABASE_URL: sqlite+aiosqlite:///./hyrepath.db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
   postgres:
     image: postgres:16-alpine
     environment:

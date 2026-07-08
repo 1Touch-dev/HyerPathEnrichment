@@ -2,7 +2,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models import EnrichmentRequest
+from app.routes import enrich as enrich_route
 from app.routes import rate_limit
+from app.services import get_orchestrator
+from app.storage.db import SessionLocal, init_db
 from app.workers import runner
 
 
@@ -103,3 +107,35 @@ def test_sync_rate_limit_returns_429(monkeypatch: pytest.MonkeyPatch) -> None:
     third = client.post("/enrich/sync", headers=headers, json=body)
     assert third.status_code == 429
     assert third.json()["detail"] == "rate limit exceeded"
+
+
+def test_async_enrich_enqueues_queued_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    enqueued: list[str] = []
+    monkeypatch.setattr(enrich_route, "enqueue_enrichment", lambda job_id: enqueued.append(job_id))
+
+    client = TestClient(app)
+    response = client.post(
+        "/enrich",
+        headers={"Authorization": "Bearer change-me"},
+        json={"username": "async-user", "requested_tiers": ["tier2"]},
+    )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "queued"
+    assert payload["dossier"]["handles"] == []
+    assert enqueued == [payload["id"]]
+
+
+async def test_execute_job_runs_pipeline() -> None:
+    await init_db()
+    async with SessionLocal() as session:
+        orchestrator = get_orchestrator(session)
+        request = EnrichmentRequest(username="worker-user", requested_tiers=["tier2"])
+        job = await orchestrator.create_queued_job(request)
+        assert job.status == "queued"
+
+        result = await orchestrator.execute_job(job.id)
+        assert result is not None
+        assert result.status == "completed"
+        assert result.dossier_payload["handles"]
