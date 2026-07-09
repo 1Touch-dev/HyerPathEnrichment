@@ -42,7 +42,7 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | API route / auth | API endpoints section | `routes/enrich.py`, `routes/opt_out.py`, `main.py` |
 | Async job queue | Implementation status | `routes/enrich.py`, `workers/runner.py`, `docker/docker-compose.yml` |
 | Opt-out / suppression | Legal section + `_is_suppressed()` | `workers/runner.py`, `routes/opt_out.py`, `models.py` `SuppressionRecord` |
-| Photo / Tier 1 | Tier 1 section | `enrichers/linkedin_photo.py`, `providers/multilogin.py`, `providers/profile_pool.py`, `storage/r2.py` |
+| Photo / Tier 1 | Tier 1 section | `enrichers/linkedin_photo.py`, `providers/multilogin.py`, `providers/profile_pool.py`, `providers/linkedin_browser.py`, `storage/photo_cache.py`, `storage/r2.py` |
 | Env / config | Environment variables section | `config.py`, `.env.example` |
 | Tests | Testing strategy | `tests/test_pipeline_shape.py` |
 | Frontend integration | Frontend contract below | `frontend/src/lib/api-adapter.ts`, `frontend/src/lib/types.ts` |
@@ -553,6 +553,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Async job queue | Redis + RQ, worker process | Implemented — `/enrich` enqueues, `rq_worker` executes; Docker compose shares Postgres for cross-process polling |
 | Database | PostgreSQL + JSONB | Postgres in Docker compose (asyncpg, `JSON` type); SQLite default for local dev; `create_all`, no Alembic |
 | R2 photo cache | `aioboto3` → Cloudflare R2 | `storage/r2.py` — R2 PutObject + HeadObject when `R2_*` creds set; local `backend/.asset-cache/` fallback (CWD-safe path) |
+| LinkedIn photo cache | Redis + Postgres by slug hash | `storage/photo_cache.py` + `PhotoCacheRecord`; slug-keyed TTL via `LINKEDIN_PHOTO_TTL_SECONDS`; wired in `linkedin_photo.py` before browser |
 | Multilogin + Selenium | MLX launcher + Selenium Remote | `providers/multilogin.py` + `providers/profile_pool.py` + `providers/linkedin_browser.py` (login, og:image/DOM extract, scrape); `scripts/probe_tier1.py --scrape`; enricher still Playwright until Phase 3.5 |
 | LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
 | Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
