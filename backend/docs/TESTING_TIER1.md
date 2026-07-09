@@ -23,6 +23,14 @@ cd backend
 python scripts/probe_tier1.py --prereqs
 ```
 
+Inside the worker container:
+
+```bash
+cd backend/docker
+docker compose exec worker python -c "import selenium; print('selenium OK')"
+docker compose exec worker chromium --version
+```
+
 | Check | Needs |
 |-------|--------|
 | `ENABLE_TIER1` | `true` on **worker** only (API stays `false`) |
@@ -30,7 +38,7 @@ python scripts/probe_tier1.py --prereqs
 | `MULTILOGIN_*` | Email, password (MD5 in code), folder id, launcher URL |
 | `LINKEDIN_BOT_*` | Dummy LinkedIn account for Selenium login |
 | `MULTILOGIN_SELENIUM_HOST` | `http://host.docker.internal` from Docker worker |
-| `selenium` | `pip install ".[enrichers]"` or worker image with deps |
+| `selenium` + Chromium | Installed in `Dockerfile.worker` via `.[enrichers]` |
 | R2 (optional) | `R2_*` creds; unset writes to `backend/.asset-cache/` |
 
 ---
@@ -45,25 +53,40 @@ python scripts/probe_tier1.py --connect-test
 python scripts/probe_tier1.py --scrape --linkedin-url https://www.linkedin.com/in/<slug>
 ```
 
+From the worker container (host MLX must be reachable):
+
+```bash
+cd backend/docker
+docker compose -f docker-compose.yml -f docker-compose.tier1.yml exec worker \
+  python scripts/probe_tier1.py --prereqs
+```
+
 ---
 
 ## Layer 3 — Docker worker (async path)
 
-Start the stack (Tier 1 off by default):
+Build and start the stack (Tier 1 off by default):
 
 ```bash
 cd backend/docker
 docker compose up --build -d api worker redis postgres
 ```
 
-Enable Tier 1 on the worker via env (do **not** set on `api`):
+Enable Tier 1 on the worker (recommended override file):
 
 ```bash
 cd backend/docker
+docker compose -f docker-compose.yml -f docker-compose.tier1.yml up -d --build worker
+```
+
+Or one-off env:
+
+```bash
 ENABLE_TIER1=true BROWSER_MODE=multilogin docker compose up -d worker
 ```
 
 Worker reaches Multilogin on the host via `host.docker.internal` (`extra_hosts` in compose).
+Failure screenshots land in the `tier1_artifacts` volume (`artifacts/tier1/` in the container).
 
 Enqueue a job:
 
@@ -77,9 +100,9 @@ curl -s -X POST http://localhost:8000/enrich \
   }'
 ```
 
-Poll until `status` is `completed`; expect `dossier.photo.asset_url`.
+Poll `GET /enrich/{job_id}` until `status` is `completed`; expect `dossier.photo.asset_url`.
 
-Repeat the same `linkedin_url` with query variants — second job should hit **slug cache** (no new MLX profile start in logs).
+Repeat the same `linkedin_url` with query variants — second job should hit **slug cache** (no new MLX profile start in worker logs).
 
 ---
 
@@ -98,6 +121,23 @@ curl -s -X POST http://localhost:8000/enrich/sync \
 ```
 
 Expect `dossier.photo` null/absent and no `linkedin-photo` in `dossier.sources`.
+
+---
+
+## Layer 5 — Prometheus metrics (optional)
+
+When `prometheus_client` is installed, `GET /metrics` exposes Tier 1 counters:
+
+| Metric | Meaning |
+|--------|---------|
+| `tier1_cache_hits_total` | Slug cache hits (skipped browser) |
+| `tier1_cache_misses_total` | Cache misses (browser scrape attempted) |
+| `tier1_scrape_total{outcome=...}` | Scrape results (`success`, `captcha`, etc.) |
+| `tier1_upload_total{result=...}` | R2/local upload success or error |
+
+```bash
+curl -s http://localhost:8000/metrics | grep tier1_
+```
 
 ---
 

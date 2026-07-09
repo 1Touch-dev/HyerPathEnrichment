@@ -1,7 +1,24 @@
 FROM python:3.12-slim
+
 WORKDIR /app
+
+# Chromium for optional local Selenium dev; production Tier 1 attaches to
+# Multilogin on the host via webdriver.Remote (host.docker.internal).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        chromium \
+        chromium-driver \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CHROME_BIN=/usr/bin/chromium \
+    CHROMEDRIVER_PATH=/usr/bin/chromedriver
+
 COPY pyproject.toml /app/pyproject.toml
-RUN pip install --no-cache-dir .
+COPY app /app/backend/app
+RUN pip install --no-cache-dir ".[enrichers]"
+
 COPY . /app/backend
 ENV PYTHONPATH=/app/backend
+
 CMD ["python", "-m", "app.workers.rq_worker"]

@@ -12,6 +12,7 @@ services:
       # if these are unreachable, so this stays safe if a sidecar is skipped.
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
+      ENABLE_TIER1: "false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,6 +41,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    volumes:
+      - tier1_artifacts:/app/backend/artifacts/tier1
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
@@ -124,6 +127,7 @@ services:
     restart: unless-stopped
 volumes:
   postgres_data:
+  tier1_artifacts:
   ollama_data:
   changedetection_data:
   gmaps_playwright_cache:
