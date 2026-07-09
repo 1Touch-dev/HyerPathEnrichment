@@ -1,0 +1,96 @@
+{
+  "generated_at": "2026-07-08T13:58:13Z",
+  "prerequisites": [
+    {
+      "name": "Sherlock",
+      "tier": "2",
+      "present": false,
+      "detail": "`sherlock` not on PATH"
+    },
+    {
+      "name": "Maigret",
+      "tier": "2",
+      "present": false,
+      "detail": "`maigret` not on PATH"
+    },
+    {
+      "name": "TheHarvester",
+      "tier": "3",
+      "present": false,
+      "detail": "`theHarvester` not on PATH"
+    },
+    {
+      "name": "CrossLinked",
+      "tier": "3",
+      "present": false,
+      "detail": "`crosslinked` not on PATH"
+    },
+    {
+      "name": "Email Discover",
+      "tier": "3",
+      "present": false,
+      "detail": "`email-sleuth` not on PATH"
+    },
+    {
+      "name": "GitRecon",
+      "tier": "3",
+      "present": false,
+      "detail": "GITRECON_SCRIPT unset"
+    },
+    {
+      "name": "JobSpy",
+      "tier": "4",
+      "present": true,
+      "detail": "import jobspy OK"
+    },
+    {
+      "name": "Email Verify (MX)",
+      "tier": "3",
+      "present": true,
+      "detail": "dnspython installed"
+    },
+    {
+      "name": "Social Analyzer",
+      "tier": "2",
+      "present": false,
+      "detail": "SOCIAL_ANALYZER_URL unset"
+    },
+    {
+      "name": "Local Business",
+      "tier": "4",
+      "present": false,
+      "detail": "GMAPS_SCRAPER_URL unset"
+    },
+    {
+      "name": "Email Verify (SMTP)",
+      "tier": "3",
+      "present": false,
+      "detail": "REACHER_URL unset"
+    }
+  ],
+  "probes": [
+    {
+      "name": "Sherlock",
+      "tier": "2",
+      "status": "EMPTY",
+      "keys": [],
+      "sources": [],
+      "fragment": {},
+      "note": "install sherlock CLI on PATH"
+    },
+    {
+      "name": "Maigret",
+      "tier": "2",
+      "status": "EMPTY",
+      "keys": [],
+      "sources": [],
+      "fragment": {},
+      "note": "install maigret CLI on PATH"
+    }
+  ],
+  "summary": {
+    "ok": 0,
+    "empty": 2,
+    "skip": 0
+  }
+}

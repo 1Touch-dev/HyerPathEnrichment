@@ -721,6 +721,7 @@ HyerEnrichment/
 │   │   ├── smoke_test.py              # Quick health check
 │   │   ├── e2e_compose_test.sh        # Docker Compose E2E test
 │   │   ├── e2e_realworld_strict.py    # Real-world enrichment E2E
+│   │   ├── probe_enrichers.py         # Tier 2–4 isolation probe
 │   │   └── probe_*.sh                 # Sidecar health probes
 │   │
 │   ├── tests/
@@ -869,6 +870,19 @@ pytest tests
 | `test_pipeline_shape.py` | Every enricher returns valid dossier fragment keys |
 | `test_enrichers.py` | Enricher-specific unit tests |
 | `test_db.py` | Database session and schema |
+
+### Tier 2–4 enricher debugging
+
+See [`backend/docs/TESTING_TIER234.md`](backend/docs/TESTING_TIER234.md) for the layered checklist (prerequisites → sidecars → isolation → API).
+
+```bash
+cd backend
+python scripts/probe_enrichers.py              # run each enricher in isolation
+python scripts/probe_enrichers.py --prereqs    # audit CLIs and env vars only
+python scripts/e2e_realworld_strict.py         # strict pass/fail against live sidecars
+```
+
+Check `dossier.sources` in API responses — missing source names mean that enricher returned empty (silent failure).
 
 ### Docker Compose E2E
 
