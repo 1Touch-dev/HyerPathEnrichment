@@ -1,0 +1,15 @@
+# Optional override: enable Tier 1 on the worker (Multilogin + Selenium).
+#
+# Usage:
+#   cd backend/docker
+#   docker compose -f docker-compose.yml -f docker-compose.tier1.yml up -d worker
+#
+# Set MULTILOGIN_* and LINKEDIN_BOT_* in backend/.env or export before `up`.
+# Multilogin launcher must run on the Docker host (not inside a container).
+
+services:
+  worker:
+    environment:
+      ENABLE_TIER1: "true"
+      BROWSER_MODE: multilogin
+      MULTILOGIN_SELENIUM_HOST: http://host.docker.internal

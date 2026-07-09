@@ -7,9 +7,15 @@ from typing import Any
 from app.config import get_settings
 from app.enrichers.base import Enricher
 from app.models import EnrichmentRequest, PhotoAsset
+from app.observability.tier1_metrics import (
+    tier1_cache_hits_total,
+    tier1_cache_misses_total,
+    tier1_scrape_total,
+    tier1_upload_total,
+)
 from app.providers.linkedin_browser import LinkedInBrowserClient, extract_linkedin_slug
 from app.storage.photo_cache import PhotoCache
-from app.storage.r2 import R2StorageClient, object_key_with_extension
+from app.storage.r2 import R2StorageClient, R2StorageError, object_key_with_extension
 
 
 class LinkedInPhotoEnricher(Enricher):
@@ -33,19 +39,27 @@ class LinkedInPhotoEnricher(Enricher):
 
         cached = await self.photo_cache.get(slug)
         if cached:
+            tier1_cache_hits_total.inc()
             return {"photo": cached.model_dump(mode="json")}
 
+        tier1_cache_misses_total.inc()
         result = await self.browser.scrape_photo(linkedin_url)
+        tier1_scrape_total.labels(outcome=result.outcome.value).inc()
         if not result.image_bytes:
             return {}
 
         content_type = result.content_type or "image/jpeg"
         asset_key_base = f"linkedin/{slug}"
-        asset_url = await self.storage.upload_bytes(
-            asset_key_base,
-            result.image_bytes,
-            content_type=content_type,
-        )
+        try:
+            asset_url = await self.storage.upload_bytes(
+                asset_key_base,
+                result.image_bytes,
+                content_type=content_type,
+            )
+            tier1_upload_total.labels(result="success").inc()
+        except R2StorageError:
+            tier1_upload_total.labels(result="error").inc()
+            return {}
         object_key = object_key_with_extension(asset_key_base, content_type)
         photo = PhotoAsset(
             source=self.source_name,
