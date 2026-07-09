@@ -26,7 +26,7 @@ from app.enrichers import (
 )
 from app.enrichers.base import Enricher
 from app.llm_router import LiteLLMDisambiguator
-from app.models import ConfidenceBreakdown, Dossier, EnrichmentRequest, JobRecord, JobListing, JobStatus, PhotoAsset, SocialHandle, SuppressionRecord, VerifiedEmail, BusinessProfile
+from app.models import ConfidenceBreakdown, Dossier, EnrichmentRequest, JobRecord, JobListing, JobStatus, PhotoAsset, RequestedTier, SocialHandle, SuppressionRecord, VerifiedEmail, BusinessProfile
 from app.storage.redis_client import get_redis_client
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ class PipelineOrchestrator:
         """Synchronous path: create a job and run the pipeline inline."""
         job = await self._create_job(request, JobStatus.running)
         await self.db.flush()
-        return await self._execute(job, request)
+        return await self._execute(job, request, sync_mode=True)
 
     async def create_queued_job(self, request: EnrichmentRequest) -> JobRecord:
         """Async path: persist a queued job for a worker to pick up later."""
@@ -65,7 +65,7 @@ class PipelineOrchestrator:
         request = EnrichmentRequest.model_validate(job.request_payload)
         job.status = JobStatus.running.value
         try:
-            return await self._execute(job, request)
+            return await self._execute(job, request, sync_mode=False)
         except Exception:
             await self.db.rollback()
             failed = await self.db.get(JobRecord, job_id)
@@ -85,7 +85,13 @@ class PipelineOrchestrator:
         self.db.add(job)
         return job
 
-    async def _execute(self, job: JobRecord, request: EnrichmentRequest) -> JobRecord:
+    async def _execute(
+        self,
+        job: JobRecord,
+        request: EnrichmentRequest,
+        *,
+        sync_mode: bool = False,
+    ) -> JobRecord:
         if await self._is_suppressed(request):
             dossier = self._base_dossier(request)
             dossier.metadata["suppressed"] = True
@@ -96,7 +102,7 @@ class PipelineOrchestrator:
             await self.db.refresh(job)
             return job
 
-        payloads = await self._dispatch(request)
+        payloads = await self._dispatch(request, sync_mode=sync_mode)
         dossier = await self._merge(request, payloads)
         job.status = JobStatus.completed.value
         job.dossier_payload = dossier.model_dump(mode="json")
@@ -143,29 +149,50 @@ class PipelineOrchestrator:
                 return True
         return False
 
-    async def _dispatch(self, request: EnrichmentRequest) -> list[dict[str, Any]]:
-        enrichers: list[Enricher] = []
-        if "tier1" in request.requested_tiers:
-            enrichers.extend(self.tier1)
-        if "tier2" in request.requested_tiers:
-            enrichers.extend(self.tier2)
-        if "tier3" in request.requested_tiers:
-            enrichers.extend(self.tier3)
-        if "tier4" in request.requested_tiers:
-            enrichers.extend(self.tier4)
+    async def _dispatch(
+        self,
+        request: EnrichmentRequest,
+        *,
+        sync_mode: bool = False,
+    ) -> list[dict[str, Any]]:
+        tiers = list(request.requested_tiers)
+        if sync_mode:
+            tiers = [tier for tier in tiers if tier != RequestedTier.tier1]
 
-        async def invoke(worker: Enricher) -> dict[str, Any]:
-            if not await worker.validate(request):
-                return {}
-            await worker.initialize()
-            try:
-                payload = await worker.run(request)
-                payload = await worker.normalize(payload)
-                return await worker.score(payload)
-            finally:
-                await worker.cleanup()
+        payloads: list[dict[str, Any]] = []
+        if RequestedTier.tier1 in tiers:
+            payloads.extend(await self._run_tier(self.tier1, request))
+        if RequestedTier.tier2 in tiers:
+            payloads.extend(await self._run_tier_parallel(self.tier2, request))
+        if RequestedTier.tier3 in tiers:
+            payloads.extend(await self._run_tier_parallel(self.tier3, request))
+        if RequestedTier.tier4 in tiers:
+            payloads.extend(await self._run_tier_parallel(self.tier4, request))
+        return payloads
 
-        return await asyncio.gather(*(invoke(enricher) for enricher in enrichers))
+    async def _run_tier(self, enrichers: list[Enricher], request: EnrichmentRequest) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        for enricher in enrichers:
+            results.append(await self._invoke_enricher(enricher, request))
+        return results
+
+    async def _run_tier_parallel(
+        self,
+        enrichers: list[Enricher],
+        request: EnrichmentRequest,
+    ) -> list[dict[str, Any]]:
+        return list(await asyncio.gather(*(self._invoke_enricher(enricher, request) for enricher in enrichers)))
+
+    async def _invoke_enricher(self, worker: Enricher, request: EnrichmentRequest) -> dict[str, Any]:
+        if not await worker.validate(request):
+            return {}
+        await worker.initialize()
+        try:
+            payload = await worker.run(request)
+            payload = await worker.normalize(payload)
+            return await worker.score(payload)
+        finally:
+            await worker.cleanup()
 
     async def _merge(self, request: EnrichmentRequest, payloads: list[dict[str, Any]]) -> Dossier:
         dossier = self._base_dossier(request)

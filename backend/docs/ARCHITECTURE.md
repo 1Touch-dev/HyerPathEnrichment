@@ -553,8 +553,9 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Async job queue | Redis + RQ, worker process | Implemented — `/enrich` enqueues, `rq_worker` executes; Docker compose shares Postgres for cross-process polling |
 | Database | PostgreSQL + JSONB | Postgres in Docker compose (asyncpg, `JSON` type); SQLite default for local dev; `create_all`, no Alembic |
 | R2 photo cache | `aioboto3` → Cloudflare R2 | `storage/r2.py` — R2 PutObject + HeadObject when `R2_*` creds set; local `backend/.asset-cache/` fallback (CWD-safe path) |
-| LinkedIn photo cache | Redis + Postgres by slug hash | `storage/photo_cache.py` + `PhotoCacheRecord`; slug-keyed TTL via `LINKEDIN_PHOTO_TTL_SECONDS`; wired in `linkedin_photo.py` before browser |
-| Multilogin + Selenium | MLX launcher + Selenium Remote | `providers/multilogin.py` + `providers/profile_pool.py` + `providers/linkedin_browser.py` (login, og:image/DOM extract, scrape); `scripts/probe_tier1.py --scrape`; enricher still Playwright until Phase 3.5 |
+| LinkedIn photo cache | Redis + Postgres by slug hash | `storage/photo_cache.py` + `PhotoCacheRecord`; slug-keyed TTL; cache-before-browser in `linkedin_photo.py` |
+| Multilogin + Selenium | MLX launcher + Selenium Remote | `providers/multilogin.py`, `profile_pool.py`, `linkedin_browser.py`; worker-only `ENABLE_TIER1`; `/enrich/sync` skips tier1 |
+| Tier 1 pipeline dispatch | Tier 1 serial, tiers 2–4 parallel | `runner.py` `_dispatch(sync_mode=...)`; see `docs/TESTING_TIER1.md` |
 | LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
 | Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
 | Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:` |
@@ -638,7 +639,7 @@ The script brings up `api`, `worker`, `redis`, `postgres`, then asserts: `/healt
 
 Track these as architecture decisions mature:
 
-1. ~~Wire Redis/RQ so `/enrich` is truly async~~ (done) — remaining: make `/enrich/sync` exclude Tier 1 browser work (Tier 1 now gated by `ENABLE_TIER1`, so it is off by default there)
+1. ~~Wire Redis/RQ so `/enrich` is truly async~~ (done) — ~~make `/enrich/sync` exclude Tier 1 browser work~~ (done: `runner.py` sync_mode skips tier1)
 2. ~~Replace enricher mocks with subprocess/library integrations per upstream repo~~ (done) — remaining: tune upstream CLI/API contracts (gitrecon JSON schema, social-analyzer/GMaps sidecar endpoints) against live deployments
 3. Remove Bearer auth from `POST /api/opt-out` for compliance accessibility
 4. ~~Promote SQLite → PostgreSQL in default docker-compose wiring~~ (done) — remaining: Alembic migrations and `JSONB` columns when the schema stabilizes

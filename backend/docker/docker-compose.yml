@@ -23,12 +23,18 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.worker
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       API_TOKEN: change-me
       DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
+      # Tier 1 (LinkedIn photo) runs on the worker only — never enable on api.
+      ENABLE_TIER1: ${ENABLE_TIER1:-false}
+      BROWSER_MODE: ${BROWSER_MODE:-local}
+      MULTILOGIN_SELENIUM_HOST: ${MULTILOGIN_SELENIUM_HOST:-http://host.docker.internal}
     depends_on:
       postgres:
         condition: service_healthy
