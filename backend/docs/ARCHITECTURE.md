@@ -557,6 +557,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Multilogin + Selenium | MLX launcher + Selenium Remote | `providers/multilogin.py`, `profile_pool.py`, `linkedin_browser.py`; worker-only `ENABLE_TIER1`; `/enrich/sync` skips tier1 |
 | Tier 1 pipeline dispatch | Tier 1 serial, tiers 2–4 parallel | `runner.py` `_dispatch(sync_mode=...)`; see `docs/TESTING_TIER1.md` |
 | Tier 1 Docker ops | Worker image + compose override | `Dockerfile.worker` (Chromium + `.[enrichers]`); `docker-compose.tier1.yml`; `tier1_*` Prometheus counters |
+| Tier 1 hardening (3.7) | Session reuse, denylist, rate limits | `TIER1_SKIP_LOGIN_IF_SESSION_VALID`; `profile_pool.refund_view()`; `probe_tier1_canary.py`; configurable cooldowns |
 | LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
 | Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
 | Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:` |

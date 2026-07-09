@@ -111,10 +111,11 @@ def test_login_linkedin_requires_credentials(monkeypatch: pytest.MonkeyPatch) ->
     from app.config import get_settings
 
     settings = get_settings()
+    monkeypatch.setattr(settings, "tier1_skip_login_if_session_valid", False)
     monkeypatch.setattr(settings, "linkedin_bot_email", "")
     monkeypatch.setattr(settings, "linkedin_bot_password", settings.linkedin_bot_password.__class__(""))
 
-    driver = _FakeDriver()
+    driver = _FakeDriver(current_url="https://www.linkedin.com/login")
     assert login_linkedin(driver) == LinkedInPhotoError.AUTH_REQUIRED
 
 

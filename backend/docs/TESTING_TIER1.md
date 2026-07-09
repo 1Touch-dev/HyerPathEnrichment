@@ -150,13 +150,38 @@ curl -s http://localhost:8000/metrics | grep tier1_
 
 ---
 
-## Manual canary set
+## Layer 6 — Canary QA (Phase 3.7)
 
-Track ~20 profiles (technical / non-technical / private) in a spreadsheet:
+Copy the example canary file and fill with ~20 real public profiles:
 
-| slug | first scrape | cache hit | notes |
-|------|--------------|-----------|-------|
-| | | | |
+```bash
+cp docs/tier1_canary_set.example.json docs/tier1_canary_set.json
+# edit slugs/URLs — technical, non-technical, private
+python scripts/probe_tier1_canary.py --file docs/tier1_canary_set.json --pool-status --json
+```
+
+| Column | Track |
+|--------|--------|
+| `slug` | Normalized `/in/{slug}` |
+| `category` | `technical` / `non-technical` / `private` |
+| `status` | `OK`, `CACHE_HIT`, `FAIL`, `SKIP` |
+| `outcome` | `success`, `captcha`, `placeholder_image`, etc. |
+
+### Rate limit tuning
+
+| Env var | Default | Purpose |
+|---------|---------|---------|
+| `MULTILOGIN_DAILY_VIEW_LIMIT` | 22 | Max profile views per MLX profile per day |
+| `MULTILOGIN_PROFILE_COOLDOWN_SECONDS` | 86400 | Cooldown after captcha / auth failure |
+| `MULTILOGIN_RATE_LIMIT_COOLDOWN_SECONDS` | 3600 | Cooldown after rate limit (shorter) |
+| `TIER1_SKIP_LOGIN_IF_SESSION_VALID` | true | Skip bot login when MLX cookies still valid |
+| `TIER1_PLACEHOLDER_DENYLIST` | (empty) | Extra comma-separated placeholder URL fragments |
+
+Failed logins refund the daily view counter so captcha/auth errors do not burn the cap.
+
+```bash
+python scripts/probe_tier1_canary.py --file docs/tier1_canary_set.json --pool-status
+```
 
 ---
 

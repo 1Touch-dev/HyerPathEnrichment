@@ -21,6 +21,7 @@ from app.providers.profile_pool import ProfileOutcome, ProfilePool, browser_sema
 logger = logging.getLogger(__name__)
 
 LINKEDIN_LOGIN_URL = "https://www.linkedin.com/login"
+LINKEDIN_FEED_URL = "https://www.linkedin.com/feed/"
 OG_IMAGE_CONFIDENCE = 0.84
 DOM_FALLBACK_CONFIDENCE = 0.70
 ARTIFACTS_DIR = Path(__file__).resolve().parents[2] / "artifacts" / "tier1"
@@ -34,6 +35,14 @@ PLACEHOLDER_SUBSTRINGS = (
     "static.licdn.com/aero-v1/sc/h/",
     "/images/ghost",
     "profile-displayphoto-shrink_100_100/0",
+    "profile-displayphoto-shrink_200_200/0",
+    "profile-displayphoto-default",
+    "blank-profile",
+    "silhouette",
+    "company-logo",
+    "licdn.com/dms/image/c4e03aq",  # common LI placeholder hash prefix
+    "data:image/gif;base64",
+    "data:image/svg",
 )
 
 DOM_PHOTO_SELECTORS = (
@@ -109,12 +118,29 @@ def extract_linkedin_slug(url: str) -> str | None:
     return slug
 
 
+def placeholder_fragments() -> tuple[str, ...]:
+    """Built-in denylist plus optional comma-separated env extras."""
+    settings = get_settings()
+    extras = tuple(
+        fragment.strip().lower()
+        for fragment in settings.tier1_placeholder_denylist.split(",")
+        if fragment.strip()
+    )
+    return PLACEHOLDER_SUBSTRINGS + extras
+
+
 def is_placeholder_image_url(url: str) -> bool:
     """Return True when the image URL looks like a LinkedIn default avatar."""
     lowered = (url or "").strip().lower()
     if not lowered:
         return True
-    return any(fragment in lowered for fragment in PLACEHOLDER_SUBSTRINGS)
+    return any(fragment in lowered for fragment in placeholder_fragments())
+
+
+def has_valid_linkedin_session(driver: Any) -> bool:
+    """Return True when the MLX profile already has an authenticated LinkedIn session."""
+    driver.get(LINKEDIN_FEED_URL)
+    return detect_page_state(driver) == LinkedInPhotoError.SUCCESS
 
 
 def _map_outcome_to_profile(outcome: LinkedInPhotoError) -> ProfileOutcome | None:
@@ -148,6 +174,10 @@ def connect_selenium(port: int) -> Any:
 def login_linkedin(driver: Any) -> LinkedInPhotoError:
     """Log into LinkedIn with bot credentials when the session is not already valid."""
     settings = get_settings()
+    if settings.tier1_skip_login_if_session_valid and has_valid_linkedin_session(driver):
+        logger.debug("LinkedIn session already valid; skipping login")
+        return LinkedInPhotoError.SUCCESS
+
     email = settings.linkedin_bot_email.strip()
     password = settings.linkedin_bot_password.get_secret_value().strip()
     if not email or not password:
@@ -358,6 +388,13 @@ class LinkedInBrowserClient:
                     profile_outcome = _map_outcome_to_profile(partial.outcome)
                     if profile_id and profile_outcome:
                         await self.pool.release(profile_id, profile_outcome)
+                    if profile_id and partial.outcome in {
+                        LinkedInPhotoError.AUTH_REQUIRED,
+                        LinkedInPhotoError.CAPTCHA,
+                        LinkedInPhotoError.RATE_LIMITED,
+                        LinkedInPhotoError.TEMPORARY_FAILURE,
+                    }:
+                        await self.pool.refund_view(profile_id)
                     return partial
 
                 image_bytes, content_type = await download_image(image_url)

@@ -8,6 +8,7 @@ from datetime import date
 from enum import StrEnum
 
 from app.config import get_settings
+from app.observability.tier1_metrics import tier1_profile_pool_exhausted_total, tier1_profile_views_total
 from app.providers.multilogin import MultiloginClient, MultiloginError
 from app.storage.redis_client import get_redis_client
 
@@ -89,22 +90,65 @@ class ProfilePool:
                     views = await redis.incr(key)
                     if views == 1:
                         await redis.expire(key, 86_400)
+                    tier1_profile_views_total.labels(profile_id=profile_id).inc()
                 except Exception:
                     logger.warning("Failed to increment profile view counter", exc_info=True)
                 return profile_id
 
+        tier1_profile_pool_exhausted_total.inc()
         raise MultiloginError("All Multilogin profiles are in cooldown or over daily view limit")
+
+    async def refund_view(self, profile_id: str) -> None:
+        """Refund a daily view when login/scrape failed before a real profile visit."""
+        redis = get_redis_client()
+        try:
+            views = await redis.decr(self._views_key(profile_id))
+            if views < 0:
+                await redis.set(self._views_key(profile_id), 0, ex=86_400)
+        except Exception:
+            logger.warning("Failed to refund profile view counter", exc_info=True)
 
     async def release(self, profile_id: str, outcome: ProfileOutcome) -> None:
         """Record profile outcome; apply cooldown for hard failures."""
-        if outcome not in {ProfileOutcome.CAPTCHA, ProfileOutcome.AUTH_REQUIRED}:
+        settings = get_settings()
+        redis = get_redis_client()
+        cooldown_seconds: int | None = None
+        if outcome in {ProfileOutcome.CAPTCHA, ProfileOutcome.AUTH_REQUIRED}:
+            cooldown_seconds = settings.multilogin_profile_cooldown_seconds
+        elif outcome == ProfileOutcome.RATE_LIMITED:
+            cooldown_seconds = settings.multilogin_rate_limit_cooldown_seconds
+
+        if cooldown_seconds is None:
             return
 
-        redis = get_redis_client()
         try:
-            await redis.set(self._cooldown_key(profile_id), outcome.value, ex=86_400)
+            await redis.set(self._cooldown_key(profile_id), outcome.value, ex=cooldown_seconds)
         except Exception:
             logger.warning("Failed to set profile cooldown", exc_info=True)
+
+    async def pool_status(self) -> list[dict[str, int | str | bool]]:
+        """Return per-profile view counts and cooldown state for ops/debug."""
+        settings = get_settings()
+        redis = get_redis_client()
+        rows: list[dict[str, int | str | bool]] = []
+        for profile_id in await self._profile_ids():
+            views = 0
+            in_cooldown = False
+            try:
+                views = int(await redis.get(self._views_key(profile_id)) or 0)
+                in_cooldown = bool(await redis.exists(self._cooldown_key(profile_id)))
+            except Exception:
+                logger.warning("Redis unavailable during pool_status", exc_info=True)
+            rows.append(
+                {
+                    "profile_id": profile_id,
+                    "views_today": views,
+                    "daily_limit": settings.multilogin_daily_view_limit,
+                    "in_cooldown": in_cooldown,
+                    "eligible": views < settings.multilogin_daily_view_limit and not in_cooldown,
+                }
+            )
+        return rows
 
 
 def browser_semaphore() -> asyncio.Semaphore:

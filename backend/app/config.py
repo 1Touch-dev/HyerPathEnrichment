@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     multilogin_folder_id: str = Field(default="", alias="MULTILOGIN_FOLDER_ID")
     multilogin_profile_pool_size: int = Field(default=0, alias="MULTILOGIN_PROFILE_POOL_SIZE")
     multilogin_daily_view_limit: int = Field(default=22, alias="MULTILOGIN_DAILY_VIEW_LIMIT")
+    multilogin_profile_cooldown_seconds: int = Field(
+        default=86_400, alias="MULTILOGIN_PROFILE_COOLDOWN_SECONDS"
+    )
+    multilogin_rate_limit_cooldown_seconds: int = Field(
+        default=3_600, alias="MULTILOGIN_RATE_LIMIT_COOLDOWN_SECONDS"
+    )
+    tier1_placeholder_denylist: str = Field(default="", alias="TIER1_PLACEHOLDER_DENYLIST")
+    tier1_skip_login_if_session_valid: bool = Field(
+        default=True, alias="TIER1_SKIP_LOGIN_IF_SESSION_VALID"
+    )
     multilogin_selenium_host: str = Field(
         default="http://127.0.0.1", alias="MULTILOGIN_SELENIUM_HOST"
     )

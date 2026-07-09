@@ -38,3 +38,14 @@ tier1_upload_total = Counter(
     "LinkedIn photo R2/local uploads by result",
     ["result"],
 )
+
+tier1_profile_views_total = Counter(
+    "tier1_profile_views_total",
+    "Multilogin profile views consumed (daily counter incremented)",
+    ["profile_id"],
+)
+
+tier1_profile_pool_exhausted_total = Counter(
+    "tier1_profile_pool_exhausted_total",
+    "Times all MLX profiles were in cooldown or over the daily view limit",
+)
