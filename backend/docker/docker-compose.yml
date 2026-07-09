@@ -2,8 +2,8 @@ version: "3.9"
 services:
   api:
     build:
-      context: ../..
-      dockerfile: backend/docker/Dockerfile.api
+      context: ..
+      dockerfile: docker/Dockerfile.api
     environment:
       API_TOKEN: change-me
       DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
@@ -21,8 +21,8 @@ services:
       - "8000:8000"
   worker:
     build:
-      context: ../..
-      dockerfile: backend/docker/Dockerfile.worker
+      context: ..
+      dockerfile: docker/Dockerfile.worker
     environment:
       API_TOKEN: change-me
       DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath

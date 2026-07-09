@@ -27,7 +27,7 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | `POST /enrich` runs inline | Enqueues to **Redis + RQ**; the worker process runs the orchestrator. `/enrich/sync` still runs inline. In Docker, API + worker share Postgres so polling works cross-process |
 | Enrichers call real tools | They do (subprocess/library/sidecar) behind the `app/providers/` layer, but **degrade to empty fragments** when a tool/sidecar/key is missing. Defaults are fully free/self-hosted; free -> paid is an env flip |
 | Database is Postgres everywhere | Local dev default is **SQLite** (`sqlite+aiosqlite:///./hyrepath.db`); **Docker compose uses Postgres** (`postgresql+asyncpg://...@postgres:5432/hyrepath`) shared by API + worker |
-| R2 uploads go to Cloudflare | Writes to **local** `backend/.asset-cache/` |
+| R2 uploads go to Cloudflare | **R2 when `R2_*` creds set** (`aioboto3` PutObject + HeadObject); else local `backend/.asset-cache/` |
 | LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in |
 | Opt-out is unauthenticated | **Bearer token required** (compliance gap vs target) |
 | Suppression lives in Redis only | **SQL table** `suppression_list` is the durable record; Redis set `suppression:hashes` is a fast-path cache (dual-write, SQL fallback) |
@@ -42,7 +42,7 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | API route / auth | API endpoints section | `routes/enrich.py`, `routes/opt_out.py`, `main.py` |
 | Async job queue | Implementation status | `routes/enrich.py`, `workers/runner.py`, `docker/docker-compose.yml` |
 | Opt-out / suppression | Legal section + `_is_suppressed()` | `workers/runner.py`, `routes/opt_out.py`, `models.py` `SuppressionRecord` |
-| Photo / Tier 1 | Tier 1 section | `enrichers/linkedin_photo.py`, `storage/r2.py`, `multilogin.py` |
+| Photo / Tier 1 | Tier 1 section | `enrichers/linkedin_photo.py`, `providers/multilogin.py`, `providers/profile_pool.py`, `storage/r2.py` |
 | Env / config | Environment variables section | `config.py`, `.env.example` |
 | Tests | Testing strategy | `tests/test_pipeline_shape.py` |
 | Frontend integration | Frontend contract below | `frontend/src/lib/api-adapter.ts`, `frontend/src/lib/types.ts` |
@@ -302,7 +302,7 @@ Schema is created by `init_db()` (`create_all`) at API lifespan and worker start
 
 `app/storage/r2.py` — Cloudflare R2 via S3-compatible API (`aioboto3` in production).
 
-**Current:** writes to `backend/.asset-cache/` and returns a CDN URL from `R2_PUBLIC_BASE_URL`. Interface matches production.
+**Current:** when `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` are set, uploads go to Cloudflare R2 via `aioboto3` (PutObject + HeadObject verify). Otherwise writes to `backend/.asset-cache/` using a path resolved from the package location (CWD-safe). Returns a CDN URL from `R2_PUBLIC_BASE_URL`.
 
 ### Redis (target)
 
@@ -391,7 +391,12 @@ HyerEnrichment/
     │   ├── config.py             # Env-driven settings
     │   ├── models.py             # Pydantic schemas + SQLAlchemy models
     │   ├── services.py           # Orchestrator factory
-    │   ├── multilogin.py         # Multilogin API client (Tier 1)
+    │   ├── providers/
+    │   │   ├── multilogin.py     # Multilogin API client (Tier 1)
+    │   │   ├── profile_pool.py   # Profile rotation + daily limits
+    │   │   ├── browser.py        # Playwright browser (local dev)
+    │   │   └── ...
+    │   ├── multilogin.py         # Re-exports providers.multilogin (compat)
     │   ├── llm_router.py         # LiteLLM disambiguation
     │   ├── enrichers/
     │   │   ├── base.py           # Enricher protocol
@@ -451,8 +456,10 @@ Copy `backend/.env.example` → `backend/.env`.
 | Variable | Purpose |
 |----------|---------|
 | `MULTILOGIN_EMAIL` | Multilogin account |
-| `MULTILOGIN_PASSWORD_MD5` | Multilogin auth |
+| `MULTILOGIN_PASSWORD` | Multilogin password (MD5-hashed in code at sign-in) |
 | `MULTILOGIN_FOLDER_ID` | Profile pool folder |
+| `MULTILOGIN_LAUNCHER_URL` | MLX launcher base (`/api/v2` for start, `/api/v1` derived for stop) |
+| `MULTILOGIN_SELENIUM_HOST` | Selenium Remote host (Docker: `http://host.docker.internal`) |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | R2 credentials |
 
 ### Tier 3 (email) — target
@@ -545,8 +552,8 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Redis client | Queue + suppression + rate limits | Shared async client wired in lifespan; suppression, rate limiting, and queue all use it |
 | Async job queue | Redis + RQ, worker process | Implemented — `/enrich` enqueues, `rq_worker` executes; Docker compose shares Postgres for cross-process polling |
 | Database | PostgreSQL + JSONB | Postgres in Docker compose (asyncpg, `JSON` type); SQLite default for local dev; `create_all`, no Alembic |
-| R2 photo cache | `aioboto3` → Cloudflare R2 | Local `.asset-cache/` fallback |
-| Multilogin + Playwright | CDP browser session | `BrowserProvider` (`BROWSER_MODE=local|multilogin`); Tier 1 gated by `ENABLE_TIER1` (default off), degrades if Playwright absent |
+| R2 photo cache | `aioboto3` → Cloudflare R2 | `storage/r2.py` — R2 PutObject + HeadObject when `R2_*` creds set; local `backend/.asset-cache/` fallback (CWD-safe path) |
+| Multilogin + Selenium | MLX launcher + Selenium Remote | `providers/multilogin.py` + `providers/profile_pool.py` + `providers/linkedin_browser.py` (login, og:image/DOM extract, scrape); `scripts/probe_tier1.py --scrape`; enricher still Playwright until Phase 3.5 |
 | LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
 | Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
 | Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:` |
