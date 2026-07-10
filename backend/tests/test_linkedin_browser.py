@@ -10,6 +10,7 @@ from app.providers.linkedin_browser import (
     LinkedInBrowserClient,
     LinkedInPhotoError,
     _find_login_input,
+    _photo_url_from_srcset,
     _sign_in_button_enabled,
     _type_into_login_field,
     _wait_for_enabled_sign_in_button,
@@ -97,6 +98,20 @@ class _FakeDriver:
 
     def save_screenshot(self, _path: str) -> bool:
         return True
+
+
+def test_photo_url_from_srcset_picks_highest_width() -> None:
+    srcset = (
+        "https://media.licdn.com/dms/image/photo-100.jpg 100w, "
+        "https://media.licdn.com/dms/image/photo-200.jpg 200w, "
+        "https://media.licdn.com/dms/image/photo-800.jpg 800w"
+    )
+    assert _photo_url_from_srcset(srcset) == "https://media.licdn.com/dms/image/photo-800.jpg"
+
+
+def test_photo_url_from_srcset_falls_back_to_first_url() -> None:
+    srcset = "https://media.licdn.com/dms/image/photo-only.jpg"
+    assert _photo_url_from_srcset(srcset) == "https://media.licdn.com/dms/image/photo-only.jpg"
 
 
 def test_extract_photo_url_prefers_og_image() -> None:

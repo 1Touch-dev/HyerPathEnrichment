@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -50,8 +51,6 @@ PLACEHOLDER_SUBSTRINGS = (
     "static-exp1/static/img/person",
     "static.licdn.com/aero-v1/sc/h/",
     "/images/ghost",
-    "profile-displayphoto-shrink_100_100/0",
-    "profile-displayphoto-shrink_200_200/0",
     "profile-displayphoto-default",
     "blank-profile",
     "silhouette",
@@ -60,6 +59,8 @@ PLACEHOLDER_SUBSTRINGS = (
     "data:image/gif;base64",
     "data:image/svg",
 )
+
+_PLACEHOLDER_RE = re.compile(r"/0(?:[?#]|$)")
 
 TOPCARD_PHOTO_CONTAINER_SELECTORS = (
     'div[componentkey="topcard-logo-image-referencekey"]',
@@ -162,7 +163,15 @@ def is_placeholder_image_url(url: str) -> bool:
     lowered = (url or "").strip().lower()
     if not lowered:
         return True
-    return any(fragment in lowered for fragment in placeholder_fragments())
+
+    for fragment in placeholder_fragments():
+        if fragment in lowered:
+            return True
+
+    if _PLACEHOLDER_RE.search(lowered):
+        return True
+
+    return False
 
 
 def has_valid_linkedin_session(driver: Any) -> bool:
@@ -483,12 +492,41 @@ def detect_page_state(driver: Any) -> LinkedInPhotoError:
 
 
 def _photo_url_from_srcset(srcset: str) -> str | None:
-    """Return the first URL from an img srcset attribute."""
+    """Return the highest-resolution URL from an img srcset attribute."""
+    best_url: str | None = None
+    best_width = 0
+
     for part in srcset.split(","):
-        url = part.strip().split(" ", 1)[0].strip()
-        if url:
-            return url
-    return None
+        part = part.strip()
+        if not part:
+            continue
+        pieces = part.split(" ", 1)
+        url = pieces[0].strip()
+        width = 0
+        if len(pieces) > 1:
+            size_str = pieces[1].strip().lower()
+            if size_str.endswith("w"):
+                try:
+                    width = int(size_str[:-1])
+                except ValueError:
+                    pass
+            elif size_str.endswith("x"):
+                try:
+                    width = int(size_str[:-1]) * 100
+                except ValueError:
+                    pass
+
+        if url and width >= best_width:
+            best_url = url
+            best_width = width
+
+    if best_url is None:
+        for part in srcset.split(","):
+            url = part.strip().split(" ", 1)[0].strip()
+            if url:
+                return url
+
+    return best_url
 
 
 def _photo_candidates_from_element(img: Any) -> list[str]:
