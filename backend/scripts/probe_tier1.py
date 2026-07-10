@@ -54,6 +54,8 @@ def audit_prerequisites() -> list[PrereqRow]:
         "MULTILOGIN_PASSWORD",
     )
     env("MULTILOGIN_FOLDER_ID", settings.multilogin_folder_id, "MULTILOGIN_FOLDER_ID")
+    env("MULTILOGIN_WORKSPACE_ID", settings.multilogin_workspace_id, "MULTILOGIN_WORKSPACE_ID")
+    env("MULTILOGIN_PROFILE_ID", settings.multilogin_profile_id, "MULTILOGIN_PROFILE_ID")
     env("MULTILOGIN_API_URL", settings.multilogin_api_url, "MULTILOGIN_API_URL")
     env("MULTILOGIN_LAUNCHER_URL", settings.multilogin_launcher_url, "MULTILOGIN_LAUNCHER_URL")
     env("MULTILOGIN_SELENIUM_HOST", settings.multilogin_selenium_host, "MULTILOGIN_SELENIUM_HOST")

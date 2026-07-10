@@ -461,6 +461,8 @@ Copy `backend/.env.example` → `backend/.env`.
 | `MULTILOGIN_EMAIL` | Multilogin account |
 | `MULTILOGIN_PASSWORD` | Multilogin password (MD5-hashed in code at sign-in) |
 | `MULTILOGIN_FOLDER_ID` | Profile pool folder |
+| `MULTILOGIN_WORKSPACE_ID` | Workspace for `/user/refresh_token` after sign-in (needed for multi-workspace accounts) |
+| `MULTILOGIN_PROFILE_ID` | Fixed profile id; when set, skips `/profile/search` (local probe / single-profile) |
 | `MULTILOGIN_LAUNCHER_URL` | MLX launcher base (`/api/v2` for start, `/api/v1` derived for stop) |
 | `MULTILOGIN_SELENIUM_HOST` | Selenium Remote host (Docker: `http://host.docker.internal`) |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | R2 credentials |

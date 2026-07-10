@@ -35,7 +35,7 @@ docker compose exec worker chromium --version
 |-------|--------|
 | `ENABLE_TIER1` | `true` on **worker** only (API stays `false`) |
 | `BROWSER_MODE` | `multilogin` in prod; `local` only for dev experiments |
-| `MULTILOGIN_*` | Email, password (MD5 in code), folder id, launcher URL |
+| `MULTILOGIN_*` | Email, password (MD5 in code), folder id, launcher URL; set `MULTILOGIN_WORKSPACE_ID` for workspace-scoped token refresh; set `MULTILOGIN_PROFILE_ID` to skip `/profile/search` (local probe) |
 | `LINKEDIN_BOT_*` | Dummy LinkedIn account for Selenium login |
 | `MULTILOGIN_SELENIUM_HOST` | `http://host.docker.internal` from Docker worker |
 | `selenium` + Chromium | Installed in `Dockerfile.worker` via `.[enrichers]` |
@@ -46,6 +46,8 @@ docker compose exec worker chromium --version
 ## Layer 2 — Multilogin connectivity
 
 Multilogin launcher must be running on the host (not inside Docker).
+
+After `/user/signin`, if `MULTILOGIN_WORKSPACE_ID` is set the client exchanges a workspace-scoped token via `/user/refresh_token`. Profile search always sends `search_text=""` (required by Multilogin X) with `folder_id` for pool discovery. `MULTILOGIN_PROFILE_ID` is optional for single-profile local probe (skips search); it is not required for listing.
 
 ```bash
 cd backend

@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     multilogin_email: str = Field(default="", alias="MULTILOGIN_EMAIL")
     multilogin_password: SecretStr = Field(default=SecretStr(""), alias="MULTILOGIN_PASSWORD")
     multilogin_folder_id: str = Field(default="", alias="MULTILOGIN_FOLDER_ID")
+    multilogin_workspace_id: str = Field(default="", alias="MULTILOGIN_WORKSPACE_ID")
+    multilogin_profile_id: str = Field(default="", alias="MULTILOGIN_PROFILE_ID")
     multilogin_profile_pool_size: int = Field(default=0, alias="MULTILOGIN_PROFILE_POOL_SIZE")
     multilogin_daily_view_limit: int = Field(default=22, alias="MULTILOGIN_DAILY_VIEW_LIMIT")
     multilogin_profile_cooldown_seconds: int = Field(
