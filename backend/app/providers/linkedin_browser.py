@@ -529,18 +529,31 @@ def _photo_url_from_srcset(srcset: str) -> str | None:
     return best_url
 
 
+# def _photo_candidates_from_element(img: Any) -> list[str]:
+#     """Collect possible profile photo URLs from a DOM img element."""
+#     candidates: list[str] = []
+#     for attr in DOM_PHOTO_ATTRS:
+#         value = (img.get_attribute(attr) or "").strip()
+#         if value:
+#             candidates.append(value)
+#     srcset = (img.get_attribute("srcset") or "").strip()
+#     if srcset:
+#         parsed = _photo_url_from_srcset(srcset)
+#         if parsed:
+#             candidates.append(parsed)
+#     return candidates
+
 def _photo_candidates_from_element(img: Any) -> list[str]:
-    """Collect possible profile photo URLs from a DOM img element."""
     candidates: list[str] = []
-    for attr in DOM_PHOTO_ATTRS:
-        value = (img.get_attribute(attr) or "").strip()
-        if value:
-            candidates.append(value)
     srcset = (img.get_attribute("srcset") or "").strip()
     if srcset:
         parsed = _photo_url_from_srcset(srcset)
         if parsed:
-            candidates.append(parsed)
+            candidates.append(parsed)  # best resolution first
+    for attr in DOM_PHOTO_ATTRS:
+        value = (img.get_attribute(attr) or "").strip()
+        if value and value not in candidates:
+            candidates.append(value)
     return candidates
 
 
