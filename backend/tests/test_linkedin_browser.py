@@ -29,10 +29,12 @@ class _FakeElement:
         *,
         displayed: bool = True,
         enabled: bool = True,
+        children: dict[str, list[_FakeElement]] | None = None,
     ) -> None:
         self._attrs = attrs
         self._displayed = displayed
         self._enabled = enabled
+        self._children = children or {}
         self.typed: list[str] = []
 
     def get_attribute(self, name: str) -> str | None:
@@ -52,6 +54,13 @@ class _FakeElement:
 
     def send_keys(self, value: str) -> None:
         self.typed.append(value)
+
+    def find_elements(self, by: object, selector: str) -> list[_FakeElement]:
+        from selenium.webdriver.common.by import By
+
+        if by == By.TAG_NAME:
+            return list(self._children.get(selector, []))
+        return list(self._children.get(selector, []))
 
 
 class _FakeDriver:
@@ -170,12 +179,71 @@ def test_extract_photo_url_uses_data_src_and_srcset() -> None:
     assert url is not None and "real-from-data-src.jpg" in url
 
 
+def test_extract_photo_url_prefers_topcard_componentkey() -> None:
+    avatar_img = _FakeElement(
+        {
+            "src": "https://media.licdn.com/dms/image/profile-displayphoto-shrink_200_200/avatar.jpg"
+        }
+    )
+    container = _FakeElement(
+        {"componentkey": "topcard-logo-image-referencekey"},
+        children={"img": [avatar_img]},
+    )
+    driver = _FakeDriver(
+        elements={
+            'div[componentkey="topcard-logo-image-referencekey"]': [container],
+            'img[src*="profile-displayphoto"]': [
+                _FakeElement(
+                    {"src": "https://media.licdn.com/dms/image/profile-displayphoto-shrink_100_100/decoy.jpg"}
+                )
+            ],
+        }
+    )
+    url, method, state = extract_photo_url(driver)
+    assert state == LinkedInPhotoError.SUCCESS
+    assert method == ExtractionMethod.DOM_FALLBACK
+    assert url is not None and "avatar.jpg" in url
+
+
+def test_extract_photo_url_topcard_aria_label_fallback() -> None:
+    avatar_img = _FakeElement(
+        {"src": "https://media.licdn.com/dms/image/profile-displayphoto-shrink_200_200/aria-avatar.jpg"}
+    )
+    container = _FakeElement(
+        {"aria-label": "Profile photo"},
+        children={"img": [avatar_img]},
+    )
+    driver = _FakeDriver(
+        elements={
+            'div[aria-label="Profile photo"]': [container],
+        }
+    )
+    url, method, state = extract_photo_url(driver)
+    assert state == LinkedInPhotoError.SUCCESS
+    assert method == ExtractionMethod.DOM_FALLBACK
+    assert url is not None and "aria-avatar.jpg" in url
+
+
 def test_wait_for_profile_photo_ready_succeeds() -> None:
     driver = _FakeDriver(
         elements={
             'meta[property="og:image"]': [
                 _FakeElement({"content": "https://media.licdn.com/dms/image/photo.jpg"})
             ]
+        }
+    )
+    _wait_for_profile_photo_ready(driver, _FakeWait(driver))
+
+
+def test_wait_for_profile_photo_ready_topcard_container() -> None:
+    avatar_img = _FakeElement({"src": "https://media.licdn.com/dms/image/photo.jpg"})
+    container = _FakeElement(
+        {"componentkey": "topcard-logo-image-referencekey"},
+        children={"img": [avatar_img]},
+    )
+    driver = _FakeDriver(
+        elements={
+            'div[componentkey="topcard-logo-image-referencekey"]': [container],
         }
     )
     _wait_for_profile_photo_ready(driver, _FakeWait(driver))

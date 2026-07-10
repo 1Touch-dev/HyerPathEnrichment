@@ -61,14 +61,22 @@ PLACEHOLDER_SUBSTRINGS = (
     "data:image/svg",
 )
 
+TOPCARD_PHOTO_CONTAINER_SELECTORS = (
+    'div[componentkey="topcard-logo-image-referencekey"]',
+    'div[aria-label="Profile photo"]',
+)
+FIGURE_PHOTO_SELECTOR = 'div[componentkey="topcard-logo-image-referencekey"] figure img'
+
 DOM_PHOTO_SELECTORS = (
-    "img.pv-top-card-profile-picture__image--show",
-    "img.pv-top-card-profile-picture__image",
-    "img.profile-photo-edit__preview",
-    "img[data-delayed-url]",
-    "img.top-card-layout__entity-image",
-    'img[src*="profile-displayphoto"]',
-    'img[src*="media.licdn.com/dms/image"]',
+    FIGURE_PHOTO_SELECTOR,
+    'div[componentkey="topcard-logo-image-referencekey"] img',
+    'div[aria-label="Profile photo"] img',
+    # "img.pv-top-card-profile-picture__image--show",
+    # "img.pv-top-card-profile-picture__image",
+    # "img.top-card-layout__entity-image",
+    # "img[data-delayed-url]",
+    # "img.profile-photo-edit__preview",
+    # 'img[src*="profile-displayphoto"]',
 )
 
 DOM_PHOTO_ATTRS = ("src", "data-delayed-url", "data-ghost-url", "data-src")
@@ -498,6 +506,51 @@ def _photo_candidates_from_element(img: Any) -> list[str]:
     return candidates
 
 
+def _extract_photo_from_topcard_container(driver: Any) -> str | None:
+    """Extract profile photo URL from LinkedIn's stable topcard avatar container.
+
+    The real profile photo is inside a <figure> tag. Suggested/related profiles
+    also have images in the topcard but they are NOT inside a <figure>.
+    """
+    from selenium.webdriver.common.by import By
+
+    for img in driver.find_elements(By.CSS_SELECTOR, FIGURE_PHOTO_SELECTOR):
+        for candidate in _photo_candidates_from_element(img):
+            if candidate and not is_placeholder_image_url(candidate):
+                return candidate
+
+    for container_sel in TOPCARD_PHOTO_CONTAINER_SELECTORS:
+        for container in driver.find_elements(By.CSS_SELECTOR, container_sel):
+            for img in container.find_elements(By.TAG_NAME, "img"):
+                for candidate in _photo_candidates_from_element(img):
+                    if candidate and not is_placeholder_image_url(candidate):
+                        return candidate
+    return None
+
+
+def _has_topcard_photo_img(driver: Any) -> bool:
+    """Return True when the real topcard profile photo (inside <figure>) is present."""
+    from selenium.webdriver.common.by import By
+
+    css = "css selector"
+
+    if driver.find_elements(css, FIGURE_PHOTO_SELECTOR):
+        return True
+
+    for composite in (
+        'div[componentkey="topcard-logo-image-referencekey"] img',
+        'div[aria-label="Profile photo"] img',
+    ):
+        if driver.find_elements(css, composite):
+            return True
+
+    for container_sel in TOPCARD_PHOTO_CONTAINER_SELECTORS:
+        for container in driver.find_elements(By.CSS_SELECTOR, container_sel):
+            if container.find_elements(By.TAG_NAME, "img"):
+                return True
+    return False
+
+
 def _log_photo_extraction_debug(driver: Any) -> None:
     """Log DOM probes when profile photo extraction fails."""
     css = "css selector"
@@ -509,6 +562,36 @@ def _log_photo_extraction_debug(driver: Any) -> None:
         og_content[:200] if og_content else "",
         is_placeholder_image_url(og_content) if og_content else None,
     )
+
+    from selenium.webdriver.common.by import By
+
+    for container_sel in TOPCARD_PHOTO_CONTAINER_SELECTORS:
+        containers = driver.find_elements(By.CSS_SELECTOR, container_sel)
+        if not containers:
+            continue
+
+        figures = containers[0].find_elements(By.TAG_NAME, "figure")
+        logger.warning(
+            "Photo extraction debug topcard container=%r count=%s figure_count=%s",
+            container_sel,
+            len(containers),
+            len(figures),
+        )
+
+        imgs = containers[0].find_elements(By.TAG_NAME, "img")
+        attrs = {}
+        if imgs:
+            attrs = {
+                attr: (imgs[0].get_attribute(attr) or "").strip()
+                for attr in (*DOM_PHOTO_ATTRS, "srcset")
+            }
+        logger.warning(
+            "Photo extraction debug topcard container=%r count=%s img_count=%s attrs=%s",
+            container_sel,
+            len(containers),
+            len(imgs),
+            attrs,
+        )
 
     for selector in DOM_PHOTO_SELECTORS:
         imgs = driver.find_elements(css, selector)
@@ -538,16 +621,22 @@ def _log_photo_extraction_debug(driver: Any) -> None:
 
 
 def _wait_for_profile_photo_ready(driver: Any, wait: Any) -> None:
-    """Wait until og:image or a profile photo img is present in the DOM."""
+    """Wait until og:image or the real profile photo img (inside figure) is present."""
 
     def _ready(_d: Any) -> bool:
         css = "css selector"
+
         for node in _d.find_elements(css, 'meta[property="og:image"]'):
             if (node.get_attribute("content") or "").strip():
                 return True
+
+        if _d.find_elements(css, FIGURE_PHOTO_SELECTOR):
+            return True
+
         for selector in DOM_PHOTO_SELECTORS:
             if _d.find_elements(css, selector):
                 return True
+
         return bool(_d.find_elements(css, 'img[src*="profile-displayphoto"]'))
 
     wait.until(_ready)
@@ -564,6 +653,10 @@ def extract_photo_url(
         if not content or is_placeholder_image_url(content):
             continue
         return content, ExtractionMethod.OG_IMAGE, LinkedInPhotoError.SUCCESS
+
+    topcard_url = _extract_photo_from_topcard_container(driver)
+    if topcard_url:
+        return topcard_url, ExtractionMethod.DOM_FALLBACK, LinkedInPhotoError.SUCCESS
 
     for selector in DOM_PHOTO_SELECTORS:
         for img in driver.find_elements(css, selector):
