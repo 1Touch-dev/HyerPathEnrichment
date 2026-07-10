@@ -1,19 +1,30 @@
 'use client';
 
 import { useState } from 'react';
-import { submitOptOut } from '@/src/lib/api-client';
+import { submitDsar, submitOptOut } from '@/src/lib/api-client';
+import { DsarType } from '@/src/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
+type RequestMode = 'opt_out' | DsarType;
+
+const MODE_LABELS: Record<RequestMode, string> = {
+  opt_out: 'Opt out',
+  access: 'Data access (DSAR)',
+  deletion: 'Data deletion (DSAR)',
+};
+
 export function OptOutForm() {
+  const [mode, setMode] = useState<RequestMode>('opt_out');
   const [identifier, setIdentifier] = useState('');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -21,7 +32,17 @@ export function OptOutForm() {
     setError('');
 
     try {
-      await submitOptOut({ identifier: identifier.trim(), reason: reason.trim() || undefined });
+      const trimmed = identifier.trim();
+      if (mode === 'opt_out') {
+        await submitOptOut({ identifier: trimmed, reason: reason.trim() || undefined });
+      } else {
+        const response = await submitDsar({
+          identifier: trimmed,
+          requestType: mode,
+          notes: reason.trim() || undefined,
+        });
+        setSummary(response.summary);
+      }
       setSubmitted(true);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Submit failed');
@@ -35,12 +56,25 @@ export function OptOutForm() {
       <Card>
         <CardHeader>
           <CardTitle>Request accepted</CardTitle>
-          <CardDescription>We process opt-out requests within 30 days.</CardDescription>
+          <CardDescription>We process data subject requests within 30 days.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Your identifier has been queued for suppression. Future enrichment requests will return an empty dossier.
-          </p>
+        <CardContent className="space-y-3">
+          {mode === 'opt_out' ? (
+            <p className="text-sm text-muted-foreground">
+              Your identifier has been suppressed and stored enrichment data has been purged. Future requests
+              return an empty dossier.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Your {MODE_LABELS[mode].toLowerCase()} request was processed. Summary below contains counts only —
+              no dossier PII.
+            </p>
+          )}
+          {summary ? (
+            <pre className="rounded-md bg-muted p-3 text-xs overflow-x-auto">
+              {JSON.stringify(summary, null, 2)}
+            </pre>
+          ) : null}
         </CardContent>
       </Card>
     );
@@ -50,12 +84,26 @@ export function OptOutForm() {
     <Card>
       <CardHeader>
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Data subject request</p>
-        <CardTitle>Opt out of enrichment</CardTitle>
+        <CardTitle>Compliance requests</CardTitle>
         <CardDescription>
-          Submit an email, LinkedIn URL, or username to request removal from enrichment processing (LGPD/GDPR).
+          Opt out of enrichment, request a copy of stored metadata, or request deletion (LGPD/GDPR/CCPA).
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {(Object.keys(MODE_LABELS) as RequestMode[]).map((key) => (
+            <Button
+              key={key}
+              type="button"
+              size="sm"
+              variant={mode === key ? 'default' : 'outline'}
+              onClick={() => setMode(key)}
+            >
+              {MODE_LABELS[key]}
+            </Button>
+          ))}
+        </div>
+
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <div className="flex flex-col gap-2">
             <Label htmlFor="identifier">Identifier</Label>
@@ -68,7 +116,7 @@ export function OptOutForm() {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="reason">Reason (optional)</Label>
+            <Label htmlFor="reason">{mode === 'opt_out' ? 'Reason (optional)' : 'Notes (optional)'}</Label>
             <Textarea
               id="reason"
               value={reason}
@@ -77,7 +125,7 @@ export function OptOutForm() {
             />
           </div>
           <Button type="submit" disabled={loading || !identifier.trim()}>
-            {loading ? 'Submitting…' : 'Submit opt-out request'}
+            {loading ? 'Submitting…' : `Submit ${MODE_LABELS[mode].toLowerCase()}`}
           </Button>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </form>

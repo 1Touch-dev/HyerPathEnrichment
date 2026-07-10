@@ -14,7 +14,7 @@ async def create_opt_out(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, str]:
     orchestrator = get_orchestrator(db)
-    await orchestrator.add_suppression(request.identifier, request.reason)
+    await orchestrator.register_opt_out(request.identifier, request.reason)
     return {"status": "accepted"}
 
 

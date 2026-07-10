@@ -135,6 +135,21 @@ async def test_upload_bytes_raises_in_production_when_r2_fails(
         await storage_client.upload_bytes("linkedin/jane-doe", b"x", content_type="image/jpeg")
 
 
+@pytest.mark.asyncio
+async def test_delete_object_removes_local_cache_file(storage_client: R2StorageClient, tmp_path) -> None:
+    key = "linkedin/test-delete.jpg"
+    cache_file = tmp_path / key.replace("/", "_")
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_bytes(b"delete-me")
+
+    with patch("app.storage.r2.LOCAL_ASSET_CACHE_DIR", tmp_path):
+        with patch("app.storage.r2.r2_is_configured", return_value=False):
+            deleted = await storage_client.delete_object(key)
+
+    assert deleted is True
+    assert not cache_file.exists()
+
+
 def test_local_cache_dir_is_backend_relative() -> None:
     assert LOCAL_ASSET_CACHE_DIR.name == ".asset-cache"
     assert LOCAL_ASSET_CACHE_DIR.parent.name == "backend"

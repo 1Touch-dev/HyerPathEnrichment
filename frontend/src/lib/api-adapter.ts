@@ -8,6 +8,8 @@ import {
   JobStatus,
   OptOutInput,
   RequestedTier,
+  DsarInput,
+  DsarResponse,
 } from '@/src/lib/types';
 
 type BackendPhoto = {
@@ -246,6 +248,34 @@ export function toBackendOptOutRequest(input: OptOutInput) {
   return {
     identifier: input.identifier,
     reason: input.reason || null,
+  };
+}
+
+export function toBackendDsarRequest(input: DsarInput) {
+  return {
+    identifier: input.identifier,
+    request_type: input.requestType,
+    notes: input.notes || null,
+  };
+}
+
+type BackendDsarResponse = {
+  id: string;
+  status: string;
+  request_type: string;
+  created_at: string;
+  completed_at?: string | null;
+  summary: Record<string, unknown>;
+};
+
+export function mapBackendDsarResponse(response: BackendDsarResponse): DsarResponse {
+  return {
+    id: response.id,
+    status: response.status,
+    requestType: response.request_type as DsarInput['requestType'],
+    createdAt: response.created_at,
+    completedAt: response.completed_at,
+    summary: response.summary ?? {},
   };
 }
 

@@ -27,6 +27,27 @@ class JobStatus(StrEnum):
     completed = "completed"
     failed = "failed"
     suppressed = "suppressed"
+    purged = "purged"
+
+
+class AuditEventType(StrEnum):
+    opt_out = "opt_out"
+    dsar_created = "dsar_created"
+    dsar_completed = "dsar_completed"
+    enrichment_suppressed = "enrichment_suppressed"
+    data_purged = "data_purged"
+    enrichment_completed = "enrichment_completed"
+
+
+class DsarType(StrEnum):
+    access = "access"
+    deletion = "deletion"
+
+
+class DsarStatus(StrEnum):
+    pending = "pending"
+    completed = "completed"
+    rejected = "rejected"
 
 
 class EnrichmentRequest(BaseModel):
@@ -132,6 +153,21 @@ class HealthResponse(BaseModel):
     service: str
 
 
+class DsarRequest(BaseModel):
+    identifier: str
+    request_type: DsarType
+    notes: str | None = None
+
+
+class DsarResponse(BaseModel):
+    id: str
+    status: DsarStatus
+    request_type: DsarType
+    created_at: datetime
+    completed_at: datetime | None = None
+    summary: dict[str, Any] = Field(default_factory=dict)
+
+
 class JobRecord(Base):
     __tablename__ = "jobs"
 
@@ -139,6 +175,7 @@ class JobRecord(Base):
     status: Mapped[str] = mapped_column(String(32), default=JobStatus.queued.value, nullable=False)
     request_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     dossier_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    identifier_hashes: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
@@ -149,6 +186,29 @@ class SuppressionRecord(Base):
     identifier_hash: Mapped[str] = mapped_column(String(128), primary_key=True)
     reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    identifier_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    job_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class DsarRecord(Base):
+    __tablename__ = "dsar_requests"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    identifier_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default=DsarStatus.pending.value, nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class PhotoCacheRecord(Base):

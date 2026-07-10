@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -11,6 +10,9 @@ from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.compliance.audit import log_event
+from app.compliance.identifiers import hash_identifier, hashes_from_request, request_identifier_values
+from app.compliance.purge import PurgeResult, purge_identifier_data
 from app.enrichers import (
     CrossLinkedEnricher,
     EmailDiscoverEnricher,
@@ -26,7 +28,21 @@ from app.enrichers import (
 )
 from app.enrichers.base import Enricher
 from app.llm_router import LiteLLMDisambiguator
-from app.models import ConfidenceBreakdown, Dossier, EnrichmentRequest, JobRecord, JobListing, JobStatus, PhotoAsset, RequestedTier, SocialHandle, SuppressionRecord, VerifiedEmail, BusinessProfile
+from app.models import (
+    AuditEventType,
+    ConfidenceBreakdown,
+    Dossier,
+    EnrichmentRequest,
+    JobRecord,
+    JobListing,
+    JobStatus,
+    PhotoAsset,
+    RequestedTier,
+    SocialHandle,
+    SuppressionRecord,
+    VerifiedEmail,
+    BusinessProfile,
+)
 from app.storage.redis_client import get_redis_client
 
 logger = logging.getLogger(__name__)
@@ -51,7 +67,38 @@ class PipelineOrchestrator:
 
     async def create_queued_job(self, request: EnrichmentRequest) -> JobRecord:
         """Async path: persist a queued job for a worker to pick up later."""
+        if await self.is_request_suppressed(request):
+            return await self._create_suppressed_job(request)
+
         job = await self._create_job(request, JobStatus.queued)
+        await self.db.commit()
+        await self.db.refresh(job)
+        return job
+
+    async def is_request_suppressed(self, request: EnrichmentRequest) -> bool:
+        """Public wrapper used by routes before enqueueing."""
+        return await self._is_suppressed(request)
+
+    async def create_suppressed_job(self, request: EnrichmentRequest) -> JobRecord:
+        """Create a suppressed job without running enrichers (async pre-check path)."""
+        return await self._create_suppressed_job(request)
+
+    async def _create_suppressed_job(self, request: EnrichmentRequest) -> JobRecord:
+        job = await self._create_job(request, JobStatus.suppressed)
+        dossier = self._base_dossier(request)
+        dossier.metadata["suppressed"] = True
+        job.dossier_payload = dossier.model_dump(mode="json")
+        job.updated_at = datetime.now(timezone.utc)
+
+        request_hashes = hashes_from_request(request)
+        if request_hashes:
+            await log_event(
+                self.db,
+                AuditEventType.enrichment_suppressed,
+                request_hashes[0],
+                job_id=job.id,
+            )
+
         await self.db.commit()
         await self.db.refresh(job)
         return job
@@ -81,6 +128,7 @@ class PipelineOrchestrator:
             status=status.value,
             request_payload=request.model_dump(mode="json"),
             dossier_payload={},
+            identifier_hashes=hashes_from_request(request),
         )
         self.db.add(job)
         return job
@@ -114,8 +162,34 @@ class PipelineOrchestrator:
     async def get_job(self, job_id: str) -> JobRecord | None:
         return await self.db.get(JobRecord, job_id)
 
+    async def register_opt_out(self, identifier: str, reason: str | None = None) -> PurgeResult:
+        """Register suppression, audit the event, and purge stored data for the identifier."""
+        identifier_hash = hash_identifier(identifier)
+        await self.add_suppression(identifier, reason)
+        await log_event(self.db, AuditEventType.opt_out, identifier_hash, details={"reason": reason or ""})
+
+        try:
+            purge_result = await purge_identifier_data(self.db, identifier)
+        except Exception:
+            logger.warning("purge failed for identifier_hash=%s", identifier_hash[:12], exc_info=True)
+            purge_result = PurgeResult()
+            await self.db.commit()
+
+        await log_event(
+            self.db,
+            AuditEventType.data_purged,
+            identifier_hash,
+            details={
+                "jobs_cleared": purge_result.jobs_cleared,
+                "photos_deleted": purge_result.photos_deleted,
+                "r2_objects_deleted": purge_result.r2_objects_deleted,
+            },
+        )
+        await self.db.commit()
+        return purge_result
+
     async def add_suppression(self, identifier: str, reason: str | None = None) -> None:
-        identifier_hash = self._hash(identifier)
+        identifier_hash = hash_identifier(identifier)
         record = SuppressionRecord(identifier_hash=identifier_hash, reason=reason or "")
         await self.db.merge(record)
         await self.db.commit()
@@ -126,7 +200,7 @@ class PipelineOrchestrator:
             logger.warning("redis unavailable during add_suppression; SQL record persisted")
 
     async def check_suppression(self, identifier: str) -> bool:
-        identifier_hash = self._hash(identifier)
+        identifier_hash = hash_identifier(identifier)
         try:
             if await get_redis_client().sismember(SUPPRESSION_SET_KEY, identifier_hash):
                 return True
@@ -143,8 +217,7 @@ class PipelineOrchestrator:
         return suppressed
 
     async def _is_suppressed(self, request: EnrichmentRequest) -> bool:
-        identifiers = [request.email, request.linkedin_url, request.username, request.company, request.business, request.job_search]
-        for identifier in [value for value in identifiers if value]:
+        for identifier in request_identifier_values(request):
             if await self.check_suppression(identifier):
                 return True
         return False
@@ -300,6 +373,3 @@ class PipelineOrchestrator:
                 "identifier_summary": " • ".join([value for value in values if value]),
             }
         )
-
-    def _hash(self, identifier: str) -> str:
-        return hashlib.sha256(identifier.strip().lower().encode("utf-8")).hexdigest()

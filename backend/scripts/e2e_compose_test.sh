@@ -60,7 +60,7 @@ done
 pass "async poll completed"
 
 echo "== opt-out suppression =="
-ident="compose-blocked@example.com"
+ident="compose-e2e"
 oc="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/opt-out" -H "$AUTH" \
   -H 'Content-Type: application/json' -d "{\"identifier\":\"$ident\",\"reason\":\"e2e\"}")"
 [ "$oc" = "202" ] || fail "opt-out expected 202, got $oc"
@@ -68,10 +68,16 @@ chk="$(curl -s "$BASE/api/opt-out/check?identifier=$ident" -H "$AUTH" \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["suppressed"])')"
 [ "$chk" = "True" ] || fail "identifier not reported suppressed"
 sup="$(curl -s -X POST "$BASE/enrich/sync" -H "$AUTH" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$ident\",\"requested_tiers\":[\"tier2\"]}" \
+  -d "{\"username\":\"$ident\",\"requested_tiers\":[\"tier2\"]}" \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["status"])')"
 [ "$sup" = "suppressed" ] || fail "enrich not suppressed (got $sup)"
 pass "opt-out blocks enrichment (suppression in Postgres)"
+
+echo "== opt-out purge clears prior job dossier =="
+purged_dossier="$(curl -s "$BASE/enrich/$job_id" -H "$AUTH" \
+  | python3 -c 'import sys,json;d=json.load(sys.stdin);print(len(d.get("dossier") or {}))')"
+[ "$purged_dossier" = "0" ] || fail "prior job dossier not purged after opt-out (keys=$purged_dossier)"
+pass "opt-out purged stored dossier for matching identifier"
 
 echo "== restart worker; old job must survive in Postgres volume =="
 docker compose restart worker

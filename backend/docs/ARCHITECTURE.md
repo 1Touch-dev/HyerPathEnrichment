@@ -29,8 +29,11 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Database is Postgres everywhere | Local dev default is **SQLite** (`sqlite+aiosqlite:///./hyrepath.db`); **Docker compose uses Postgres** (`postgresql+asyncpg://...@postgres:5432/hyrepath`) shared by API + worker |
 | R2 uploads go to Cloudflare | **R2 when `R2_*` creds set** (`aioboto3` PutObject + HeadObject); else local `backend/.asset-cache/` |
 | LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in |
-| Opt-out is unauthenticated | **Bearer token required** (compliance gap vs target) |
+| Opt-out is unauthenticated | **Bearer token required** (intentional v1; see `docs/LEGAL.md`) |
 | Suppression lives in Redis only | **SQL table** `suppression_list` is the durable record; Redis set `suppression:hashes` is a fast-path cache (dual-write, SQL fallback) |
+| Audit logs | **SQL `audit_logs`** — 5-year retention via `purge_audit_logs.py` |
+| DSAR flow | **`POST/GET /api/dsar`** — automated access/deletion in v1 |
+| Data erasure on opt-out | **`register_opt_out()`** purges jobs, photo cache, R2/local assets |
 | Sidecars are real services | Compose uses **real images**; free-mode ones default-on, paid/heavy ones behind `profiles:` |
 
 ### Task routing — where to start
@@ -319,7 +322,7 @@ Configured via `REDIS_URL`. Present in docker-compose. A shared async client exi
 - *Rate limiting.* Fixed-window counters (`ratelimit:{sync|async}:{token-hash}`) via `check_rate_limit()`. `POST /enrich` enforces `MAX_ASYNC_REQUESTS_PER_MINUTE`; `POST /enrich/sync` enforces `MAX_SYNC_REQUESTS_PER_MINUTE`. Dependencies live in `app/routes/rate_limit.py`. Over-limit returns `429`. **Fails open** on Redis error — protection, not correctness. Scope is per API token (SHA-256, first 16 hex chars); raw tokens are never logged.
 - *Job queue (RQ).* `POST /enrich` enqueues to the `enrichment` queue via `app/workers/queue.py` (synchronous `redis-py` connection — RQ is not async-compatible). The worker (`app/workers/rq_worker.py`) runs `init_db()` at startup (so tables exist even if the API hasn't booted), then dequeues and calls `run_enrichment_job` (`app/workers/jobs.py`), which bridges to the async orchestrator with `asyncio.run` and a fresh DB session. Because each job gets its own event loop, the job disposes the shared async Redis client and DB engine pool in a `finally` — loop-bound connections leaking into the next job cause "Event loop is closed" failures. Enqueue failure marks the job `failed` and returns `503`.
 
-**Redis roles now wired:** suppression fast path, rate limiting, job queue. Audit-log hashes remain target-only.
+**Redis roles now wired:** suppression fast path, rate limiting, job queue. Compliance audit trail is in SQL (`audit_logs`).
 
 ---
 
@@ -561,7 +564,10 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
 | Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
 | Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:` |
-| Opt-out auth | Unauthenticated POST | Bearer required (gap) |
+| Opt-out auth | Authenticated (intentional v1) | Implemented — see `docs/LEGAL.md` |
+| Audit logs | SQL + 5-year retention script | Implemented |
+| DSAR flow | `POST/GET /api/dsar` | Implemented |
+| Data erasure | Purge on opt-out/DSAR deletion | Implemented |
 | Scrapoxy proxy pool | Rate-limit hardening | `ProxyProvider` (`PROXY_MODE=none|scrapoxy|paid`, default none = direct) |
 | Change signals | changedetection.io webhook | `POST /api/signals/changedetection` consumer (optional shared-secret header) |
 | Prometheus metrics | `/metrics` endpoint | Optional dependency |

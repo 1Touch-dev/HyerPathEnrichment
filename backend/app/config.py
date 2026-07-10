@@ -112,6 +112,9 @@ class Settings(BaseSettings):
     changedetection_url: str = Field(default="", alias="CHANGEDETECTION_URL")
     changedetection_api_key: str = Field(default="", alias="CHANGEDETECTION_API_KEY")
 
+    # Compliance
+    audit_log_retention_years: int = Field(default=5, alias="AUDIT_LOG_RETENTION_YEARS")
+
 
 @lru_cache
 def get_settings() -> Settings:

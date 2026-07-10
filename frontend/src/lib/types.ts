@@ -104,6 +104,23 @@ export type OptOutInput = {
   reason?: string;
 };
 
+export type DsarType = 'access' | 'deletion';
+
+export type DsarInput = {
+  identifier: string;
+  requestType: DsarType;
+  notes?: string;
+};
+
+export type DsarResponse = {
+  id: string;
+  status: string;
+  requestType: DsarType;
+  createdAt: string;
+  completedAt?: string | null;
+  summary: Record<string, unknown>;
+};
+
 export type HealthStatus = {
   status: string;
   service: string;
