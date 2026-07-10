@@ -72,12 +72,7 @@ DOM_PHOTO_SELECTORS = (
     FIGURE_PHOTO_SELECTOR,
     'div[componentkey="topcard-logo-image-referencekey"] img',
     'div[aria-label="Profile photo"] img',
-    # "img.pv-top-card-profile-picture__image--show",
-    # "img.pv-top-card-profile-picture__image",
-    # "img.top-card-layout__entity-image",
-    # "img[data-delayed-url]",
-    # "img.profile-photo-edit__preview",
-    # 'img[src*="profile-displayphoto"]',
+ 
 )
 
 DOM_PHOTO_ATTRS = ("src", "data-delayed-url", "data-ghost-url", "data-src")
@@ -193,18 +188,6 @@ def _map_outcome_to_profile(outcome: LinkedInPhotoError) -> ProfileOutcome | Non
     return mapping.get(outcome)
 
 
-# def _find_login_input(driver: Any, wait: Any, selector: str) -> Any:
-#     """Wait for and return ``querySelectorAll(selector)[LOGIN_INPUT_INDEX]``."""
-#     from selenium.webdriver.common.by import By
-
-#     def _locate(d: Any) -> Any:
-#         elements = d.find_elements(By.CSS_SELECTOR, selector)
-#         if len(elements) > LOGIN_INPUT_INDEX:
-#             print("elements[LOGIN_INPUT_INDEX]", elements[LOGIN_INPUT_INDEX])
-#             return elements[LOGIN_INPUT_INDEX]
-#         return False
-
-#     return wait.until(_locate)
 
 def _find_login_input(driver, wait, selector):
     from selenium.webdriver.common.by import By
@@ -270,23 +253,10 @@ def _find_sign_in_button(driver, wait):
     return wait.until(_locate)
 
 
-# def _wait_for_enabled_sign_in_button(driver: Any, wait: Any) -> Any:
+
     """Wait until the Sign in button exists and LinkedIn has enabled it."""
 
-    # def _locate(d: Any) -> Any:
-    #     from selenium.webdriver.common.by import By
-
-    #     buttons = d.find_elements(By.XPATH, SIGN_IN_BUTTON_XPATH)
-    #     if not buttons:
-    #         buttons = d.find_elements(By.CSS_SELECTOR, "button[type='submit']")
-    #     if len(buttons) <= LOGIN_INPUT_INDEX:
-    #         return False
-    #     button = buttons[LOGIN_INPUT_INDEX]
-    #     if _sign_in_button_enabled(button):
-    #         return button
-    #     return False
-
-    # return wait.until(_locate)
+  
     def _locate(d):
         from selenium.webdriver.common.by import By
 
@@ -433,12 +403,6 @@ def login_linkedin(driver: Any) -> LinkedInPhotoError:
             password_input.is_enabled(),
         )
 
-
-        # _type_into_login_field(driver, email_input, email)
-        # _type_into_login_field(driver, password_input, password)
-        # password_input.send_keys(Keys.TAB)
-
-        # sign_in_button = _wait_for_enabled_sign_in_button(driver, wait)
         _type_into_login_field(driver, email_input, email)
         _type_into_login_field(driver, password_input, password)
 
@@ -529,19 +493,6 @@ def _photo_url_from_srcset(srcset: str) -> str | None:
     return best_url
 
 
-# def _photo_candidates_from_element(img: Any) -> list[str]:
-#     """Collect possible profile photo URLs from a DOM img element."""
-#     candidates: list[str] = []
-#     for attr in DOM_PHOTO_ATTRS:
-#         value = (img.get_attribute(attr) or "").strip()
-#         if value:
-#             candidates.append(value)
-#     srcset = (img.get_attribute("srcset") or "").strip()
-#     if srcset:
-#         parsed = _photo_url_from_srcset(srcset)
-#         if parsed:
-#             candidates.append(parsed)
-#     return candidates
 
 def _photo_candidates_from_element(img: Any) -> list[str]:
     candidates: list[str] = []
