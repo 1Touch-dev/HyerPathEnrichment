@@ -1,0 +1,33 @@
+# Virtualenvs (largest offenders)
+venv/
+.venv/
+
+# Python caches / build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.e2e-results/
+
+# Secrets and local data
+.env
+.env.*
+!.env.example
+*.db
+
+# Dev-only paths (not used at runtime in container)
+docker/
+docs/
+scripts/
+tests/
+
+# Runtime local asset cache (dev fallback in r2.py)
+.asset-cache/
+backend/
+
+# Misc
+*.log

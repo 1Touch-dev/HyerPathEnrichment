@@ -12,6 +12,9 @@ uvicorn app.main:app --reload --app-dir backend
 
 ## Run with Docker Compose (Postgres + Redis)
 
+API and worker images build from the `backend/` directory (not the repo root), so
+local virtualenvs and frontend assets are not sent to Docker.
+
 API and worker share one Postgres instance so async `POST /enrich` jobs can be
 polled across processes. Job data survives restarts via the `postgres_data` volume.
 
@@ -36,4 +39,12 @@ curl http://localhost:8000/enrich/<job_id> -H "Authorization: Bearer change-me"
 
 ```bash
 pytest backend/tests
+```
+
+Tier 2–4 debugging (prerequisites, isolation probes, tier-by-tier API curls): [`docs/TESTING_TIER234.md`](docs/TESTING_TIER234.md).
+
+```bash
+cd backend
+python scripts/probe_enrichers.py
+python scripts/probe_enrichers.py --prereqs
 ```

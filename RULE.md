@@ -1,4 +1,4 @@
-# RULE.md — Development Rules
+    # RULE.md — Development Rules
 
 Rules for humans and agents writing code in this repo. Read **before** implementing.
 

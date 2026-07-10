@@ -1,0 +1,17 @@
+[
+  {
+    "slug": "example-tech",
+    "linkedin_url": "https://www.linkedin.com/in/example-tech",
+    "category": "technical"
+  },
+  {
+    "slug": "example-sales",
+    "linkedin_url": "https://www.linkedin.com/in/example-sales",
+    "category": "non-technical"
+  },
+  {
+    "slug": "example-private",
+    "linkedin_url": "https://www.linkedin.com/in/example-private",
+    "category": "private"
+  }
+]

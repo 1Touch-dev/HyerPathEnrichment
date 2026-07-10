@@ -229,7 +229,28 @@ def test_sync_enrich_shape() -> None:
     assert payload["status"] == "completed"
     assert payload["dossier"]["handles"]
     assert payload["dossier"]["confidence"]
+    assert payload["dossier"]["photo"] is None
     assert "pipeline_id" in payload["dossier"]["metadata"]
+
+
+def test_sync_skips_tier1_photo(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "enable_tier1", True)
+    client = TestClient(app)
+    response = client.post(
+        "/enrich/sync",
+        headers={"Authorization": "Bearer change-me"},
+        json={
+            "linkedin_url": "https://linkedin.com/in/alex-hyrepath",
+            "requested_tiers": ["tier1", "tier2"],
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["dossier"]["photo"] is None
+    assert "linkedin-photo" not in payload["dossier"]["sources"]
 
 
 def test_opt_out_suppresses_enrichment() -> None:
@@ -300,3 +321,22 @@ async def test_execute_job_runs_pipeline() -> None:
         assert result is not None
         assert result.status == "completed"
         assert result.dossier_payload["handles"]
+
+
+async def test_execute_job_runs_tier1_on_worker_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "enable_tier1", True)
+    await init_db()
+    async with SessionLocal() as session:
+        orchestrator = get_orchestrator(session)
+        request = EnrichmentRequest(
+            linkedin_url="https://linkedin.com/in/alex-hyrepath",
+            requested_tiers=["tier1"],
+        )
+        job = await orchestrator.create_queued_job(request)
+        result = await orchestrator.execute_job(job.id)
+        assert result is not None
+        assert result.status == "completed"
+        assert result.dossier_payload["photo"] is not None
+        assert result.dossier_payload["photo"]["confidence"] == 0.84

@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     r2_bucket: str = Field(default="hyrepath-assets", alias="R2_BUCKET")
     r2_public_base_url: str = Field(default="https://cdn.example.com", alias="R2_PUBLIC_BASE_URL")
+    r2_account_id: str = Field(default="", alias="R2_ACCOUNT_ID")
+    r2_access_key_id: str = Field(default="", alias="R2_ACCESS_KEY_ID")
+    r2_secret_access_key: SecretStr = Field(default=SecretStr(""), alias="R2_SECRET_ACCESS_KEY")
     linkedin_photo_ttl_seconds: int = Field(default=86400, alias="LINKEDIN_PHOTO_TTL_SECONDS")
     username_lookup_ttl_seconds: int = Field(default=3600, alias="USERNAME_LOOKUP_TTL_SECONDS")
     business_lookup_ttl_seconds: int = Field(default=3600, alias="BUSINESS_LOOKUP_TTL_SECONDS")
@@ -29,7 +32,42 @@ class Settings(BaseSettings):
     email_verify_level: str = Field(default="basic", alias="EMAIL_VERIFY_LEVEL")  # basic|smtp
     enable_tier1: bool = Field(default=False, alias="ENABLE_TIER1")
 
-    # Tier 1 — LinkedIn photo (paid-later)
+    # Tier 1 — LinkedIn photo (Multilogin + Selenium)
+    multilogin_api_url: str = Field(
+        default="https://api.multilogin.com", alias="MULTILOGIN_API_URL"
+    )
+    multilogin_launcher_url: str = Field(
+        default="https://launcher.mlx.yt:45001/api/v2", alias="MULTILOGIN_LAUNCHER_URL"
+    )
+    multilogin_email: str = Field(default="", alias="MULTILOGIN_EMAIL")
+    multilogin_password: SecretStr = Field(default=SecretStr(""), alias="MULTILOGIN_PASSWORD")
+    multilogin_folder_id: str = Field(default="", alias="MULTILOGIN_FOLDER_ID")
+    multilogin_profile_pool_size: int = Field(default=0, alias="MULTILOGIN_PROFILE_POOL_SIZE")
+    multilogin_daily_view_limit: int = Field(default=22, alias="MULTILOGIN_DAILY_VIEW_LIMIT")
+    multilogin_profile_cooldown_seconds: int = Field(
+        default=86_400, alias="MULTILOGIN_PROFILE_COOLDOWN_SECONDS"
+    )
+    multilogin_rate_limit_cooldown_seconds: int = Field(
+        default=3_600, alias="MULTILOGIN_RATE_LIMIT_COOLDOWN_SECONDS"
+    )
+    tier1_placeholder_denylist: str = Field(default="", alias="TIER1_PLACEHOLDER_DENYLIST")
+    tier1_skip_login_if_session_valid: bool = Field(
+        default=True, alias="TIER1_SKIP_LOGIN_IF_SESSION_VALID"
+    )
+    multilogin_selenium_host: str = Field(
+        default="http://127.0.0.1", alias="MULTILOGIN_SELENIUM_HOST"
+    )
+    linkedin_bot_email: str = Field(default="", alias="LINKEDIN_BOT_EMAIL")
+    linkedin_bot_password: SecretStr = Field(
+        default=SecretStr(""), alias="LINKEDIN_BOT_PASSWORD"
+    )
+    tier1_browser_timeout_seconds: int = Field(
+        default=45, alias="TIER1_BROWSER_TIMEOUT_SECONDS"
+    )
+    tier1_max_concurrent_browsers: int = Field(
+        default=1, alias="TIER1_MAX_CONCURRENT_BROWSERS"
+    )
+    # Legacy Playwright CDP attach (local dev); production uses Selenium via MLX launcher port.
     multilogin_cdp_url: str = Field(default="", alias="MULTILOGIN_CDP_URL")
 
     # Tier 2 — handle hunt. Sidecar URLs default empty -> empty fragment.

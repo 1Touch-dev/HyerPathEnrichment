@@ -2,8 +2,8 @@ version: "3.9"
 services:
   api:
     build:
-      context: ../..
-      dockerfile: backend/docker/Dockerfile.api
+      context: ..
+      dockerfile: docker/Dockerfile.api
     environment:
       API_TOKEN: change-me
       DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
@@ -12,6 +12,7 @@ services:
       # if these are unreachable, so this stays safe if a sidecar is skipped.
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
+      ENABLE_TIER1: "false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -21,19 +22,27 @@ services:
       - "8000:8000"
   worker:
     build:
-      context: ../..
-      dockerfile: backend/docker/Dockerfile.worker
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       API_TOKEN: change-me
       DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
+      # Tier 1 (LinkedIn photo) runs on the worker only — never enable on api.
+      ENABLE_TIER1: ${ENABLE_TIER1:-false}
+      BROWSER_MODE: ${BROWSER_MODE:-local}
+      MULTILOGIN_SELENIUM_HOST: ${MULTILOGIN_SELENIUM_HOST:-http://host.docker.internal}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
+    volumes:
+      - tier1_artifacts:/app/backend/artifacts/tier1
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
@@ -118,6 +127,7 @@ services:
     restart: unless-stopped
 volumes:
   postgres_data:
+  tier1_artifacts:
   ollama_data:
   changedetection_data:
   gmaps_playwright_cache:
