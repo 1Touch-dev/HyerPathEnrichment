@@ -4,6 +4,8 @@ import logging
 import re
 from typing import Any
 
+from MailChecker import MailChecker
+
 from app.config import get_settings
 from app.providers.sidecar import SidecarClient
 
@@ -15,17 +17,26 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 class EmailVerifier:
     """Ordered email-verification fallback chain behind one call.
 
-    ``EMAIL_VERIFY_LEVEL=basic`` (free default): syntax + MX, plus the AfterShip
-    email-verifier sidecar when reachable. ``smtp`` adds the Reacher SMTP check
-    (needs port 25 + a clean IP). Every path returns the same ``VerifiedEmail``
-    shape (``value``, ``status``, ``confidence``, ``source``) or ``None`` when
-    the address is unusable, so callers stay identical across free/paid.
+    ``EMAIL_VERIFY_LEVEL=basic`` (free default): syntax, disposable blocklist
+    (mailchecker), MX, plus the AfterShip email-verifier sidecar when reachable.
+    ``smtp`` adds the Reacher SMTP check (needs port 25 + a clean IP). Every path
+    returns the same ``VerifiedEmail`` shape (``value``, ``status``,
+    ``confidence``, ``source``) or ``None`` when the address is unusable, so
+    callers stay identical across free/paid.
     """
 
     async def verify(self, email: str) -> dict[str, Any] | None:
         email = (email or "").strip().lower()
         if not _EMAIL_RE.match(email):
             return None
+
+        if self._is_disposable(email):
+            return {
+                "value": email,
+                "status": "disposable",
+                "confidence": 0.0,
+                "source": "mailchecker",
+            }
 
         settings = get_settings()
         result: dict[str, Any] = {
@@ -51,6 +62,11 @@ class EmailVerifier:
                 result.update(reacher)
 
         return result
+
+    def _is_disposable(self, email: str) -> bool:
+        # mailchecker.is_valid is False for throwaway domains (and bad format;
+        # format is already gated by _EMAIL_RE).
+        return not MailChecker.is_valid(email)
 
     async def _mx_ok(self, domain: str) -> bool | None:
         try:

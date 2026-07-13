@@ -148,7 +148,7 @@ function mapDossier(dossier: BackendDossier): Dossier {
     emails: dossier.emails ?? [],
     verifiedEmails: (dossier.verified_emails ?? []).map((email) => ({
       value: email.value,
-      status: email.status as 'verified' | 'risky' | 'unknown',
+      status: email.status as 'verified' | 'risky' | 'unknown' | 'disposable',
       confidence: email.confidence,
       source: email.source,
     })),
