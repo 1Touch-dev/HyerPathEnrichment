@@ -37,7 +37,7 @@ docker compose exec worker sh -c 'which sherlock maigret theHarvester crosslinke
 | GitRecon | 3 | `GITRECON_SCRIPT` → `gitrecon.py` |
 | TheHarvester | 3 | `theHarvester` on PATH |
 | Email Discover | 3 | `email-sleuth` (optional; pattern fallback always returns something) |
-| Email Verify | 3 | `dnspython` (`pip install .[enrichers]`); optional Reacher for SMTP |
+| Email Verify | 3 | `mailchecker` (core dep, disposable blocklist); `dnspython` (`pip install .[enrichers]`); optional Reacher for SMTP |
 | CrossLinked | 3 | `crosslinked` on PATH |
 | JobSpy | 4 | `pip install .[enrichers]` |
 | Local Business | 4 | Sidecar + `GMAPS_SCRAPER_URL` |

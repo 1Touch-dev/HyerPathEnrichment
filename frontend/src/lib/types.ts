@@ -30,7 +30,7 @@ export type SocialHandle = {
 
 export type VerifiedEmail = {
   value: string;
-  status: 'verified' | 'risky' | 'unknown';
+  status: 'verified' | 'risky' | 'unknown' | 'disposable';
   confidence: number;
   source: string;
 };

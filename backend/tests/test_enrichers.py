@@ -76,6 +76,29 @@ async def test_email_verifier_basic_syntax_offline(monkeypatch: pytest.MonkeyPat
     assert set(result) == {"value", "status", "confidence", "source"}
 
 
+async def test_email_verifier_rejects_disposable_before_mx(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _mx_should_not_run(self, domain: str):
+        raise AssertionError("MX must not run for disposable addresses")
+
+    async def _aftership_should_not_run(self, url: str, email: str):
+        raise AssertionError("AfterShip must not run for disposable addresses")
+
+    async def _reacher_should_not_run(self, url: str, email: str):
+        raise AssertionError("Reacher must not run for disposable addresses")
+
+    monkeypatch.setattr(EmailVerifier, "_mx_ok", _mx_should_not_run)
+    monkeypatch.setattr(EmailVerifier, "_aftership", _aftership_should_not_run)
+    monkeypatch.setattr(EmailVerifier, "_reacher", _reacher_should_not_run)
+
+    result = await EmailVerifier().verify("user@mailinator.com")
+    assert result == {
+        "value": "user@mailinator.com",
+        "status": "disposable",
+        "confidence": 0.0,
+        "source": "mailchecker",
+    }
+
+
 async def test_sherlock_parses_found_urls(monkeypatch: pytest.MonkeyPatch) -> None:
     stdout = "[+] GitHub: https://github.com/jane\n[+] Twitter: https://twitter.com/jane\n"
     monkeypatch.setattr(sherlock_mod, "run_command", _cmd(0, stdout))

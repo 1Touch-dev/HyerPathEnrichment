@@ -402,8 +402,15 @@ class PipelineOrchestrator:
             ),
             ConfidenceBreakdown(
                 label="email-verification",
-                score=0.89 if dossier.verified_emails else 0.22,
-                evidence=[f"verified emails: {len(dossier.verified_emails)}"],
+                score=(
+                    0.89
+                    if any(e.status != "disposable" for e in dossier.verified_emails)
+                    else 0.22
+                ),
+                evidence=[
+                    "verified emails: "
+                    f"{sum(1 for e in dossier.verified_emails if e.status != 'disposable')}"
+                ],
             ),
             ConfidenceBreakdown(
                 label="coverage",
