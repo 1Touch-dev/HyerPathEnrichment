@@ -23,6 +23,20 @@ services:
       LITELLM_MODEL: ${LITELLM_MODEL:-gpt-4o-mini}
       LITELLM_FALLBACKS: ${LITELLM_FALLBACKS:-}
       DISAMBIGUATION_THRESHOLD: ${DISAMBIGUATION_THRESHOLD:-0.7}
+      # Tier 3 — OSINT + email (free default-on sidecar + worker CLIs)
+      GITRECON_SCRIPT: /opt/gitrecon/gitrecon.py
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      EMAIL_SLEUTH_BIN: email-sleuth
+      EMAIL_VERIFIER_URL: http://email-verifier:8080
+      EMAIL_VERIFY_LEVEL: ${EMAIL_VERIFY_LEVEL:-basic}
+      EMAIL_VERIFY_MAX_PER_JOB: ${EMAIL_VERIFY_MAX_PER_JOB:-10}
+      EMAIL_VERIFY_SMTP_DELAY_SECONDS: ${EMAIL_VERIFY_SMTP_DELAY_SECONDS:-6}
+      REACHER_URL: ${REACHER_URL:-}
+      REACHER_FROM_EMAIL: ${REACHER_FROM_EMAIL:-}
+      PROXY_MODE: ${PROXY_MODE:-none}
+      SCRAPOXY_URL: ${SCRAPOXY_URL:-}
+      CROSSLINKED_SEARCH_ENGINES: ${CROSSLINKED_SEARCH_ENGINES:-yahoo}
+      CROSSLINKED_TIMEOUT_SECONDS: ${CROSSLINKED_TIMEOUT_SECONDS:-120}
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,6 +66,19 @@ services:
       LITELLM_MODEL: ${LITELLM_MODEL:-gpt-4o-mini}
       LITELLM_FALLBACKS: ${LITELLM_FALLBACKS:-}
       DISAMBIGUATION_THRESHOLD: ${DISAMBIGUATION_THRESHOLD:-0.7}
+      GITRECON_SCRIPT: /opt/gitrecon/gitrecon.py
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      EMAIL_SLEUTH_BIN: email-sleuth
+      EMAIL_VERIFIER_URL: http://email-verifier:8080
+      EMAIL_VERIFY_LEVEL: ${EMAIL_VERIFY_LEVEL:-basic}
+      EMAIL_VERIFY_MAX_PER_JOB: ${EMAIL_VERIFY_MAX_PER_JOB:-10}
+      EMAIL_VERIFY_SMTP_DELAY_SECONDS: ${EMAIL_VERIFY_SMTP_DELAY_SECONDS:-6}
+      REACHER_URL: ${REACHER_URL:-}
+      REACHER_FROM_EMAIL: ${REACHER_FROM_EMAIL:-}
+      PROXY_MODE: ${PROXY_MODE:-none}
+      SCRAPOXY_URL: ${SCRAPOXY_URL:-}
+      CROSSLINKED_SEARCH_ENGINES: ${CROSSLINKED_SEARCH_ENGINES:-yahoo}
+      CROSSLINKED_TIMEOUT_SECONDS: ${CROSSLINKED_TIMEOUT_SECONDS:-120}
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,6 +135,25 @@ services:
       - "8080:8080"
     volumes:
       - gmaps_data:/gmapsdata
+    restart: unless-stopped
+  email-verifier:
+    build:
+      context: .
+      dockerfile: Dockerfile.email-verifier
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:8080/v1/health@example.com/verification",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
     restart: unless-stopped
 
   # ── Paid / heavy services (opt-in via `--profile`) ──────────────

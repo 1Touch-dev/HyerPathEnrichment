@@ -37,6 +37,8 @@ enrichers = [
   # Tier 2 CLIs (sherlock / maigret entry points on PATH)
   "sherlock-project>=0.16.0,<0.17",
   "maigret>=0.6.2,<0.7",
+  # Tier 3 — CrossLinked installed from GitHub fork in Dockerfiles (Yahoo search)
+  # theHarvester is installed from GitHub in Dockerfiles
 ]
 
 [build-system]

@@ -511,7 +511,8 @@ Copy `backend/.env.example` → `backend/.env`.
 | `postgres` | Job + suppression persistence |
 | `redis` | Queue + suppression + rate limits |
 | `social-analyzer` | AGPL sidecar (Tier 2) |
-| `reacher` | SMTP verification sidecar (Tier 3) |
+| `email-verifier` | AfterShip email verification sidecar (Tier 3 basic mode) |
+| `reacher` | SMTP verification sidecar (Tier 3 smtp mode) |
 | `google-maps-scraper` | Local business sidecar (Tier 4); built via `Dockerfile.google-maps-scraper` (Playwright driver from npm — not Hub CDN) |
 | `litellm` | LLM proxy |
 | `langfuse` | LLM observability |
@@ -570,6 +571,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Tier 1 Docker ops | Worker image + compose override | `Dockerfile.worker` (Chromium + `.[enrichers]`); `docker-compose.tier1.yml` injects secrets via `env_file` (`WORKER_ENV_FILE` or `../.env`), forces `MULTILOGIN_SELENIUM_HOST`, maps `launcher.mlx.yt`/`host.docker.internal` → `host-gateway` or `MULTILOGIN_HOST_IP` (WSL2); `validate_tier1_settings()` fail-fast on worker boot; `tier1_*` Prometheus counters |
 | Tier 1 hardening (3.7) | Session reuse, denylist, rate limits | `TIER1_SKIP_LOGIN_IF_SESSION_VALID`; `profile_pool.refund_view()`; `probe_tier1_canary.py`; configurable cooldowns |
 | Tier 2 CLIs + scores | Sherlock/Maigret/SA in Docker | `sherlock-project` + `maigret` in `.[enrichers]`; bases 0.75/0.85; merge prefer-max; `e2e_tier2.sh` |
+| Tier 3 CLIs + email verify | gitrecon/Harvester/sleuth/CrossLinked + AfterShip | CLIs in worker/api images; `email-verifier` sidecar; two-phase verify in `runner.py`; `EMAIL_VERIFY_LEVEL=basic\|smtp`; `e2e_tier3.sh` |
 | LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
 | Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
 | Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:` |
@@ -657,7 +659,7 @@ The script brings up `api`, `worker`, `redis`, `postgres`, then asserts: `/healt
 Track these as architecture decisions mature:
 
 1. ~~Wire Redis/RQ so `/enrich` is truly async~~ (done) — ~~make `/enrich/sync` exclude Tier 1 browser work~~ (done: `runner.py` sync_mode skips tier1)
-2. ~~Replace enricher mocks with subprocess/library integrations per upstream repo~~ (done) — remaining: tune gitrecon JSON schema / GMaps sidecar against live deployments; Tier 2 SA + Sherlock/Maigret covered by `e2e_tier2.sh`
+2. ~~Replace enricher mocks with subprocess/library integrations per upstream repo~~ (done) — remaining: GMaps sidecar against live deployments; Tier 2 SA + Sherlock/Maigret covered by `e2e_tier2.sh`; Tier 3 covered by `e2e_tier3.sh`
 3. Remove Bearer auth from `POST /api/opt-out` for compliance accessibility
 4. ~~Promote SQLite → PostgreSQL in default docker-compose wiring~~ (done) — remaining: Alembic migrations and `JSONB` columns when the schema stabilizes
 5. ~~Connect LiteLLM + Langfuse in `llm_router.py`~~ (done, opt-in) — remaining: real prompt tuning + cost dashboards once `LLM_MODE=litellm` is exercised

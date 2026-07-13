@@ -89,12 +89,20 @@ class EmailVerifier:
         data = await client.get_json(f"/v1/{email}/verification")
         if not isinstance(data, dict):
             return None
-        reachable = bool(data.get("reachable") not in (None, "", "unknown")) and bool(
-            data.get("has_mx_records", True)
-        )
+        reachable_raw = str(data.get("reachable", "unknown")).lower()
+        has_mx = bool(data.get("has_mx_records", False))
+        if reachable_raw in {"yes", "true"}:
+            status, confidence = "deliverable", 0.8
+        elif reachable_raw in {"no", "false"}:
+            status, confidence = "risky", 0.4
+        elif has_mx:
+            # AfterShip often returns reachable=unknown when SMTP probe is inconclusive.
+            status, confidence = "deliverable", 0.65
+        else:
+            status, confidence = "risky", 0.4
         return {
-            "status": "deliverable" if reachable else "risky",
-            "confidence": 0.8 if reachable else 0.4,
+            "status": status,
+            "confidence": confidence,
             "source": "AfterShip Email Verifier",
         }
 

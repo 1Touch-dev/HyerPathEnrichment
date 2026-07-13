@@ -24,7 +24,7 @@ wsl -d Ubuntu-22.04 -u root bash /mnt/g/ThunderMarketingCorp/HyerEnrichment/back
 
 ### Scrapoxy (optional, not gated)
 
-Default is `PROXY_MODE=none` (direct; ban risk at volume). Manual smoke:
+Default is `PROXY_MODE=none` (direct; ban risk at volume). CrossLinked uses **Yahoo** search by default (`CROSSLINKED_SEARCH_ENGINES=yahoo`) via the maintained fork in Docker images; upstream v0.3.0 Bing/Google are blocked in containers. Optional Scrapoxy:
 
 ```bash
 cd backend/docker
@@ -68,7 +68,7 @@ docker compose exec worker sh -c 'which sherlock maigret theHarvester crosslinke
 | GitRecon | 3 | `GITRECON_SCRIPT` → `gitrecon.py` |
 | TheHarvester | 3 | `theHarvester` on PATH |
 | Email Discover | 3 | `email-sleuth` (optional; pattern fallback always returns something) |
-| Email Verify | 3 | `mailchecker` (core dep, disposable blocklist); `dnspython` (`pip install .[enrichers]`); optional Reacher for SMTP |
+| Email Verify | 3 | `mailchecker` (core dep); `dnspython` (`pip install .[enrichers]`); `EMAIL_VERIFIER_URL` (AfterShip sidecar); optional Reacher when `EMAIL_VERIFY_LEVEL=smtp` |
 | CrossLinked | 3 | `crosslinked` on PATH |
 | JobSpy | 4 | `pip install .[enrichers]` |
 | Local Business | 4 | Sidecar + `GMAPS_SCRAPER_URL` |
@@ -127,7 +127,7 @@ python scripts/probe_enrichers.py --only sherlock,maigret --json
 | `EMPTY {}` | Tool missing, timeout, or no results |
 | `OK` | Enricher returned data — inspect keys |
 
-Stable test subjects: `torvalds`, company `github` / `Microsoft`, email `noreply@github.com`, job `"software engineer remote"`, business `"coffee shop San Francisco"`.
+Stable test subjects: `torvalds` / `satyanadella` (GitHub), company `Microsoft`, email `noreply@github.com`, job `"software engineer remote"`, business `"coffee shop San Francisco"`.
 
 ---
 
@@ -148,7 +148,7 @@ curl -s -X POST http://localhost:8000/enrich/sync \
 curl -s -X POST http://localhost:8000/enrich/sync \
   -H "Authorization: Bearer change-me" \
   -H "Content-Type: application/json" \
-  -d '{"username":"torvalds","email":"torvalds@example.com","company":"github","requested_tiers":["tier3"]}' | python -m json.tool
+  -d '{"username":"torvalds","email":"torvalds@example.com","company":"Microsoft","requested_tiers":["tier3"]}' | python -m json.tool
 ```
 
 **Tier 4:**
@@ -182,15 +182,36 @@ curl -s -X POST http://localhost:8000/enrich/sync \
 ```env
 SOCIAL_ANALYZER_URL=http://social-analyzer:9005    # Docker network
 GMAPS_SCRAPER_URL=http://google-maps-scraper:8080
-GITRECON_SCRIPT=/path/to/gitrecon.py
+GITRECON_SCRIPT=/opt/gitrecon/gitrecon.py          # Docker worker/api default
+EMAIL_VERIFIER_URL=http://email-verifier:8080      # AfterShip sidecar (basic mode)
+EMAIL_VERIFY_LEVEL=basic                           # basic | smtp (Reacher)
+EMAIL_VERIFY_MAX_PER_JOB=10
 GITHUB_TOKEN=ghp_...                               # optional
-EMAIL_VERIFY_LEVEL=basic
 ```
 
 Local dev (not Docker): point URLs to `localhost:9005` / `localhost:8080`. Install extras:
 
 ```bash
 cd backend && pip install -e ".[enrichers]"
+```
+
+---
+
+## Tier 3 full E2E
+
+```bash
+bash backend/scripts/e2e_tier3.sh
+```
+
+Stage A (default): api + worker + redis + postgres + **email-verifier** sidecar; asserts all five Tier 3 sources on sync + async enrich.
+
+Stage B (optional): `RUN_TIER3_SMTP=1 bash backend/scripts/e2e_tier3.sh` — also starts Reacher (`--profile paid`) when `EMAIL_VERIFY_LEVEL=smtp`.
+
+Unit tests:
+
+```bash
+cd backend
+pytest tests/test_tier3_merge.py tests/test_enrichers.py
 ```
 
 ---
@@ -236,10 +257,11 @@ wsl -d Ubuntu-22.04 -u root bash /mnt/g/ThunderMarketingCorp/HyerEnrichment/back
 
 | Enricher | Likely status | Why |
 |----------|---------------|-----|
-| Email Discover | Partial OK | Pattern fallback without `email-sleuth` |
-| Email Verify | Partial OK | MX if `dnspython` installed |
+| GitRecon / theHarvester / CrossLinked / Email Sleuth | OK after rebuild | Baked into `Dockerfile.worker` + `Dockerfile.api` |
+| Email Verify (basic) | OK when sidecar up | `email-verifier` compose service + two-phase verify in `runner.py` |
+| Email Verify (SMTP) | Opt-in | `EMAIL_VERIFY_LEVEL=smtp` + `docker compose --profile paid up reacher` |
 | Social Analyzer / Local Business | Depends | Sidecar up + correct API contract |
-| Sherlock, Maigret | OK after rebuild | Installed via `.[enrichers]` (`sherlock-project`, `maigret`) in worker/api images |
-| TheHarvester, CrossLinked, GitRecon, JobSpy | Often EMPTY | Remaining CLIs / paths not all baked into the image |
+| Sherlock, Maigret | OK after rebuild | Installed via `.[enrichers]` in worker/api images |
+| JobSpy | Often EMPTY on Windows | Prefer Docker/WSL; see Windows note below |
 
-Validate remaining CLI enrichers locally (tools on host) with Layer 3 while those installs are still optional.
+Validate CLI enrichers locally with Layer 3 (`probe_enrichers.py`) when not using Docker.

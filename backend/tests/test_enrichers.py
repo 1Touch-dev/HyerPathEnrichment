@@ -9,7 +9,9 @@ from app.enrichers import gitrecon as gitrecon_mod
 from app.enrichers import sherlock as sherlock_mod
 from app.enrichers.base import Enricher
 from app.enrichers.email_discover import EmailDiscoverEnricher
-from app.enrichers.gitrecon import GitReconEnricher
+from app.enrichers.email_verify import EmailVerifyEnricher
+from app.enrichers.crosslinked import CrossLinkedEnricher
+from app.enrichers.gitrecon import GitReconEnricher, fragment_from_gitrecon_data
 from app.enrichers.jobspy import JobSpyEnricher
 from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.sherlock import SherlockEnricher
@@ -27,6 +29,7 @@ def _cmd(returncode: int, stdout: str):
 
 
 async def test_gitrecon_parses_output_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(get_settings(), "gitrecon_script", "")
     payload = {
         "username": "octocat",
         "orgs": ["github"],
@@ -35,6 +38,8 @@ async def test_gitrecon_parses_output_file(monkeypatch: pytest.MonkeyPatch) -> N
 
     async def _run(args, timeout, env=None, cwd=None):
         assert cwd
+        assert args == ["python3", "gitrecon.py", "octocat", "-s", "github", "-o"]
+        assert (Path(cwd) / "results").is_dir()
         result = Path(cwd) / "results" / "octocat" / "octocat_github.json"
         result.parent.mkdir(parents=True, exist_ok=True)
         result.write_text(json.dumps(payload), encoding="utf-8")
@@ -54,6 +59,26 @@ async def test_gitrecon_degrades_when_tool_missing(monkeypatch: pytest.MonkeyPat
     assert fragment == {}
 
 
+async def test_crosslinked_reads_names_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from app.enrichers import crosslinked as crosslinked_mod
+
+    names_file = tmp_path / "crosslinked_names.txt"
+    names_file.write_text("jane.doe@microsoft.com\njohn.smith@microsoft.com\n", encoding="utf-8")
+
+    async def _run(args, timeout, env=None, cwd=None):
+        assert "--search" in args
+        target = Path(cwd) / "crosslinked_names.txt"
+        target.write_text(names_file.read_text(encoding="utf-8"), encoding="utf-8")
+        return 0, "", ""
+
+    monkeypatch.setattr(get_settings(), "crosslinked_search_engines", "yahoo")
+    monkeypatch.setattr(crosslinked_mod, "run_command", _run)
+    fragment = await CrossLinkedEnricher().run(EnrichmentRequest(company="Microsoft"))
+    assert fragment["coworkers"] == ["Jane Doe", "John Smith"]
+    assert "jane.doe@microsoft.com" in fragment["emails"]
+    assert fragment["sources"] == ["CrossLinked"]
+
+
 async def test_email_discover_falls_back_to_pattern(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.enrichers import email_discover as email_discover_mod
 
@@ -62,6 +87,43 @@ async def test_email_discover_falls_back_to_pattern(monkeypatch: pytest.MonkeyPa
         EnrichmentRequest(username="jane", company="Acme Corp")
     )
     assert fragment["emails"] == ["jane@acmecorp.com"]
+
+
+async def test_email_discover_parses_sleuth_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.enrichers import email_discover as email_discover_mod
+
+    stdout = json.dumps([{"email": "jane.doe@acme.com"}, {"email": "jdoe@acme.com"}])
+    monkeypatch.setattr(email_discover_mod, "run_command", _cmd(0, stdout))
+    fragment = await EmailDiscoverEnricher().run(
+        EnrichmentRequest(username="jane", company="Acme Corp")
+    )
+    assert fragment["emails"] == ["jane.doe@acme.com", "jdoe@acme.com"]
+
+
+async def test_gitrecon_fixture_torvalds() -> None:
+    fixture = Path(__file__).parent / "fixtures" / "gitrecon_torvalds_github.json"
+    data = json.loads(fixture.read_text(encoding="utf-8"))
+    fragment = fragment_from_gitrecon_data(data, username="torvalds")
+    assert fragment["handles"][0]["username"] == "torvalds"
+    assert fragment["github"]["organizations"] == ["torvalds", "linux"]
+    assert fragment["github"]["public_commits"] == 42
+    assert fragment["emails"] == ["torvalds@linux-foundation.org"]
+
+
+async def test_email_verify_batch_returns_sources() -> None:
+    async def _verify(email: str):
+        return {
+            "value": email,
+            "status": "deliverable",
+            "confidence": 0.55,
+            "source": "mx",
+        }
+
+    enricher = EmailVerifyEnricher()
+    enricher.verifier.verify = _verify  # type: ignore[method-assign]
+    fragment = await enricher.verify_emails(["a@example.com"])
+    assert fragment["sources"] == ["Email Verify"]
+    assert len(fragment["verified_emails"]) == 1
 
 
 async def test_email_verifier_basic_syntax_offline(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -41,7 +41,7 @@ curl http://localhost:8000/enrich/<job_id> -H "Authorization: Bearer change-me"
 pytest backend/tests
 ```
 
-Tier 2–4 debugging (prerequisites, isolation probes, tier-by-tier API curls): [`docs/TESTING_TIER234.md`](docs/TESTING_TIER234.md). Tier 2 full E2E: `bash scripts/e2e_tier2.sh`.
+Tier 2–4 debugging (prerequisites, isolation probes, tier-by-tier API curls): [`docs/TESTING_TIER234.md`](docs/TESTING_TIER234.md). Tier 2 full E2E: `bash scripts/e2e_tier2.sh`. Tier 3 full E2E: `bash scripts/e2e_tier3.sh`.
 
 ```bash
 cd backend
