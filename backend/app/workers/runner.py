@@ -26,6 +26,7 @@ from app.enrichers import (
     SocialAnalyzerEnricher,
     TheHarvesterEnricher,
 )
+from app.config import get_settings
 from app.enrichers.base import Enricher
 from app.llm_router import LiteLLMDisambiguator
 from app.models import (
@@ -335,21 +336,69 @@ class PipelineOrchestrator:
                     sources.add(str(source))
 
         dossier.sources = sorted(sources)
+        dossier.handles, dropped = await self._disambiguate_handles(request, dossier.handles)
+        if dropped:
+            dossier.metadata["disambiguation_dropped"] = dropped
         dossier.confidence = await self._build_confidence(request, dossier)
         return dossier
+
+    async def _disambiguate_handles(
+        self, request: EnrichmentRequest, handles: list[SocialHandle]
+    ) -> tuple[list[SocialHandle], int]:
+        """Keep high-confidence handles; LLM-gate the rest against DISAMBIGUATION_THRESHOLD."""
+        threshold = get_settings().disambiguation_threshold
+        target = self._target_identity(request)
+        kept: list[SocialHandle] = []
+        dropped = 0
+
+        for handle in handles:
+            if handle.confidence >= threshold:
+                kept.append(handle)
+                continue
+
+            evidence = f"{handle.platform} | {handle.username} | {handle.profile_url}"
+            decision = await self.llm.compare(target, evidence)
+            if decision.same_identity and decision.confidence >= threshold:
+                handle.confidence = max(handle.confidence, decision.confidence)
+                kept.append(handle)
+            else:
+                dropped += 1
+                logger.info(
+                    "dropped ambiguous handle %s/%s (same=%s llm_conf=%.2f)",
+                    handle.platform,
+                    handle.username,
+                    decision.same_identity,
+                    decision.confidence,
+                )
+
+        return kept, dropped
+
+    @staticmethod
+    def _target_identity(request: EnrichmentRequest) -> str:
+        parts = [
+            request.username,
+            request.email,
+            request.linkedin_url,
+            request.company,
+        ]
+        return " | ".join(part for part in parts if part) or "unknown"
 
     async def _build_confidence(self, request: EnrichmentRequest, dossier: Dossier) -> list[ConfidenceBreakdown]:
         username = request.username or (request.email or "candidate@example.com").split("@")[0]
         handle_match = any(handle.username.lower() == username.lower() for handle in dossier.handles)
-        decision = await self.llm.compare(username, username if handle_match else "unknown")
+        dropped = int(dossier.metadata.get("disambiguation_dropped") or 0)
+        evidence = [
+            f"cross-source handles: {len(dossier.handles)}",
+            f"llm disambiguation dropped: {dropped}",
+        ]
+        if dossier.handles:
+            avg = sum(handle.confidence for handle in dossier.handles) / len(dossier.handles)
+            evidence.append(f"avg handle confidence: {avg:.2f}")
         return [
             ConfidenceBreakdown(
                 label="identity-match",
-                score=0.91 if handle_match else 0.44,
-                evidence=[
-                    f"cross-source handles: {len(dossier.handles)}",
-                    f"llm confirmation: {decision.same_identity} ({decision.reason})",
-                ],
+                score=0.91 if handle_match else (0.72 if dossier.handles else 0.44),
+                evidence=evidence,
             ),
             ConfidenceBreakdown(
                 label="email-verification",

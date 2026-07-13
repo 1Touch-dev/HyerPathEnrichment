@@ -28,7 +28,7 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Enrichers call real tools | They do (subprocess/library/sidecar) behind the `app/providers/` layer, but **degrade to empty fragments** when a tool/sidecar/key is missing. Defaults are fully free/self-hosted; free -> paid is an env flip |
 | Database is Postgres everywhere | Local dev default is **SQLite** (`sqlite+aiosqlite:///./hyrepath.db`); **Docker compose uses Postgres** (`postgresql+asyncpg://...@postgres:5432/hyrepath`) shared by API + worker |
 | R2 uploads go to Cloudflare | **R2 when `R2_*` creds set** (`aioboto3` PutObject + HeadObject); else local `backend/.asset-cache/` |
-| LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in |
+| LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in. Orchestrator walks handles below `DISAMBIGUATION_THRESHOLD` and keep/drops via `llm.compare` |
 | Opt-out is unauthenticated | **Bearer token required** (intentional v1; see `docs/LEGAL.md`) |
 | Suppression lives in Redis only | **SQL table** `suppression_list` is the durable record; Redis set `suppression:hashes` is a fast-path cache (dual-write, SQL fallback) |
 | Audit logs | **SQL `audit_logs`** — 5-year retention via `purge_audit_logs.py` |
@@ -258,7 +258,7 @@ Results are merged, deduplicated, and scored. Handles below **0.7** go to the LL
 - Traced in **Langfuse** for cost and quality review
 - Only kept if LLM confidence **≥ 0.7**
 
-**Current:** backend is config-selected via `LLM_MODE` (`app/providers/llm.py`): `stub` (default, heuristic string match, no network), `ollama` (local model), or `litellm` (proxy + fallback chain). `LiteLLMDisambiguator.compare()` signature is unchanged so the orchestrator and confidence scoring are untouched. Langfuse tracing runs via `providers.llm.trace()` and is a no-op until `LANGFUSE_*` is set.
+**Current:** after merge, `PipelineOrchestrator._disambiguate_handles()` in `workers/runner.py` walks each handle below `DISAMBIGUATION_THRESHOLD`, calls `llm.compare(target_identity, handle_evidence)`, boosts and keeps matches (`confidence = max(original, llm)`), and drops the rest. Backend is config-selected via `LLM_MODE` (`app/providers/llm.py`): `stub` (default, heuristic string match, no network), `ollama` (local model), or `litellm` (proxy + `LITELLM_FALLBACKS` chain). Start the proxy with `docker compose --env-file ../.env --profile llm up -d litellm`. The litellm service must **not** inherit Hyrepath’s `DATABASE_URL` (sqlite crash-loops the proxy); vendor keys are passed via compose interpolation and models via `docker/litellm_config.yaml`. api/worker only need `LITELLM_API_BASE` / model list. Langfuse tracing runs via `providers.llm.trace()` and is a no-op until `LANGFUSE_*` is set.
 
 ---
 
@@ -481,9 +481,12 @@ Copy `backend/.env.example` → `backend/.env`.
 
 | Variable | Purpose |
 |----------|---------|
+| `LLM_MODE` | `stub` / `ollama` / `litellm` |
 | `LITELLM_MODEL` | Primary model |
-| `LITELLM_FALLBACKS` | Fallback chain |
-| `LITELLM_API_KEY`, `LITELLM_API_BASE` | LiteLLM proxy config |
+| `LITELLM_FALLBACKS` | Comma-separated fallback model ids |
+| `LITELLM_API_KEY`, `LITELLM_API_BASE` | App → LiteLLM proxy |
+| `LITELLM_MASTER_KEY` | Optional proxy auth (match `LITELLM_API_KEY` on app) |
+| `OPENAI_API_KEY`, `GEMINI_API_KEY` | Vendor keys on **litellm container only** (`env_file`) |
 | `DISAMBIGUATION_THRESHOLD` | Default `0.7` |
 
 ### Rate limits (enforced per API token via Redis fixed-window counters)
