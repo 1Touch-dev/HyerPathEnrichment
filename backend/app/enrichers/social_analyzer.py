@@ -9,6 +9,17 @@ from app.models import EnrichmentRequest
 from app.providers import SidecarClient
 
 
+def extract_social_analyzer_candidates(data: dict[str, Any]) -> list[Any]:
+    """Return profile candidate rows from a Social Analyzer analyze_string payload."""
+    user_info = data.get("user_info_normal")
+    if isinstance(user_info, dict):
+        candidates = user_info.get("data", [])
+        if isinstance(candidates, list) and candidates:
+            return candidates
+    candidates = data.get("detected") or data.get("results") or []
+    return candidates if isinstance(candidates, list) else []
+
+
 def _parse_rate(raw: Any, default: float = 0.8) -> float:
     if raw is None or raw == "":
         return default
@@ -44,9 +55,7 @@ class SocialAnalyzerEnricher(Enricher):
         if not isinstance(data, dict) or data == "Error":
             return {}
 
-        candidates = data.get("user_info_normal", {}).get("data", [])
-        if not isinstance(candidates, list):
-            candidates = data.get("detected") or data.get("results") or []
+        candidates = extract_social_analyzer_candidates(data)
 
         handles: list[dict[str, Any]] = []
         for item in candidates:

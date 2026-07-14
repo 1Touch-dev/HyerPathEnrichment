@@ -15,7 +15,7 @@ from app.enrichers.gitrecon import GitReconEnricher, fragment_from_gitrecon_data
 from app.enrichers.jobspy import JobSpyEnricher
 from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.sherlock import SherlockEnricher
-from app.enrichers.social_analyzer import SocialAnalyzerEnricher
+from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
 from app.models import EnrichmentRequest
 from app.providers import EmailVerifier, ProxyProvider
 from app.providers import sidecar as sidecar_mod
@@ -223,6 +223,62 @@ async def test_local_business_empty_when_sidecar_unset(monkeypatch: pytest.Monke
     monkeypatch.setattr(get_settings(), "gmaps_scraper_url", "")
     fragment = await LocalBusinessEnricher().run(EnrichmentRequest(business="Joe's Coffee"))
     assert fragment == {}
+
+
+async def test_local_business_maps_job_and_csv(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(get_settings(), "gmaps_scraper_url", "http://gmaps:8080")
+    monkeypatch.setattr(get_settings(), "gmaps_job_timeout_seconds", 30)
+    monkeypatch.setattr(get_settings(), "gmaps_job_poll_seconds", 0)
+
+    csv_body = (
+        "title,address,website,review_rating,phone\n"
+        "Hey Neighbor Cafe,123 Main St,https://example.com,4.5,+1-555-0100\n"
+    )
+
+    async def _post_json(self, path="", json=None):
+        assert path == "/api/v1/jobs"
+        return {"id": "job-abc"}
+
+    async def _get_json(self, path="", params=None):
+        assert path == "/api/v1/jobs/job-abc"
+        return {"status": "ok"}
+
+    async def _get_text(self, path=""):
+        assert path == "/api/v1/jobs/job-abc/download"
+        return csv_body
+
+    monkeypatch.setattr(sidecar_mod.SidecarClient, "post_json", _post_json)
+    monkeypatch.setattr(sidecar_mod.SidecarClient, "get_json", _get_json)
+    monkeypatch.setattr(sidecar_mod.SidecarClient, "get_text", _get_text)
+
+    fragment = await LocalBusinessEnricher().run(
+        EnrichmentRequest(business="coffee shop San Francisco")
+    )
+    business = fragment["business"]
+    assert business["name"] == "Hey Neighbor Cafe"
+    assert business["address"] == "123 Main St"
+    assert business["website"] == "https://example.com"
+    assert business["rating"] == pytest.approx(4.5)
+    assert business["phone"] == "+1-555-0100"
+    assert business["metadata"]["job_id"] == "job-abc"
+
+
+def test_extract_social_analyzer_candidates_fallback() -> None:
+    fixture = Path(__file__).parent / "fixtures" / "social_analyzer_analyze_string.json"
+    sample = json.loads(fixture.read_text(encoding="utf-8"))
+    candidates = extract_social_analyzer_candidates(sample)
+    assert len(candidates) == 3
+
+    fallback = extract_social_analyzer_candidates({"detected": [{"type": "GitHub", "link": "https://github.com/x"}]})
+    assert len(fallback) == 1
+
+
+def test_local_business_parses_gmaps_fixture_csv() -> None:
+    csv_text = (Path(__file__).parent / "fixtures" / "gmaps_sample_row.csv").read_text(encoding="utf-8")
+    row = LocalBusinessEnricher()._first_csv_row(csv_text)
+    assert row is not None
+    assert row["title"] == "Hey Neighbor Cafe"
+    assert row["review_rating"] == "4.5"
 
 
 async def test_jobspy_maps_scraped_rows(monkeypatch: pytest.MonkeyPatch) -> None:
