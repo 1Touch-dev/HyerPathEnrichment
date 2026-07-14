@@ -59,6 +59,44 @@ class MultiloginClient:
             raise MultiloginError("Multilogin credentials or folder id not configured")
         return email, password, folder_id
 
+    async def _exchange_workspace_token(
+        self,
+        *,
+        email: str,
+        refresh_token: str,
+        workspace_id: str,
+        api_base: str,
+    ) -> str:
+        """Exchange refresh token for a workspace-scoped bearer token."""
+        payload = {
+            "email": email,
+            "refresh_token": refresh_token,
+            "workspace_id": workspace_id,
+        }
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                f"{api_base}/user/refresh_token",
+                json=payload,
+                headers=self._json_headers(),
+            )
+
+        if response.status_code != 200:
+            body_snip = (response.text or "")[:300]
+            logger.warning(
+                "Multilogin refresh_token failed (status %s): %s",
+                response.status_code,
+                body_snip,
+            )
+            raise MultiloginError(
+                "Multilogin workspace token refresh failed",
+                status_code=response.status_code,
+            )
+
+        refreshed = response.json().get("data", {}).get("token")
+        if not refreshed:
+            raise MultiloginError("Multilogin refresh_token response missing token")
+        return refreshed
+
     async def sign_in(self, *, force: bool = False) -> str:
         """Authenticate with MLX and return a bearer token."""
         if not force and self._token and time.monotonic() < self._token_expires_at:
@@ -66,6 +104,7 @@ class MultiloginClient:
 
         email, password, _folder_id = self._require_credentials()
         settings = get_settings()
+        api_base = settings.multilogin_api_url.rstrip("/")
         payload = {
             "email": email,
             "password": hashlib.md5(password.encode()).hexdigest(),
@@ -73,7 +112,7 @@ class MultiloginClient:
 
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
-                f"{settings.multilogin_api_url.rstrip('/')}/user/signin",
+                f"{api_base}/user/signin",
                 json=payload,
                 headers=self._json_headers(),
             )
@@ -83,9 +122,24 @@ class MultiloginClient:
             raise MultiloginError("Multilogin sign-in failed", status_code=response.status_code)
 
         body = response.json()
-        token = body.get("data", {}).get("token")
+        data = body.get("data", {})
+        token = data.get("token")
         if not token:
             raise MultiloginError("Multilogin sign-in response missing token")
+
+        workspace_id = settings.multilogin_workspace_id.strip()
+        refresh_token = data.get("refresh_token") or ""
+        if workspace_id:
+            if not refresh_token:
+                raise MultiloginError(
+                    "Multilogin workspace id configured but sign-in response missing refresh_token"
+                )
+            token = await self._exchange_workspace_token(
+                email=email,
+                refresh_token=refresh_token,
+                workspace_id=workspace_id,
+                api_base=api_base,
+            )
 
         self._token = token
         self._token_expires_at = time.monotonic() + _TOKEN_TTL_SECONDS
@@ -153,6 +207,10 @@ class MultiloginClient:
     async def list_profiles(self, token: str | None = None) -> list[str]:
         """Return profile IDs in the configured MLX folder."""
         settings = get_settings()
+        fixed_profile_id = settings.multilogin_profile_id.strip()
+        if fixed_profile_id:
+            return [fixed_profile_id]
+
         _email, _password, folder_id = self._require_credentials()
         bearer = token or await self.get_token()
 
@@ -166,6 +224,7 @@ class MultiloginClient:
                 payload: dict[str, Any] = {
                     "limit": page_size,
                     "offset": offset,
+                    "search_text": "",
                     "folder_id": folder_id,
                 }
                 response = await client.post(
@@ -174,7 +233,12 @@ class MultiloginClient:
                     headers=self._json_headers(bearer),
                 )
                 if response.status_code != 200:
-                    logger.warning("Multilogin profile search failed (status %s)", response.status_code)
+                    body_snip = (response.text or "")[:300]
+                    logger.warning(
+                        "Multilogin profile search failed (status %s): %s",
+                        response.status_code,
+                        body_snip,
+                    )
                     raise MultiloginError(
                         "Failed to list Multilogin profiles",
                         status_code=response.status_code,

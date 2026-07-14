@@ -1,6 +1,7 @@
 import logging
 from collections.abc import AsyncIterator
 
+from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import get_settings
@@ -15,9 +16,25 @@ logger.info("database engine created (dialect=%s)", engine.dialect.name)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
+def _migrate_schema(connection) -> None:
+    """Add columns introduced after first deploy (no Alembic yet)."""
+    inspector = inspect(connection)
+    if "jobs" not in inspector.get_table_names():
+        return
+
+    job_columns = {column["name"] for column in inspector.get_columns("jobs")}
+    if "identifier_hashes" not in job_columns:
+        if connection.dialect.name == "postgresql":
+            connection.execute(text("ALTER TABLE jobs ADD COLUMN identifier_hashes JSONB NOT NULL DEFAULT '[]'::jsonb"))
+        else:
+            connection.execute(text("ALTER TABLE jobs ADD COLUMN identifier_hashes JSON NOT NULL DEFAULT '[]'"))
+        logger.info("migrated jobs.identifier_hashes column")
+
+
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_migrate_schema)
 
 
 async def get_db_session() -> AsyncIterator[AsyncSession]:

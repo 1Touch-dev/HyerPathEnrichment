@@ -13,6 +13,16 @@ services:
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
       ENABLE_TIER1: "false"
+      # LLM disambiguation (default stub = free, no network). Flip LLM_MODE and
+      # start `--profile llm` when using the LiteLLM proxy.
+      # For ${LLM_*} substitution from backend/.env:
+      #   docker compose --env-file ../.env --profile llm up
+      LLM_MODE: ${LLM_MODE:-stub}
+      LITELLM_API_BASE: ${LITELLM_API_BASE:-}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-}
+      LITELLM_MODEL: ${LITELLM_MODEL:-gpt-4o-mini}
+      LITELLM_FALLBACKS: ${LITELLM_FALLBACKS:-}
+      DISAMBIGUATION_THRESHOLD: ${DISAMBIGUATION_THRESHOLD:-0.7}
     depends_on:
       postgres:
         condition: service_healthy
@@ -25,7 +35,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.worker
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:${MULTILOGIN_HOST_IP:-host-gateway}"
     environment:
       API_TOKEN: change-me
       DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
@@ -36,6 +46,12 @@ services:
       ENABLE_TIER1: ${ENABLE_TIER1:-false}
       BROWSER_MODE: ${BROWSER_MODE:-local}
       MULTILOGIN_SELENIUM_HOST: ${MULTILOGIN_SELENIUM_HOST:-http://host.docker.internal}
+      LLM_MODE: ${LLM_MODE:-stub}
+      LITELLM_API_BASE: ${LITELLM_API_BASE:-}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-}
+      LITELLM_MODEL: ${LITELLM_MODEL:-gpt-4o-mini}
+      LITELLM_FALLBACKS: ${LITELLM_FALLBACKS:-}
+      DISAMBIGUATION_THRESHOLD: ${DISAMBIGUATION_THRESHOLD:-0.7}
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,9 +104,23 @@ services:
       RCH_HTTP_HOST: 0.0.0.0
     restart: unless-stopped
   litellm:
+    # Do NOT env_file the whole backend/.env — it injects Hyrepath DATABASE_URL
+    # (sqlite) and crash-loops the proxy. Pass vendor keys via compose
+    # --env-file ../.env interpolation only. Chat completions need no LiteLLM DB.
+    # Newer proxy images require an explicit model_list (see litellm_config.yaml).
     image: ghcr.io/berriai/litellm:main-latest
     profiles: ["llm", "paid"]
-    command: ["--port", "4000"]
+    ports:
+      - "4000:4000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Only set LITELLM_MASTER_KEY in .env if you want proxy auth; an empty
+      # value still enables "api key required" and breaks unauthenticated curls.
+      # LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+    volumes:
+      - ./litellm_config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
     restart: unless-stopped
   ollama:
     image: ollama/ollama:latest

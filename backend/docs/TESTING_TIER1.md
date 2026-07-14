@@ -35,7 +35,7 @@ docker compose exec worker chromium --version
 |-------|--------|
 | `ENABLE_TIER1` | `true` on **worker** only (API stays `false`) |
 | `BROWSER_MODE` | `multilogin` in prod; `local` only for dev experiments |
-| `MULTILOGIN_*` | Email, password (MD5 in code), folder id, launcher URL |
+| `MULTILOGIN_*` | Email, password (MD5 in code), folder id, launcher URL; set `MULTILOGIN_WORKSPACE_ID` for workspace-scoped token refresh; set `MULTILOGIN_PROFILE_ID` to skip `/profile/search` (local probe) |
 | `LINKEDIN_BOT_*` | Dummy LinkedIn account for Selenium login |
 | `MULTILOGIN_SELENIUM_HOST` | `http://host.docker.internal` from Docker worker |
 | `selenium` + Chromium | Installed in `Dockerfile.worker` via `.[enrichers]` |
@@ -46,6 +46,8 @@ docker compose exec worker chromium --version
 ## Layer 2 — Multilogin connectivity
 
 Multilogin launcher must be running on the host (not inside Docker).
+
+After `/user/signin`, if `MULTILOGIN_WORKSPACE_ID` is set the client exchanges a workspace-scoped token via `/user/refresh_token`. Profile search always sends `search_text=""` (required by Multilogin X) with `folder_id` for pool discovery. `MULTILOGIN_PROFILE_ID` is optional for single-profile local probe (skips search); it is not required for listing.
 
 ```bash
 cd backend
@@ -72,21 +74,39 @@ cd backend/docker
 docker compose up --build -d api worker redis postgres
 ```
 
-Enable Tier 1 on the worker (recommended override file):
+Enable Tier 1 on the worker (recommended override file). Secrets come from
+`backend/.env` via `env_file` (or set `WORKER_ENV_FILE` to a host-only secrets
+file in production). The override forces `MULTILOGIN_SELENIUM_HOST=http://host.docker.internal`
+and maps `launcher.mlx.yt` / `host.docker.internal` → `host-gateway` (or
+`MULTILOGIN_HOST_IP` when set) so the Multilogin agent on the **Windows/Docker
+host** (port 45001) is reachable. WSL `127.0.0.1` is not the Windows host —
+confirm the agent with PowerShell first
+(`curl.exe -sk https://127.0.0.1:45001/api/v2/` → non-`000`, often `404`).
+
+**WSL2 + Docker Engine:** `host-gateway` is the WSL VM, not Windows. Export the
+Windows host IP before `up`:
+
+```bash
+export MULTILOGIN_HOST_IP=$(ip route show default | awk '{print $3}')
+# expect: curl -sk https://$MULTILOGIN_HOST_IP:45001/api/v2/ → 404
+```
 
 ```bash
 cd backend/docker
 docker compose -f docker-compose.yml -f docker-compose.tier1.yml up -d --build worker
+# verify secrets reached the container:
+docker compose -f docker-compose.yml -f docker-compose.tier1.yml exec worker \
+  env | grep -E 'MULTILOGIN_EMAIL|R2_ACCOUNT|ENABLE_TIER1|MULTILOGIN_SELENIUM_HOST'
+# verify launcher DNS from inside the worker (expect 404 or similar, not connection refused):
+docker compose -f docker-compose.yml -f docker-compose.tier1.yml exec worker \
+  python -c "import httpx; r=httpx.get('https://launcher.mlx.yt:45001/api/v2/', verify=False, timeout=5); print(r.status_code)"
 ```
 
-Or one-off env:
+The worker calls `validate_tier1_settings()` at boot and exits if Multilogin/bot
+creds are missing (and if `APP_ENV` is `production`/`staging` without R2).
 
-```bash
-ENABLE_TIER1=true BROWSER_MODE=multilogin docker compose up -d worker
-```
-
-Worker reaches Multilogin on the host via `host.docker.internal` (`extra_hosts` in compose).
-Failure screenshots land in the `tier1_artifacts` volume (`artifacts/tier1/` in the container).
+Do not rely on shell `export` alone — compose only injects vars listed under
+`environment:` or `env_file:`.
 
 Enqueue a job:
 

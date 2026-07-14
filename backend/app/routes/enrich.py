@@ -22,6 +22,15 @@ async def create_enrichment_job(
     db: AsyncSession = Depends(get_db_session),
 ) -> EnrichmentJobResponse:
     orchestrator = get_orchestrator(db)
+
+    if await orchestrator.is_request_suppressed(request):
+        job = await orchestrator.create_suppressed_job(request)
+        return EnrichmentJobResponse(
+            id=job.id,
+            status=JobStatus(job.status),
+            dossier=Dossier.model_validate(job.dossier_payload),
+        )
+
     job = await orchestrator.create_queued_job(request)
     try:
         enqueue_enrichment(job.id)

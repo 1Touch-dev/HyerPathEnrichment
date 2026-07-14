@@ -1,4 +1,4 @@
-import { EnrichmentInput, EnrichmentJob, EnrichMode, HealthStatus, JobListResponse, OptOutInput } from '@/src/lib/types';
+import { EnrichmentInput, EnrichmentJob, EnrichMode, HealthStatus, JobListResponse, OptOutInput, DsarInput, DsarResponse } from '@/src/lib/types';
 
 async function parseJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T;
@@ -66,6 +66,20 @@ export async function submitOptOut(payload: OptOutInput): Promise<void> {
   if (!response.ok) {
     await throwApiError(response);
   }
+}
+
+export async function submitDsar(payload: DsarInput): Promise<DsarResponse> {
+  const response = await fetch('/api/dsar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+
+  return parseJson<DsarResponse>(response);
 }
 
 export async function getHealth(): Promise<HealthStatus> {

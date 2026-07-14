@@ -77,6 +77,44 @@ class R2StorageClient:
         await self._upload_to_local_cache(object_key, payload)
         return self.build_asset_url(object_key)
 
+    async def delete_object(self, key: str) -> bool:
+        """Delete an object from R2 or the local dev cache. Returns True if removed."""
+        settings = get_settings()
+        object_key = key.lstrip("/")
+
+        if r2_is_configured(settings):
+            try:
+                await self._delete_from_r2(object_key, settings)
+                return True
+            except Exception:
+                logger.warning("R2 delete failed for key=%s; trying local cache", object_key[:32], exc_info=True)
+
+        return self._delete_from_local_cache(object_key)
+
+    async def _delete_from_r2(self, key: str, settings: Settings) -> None:
+        try:
+            import aioboto3
+        except ImportError as exc:
+            raise R2StorageError("aioboto3 is not installed") from exc
+
+        endpoint = f"https://{settings.r2_account_id.strip()}.r2.cloudflarestorage.com"
+        session = aioboto3.Session()
+        async with session.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=settings.r2_access_key_id.strip(),
+            aws_secret_access_key=settings.r2_secret_access_key.get_secret_value().strip(),
+            region_name="auto",
+        ) as client:
+            await client.delete_object(Bucket=settings.r2_bucket.strip(), Key=key)
+
+    def _delete_from_local_cache(self, key: str) -> bool:
+        destination = LOCAL_ASSET_CACHE_DIR / key.replace("/", "_")
+        if destination.exists():
+            destination.unlink()
+            return True
+        return False
+
     async def _upload_to_r2(
         self,
         key: str,

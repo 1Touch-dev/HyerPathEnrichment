@@ -529,7 +529,9 @@ Run enrichment inline in the API process. Same request body as `POST /enrich`.
 
 Register an identifier for permanent suppression (LGPD/GDPR/CCPA).
 
-**Auth:** Required today (compliance gap — target is unauthenticated)
+**Auth:** Required (intentional v1 — public form proxies via frontend; see `backend/docs/LEGAL.md`)
+
+**Side effects:** Registers suppression, writes audit events, and purges matching job dossiers / photo cache / R2 objects.
 
 **Request body:**
 ```json
@@ -563,6 +565,35 @@ Check whether an identifier is suppressed.
   "suppressed": true
 }
 ```
+
+---
+
+### `POST /api/dsar`
+
+Create a data subject access or deletion request (processed immediately in v1).
+
+**Auth:** Required
+
+**Request body:**
+```json
+{
+  "identifier": "jane@acme.com",
+  "request_type": "access",
+  "notes": "optional"
+}
+```
+
+`request_type` is `access` or `deletion`. Deletion runs the same suppression + purge path as opt-out.
+
+**Response `201`:** DSAR id, status, and summary (counts only — no dossier PII).
+
+---
+
+### `GET /api/dsar/{id}`
+
+Poll DSAR status and summary.
+
+**Auth:** Required
 
 ---
 
@@ -919,7 +950,10 @@ npm run typecheck
 | LiteLLM disambiguation | Routed LLM calls | Opt-in via `LLM_MODE` |
 | Langfuse tracing | Per disambiguation call | No-op until `LANGFUSE_*` set |
 | Sidecars | Isolated Docker services | Real images; free default-on, paid behind profiles |
-| Opt-out auth | Unauthenticated POST | **Gap** — Bearer required today |
+| Opt-out auth | Unauthenticated POST | **Authenticated (intentional v1)** — see `backend/docs/LEGAL.md` |
+| Audit logs | SQL + 5-year retention | **Done** |
+| DSAR flow | `POST/GET /api/dsar` | **Done** |
+| Data erasure | Purge on opt-out/DSAR deletion | **Done** |
 | Prometheus metrics | `/metrics` | Optional dependency |
 | Change signals | changedetection.io webhook | **Done** — `POST /api/signals/changedetection` |
 
@@ -931,7 +965,7 @@ For the authoritative per-area breakdown, see **Implementation status** in [`bac
 
 Priority next slices (from architecture planning):
 
-1. **Opt-out compliance** — Remove Bearer auth from `POST /api/opt-out` so data subjects can opt out without an API key
+1. **Unauthenticated opt-out/DSAR** — remove Bearer auth when senior approves (see `backend/docs/LEGAL.md`)
 2. **Alembic migrations** — Replace `create_all` with versioned schema migrations; promote `JSON` → `JSONB` in Postgres
 3. **Real R2 uploads** — Wire `aioboto3` to Cloudflare R2 when `R2_ACCOUNT_ID` + keys are set (local cache is the fallback today)
 4. **Sidecar contract verification** — Tune gitrecon JSON schema, social-analyzer/GMaps endpoint contracts against live deployments

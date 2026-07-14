@@ -4,12 +4,33 @@
 #   cd backend/docker
 #   docker compose -f docker-compose.yml -f docker-compose.tier1.yml up -d worker
 #
-# Set MULTILOGIN_* and LINKEDIN_BOT_* in backend/.env or export before `up`.
-# Multilogin launcher must run on the Docker host (not inside a container).
+# Secrets (MULTILOGIN_*, LINKEDIN_BOT_*, R2_*) are injected via env_file — not
+# listed under environment: (empty ${VAR} interpolation would wipe them).
+# Local default: backend/.env. Production: WORKER_ENV_FILE=/etc/hyrepath/worker.env
+#
+# Multilogin launcher must run on the Docker host (port 45001), not inside a
+# container. WSL 127.0.0.1 is not the Windows host — verify the agent from
+# PowerShell.
+#
+# Host reachability:
+#   - Docker Desktop / Linux: default host-gateway is correct.
+#   - WSL2 + Docker Engine: host-gateway is the WSL VM, not Windows. Set
+#     MULTILOGIN_HOST_IP to the Windows host (WSL default gateway), e.g.
+#       export MULTILOGIN_HOST_IP=$(ip route show default | awk '{print $3}')
+#     then recreate the worker. Selenium and launcher both use this mapping.
 
 services:
   worker:
+    # Override replaces base extra_hosts — keep both entries.
+    extra_hosts:
+      - "host.docker.internal:${MULTILOGIN_HOST_IP:-host-gateway}"
+      - "launcher.mlx.yt:${MULTILOGIN_HOST_IP:-host-gateway}"
+    env_file:
+      - ${WORKER_ENV_FILE:-../.env}
     environment:
       ENABLE_TIER1: "true"
       BROWSER_MODE: multilogin
-      MULTILOGIN_SELENIUM_HOST: http://host.docker.internal
+      # Use launcher.mlx.yt (mapped above) — not host.docker.internal alone.
+      # On WSL2+Docker Engine the base compose also maps host.docker.internal to
+      # the docker0 gateway; the first /etc/hosts hit would miss Windows.
+      MULTILOGIN_SELENIUM_HOST: http://launcher.mlx.yt

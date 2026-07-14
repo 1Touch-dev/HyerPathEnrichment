@@ -25,7 +25,7 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 | Settings / env | `get_settings()` in `config.py` | Hardcode tokens, URLs, thresholds |
 | DB session | `get_db_session()` in `storage/db.py` | Create engines or sessions ad hoc |
 | Orchestrator | `get_orchestrator(db)` in `services.py` | Instantiate `PipelineOrchestrator` in routes |
-| Identifier hash | `PipelineOrchestrator._hash()` | Inline `hashlib.sha256` elsewhere |
+| Identifier hash | `hash_identifier()` in `app/compliance/identifiers.py` | Inline `hashlib.sha256` elsewhere |
 | Suppression check | `_is_suppressed()` / `check_suppression()` | Duplicate opt-out logic in routes |
 | Dossier merge | `_merge()` in `workers/runner.py` | Merge enricher output in routes or enrichers |
 | Asset upload | `R2StorageClient` in `storage/r2.py` | Write files outside the storage client |

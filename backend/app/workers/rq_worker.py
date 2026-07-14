@@ -4,6 +4,7 @@ import os
 from rq import Queue, SimpleWorker, Worker
 from rq.timeouts import BaseDeathPenalty
 
+from app.config import get_settings, validate_tier1_settings
 from app.storage.db import engine, init_db
 from app.workers.queue import QUEUE_NAME, get_redis_connection
 
@@ -28,6 +29,8 @@ class _NoOpDeathPenalty(BaseDeathPenalty):
 
 
 def main() -> None:
+    # Fail closed when Tier 1 is enabled without Multilogin/bot (and prod R2).
+    validate_tier1_settings(get_settings())
     # Ensure tables exist before the first job runs — the worker must not
     # depend on the API having started first (shared Postgres in Docker).
     asyncio.run(_init_db_once())

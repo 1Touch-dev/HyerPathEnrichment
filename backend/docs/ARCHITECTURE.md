@@ -28,9 +28,12 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Enrichers call real tools | They do (subprocess/library/sidecar) behind the `app/providers/` layer, but **degrade to empty fragments** when a tool/sidecar/key is missing. Defaults are fully free/self-hosted; free -> paid is an env flip |
 | Database is Postgres everywhere | Local dev default is **SQLite** (`sqlite+aiosqlite:///./hyrepath.db`); **Docker compose uses Postgres** (`postgresql+asyncpg://...@postgres:5432/hyrepath`) shared by API + worker |
 | R2 uploads go to Cloudflare | **R2 when `R2_*` creds set** (`aioboto3` PutObject + HeadObject); else local `backend/.asset-cache/` |
-| LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in |
-| Opt-out is unauthenticated | **Bearer token required** (compliance gap vs target) |
+| LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in. Orchestrator walks handles below `DISAMBIGUATION_THRESHOLD` and keep/drops via `llm.compare` |
+| Opt-out is unauthenticated | **Bearer token required** (intentional v1; see `docs/LEGAL.md`) |
 | Suppression lives in Redis only | **SQL table** `suppression_list` is the durable record; Redis set `suppression:hashes` is a fast-path cache (dual-write, SQL fallback) |
+| Audit logs | **SQL `audit_logs`** — 5-year retention via `purge_audit_logs.py` |
+| DSAR flow | **`POST/GET /api/dsar`** — automated access/deletion in v1 |
+| Data erasure on opt-out | **`register_opt_out()`** purges jobs, photo cache, R2/local assets |
 | Sidecars are real services | Compose uses **real images**; free-mode ones default-on, paid/heavy ones behind `profiles:` |
 
 ### Task routing — where to start
@@ -42,7 +45,7 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | API route / auth | API endpoints section | `routes/enrich.py`, `routes/opt_out.py`, `main.py` |
 | Async job queue | Implementation status | `routes/enrich.py`, `workers/runner.py`, `docker/docker-compose.yml` |
 | Opt-out / suppression | Legal section + `_is_suppressed()` | `workers/runner.py`, `routes/opt_out.py`, `models.py` `SuppressionRecord` |
-| Photo / Tier 1 | Tier 1 section | `enrichers/linkedin_photo.py`, `providers/multilogin.py`, `providers/profile_pool.py`, `providers/linkedin_browser.py`, `storage/photo_cache.py`, `storage/r2.py` |
+| Photo / Tier 1 | Tier 1 section | `enrichers/linkedin_photo.py`, `providers/multilogin.py`, `providers/profile_pool.py`, `providers/linkedin_browser.py`, `storage/photo_cache.py`, `storage/r2.py`, `docker/docker-compose.tier1.yml` (`env_file`), `config.validate_tier1_settings` |
 | Env / config | Environment variables section | `config.py`, `.env.example` |
 | Tests | Testing strategy | `tests/test_pipeline_shape.py` |
 | Frontend integration | Frontend contract below | `frontend/src/lib/api-adapter.ts`, `frontend/src/lib/types.ts` |
@@ -255,7 +258,7 @@ Results are merged, deduplicated, and scored. Handles below **0.7** go to the LL
 - Traced in **Langfuse** for cost and quality review
 - Only kept if LLM confidence **≥ 0.7**
 
-**Current:** backend is config-selected via `LLM_MODE` (`app/providers/llm.py`): `stub` (default, heuristic string match, no network), `ollama` (local model), or `litellm` (proxy + fallback chain). `LiteLLMDisambiguator.compare()` signature is unchanged so the orchestrator and confidence scoring are untouched. Langfuse tracing runs via `providers.llm.trace()` and is a no-op until `LANGFUSE_*` is set.
+**Current:** after merge, `PipelineOrchestrator._disambiguate_handles()` in `workers/runner.py` walks each handle below `DISAMBIGUATION_THRESHOLD`, calls `llm.compare(target_identity, handle_evidence)`, boosts and keeps matches (`confidence = max(original, llm)`), and drops the rest. Backend is config-selected via `LLM_MODE` (`app/providers/llm.py`): `stub` (default, heuristic string match, no network), `ollama` (local model), or `litellm` (proxy + `LITELLM_FALLBACKS` chain). Start the proxy with `docker compose --env-file ../.env --profile llm up -d litellm`. The litellm service must **not** inherit Hyrepath’s `DATABASE_URL` (sqlite crash-loops the proxy); vendor keys are passed via compose interpolation and models via `docker/litellm_config.yaml`. api/worker only need `LITELLM_API_BASE` / model list. Langfuse tracing runs via `providers.llm.trace()` and is a no-op until `LANGFUSE_*` is set.
 
 ---
 
@@ -319,7 +322,7 @@ Configured via `REDIS_URL`. Present in docker-compose. A shared async client exi
 - *Rate limiting.* Fixed-window counters (`ratelimit:{sync|async}:{token-hash}`) via `check_rate_limit()`. `POST /enrich` enforces `MAX_ASYNC_REQUESTS_PER_MINUTE`; `POST /enrich/sync` enforces `MAX_SYNC_REQUESTS_PER_MINUTE`. Dependencies live in `app/routes/rate_limit.py`. Over-limit returns `429`. **Fails open** on Redis error — protection, not correctness. Scope is per API token (SHA-256, first 16 hex chars); raw tokens are never logged.
 - *Job queue (RQ).* `POST /enrich` enqueues to the `enrichment` queue via `app/workers/queue.py` (synchronous `redis-py` connection — RQ is not async-compatible). The worker (`app/workers/rq_worker.py`) runs `init_db()` at startup (so tables exist even if the API hasn't booted), then dequeues and calls `run_enrichment_job` (`app/workers/jobs.py`), which bridges to the async orchestrator with `asyncio.run` and a fresh DB session. Because each job gets its own event loop, the job disposes the shared async Redis client and DB engine pool in a `finally` — loop-bound connections leaking into the next job cause "Event loop is closed" failures. Enqueue failure marks the job `failed` and returns `503`.
 
-**Redis roles now wired:** suppression fast path, rate limiting, job queue. Audit-log hashes remain target-only.
+**Redis roles now wired:** suppression fast path, rate limiting, job queue. Compliance audit trail is in SQL (`audit_logs`).
 
 ---
 
@@ -458,9 +461,14 @@ Copy `backend/.env.example` → `backend/.env`.
 | `MULTILOGIN_EMAIL` | Multilogin account |
 | `MULTILOGIN_PASSWORD` | Multilogin password (MD5-hashed in code at sign-in) |
 | `MULTILOGIN_FOLDER_ID` | Profile pool folder |
+| `MULTILOGIN_WORKSPACE_ID` | Workspace for `/user/refresh_token` after sign-in (needed for multi-workspace accounts) |
+| `MULTILOGIN_PROFILE_ID` | Fixed profile id; when set, skips `/profile/search` (local probe / single-profile) |
 | `MULTILOGIN_LAUNCHER_URL` | MLX launcher base (`/api/v2` for start, `/api/v1` derived for stop) |
 | `MULTILOGIN_SELENIUM_HOST` | Selenium Remote host (Docker: `http://host.docker.internal`) |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | R2 credentials |
+| `LINKEDIN_BOT_EMAIL`, `LINKEDIN_BOT_PASSWORD` | Dummy LinkedIn account for Selenium login |
+
+**Docker Tier 1:** use `-f docker-compose.tier1.yml`. That override loads secrets from `env_file` (`../.env` or `WORKER_ENV_FILE`) into the **worker only**, forces `MULTILOGIN_SELENIUM_HOST=http://host.docker.internal`, maps `launcher.mlx.yt` and `host.docker.internal` → `host-gateway` (or `MULTILOGIN_HOST_IP` on WSL2 + Docker Engine so traffic reaches Windows), and the worker exits on boot if Multilogin/bot (and staging/production R2) settings are missing (`validate_tier1_settings`).
 
 ### Tier 3 (email) — target
 
@@ -473,9 +481,12 @@ Copy `backend/.env.example` → `backend/.env`.
 
 | Variable | Purpose |
 |----------|---------|
+| `LLM_MODE` | `stub` / `ollama` / `litellm` |
 | `LITELLM_MODEL` | Primary model |
-| `LITELLM_FALLBACKS` | Fallback chain |
-| `LITELLM_API_KEY`, `LITELLM_API_BASE` | LiteLLM proxy config |
+| `LITELLM_FALLBACKS` | Comma-separated fallback model ids |
+| `LITELLM_API_KEY`, `LITELLM_API_BASE` | App → LiteLLM proxy |
+| `LITELLM_MASTER_KEY` | Optional proxy auth (match `LITELLM_API_KEY` on app) |
+| `OPENAI_API_KEY`, `GEMINI_API_KEY` | Vendor keys on **litellm container only** (`env_file`) |
 | `DISAMBIGUATION_THRESHOLD` | Default `0.7` |
 
 ### Rate limits (enforced per API token via Redis fixed-window counters)
@@ -556,12 +567,15 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | LinkedIn photo cache | Redis + Postgres by slug hash | `storage/photo_cache.py` + `PhotoCacheRecord`; slug-keyed TTL; cache-before-browser in `linkedin_photo.py` |
 | Multilogin + Selenium | MLX launcher + Selenium Remote | `providers/multilogin.py`, `profile_pool.py`, `linkedin_browser.py`; worker-only `ENABLE_TIER1`; `/enrich/sync` skips tier1 |
 | Tier 1 pipeline dispatch | Tier 1 serial, tiers 2–4 parallel | `runner.py` `_dispatch(sync_mode=...)`; see `docs/TESTING_TIER1.md` |
-| Tier 1 Docker ops | Worker image + compose override | `Dockerfile.worker` (Chromium + `.[enrichers]`); `docker-compose.tier1.yml`; `tier1_*` Prometheus counters |
+| Tier 1 Docker ops | Worker image + compose override | `Dockerfile.worker` (Chromium + `.[enrichers]`); `docker-compose.tier1.yml` injects secrets via `env_file` (`WORKER_ENV_FILE` or `../.env`), forces `MULTILOGIN_SELENIUM_HOST`, maps `launcher.mlx.yt`/`host.docker.internal` → `host-gateway` or `MULTILOGIN_HOST_IP` (WSL2); `validate_tier1_settings()` fail-fast on worker boot; `tier1_*` Prometheus counters |
 | Tier 1 hardening (3.7) | Session reuse, denylist, rate limits | `TIER1_SKIP_LOGIN_IF_SESSION_VALID`; `profile_pool.refund_view()`; `probe_tier1_canary.py`; configurable cooldowns |
 | LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
 | Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
 | Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:` |
-| Opt-out auth | Unauthenticated POST | Bearer required (gap) |
+| Opt-out auth | Authenticated (intentional v1) | Implemented — see `docs/LEGAL.md` |
+| Audit logs | SQL + 5-year retention script | Implemented |
+| DSAR flow | `POST/GET /api/dsar` | Implemented |
+| Data erasure | Purge on opt-out/DSAR deletion | Implemented |
 | Scrapoxy proxy pool | Rate-limit hardening | `ProxyProvider` (`PROXY_MODE=none|scrapoxy|paid`, default none = direct) |
 | Change signals | changedetection.io webhook | `POST /api/signals/changedetection` consumer (optional shared-secret header) |
 | Prometheus metrics | `/metrics` endpoint | Optional dependency |

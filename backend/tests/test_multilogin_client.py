@@ -17,6 +17,8 @@ def mlx_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "multilogin_email", "bot@example.com")
     monkeypatch.setattr(settings, "multilogin_password", SecretStr("secret"))
     monkeypatch.setattr(settings, "multilogin_folder_id", "folder-uuid")
+    monkeypatch.setattr(settings, "multilogin_workspace_id", "")
+    monkeypatch.setattr(settings, "multilogin_profile_id", "")
     monkeypatch.setattr(settings, "multilogin_api_url", "https://api.multilogin.com")
     monkeypatch.setattr(
         settings,
@@ -47,6 +49,41 @@ async def test_sign_in_hashes_password_and_caches_token(mlx_settings: None) -> N
         payload = mock_client.post.await_args.kwargs["json"]
         assert payload["email"] == "bot@example.com"
         assert payload["password"] == hashlib.md5(b"secret").hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_sign_in_exchanges_workspace_token(
+    mlx_settings: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "multilogin_workspace_id", "ws-uuid")
+    client = MultiloginClient()
+
+    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client.post = AsyncMock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={"data": {"token": "base-tok", "refresh_token": "ref-tok"}},
+                ),
+                httpx.Response(200, json={"data": {"token": "ws-tok"}}),
+            ]
+        )
+        mock_client_cls.return_value = mock_client
+
+        token = await client.sign_in(force=True)
+        assert token == "ws-tok"
+        assert mock_client.post.await_count == 2
+        refresh_payload = mock_client.post.await_args_list[1].kwargs["json"]
+        assert refresh_payload == {
+            "email": "bot@example.com",
+            "refresh_token": "ref-tok",
+            "workspace_id": "ws-uuid",
+        }
+        assert "refresh_token" in str(mock_client.post.await_args_list[1].args[0])
 
 
 @pytest.mark.asyncio
@@ -115,7 +152,42 @@ async def test_list_profiles_filters_folder(mlx_settings: None) -> None:
         ids = await client.list_profiles()
         assert ids == ["p1", "p2"]
         payload = mock_client.post.await_args.kwargs["json"]
+        assert payload["search_text"] == ""
         assert payload["folder_id"] == "folder-uuid"
+
+
+@pytest.mark.asyncio
+async def test_list_profiles_uses_fixed_profile_id(
+    mlx_settings: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "multilogin_profile_id", "fixed-profile-uuid")
+    client = MultiloginClient()
+
+    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+        ids = await client.list_profiles()
+        assert ids == ["fixed-profile-uuid"]
+        mock_client_cls.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_list_profiles_search_400_raises(mlx_settings: None) -> None:
+    client = MultiloginClient()
+    client._token = "tok-123"
+    client._token_expires_at = 1e12
+
+    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client.post = AsyncMock(
+            return_value=httpx.Response(400, text='{"status":{"error_code":"BAD_REQUEST"}}')
+        )
+        mock_client_cls.return_value = mock_client
+
+        with pytest.raises(MultiloginError) as exc_info:
+            await client.list_profiles()
+        assert exc_info.value.status_code == 400
 
 
 @pytest.mark.asyncio

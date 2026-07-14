@@ -140,6 +140,16 @@ class PhotoCache:
         payload["confidence"] = photo.confidence
         await self._set_redis(normalized, payload)
 
+    async def delete(self, slug: str) -> None:
+        """Remove a cached photo from Redis. SQL rows are deleted by the purge service."""
+        normalized = slug.strip().lower()
+        if not normalized:
+            return
+        try:
+            await get_redis_client().delete(_redis_key(normalized))
+        except RedisError:
+            logger.warning("redis unavailable during photo_cache.delete")
+
     async def _get_from_redis(self, slug: str) -> PhotoAsset | None:
         try:
             raw = await get_redis_client().get(_redis_key(slug))
