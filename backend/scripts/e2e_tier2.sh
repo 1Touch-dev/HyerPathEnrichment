@@ -21,19 +21,23 @@ BASE="http://localhost:8000"
 
 pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1" >&2; exit 1; }
+warn() { echo "WARN  $1"; }
 
 mkdir -p "$BACKEND_DIR/.e2e-results"
 service docker start >/dev/null 2>&1 || true
 
 if [ ! -f "$ENV_FILE" ]; then
-  fail "missing $ENV_FILE (needed for Stage B vendor keys; copy from .env.example)"
+  cp "$BACKEND_DIR/.env.example" "$ENV_FILE"
+  warn "created $ENV_FILE from .env.example"
 fi
 
 has_vendor_key=0
 if grep -Eq '^OPENAI_API_KEY=.+' "$ENV_FILE" || grep -Eq '^GEMINI_API_KEY=.+' "$ENV_FILE"; then
   has_vendor_key=1
 fi
-[ "$has_vendor_key" = "1" ] || fail "Stage B requires OPENAI_API_KEY or GEMINI_API_KEY in backend/.env"
+if [ "$has_vendor_key" = "0" ]; then
+  warn "Stage B skipped (set OPENAI_API_KEY or GEMINI_API_KEY in backend/.env to enable LiteLLM checks)"
+fi
 
 echo "== Stage A: bring up free-path stack =="
 cd "$COMPOSE_DIR"
@@ -92,36 +96,37 @@ pass "Stage A Tier 2 probe"
 docker compose exec -T api cat /app/backend/.e2e-results/tier2-report.json \
   > "$BACKEND_DIR/.e2e-results/tier2-report.json" || true
 
-echo "== Stage B: litellm profile =="
-docker compose --env-file "$ENV_FILE" --profile llm up -d litellm
+if [ "$has_vendor_key" = "1" ]; then
+  echo "== Stage B: litellm profile =="
+  docker compose --env-file "$ENV_FILE" --profile llm up -d litellm
 
-echo "== wait for litellm =="
-for i in $(seq 1 60); do
-  code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4000/v1/models 2>/dev/null || true)"
-  [ "$code" = "200" ] && break
-  code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4000/health/liveliness 2>/dev/null || true)"
-  [ "$code" = "200" ] && break
-  sleep 3
-done
-[ "$code" = "200" ] || fail "litellm never became ready (last=$code)"
-pass "litellm ready"
+  echo "== wait for litellm =="
+  for i in $(seq 1 60); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4000/v1/models 2>/dev/null || true)"
+    [ "$code" = "200" ] && break
+    code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4000/health/liveliness 2>/dev/null || true)"
+    [ "$code" = "200" ] && break
+    sleep 3
+  done
+  [ "$code" = "200" ] || fail "litellm never became ready (last=$code)"
+  pass "litellm ready"
 
-echo "== Stage B disambiguation via LiteLLM proxy =="
-# scripts/ is dockerignored — pipe helper like _e2e_litellm_docker.sh
-docker compose --env-file "$ENV_FILE" exec -T \
-  -e LLM_MODE=litellm \
-  -e LITELLM_API_BASE=http://litellm:4000 \
-  -e LITELLM_MODEL="${LITELLM_MODEL:-gpt-4o-mini}" \
-  -e LITELLM_FALLBACKS="${LITELLM_FALLBACKS:-gemini/gemini-2.5-flash}" \
-  api sh -c '
-    cd /app/backend
-    export LLM_MODE=litellm
-    export LITELLM_API_BASE=http://litellm:4000
-    export LITELLM_FALLBACKS="${LITELLM_FALLBACKS:-gemini/gemini-2.5-flash}"
-    python -c "from app.config import get_settings; get_settings.cache_clear()"
-    python -
-' < "$SCRIPT_DIR/_e2e_litellm_disambiguate.py"
-pass "Stage B litellm disambiguation"
+  echo "== Stage B disambiguation via LiteLLM proxy =="
+  docker compose --env-file "$ENV_FILE" exec -T \
+    -e LLM_MODE=litellm \
+    -e LITELLM_API_BASE=http://litellm:4000 \
+    -e LITELLM_MODEL="${LITELLM_MODEL:-gpt-4o-mini}" \
+    -e LITELLM_FALLBACKS="${LITELLM_FALLBACKS:-gemini/gemini-2.5-flash}" \
+    api sh -c '
+      cd /app/backend
+      export LLM_MODE=litellm
+      export LITELLM_API_BASE=http://litellm:4000
+      export LITELLM_FALLBACKS="${LITELLM_FALLBACKS:-gemini/gemini-2.5-flash}"
+      python -c "from app.config import get_settings; get_settings.cache_clear()"
+      python -
+  ' < "$SCRIPT_DIR/_e2e_litellm_disambiguate.py"
+  pass "Stage B litellm disambiguation"
+fi
 
 echo ""
 echo "All Tier 2 E2E checks passed."

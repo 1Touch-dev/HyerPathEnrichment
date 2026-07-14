@@ -1,36 +1,37 @@
 #!/usr/bin/env bash
-# Strict real-world E2E: brings up compose + sidecars, installs gitrecon, runs probe.
+# Strict real-world E2E: brings up compose + sidecars, runs probe inside api container.
 #
 # Run from repo root or anywhere:
 #   bash backend/scripts/e2e_realworld_strict.sh
 #
 # Requires Docker in WSL (Ubuntu). On Windows, invoke via:
-#   wsl -d Ubuntu-22.04 -u root bash /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/scripts/e2e_realworld_strict.sh
+#   wsl -d Ubuntu -u root bash /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/scripts/e2e_realworld_strict.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_DIR="$(cd "$SCRIPT_DIR/../docker" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="$BACKEND_DIR/.env"
 BASE="http://localhost:8000"
 
 pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1" >&2; exit 1; }
+warn() { echo "WARN  $1"; }
 
+mkdir -p "$BACKEND_DIR/.e2e-results"
 service docker start >/dev/null 2>&1 || true
 
-echo "== install gitrecon (if missing) =="
-GITRECON_DIR="/opt/gitrecon"
-if [ ! -f "$GITRECON_DIR/gitrecon.py" ]; then
-  rm -rf "$GITRECON_DIR"
-  git clone --depth 1 https://github.com/GONZOsint/gitrecon.git "$GITRECON_DIR"
-  pip3 install -q -r "$GITRECON_DIR/requirements.txt" rich requests
+if [ ! -f "$ENV_FILE" ]; then
+  cp "$BACKEND_DIR/.env.example" "$ENV_FILE"
+  warn "created $ENV_FILE from .env.example"
 fi
-export GITRECON_SCRIPT="$GITRECON_DIR/gitrecon.py"
 
 echo "== bring up api, worker, redis, postgres, sidecars =="
 cd "$COMPOSE_DIR"
-docker compose up --build -d api worker redis postgres social-analyzer google-maps-scraper
+export ENABLE_TIER1=false
+docker compose --env-file "$ENV_FILE" build api worker
+docker compose --env-file "$ENV_FILE" up -d api worker redis postgres social-analyzer google-maps-scraper
 
 echo "== wait for API health =="
 for i in $(seq 1 90); do
@@ -60,21 +61,26 @@ done
 pass "google-maps-scraper ready"
 
 echo "== run strict probe (inside api container — Python 3.12) =="
-cd "$COMPOSE_DIR"
-docker compose exec -T api sh -c '
+# scripts/ is dockerignored — stream the probe into the container.
+docker compose --env-file "$ENV_FILE" exec -T api sh -c '
   set -e
-  apt-get update -qq && apt-get install -y -qq git >/dev/null
-  if [ ! -f /tmp/gitrecon/gitrecon.py ]; then
-    git clone --depth 1 https://github.com/GONZOsint/gitrecon.git /tmp/gitrecon
-    pip install -q -r /tmp/gitrecon/requirements.txt rich requests
-  fi
   export E2E_BASE_URL=http://127.0.0.1:8000
   export SOCIAL_ANALYZER_URL=http://social-analyzer:9005
   export GMAPS_SCRAPER_URL=http://google-maps-scraper:8080
-  export GITRECON_SCRIPT=/tmp/gitrecon/gitrecon.py
+  export GITRECON_SCRIPT=/opt/gitrecon/gitrecon.py
   export GMAPS_JOB_TIMEOUT_SECONDS='"${GMAPS_JOB_TIMEOUT_SECONDS:-300}"'
   export GMAPS_JOB_POLL_SECONDS='"${GMAPS_JOB_POLL_SECONDS:-10}"'
+  export E2E_BACKEND_ROOT=/app/backend
   cd /app/backend
-  python scripts/e2e_realworld_strict.py
-'
+  mkdir -p /app/backend/.e2e-results
+  test -f "${GITRECON_SCRIPT}"
+  python -
+' < "$SCRIPT_DIR/e2e_realworld_strict.py"
 pass "strict real-world E2E probe"
+
+docker compose exec -T api cat /app/backend/.e2e-results/strict-report.json \
+  > "$BACKEND_DIR/.e2e-results/strict-report.json" || true
+
+echo ""
+echo "All strict real-world E2E checks passed."
+echo "Report: $BACKEND_DIR/.e2e-results/strict-report.json"

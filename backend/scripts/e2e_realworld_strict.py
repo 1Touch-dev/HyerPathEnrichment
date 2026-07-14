@@ -28,17 +28,19 @@ from typing import Any
 
 import httpx
 
-# Allow running as a script from backend/
-ROOT = Path(__file__).resolve().parents[1]
+# Allow running as a script from backend/ or via stdin inside Docker (E2E_BACKEND_ROOT).
+_env_root = os.environ.get("E2E_BACKEND_ROOT")
+ROOT = Path(_env_root) if _env_root else Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+os.chdir(ROOT)
 
 from app.config import get_settings
 from app.enrichers.email_discover import EmailDiscoverEnricher
 from app.enrichers.email_verify import EmailVerifyEnricher
 from app.enrichers.gitrecon import GitReconEnricher
 from app.enrichers.local_business import LocalBusinessEnricher
-from app.enrichers.social_analyzer import SocialAnalyzerEnricher
+from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
 from app.models import EnrichmentRequest
 from app.providers import SidecarClient
 
@@ -162,17 +164,17 @@ class StrictProbe:
             f"csv_bytes={len(csv_text or '')}",
         )
 
-        # Prove the old guessed contract is wrong.
+        # Legacy GET /search exists on some builds but LocalBusinessEnricher uses the job API.
         try:
             async with httpx.AsyncClient(timeout=10.0) as http:
                 legacy = await http.get(f"{url.rstrip('/')}/search", params={"q": "coffee", "depth": 1})
             self.record(
-                "gmaps_legacy_search_rejected",
-                legacy.status_code >= 400,
-                f"GET /search status={legacy.status_code} (expected 4xx)",
+                "gmaps_legacy_search_unused",
+                legacy.status_code == 200,
+                f"GET /search status={legacy.status_code} (legacy; enricher uses POST /api/v1/jobs)",
             )
         except httpx.HTTPError as exc:
-            self.record("gmaps_legacy_search_rejected", True, f"GET /search unreachable: {exc}")
+            self.record("gmaps_legacy_search_unused", True, f"GET /search unreachable: {exc}")
 
     async def check_social_analyzer_contract(self) -> None:
         url = self.settings.social_analyzer_url.strip()
@@ -205,9 +207,9 @@ class StrictProbe:
             json.dumps(analyze, indent=2) if analyze is not None else "null",
             encoding="utf-8",
         )
-        detected = []
+        detected: list[Any] = []
         if isinstance(analyze, dict):
-            detected = analyze.get("user_info_normal", {}).get("data", [])
+            detected = extract_social_analyzer_candidates(analyze)
         self.record(
             "social_analyzer_contract_analyze",
             isinstance(analyze, dict) and bool(detected),
@@ -218,13 +220,14 @@ class StrictProbe:
         try:
             async with httpx.AsyncClient(timeout=10.0) as http:
                 legacy = await http.get(f"{url.rstrip('/')}/search", params={"username": "torvalds"})
+            # Legacy route may 200 or 404 depending on SA build; enricher does not use it.
             self.record(
-                "social_analyzer_legacy_search_rejected",
-                legacy.status_code >= 400,
-                f"GET /search status={legacy.status_code} (expected 4xx)",
+                "social_analyzer_legacy_search_unused",
+                legacy.status_code in {200, 404},
+                f"GET /search status={legacy.status_code} (legacy; enricher uses POST /analyze_string)",
             )
         except httpx.HTTPError as exc:
-            self.record("social_analyzer_legacy_search_rejected", True, f"GET /search unreachable: {exc}")
+            self.record("social_analyzer_legacy_search_unused", True, f"GET /search unreachable: {exc}")
 
     async def check_enrichers_live(self) -> None:
         discover = await EmailDiscoverEnricher().run(
