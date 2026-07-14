@@ -151,8 +151,26 @@ def audit_prerequisites() -> list[PrereqRow]:
         )
 
     url("Social Analyzer", "2", settings.social_analyzer_url, "SOCIAL_ANALYZER_URL")
+    url("Email Verify (AfterShip)", "3", settings.email_verifier_url, "EMAIL_VERIFIER_URL")
     url("Local Business", "4", settings.gmaps_scraper_url, "GMAPS_SCRAPER_URL")
     url("Email Verify (SMTP)", "3", settings.reacher_url, "REACHER_URL")
+
+    try:
+        import MailChecker  # noqa: F401
+
+        mailchecker_detail = "mailchecker OK"
+        mailchecker_ok = True
+    except ImportError:
+        mailchecker_detail = "mailchecker missing from core deps"
+        mailchecker_ok = False
+    rows.append(
+        PrereqRow(
+            name="Email Verify (disposable blocklist)",
+            tier="3",
+            present=mailchecker_ok,
+            detail=mailchecker_detail,
+        )
+    )
 
     return rows
 
@@ -168,12 +186,12 @@ def build_tests() -> list[tuple[str, str, Enricher, EnrichmentRequest]]:
             EnrichmentRequest(username="torvalds"),
         ),
         ("GitRecon", "3", GitReconEnricher(), EnrichmentRequest(username="torvalds")),
-        ("TheHarvester", "3", TheHarvesterEnricher(), EnrichmentRequest(company="github")),
+        ("TheHarvester", "3", TheHarvesterEnricher(), EnrichmentRequest(company="Microsoft")),
         (
             "Email Discover",
             "3",
             EmailDiscoverEnricher(),
-            EnrichmentRequest(username="torvalds", company="github"),
+            EnrichmentRequest(username="torvalds", company="Microsoft"),
         ),
         (
             "Email Verify",
@@ -205,7 +223,7 @@ def _note_for_empty(name: str, settings: Any) -> str:
         "GitRecon": "clone gitrecon; set GITRECON_SCRIPT",
         "TheHarvester": "install theHarvester CLI on PATH",
         "Email Discover": "email-sleuth missing - fallback may still guess an email",
-        "Email Verify": "install dnspython; optional REACHER_URL for SMTP",
+        "Email Verify": "set EMAIL_VERIFIER_URL for AfterShip; dnspython via .[enrichers]; REACHER_URL when EMAIL_VERIFY_LEVEL=smtp",
         "CrossLinked": "install crosslinked CLI on PATH",
         "JobSpy": "pip install .[enrichers] (python-jobspy)",
         "Local Business": "start gmaps sidecar; set GMAPS_SCRAPER_URL (slow: 1-5 min)",

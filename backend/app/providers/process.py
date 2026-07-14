@@ -37,9 +37,13 @@ async def run_command(
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
         process.kill()
-        await process.wait()
+        stdout, stderr = await process.communicate()
         logger.warning("command timed out after %ss: %s", timeout, args[0] if args else "")
-        return 124, "", ""
+        return (
+            124,
+            stdout.decode("utf-8", errors="replace"),
+            stderr.decode("utf-8", errors="replace"),
+        )
 
     return (
         process.returncode or 0,

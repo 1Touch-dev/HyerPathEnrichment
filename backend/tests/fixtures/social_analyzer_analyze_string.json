@@ -1,0 +1,26 @@
+{
+  "user_info_normal": {
+    "data": [
+      {
+        "type": "GitHub",
+        "link": "https://github.com/torvalds",
+        "good": "true",
+        "rate": 95,
+        "app": "GitHub"
+      },
+      {
+        "type": "Twitter",
+        "link": "https://twitter.com/torvalds",
+        "good": "true",
+        "rate": "%80.00",
+        "app": "Twitter"
+      },
+      {
+        "type": "Reddit",
+        "link": "https://reddit.com/user/torvalds",
+        "good": "false",
+        "rate": 10
+      }
+    ]
+  }
+}

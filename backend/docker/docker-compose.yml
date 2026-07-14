@@ -23,6 +23,20 @@ services:
       LITELLM_MODEL: ${LITELLM_MODEL:-gpt-4o-mini}
       LITELLM_FALLBACKS: ${LITELLM_FALLBACKS:-}
       DISAMBIGUATION_THRESHOLD: ${DISAMBIGUATION_THRESHOLD:-0.7}
+      # Tier 3 — OSINT + email (free default-on sidecar + worker CLIs)
+      GITRECON_SCRIPT: /opt/gitrecon/gitrecon.py
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      EMAIL_SLEUTH_BIN: email-sleuth
+      EMAIL_VERIFIER_URL: http://email-verifier:8080
+      EMAIL_VERIFY_LEVEL: ${EMAIL_VERIFY_LEVEL:-basic}
+      EMAIL_VERIFY_MAX_PER_JOB: ${EMAIL_VERIFY_MAX_PER_JOB:-10}
+      EMAIL_VERIFY_SMTP_DELAY_SECONDS: ${EMAIL_VERIFY_SMTP_DELAY_SECONDS:-6}
+      REACHER_URL: ${REACHER_URL:-}
+      REACHER_FROM_EMAIL: ${REACHER_FROM_EMAIL:-}
+      PROXY_MODE: ${PROXY_MODE:-none}
+      SCRAPOXY_URL: ${SCRAPOXY_URL:-}
+      CROSSLINKED_SEARCH_ENGINES: ${CROSSLINKED_SEARCH_ENGINES:-yahoo}
+      CROSSLINKED_TIMEOUT_SECONDS: ${CROSSLINKED_TIMEOUT_SECONDS:-120}
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,6 +66,19 @@ services:
       LITELLM_MODEL: ${LITELLM_MODEL:-gpt-4o-mini}
       LITELLM_FALLBACKS: ${LITELLM_FALLBACKS:-}
       DISAMBIGUATION_THRESHOLD: ${DISAMBIGUATION_THRESHOLD:-0.7}
+      GITRECON_SCRIPT: /opt/gitrecon/gitrecon.py
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      EMAIL_SLEUTH_BIN: email-sleuth
+      EMAIL_VERIFIER_URL: http://email-verifier:8080
+      EMAIL_VERIFY_LEVEL: ${EMAIL_VERIFY_LEVEL:-basic}
+      EMAIL_VERIFY_MAX_PER_JOB: ${EMAIL_VERIFY_MAX_PER_JOB:-10}
+      EMAIL_VERIFY_SMTP_DELAY_SECONDS: ${EMAIL_VERIFY_SMTP_DELAY_SECONDS:-6}
+      REACHER_URL: ${REACHER_URL:-}
+      REACHER_FROM_EMAIL: ${REACHER_FROM_EMAIL:-}
+      PROXY_MODE: ${PROXY_MODE:-none}
+      SCRAPOXY_URL: ${SCRAPOXY_URL:-}
+      CROSSLINKED_SEARCH_ENGINES: ${CROSSLINKED_SEARCH_ENGINES:-yahoo}
+      CROSSLINKED_TIMEOUT_SECONDS: ${CROSSLINKED_TIMEOUT_SECONDS:-120}
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,15 +110,50 @@ services:
       dockerfile: Dockerfile.social-analyzer
     ports:
       - "9005:9005"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9005/get_settings').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
     restart: unless-stopped
+  # Built via Dockerfile.google-maps-scraper: upstream binary + Playwright
+  # 1.57.0 driver from npm/nodejs.org (Hub :latest 404s on retired CDN).
+  # Do not mount a volume over /opt — that shadows /opt/node and /opt/package.
   google-maps-scraper:
-    image: gosom/google-maps-scraper:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.google-maps-scraper
     command: ["-web", "-addr", "0.0.0.0:8080", "-data-folder", "/gmapsdata"]
     ports:
       - "8080:8080"
     volumes:
-      - gmaps_playwright_cache:/opt
       - gmaps_data:/gmapsdata
+    restart: unless-stopped
+  email-verifier:
+    build:
+      context: .
+      dockerfile: Dockerfile.email-verifier
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:8080/v1/health@example.com/verification",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
     restart: unless-stopped
 
   # ── Paid / heavy services (opt-in via `--profile`) ──────────────
@@ -160,5 +222,4 @@ volumes:
   tier1_artifacts:
   ollama_data:
   changedetection_data:
-  gmaps_playwright_cache:
   gmaps_data:

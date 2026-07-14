@@ -3,7 +3,7 @@
 Hyrepath Enrichment backend — architecture reference for the FastAPI service under `backend/`.
 
 **Version:** 0.2 (July 2026)  
-**Last verified against code:** 2026-07-08  
+**Last verified against code:** 2026-07-13  
 **Repo layout:** `HyerEnrichment/backend/` (split from the Next.js frontend in `frontend/`)
 
 ---
@@ -226,11 +226,11 @@ Runs in parallel when `tier2` is requested:
 
 | Module | Upstream | Confidence base |
 |--------|----------|-----------------|
-| `sherlock.py` | `sherlock-project/sherlock` (MIT) | ~0.75 |
-| `maigret.py` | `soxoj/maigret` (MIT) | ~0.85 |
-| `social_analyzer.py` | `qeeqbox/social-analyzer` (AGPL) | NLP scoring via HTTP sidecar |
+| `sherlock.py` | `sherlock-project/sherlock` (MIT) | `0.75` (`SHERLOCK_HANDLE_CONFIDENCE`) |
+| `maigret.py` | `soxoj/maigret` (MIT) | `0.85` (`MAIGRET_HANDLE_CONFIDENCE`) |
+| `social_analyzer.py` | `qeeqbox/social-analyzer` (AGPL) | NLP `rate` via HTTP sidecar |
 
-Results are merged, deduplicated, and scored. Handles below **0.7** go to the LLM disambiguator.
+**Current:** `sherlock-project` + `maigret` ship in `.[enrichers]` and are on PATH in `Dockerfile.worker` / `Dockerfile.api`. Merge dedupes on `(platform, username)` and **keeps the higher confidence**. Handles below **0.7** go to the LLM disambiguator. Full E2E: `bash backend/scripts/e2e_tier2.sh` (free path + litellm Stage B). Social-analyzer has a compose healthcheck on `GET /get_settings`.
 
 ### Tier 3 — Deep OSINT (GitHub + email + company)
 
@@ -511,13 +511,14 @@ Copy `backend/.env.example` → `backend/.env`.
 | `postgres` | Job + suppression persistence |
 | `redis` | Queue + suppression + rate limits |
 | `social-analyzer` | AGPL sidecar (Tier 2) |
-| `reacher` | SMTP verification sidecar (Tier 3) |
-| `google-maps-scraper` | Local business sidecar (Tier 4) |
+| `email-verifier` | AfterShip email verification sidecar (Tier 3 basic mode) |
+| `reacher` | SMTP verification sidecar (Tier 3 smtp mode) |
+| `google-maps-scraper` | Local business sidecar (Tier 4); built via `Dockerfile.google-maps-scraper` (Playwright driver from npm — not Hub CDN) |
 | `litellm` | LLM proxy |
 | `langfuse` | LLM observability |
 | `changedetection` | Company change signals via `POST /api/signals/changedetection` |
 
-**Current:** compose uses real images. Free-mode sidecars (`social-analyzer`, `google-maps-scraper`) start by default; paid/heavy services (`reacher`, `litellm`, `ollama`, `scrapoxy`, `langfuse`, `changedetection`) sit behind compose `profiles:` so a plain `docker compose up` stays free. Enrichers call real tools (subprocess/library/sidecar) selected by the Phase 0 provider layer (`app/providers/`), and **degrade to a valid empty fragment** when a tool, sidecar, or key is missing — never a crash. Free -> paid is an env flip via the mode flags in `config.py` (`PROXY_MODE`, `BROWSER_MODE`, `LLM_MODE`, `EMAIL_VERIFY_LEVEL`, `ENABLE_TIER1`).
+**Current:** compose uses real images/builds. Free-mode sidecars (`social-analyzer`, `google-maps-scraper`) start by default; paid/heavy services (`reacher`, `litellm`, `ollama`, `scrapoxy`, `langfuse`, `changedetection`) sit behind compose `profiles:` so a plain `docker compose up` stays free. `google-maps-scraper` is built locally (`Dockerfile.google-maps-scraper`) with a pre-assembled Playwright 1.57.0 driver — Hub `:latest` still hits the retired azureedge CDN. Do not volume-mount over `/opt`. Enrichers call real tools (subprocess/library/sidecar) selected by the Phase 0 provider layer (`app/providers/`), and **degrade to a valid empty fragment** when a tool, sidecar, or key is missing — never a crash. Free -> paid is an env flip via the mode flags in `config.py` (`PROXY_MODE`, `BROWSER_MODE`, `LLM_MODE`, `EMAIL_VERIFY_LEVEL`, `ENABLE_TIER1`).
 
 ### AGPL isolation
 
@@ -569,6 +570,8 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Tier 1 pipeline dispatch | Tier 1 serial, tiers 2–4 parallel | `runner.py` `_dispatch(sync_mode=...)`; see `docs/TESTING_TIER1.md` |
 | Tier 1 Docker ops | Worker image + compose override | `Dockerfile.worker` (Chromium + `.[enrichers]`); `docker-compose.tier1.yml` injects secrets via `env_file` (`WORKER_ENV_FILE` or `../.env`), forces `MULTILOGIN_SELENIUM_HOST`, maps `launcher.mlx.yt`/`host.docker.internal` → `host-gateway` or `MULTILOGIN_HOST_IP` (WSL2); `validate_tier1_settings()` fail-fast on worker boot; `tier1_*` Prometheus counters |
 | Tier 1 hardening (3.7) | Session reuse, denylist, rate limits | `TIER1_SKIP_LOGIN_IF_SESSION_VALID`; `profile_pool.refund_view()`; `probe_tier1_canary.py`; configurable cooldowns |
+| Tier 2 CLIs + scores | Sherlock/Maigret/SA in Docker | `sherlock-project` + `maigret` in `.[enrichers]`; bases 0.75/0.85; merge prefer-max; `e2e_tier2.sh` |
+| Tier 3 CLIs + email verify | gitrecon/Harvester/sleuth/CrossLinked + AfterShip | CLIs in worker/api images; `email-verifier` sidecar; two-phase verify in `runner.py`; `EMAIL_VERIFY_LEVEL=basic\|smtp`; `e2e_tier3.sh` |
 | LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
 | Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
 | Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:` |
@@ -656,10 +659,10 @@ The script brings up `api`, `worker`, `redis`, `postgres`, then asserts: `/healt
 Track these as architecture decisions mature:
 
 1. ~~Wire Redis/RQ so `/enrich` is truly async~~ (done) — ~~make `/enrich/sync` exclude Tier 1 browser work~~ (done: `runner.py` sync_mode skips tier1)
-2. ~~Replace enricher mocks with subprocess/library integrations per upstream repo~~ (done) — remaining: tune upstream CLI/API contracts (gitrecon JSON schema, social-analyzer/GMaps sidecar endpoints) against live deployments
+2. ~~Replace enricher mocks with subprocess/library integrations per upstream repo~~ (done) — remaining: GMaps sidecar against live deployments; Tier 2 SA + Sherlock/Maigret covered by `e2e_tier2.sh`; Tier 3 covered by `e2e_tier3.sh`
 3. Remove Bearer auth from `POST /api/opt-out` for compliance accessibility
 4. ~~Promote SQLite → PostgreSQL in default docker-compose wiring~~ (done) — remaining: Alembic migrations and `JSONB` columns when the schema stabilizes
 5. ~~Connect LiteLLM + Langfuse in `llm_router.py`~~ (done, opt-in) — remaining: real prompt tuning + cost dashboards once `LLM_MODE=litellm` is exercised
-6. ~~Swap nginx sidecar placeholders for real Reacher, social-analyzer, and GMaps images~~ (done) — remaining: verify each real image's health/endpoints in a staging compose run
+6. ~~Swap nginx sidecar placeholders for real Reacher, social-analyzer, and GMaps images~~ (done) — GMaps Playwright CDN 404 fixed via local Dockerfile with npm-assembled driver (2026-07-13); free-sidecar smoke PASS; social-analyzer healthcheck + Tier 2 E2E harness
 
 For tier-specific issues, use `[Tier N]` in issue titles (e.g. `[Tier 3] Reacher fallback fails on catch-all`).
