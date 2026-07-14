@@ -70,3 +70,6 @@ blob-report/
 .openclaw/
 .paperclip/
 .zero-human/
+
+# Agent local session notes (not for org repo)
+memory/
