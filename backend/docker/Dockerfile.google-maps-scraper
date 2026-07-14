@@ -1,8 +1,6 @@
-# google-maps-scraper with a pre-assembled Playwright 1.57.0 driver.
-#
-# Upstream (and Hub :latest) use playwright-go v0.5700.1, which downloads
-# playwright-1.57.0-linux.zip from the retired azureedge CDN → 404.
-# We keep that scraper binary but bake the driver from npm + nodejs.org
+# google-maps-scraper with a pre-assembled Playwright driver matching upstream
+# playwright-go (currently 1.60.0). Hub :latest still tries the retired azureedge
+# CDN for the driver zip → 404. We bake the driver from npm + nodejs.org
 # (same layout the CDN zip used): /opt/node + /opt/package/cli.js.
 #
 # PLAYWRIGHT_DRIVER_PATH must point at the directory that CONTAINS node and
@@ -26,7 +24,7 @@ RUN apt-get update \
  && tar -xJf /tmp/node.tar.xz -C /tmp \
  && cp "/tmp/node-v20.18.1-linux-${NODE_ARCH}/bin/node" /opt/node \
  && chmod +x /opt/node \
- && curl -fsSL "https://registry.npmjs.org/playwright-core/-/playwright-core-1.57.0.tgz" \
+ && curl -fsSL "https://registry.npmjs.org/playwright-core/-/playwright-core-1.60.0.tgz" \
       -o /tmp/pw.tgz \
  && mkdir -p /tmp/pw /opt/package \
  && tar -xzf /tmp/pw.tgz -C /tmp/pw \
@@ -40,12 +38,13 @@ RUN mkdir -p /opt/browsers \
  && /opt/node /opt/package/cli.js install-deps chromium || true
 
 FROM golang:1.26.4-trixie AS builder
+ENV GOTOOLCHAIN=auto
 WORKDIR /app
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git \
  && rm -rf /var/lib/apt/lists/* \
  && git clone --depth 1 https://github.com/gosom/google-maps-scraper.git . \
- && CGO_ENABLED=0 go build -ldflags="-w -s" -o /usr/bin/google-maps-scraper
+ && CGO_ENABLED=0 GOTOOLCHAIN=auto go build -ldflags="-w -s" -o /usr/bin/google-maps-scraper
 
 FROM debian:trixie-slim
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/browsers
