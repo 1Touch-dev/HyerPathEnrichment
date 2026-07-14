@@ -592,7 +592,7 @@ Use this table when reviewing PRs, running `GRILLME.md` sessions, or planning th
 | Layer | What | Where |
 |-------|------|-------|
 | Shape tests | Every enricher returns valid dossier fragments | `tests/test_pipeline_shape.py` |
-| Integration | Fake sidecars in CI via compose override | Target |
+| Integration | Fake sidecars in CI via compose override | Implemented — `docker-compose.fake-sidecars.yml` + `scripts/e2e_fake_sidecars.sh` |
 | Manual QA | 20-profile canary set (technical + non-technical + private) | Target |
 
 Run backend tests:

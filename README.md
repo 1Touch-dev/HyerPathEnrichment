@@ -972,7 +972,7 @@ Priority next slices (from architecture planning):
 5. **LLM prompt tuning** — Real disambiguation prompts + Langfuse cost dashboards once `LLM_MODE=litellm` is exercised in staging
 6. **Tier 1 production path** — Multilogin profile pool, Playwright hardening, `ENABLE_TIER1=true` staging canary
 7. **Frontend async polling** — Wire UI to `POST /enrich` + poll instead of `/enrich/sync` for long-running jobs
-8. **Integration tests in CI** — Fake sidecars via compose override for automated E2E in GitHub Actions
+8. ~~**Integration tests in CI** — Fake sidecars via compose override for automated E2E in GitHub Actions~~ (done — `docker-compose.fake-sidecars.yml`, `e2e_fake_sidecars.sh`, `tests/test_fake_sidecar_server.py`; GitHub Actions workflow optional follow-up)
 9. **Audit log hashes** — 5-year retention audit trail in Redis (target-only today)
 
 When filing issues, use tier prefixes: `[Tier 3] Reacher fallback fails on catch-all`.
