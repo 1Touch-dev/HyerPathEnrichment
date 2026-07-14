@@ -1,0 +1,7 @@
+#!/bin/sh
+# Block commits of real env files; allow .env.example templates.
+if git diff --cached --name-only | grep -E '(^|/)\.env$|\.env\.local$'; then
+  echo "ERROR: refusing to commit .env or .env.local file"
+  echo "Use .env.example for templates. Real secrets belong in ignored local files."
+  exit 1
+fi
