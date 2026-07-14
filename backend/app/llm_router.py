@@ -1,4 +1,4 @@
-from app.config import get_settings
+﻿from app.config import get_settings
 from app.providers.llm import (
     LLMDecision,
     heuristic_compare,
@@ -15,8 +15,9 @@ class LiteLLMDisambiguator:
 
     ``LLM_MODE=stub`` (free default) keeps the heuristic string match.
     ``ollama`` uses a local model; ``litellm`` uses the LiteLLM proxy with a
-    fallback chain. The ``compare`` signature is unchanged so the orchestrator
-    and confidence scoring never need to know which backend answered.
+    fallback chain. Prompt assembly lives in ``providers.llm.build_disambiguation_messages``.
+    The ``compare`` signature is unchanged so the orchestrator and confidence
+    scoring never need to know which backend answered.
     """
 
     async def compare(self, left: str, right: str) -> LLMDecision:
@@ -31,6 +32,11 @@ class LiteLLMDisambiguator:
 
         trace(
             "identity-disambiguation",
-            {"mode": mode, "same_identity": decision.same_identity, "confidence": decision.confidence},
+            {
+                "mode": mode,
+                "same_identity": decision.same_identity,
+                "confidence": decision.confidence,
+                "reason": decision.reason,
+            },
         )
         return decision
