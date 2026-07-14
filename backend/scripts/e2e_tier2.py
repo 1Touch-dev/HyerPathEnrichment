@@ -33,7 +33,7 @@ os.chdir(ROOT)
 from app.config import get_settings
 from app.enrichers.maigret import MaigretEnricher
 from app.enrichers.sherlock import SherlockEnricher
-from app.enrichers.social_analyzer import SocialAnalyzerEnricher
+from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
 from app.models import EnrichmentRequest, SocialHandle
 from app.providers import SidecarClient
 from app.workers.runner import PipelineOrchestrator
@@ -144,9 +144,7 @@ class Tier2Probe:
         )
         detected: list[Any] = []
         if isinstance(analyze, dict):
-            detected = analyze.get("user_info_normal", {}).get("data", []) or []
-            if not detected:
-                detected = analyze.get("detected") or analyze.get("results") or []
+            detected = extract_social_analyzer_candidates(analyze)
         self.record(
             "social_analyzer_contract_analyze",
             isinstance(analyze, dict) and bool(detected),

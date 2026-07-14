@@ -30,7 +30,7 @@ bash backend/scripts/e2e_tier2.sh
 Windows (WSL):
 
 ```powershell
-wsl -d Ubuntu-22.04 -u root bash /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/scripts/e2e_tier2.sh
+wsl -d Ubuntu -u root bash /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/scripts/e2e_tier2.sh
 ```
 
 **Stage A (free):** rebuilds `api` + `worker` with `sherlock`/`maigret` on PATH, brings up `social-analyzer`, asserts isolation probes, `/enrich/sync` and async `/enrich` for `requested_tiers:["tier2"]`. Report: `backend/.e2e-results/tier2-report.json`.
@@ -169,6 +169,16 @@ python scripts/e2e_realworld_strict.py
 | `e2e_realworld_strict` SA settings/analyze | PASS |
 | Unrelated FAILs | `GITRECON_SCRIPT` unset; `gmaps_legacy_search_rejected` (GET `/search` returns 200, probe expects 4xx) |
 
+### Expected free-path contract behavior
+
+| Check | Expectation |
+|-------|-------------|
+| GMaps enricher path | `POST /api/v1/jobs` → poll → `GET .../download` CSV (not `GET /search`) |
+| SA enricher path | `GET /get_settings` + `POST /analyze_string` with profile candidates |
+| GitRecon | Subprocess CLI via `GITRECON_SCRIPT=/opt/gitrecon/gitrecon.py` (not in `probe_sidecars.sh`) |
+| Legacy `/search` | May return 200; enrichers do not use it — strict labels as unused |
+| Evidence | `backend/.e2e-results/strict-report.json` should report `failed: 0` |
+
 ---
 
 ## Layer 3 â€” Enricher isolation
@@ -277,13 +287,13 @@ pytest tests/test_tier3_merge.py tests/test_enrichers.py
 ## Recommended order
 
 1. `docker compose up` (api + worker + sidecars)
-2. `pytest tests/test_enrichers.py tests/test_pipeline_shape.py -v` (Layer 0)
-3. `bash backend/scripts/probe_sidecars.sh` (Layer 2 sidecar smoke)
-4. `bash backend/scripts/e2e_tier2.sh` → `tier2-report.json`
-5. `bash backend/scripts/e2e_tier3.sh` → `tier3-report.json`
-6. `bash backend/scripts/e2e_realworld_strict.sh` → `strict-report.json` (or local `python scripts/e2e_realworld_strict.py`)
-7. For each FAIL → `python scripts/probe_enrichers.py --only <name>`
-8. Fix prerequisites (CLI, env, sidecar), then re-run tier curl commands above
+2. `pytest tests/test_enrichers.py tests/test_pipeline_shape.py -v` (Layer 0 / shape + parser unit tests)
+3. `bash backend/scripts/probe_sidecars.sh` (Layer 2 sidecar smoke — GMaps / SA / email-verifier)
+4. `bash backend/scripts/e2e_tier2.sh` → `tier2-report.json` (Tier 2 free path)
+5. `bash backend/scripts/e2e_tier3.sh` → `tier3-report.json` (Tier 3 free path; includes GitRecon)
+6. `bash backend/scripts/e2e_realworld_strict.sh` → read `backend/.e2e-results/strict-report.json` (`failed: 0`) (or local `python scripts/e2e_realworld_strict.py`)
+7. For each FAIL → `python scripts/probe_enrichers.py --only <name>` then fix prerequisites and re-run
+8. Re-run tier curl commands above
 9. Test async: `POST /enrich` + poll `GET /enrich/{id}`
 
 ---
