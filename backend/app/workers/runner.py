@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -57,7 +58,13 @@ class PipelineOrchestrator:
         self.llm = LiteLLMDisambiguator()
         self.tier1: list[Enricher] = [LinkedInPhotoEnricher()]
         self.tier2: list[Enricher] = [SherlockEnricher(), MaigretEnricher(), SocialAnalyzerEnricher()]
-        self.tier3: list[Enricher] = [GitReconEnricher(), TheHarvesterEnricher(), EmailDiscoverEnricher(), EmailVerifyEnricher(), CrossLinkedEnricher()]
+        self.tier3_discover: list[Enricher] = [
+            GitReconEnricher(),
+            TheHarvesterEnricher(),
+            EmailDiscoverEnricher(),
+            CrossLinkedEnricher(),
+        ]
+        self._email_verify = EmailVerifyEnricher()
         self.tier4: list[Enricher] = [JobSpyEnricher(), LocalBusinessEnricher()]
 
     async def run(self, request: EnrichmentRequest) -> JobRecord:
@@ -239,7 +246,13 @@ class PipelineOrchestrator:
         if RequestedTier.tier2 in tiers:
             payloads.extend(await self._run_tier_parallel(self.tier2, request))
         if RequestedTier.tier3 in tiers:
-            payloads.extend(await self._run_tier_parallel(self.tier3, request))
+            discover_payloads = await self._run_tier_parallel(self.tier3_discover, request)
+            payloads.extend(discover_payloads)
+            candidates = self._collect_email_candidates(request, discover_payloads)
+            if candidates:
+                verify_payload = await self._verify_email_batch(candidates)
+                if verify_payload:
+                    payloads.append(verify_payload)
         if RequestedTier.tier4 in tiers:
             payloads.extend(await self._run_tier_parallel(self.tier4, request))
         return payloads
@@ -268,6 +281,46 @@ class PipelineOrchestrator:
         finally:
             await worker.cleanup()
 
+    @staticmethod
+    def _collect_email_candidates(
+        request: EnrichmentRequest,
+        discover_payloads: list[dict[str, Any]],
+    ) -> list[str]:
+        settings = get_settings()
+        seen: set[str] = set()
+        candidates: list[str] = []
+
+        def add(raw: str) -> None:
+            normalized = raw.strip().lower()
+            if not normalized or "@" not in normalized or normalized in seen:
+                return
+            seen.add(normalized)
+            candidates.append(normalized)
+
+        if request.email:
+            add(request.email)
+
+        for payload in discover_payloads:
+            emails = payload.get("emails")
+            if not isinstance(emails, list):
+                continue
+            for email in emails:
+                add(str(email))
+
+        if not candidates and request.username:
+            slug = re.sub(r"[^a-z0-9]", "", (request.company or "example").lower()) or "example"
+            add(f"{request.username}@{slug}.com")
+
+        cap = max(1, settings.email_verify_max_per_job)
+        return candidates[:cap]
+
+    async def _verify_email_batch(self, candidates: list[str]) -> dict[str, Any]:
+        payload = await self._email_verify.verify_emails(candidates)
+        if not payload:
+            return {}
+        payload.setdefault("sources", [self._email_verify.source_name])
+        return payload
+
     async def _merge(self, request: EnrichmentRequest, payloads: list[dict[str, Any]]) -> Dossier:
         dossier = self._base_dossier(request)
         handles_seen: set[tuple[str, str]] = set()
@@ -285,9 +338,19 @@ class PipelineOrchestrator:
                     if not isinstance(handle, dict):
                         continue
                     key = (str(handle.get("platform", "")).lower(), str(handle.get("username", "")).lower())
+                    candidate = SocialHandle.model_validate(handle)
                     if key not in handles_seen:
                         handles_seen.add(key)
-                        dossier.handles.append(SocialHandle.model_validate(handle))
+                        dossier.handles.append(candidate)
+                        continue
+                    # Prefer higher confidence on platform/username collision.
+                    for index, existing in enumerate(dossier.handles):
+                        existing_key = (existing.platform.lower(), existing.username.lower())
+                        if existing_key != key:
+                            continue
+                        if candidate.confidence > existing.confidence:
+                            dossier.handles[index] = candidate
+                        break
 
             emails = payload.get("emails")
             if isinstance(emails, list):
@@ -402,8 +465,15 @@ class PipelineOrchestrator:
             ),
             ConfidenceBreakdown(
                 label="email-verification",
-                score=0.89 if dossier.verified_emails else 0.22,
-                evidence=[f"verified emails: {len(dossier.verified_emails)}"],
+                score=(
+                    0.89
+                    if any(e.status != "disposable" for e in dossier.verified_emails)
+                    else 0.22
+                ),
+                evidence=[
+                    "verified emails: "
+                    f"{sum(1 for e in dossier.verified_emails if e.status != 'disposable')}"
+                ],
             ),
             ConfidenceBreakdown(
                 label="coverage",

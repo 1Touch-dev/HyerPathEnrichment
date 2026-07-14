@@ -91,7 +91,7 @@ async def litellm_compare(left: str, right: str, settings: Settings) -> LLMDecis
     if settings.litellm_api_key.strip():
         headers["Authorization"] = f"Bearer {settings.litellm_api_key.strip()}"
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         for model in models:
             try:
                 response = await client.post(

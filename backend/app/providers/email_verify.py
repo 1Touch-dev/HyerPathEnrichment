@@ -4,6 +4,8 @@ import logging
 import re
 from typing import Any
 
+from MailChecker import MailChecker
+
 from app.config import get_settings
 from app.providers.sidecar import SidecarClient
 
@@ -15,17 +17,26 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 class EmailVerifier:
     """Ordered email-verification fallback chain behind one call.
 
-    ``EMAIL_VERIFY_LEVEL=basic`` (free default): syntax + MX, plus the AfterShip
-    email-verifier sidecar when reachable. ``smtp`` adds the Reacher SMTP check
-    (needs port 25 + a clean IP). Every path returns the same ``VerifiedEmail``
-    shape (``value``, ``status``, ``confidence``, ``source``) or ``None`` when
-    the address is unusable, so callers stay identical across free/paid.
+    ``EMAIL_VERIFY_LEVEL=basic`` (free default): syntax, disposable blocklist
+    (mailchecker), MX, plus the AfterShip email-verifier sidecar when reachable.
+    ``smtp`` adds the Reacher SMTP check (needs port 25 + a clean IP). Every path
+    returns the same ``VerifiedEmail`` shape (``value``, ``status``,
+    ``confidence``, ``source``) or ``None`` when the address is unusable, so
+    callers stay identical across free/paid.
     """
 
     async def verify(self, email: str) -> dict[str, Any] | None:
         email = (email or "").strip().lower()
         if not _EMAIL_RE.match(email):
             return None
+
+        if self._is_disposable(email):
+            return {
+                "value": email,
+                "status": "disposable",
+                "confidence": 0.0,
+                "source": "mailchecker",
+            }
 
         settings = get_settings()
         result: dict[str, Any] = {
@@ -52,6 +63,11 @@ class EmailVerifier:
 
         return result
 
+    def _is_disposable(self, email: str) -> bool:
+        # mailchecker.is_valid is False for throwaway domains (and bad format;
+        # format is already gated by _EMAIL_RE).
+        return not MailChecker.is_valid(email)
+
     async def _mx_ok(self, domain: str) -> bool | None:
         try:
             import dns.resolver
@@ -73,12 +89,20 @@ class EmailVerifier:
         data = await client.get_json(f"/v1/{email}/verification")
         if not isinstance(data, dict):
             return None
-        reachable = bool(data.get("reachable") not in (None, "", "unknown")) and bool(
-            data.get("has_mx_records", True)
-        )
+        reachable_raw = str(data.get("reachable", "unknown")).lower()
+        has_mx = bool(data.get("has_mx_records", False))
+        if reachable_raw in {"yes", "true"}:
+            status, confidence = "deliverable", 0.8
+        elif reachable_raw in {"no", "false"}:
+            status, confidence = "risky", 0.4
+        elif has_mx:
+            # AfterShip often returns reachable=unknown when SMTP probe is inconclusive.
+            status, confidence = "deliverable", 0.65
+        else:
+            status, confidence = "risky", 0.4
         return {
-            "status": "deliverable" if reachable else "risky",
-            "confidence": 0.8 if reachable else 0.4,
+            "status": status,
+            "confidence": confidence,
             "source": "AfterShip Email Verifier",
         }
 

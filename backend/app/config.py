@@ -75,17 +75,22 @@ class Settings(BaseSettings):
     # Tier 2 — handle hunt. Sidecar URLs default empty -> empty fragment.
     social_analyzer_url: str = Field(default="", alias="SOCIAL_ANALYZER_URL")
     sherlock_timeout_seconds: int = Field(default=60, alias="SHERLOCK_TIMEOUT_SECONDS")
-    maigret_timeout_seconds: int = Field(default=90, alias="MAIGRET_TIMEOUT_SECONDS")
+    maigret_timeout_seconds: int = Field(default=180, alias="MAIGRET_TIMEOUT_SECONDS")
 
     # Tier 3 — OSINT + email
     github_token: str = Field(default="", alias="GITHUB_TOKEN")
     gitrecon_script: str = Field(default="", alias="GITRECON_SCRIPT")
     theharvester_timeout_seconds: int = Field(default=120, alias="THEHARVESTER_TIMEOUT_SECONDS")
-    crosslinked_timeout_seconds: int = Field(default=90, alias="CROSSLINKED_TIMEOUT_SECONDS")
+    crosslinked_timeout_seconds: int = Field(default=120, alias="CROSSLINKED_TIMEOUT_SECONDS")
+    crosslinked_search_engines: str = Field(default="yahoo", alias="CROSSLINKED_SEARCH_ENGINES")
     email_sleuth_bin: str = Field(default="email-sleuth", alias="EMAIL_SLEUTH_BIN")
     email_verifier_url: str = Field(default="", alias="EMAIL_VERIFIER_URL")
     reacher_url: str = Field(default="", alias="REACHER_URL")
     reacher_from_email: str = Field(default="", alias="REACHER_FROM_EMAIL")
+    email_verify_max_per_job: int = Field(default=10, alias="EMAIL_VERIFY_MAX_PER_JOB")
+    email_verify_smtp_delay_seconds: int = Field(
+        default=6, alias="EMAIL_VERIFY_SMTP_DELAY_SECONDS"
+    )
 
     # Tier 4 — jobs + business
     jobspy_results_per_board: int = Field(default=15, alias="JOBSPY_RESULTS_PER_BOARD")

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.config import get_settings
-from app.enrichers._shared import extract_urls, urls_to_handles
+from app.enrichers._shared import SHERLOCK_HANDLE_CONFIDENCE, extract_urls, urls_to_handles
 from app.enrichers.base import Enricher
 from app.models import EnrichmentRequest
 from app.providers import ProxyProvider, run_command
@@ -32,5 +32,10 @@ class SherlockEnricher(Enricher):
         if returncode not in (0, 124):
             return {}
 
-        handles = urls_to_handles(username, extract_urls(stdout), self.source_name)
+        handles = urls_to_handles(
+            username,
+            extract_urls(stdout),
+            self.source_name,
+            confidence=SHERLOCK_HANDLE_CONFIDENCE,
+        )
         return {"handles": handles} if handles else {}

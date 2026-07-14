@@ -7,6 +7,10 @@ from urllib.parse import urlsplit
 _URL_RE = re.compile(r"https?://[^\s\"'<>]+")
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
+# Architecture guide base scores for Tier 2 CLI hits (above DISAMBIGUATION_THRESHOLD).
+SHERLOCK_HANDLE_CONFIDENCE = 0.75
+MAIGRET_HANDLE_CONFIDENCE = 0.85
+
 
 def extract_urls(text: str) -> list[str]:
     """Deduplicated profile URLs from CLI stdout (sherlock/maigret)."""
@@ -28,7 +32,13 @@ def extract_emails(text: str) -> list[str]:
     return seen
 
 
-def urls_to_handles(username: str, urls: list[str], provider: str) -> list[dict[str, Any]]:
+def urls_to_handles(
+    username: str,
+    urls: list[str],
+    provider: str,
+    *,
+    confidence: float = 0.7,
+) -> list[dict[str, Any]]:
     """Map discovered profile URLs to SocialHandle-shaped dicts."""
     handles: list[dict[str, Any]] = []
     for url in urls:
@@ -40,7 +50,7 @@ def urls_to_handles(username: str, urls: list[str], provider: str) -> list[dict[
                 "platform": platform,
                 "username": username,
                 "profile_url": url,
-                "confidence": 0.7,
+                "confidence": confidence,
                 "metadata": {"provider": provider, "matched": True},
             }
         )
