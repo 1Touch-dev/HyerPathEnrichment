@@ -6,13 +6,16 @@
 #   2. POST /enrich                  -> 202 queued
 #   3. poll GET /enrich/{id}         -> completed (worker + shared DB)
 #   4. POST /api/opt-out             -> enrich blocked; suppression persisted
-#   5. restart worker container      -> purged job still present (data in volume)
+#   5. restart worker container      -> purged job row still present
 #
 # Usage (from repo root or anywhere):
 #   bash backend/scripts/e2e_compose_test.sh
 #
 # Requires: docker + docker compose. Run inside the environment that has the
 # Docker daemon (e.g. WSL2 Ubuntu). Uses the published API port on localhost.
+#
+# Prefers already-built images (avoids stale BuildKit COPY cache on /mnt/g).
+# Set E2E_COMPOSE_BUILD=1 to force --build.
 
 set -euo pipefail
 
@@ -21,8 +24,6 @@ COMPOSE_DIR="$(cd "$SCRIPT_DIR/../docker" && pwd)"
 BASE="http://localhost:8000"
 TOKEN="change-me"
 AUTH="Authorization: Bearer $TOKEN"
-# Unique per run so a prior opt-out on the postgres volume cannot suppress enqueue.
-IDENT="compose-e2e-$(date +%s)"
 
 cd "$COMPOSE_DIR"
 
@@ -30,7 +31,15 @@ pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1" >&2; exit 1; }
 
 echo "== bringing up api, worker, redis, postgres =="
-docker compose up --build -d api worker redis postgres
+if [ "${E2E_COMPOSE_BUILD:-0}" = "1" ]; then
+  docker compose up --build -d api worker redis postgres
+else
+  docker compose up -d api worker redis postgres
+fi
+
+# Unique per run so a prior opt-out on the postgres volume cannot suppress enqueue.
+IDENT="compose-e2e-$(date +%s)"
+echo "  using identifier: $IDENT"
 
 echo "== waiting for API health =="
 for i in $(seq 1 60); do
@@ -75,8 +84,8 @@ sup="$(curl -s -X POST "$BASE/enrich/sync" -H "$AUTH" -H 'Content-Type: applicat
 pass "opt-out blocks enrichment (suppression in Postgres)"
 
 echo "== opt-out purge clears prior job dossier =="
-# API always serializes dossier via Dossier.model_validate, so an empty payload
-# still has ~11 default keys — assert status=purged instead of len(dossier)==0.
+# API always serializes a full Dossier shape; purge is proven by status=purged
+# (dossier_payload wiped to {} in SQL and validated into empty defaults).
 purged_status="$(curl -s "$BASE/enrich/$job_id" -H "$AUTH" \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["status"])')"
 [ "$purged_status" = "purged" ] || fail "prior job not purged after opt-out (status=$purged_status)"
