@@ -43,9 +43,15 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
   worker:
     build:
       context: ..
@@ -87,12 +93,30 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - tier1_artifacts:/app/backend/artifacts/tier1
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from app.workers.queue import get_redis_connection; get_redis_connection().ping()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
   postgres:
     image: postgres:16-alpine
     environment:
@@ -140,6 +164,12 @@ services:
       - "8080:8080"
     volumes:
       - gmaps_data:/gmapsdata
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/docs"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
     restart: unless-stopped
   email-verifier:
     build:

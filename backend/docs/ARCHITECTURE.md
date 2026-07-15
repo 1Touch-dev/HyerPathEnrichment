@@ -230,7 +230,7 @@ Runs in parallel when `tier2` is requested:
 | `maigret.py` | `soxoj/maigret` (MIT) | `0.85` (`MAIGRET_HANDLE_CONFIDENCE`) |
 | `social_analyzer.py` | `qeeqbox/social-analyzer` (AGPL) | NLP `rate` via HTTP sidecar |
 
-**Current:** `sherlock-project` + `maigret` ship in `.[enrichers]` and are on PATH in `Dockerfile.worker` / `Dockerfile.api`. Merge dedupes on `(platform, username)` and **keeps the higher confidence**. Handles below **0.7** go to the LLM disambiguator. Full E2E: `bash backend/scripts/e2e_tier2.sh` (free path + litellm Stage B). Social-analyzer has a compose healthcheck on `GET /get_settings`.
+**Current:** `sherlock-project` + `maigret` ship in `.[enrichers]` and are on PATH in `Dockerfile.worker` / `Dockerfile.api`. Merge dedupes on `(platform, username)` and **keeps the higher confidence**. Handles below **0.7** go to the LLM disambiguator. Full E2E: `bash backend/scripts/e2e_tier2.sh` (free path + litellm Stage B). Free-stack Compose healthchecks include social-analyzer (`GET /get_settings`), email-verifier, and google-maps-scraper (`GET /api/docs`).
 
 ### Tier 3 — Deep OSINT (GitHub + email + company)
 
@@ -520,7 +520,7 @@ Copy `backend/.env.example` → `backend/.env`.
 | `langfuse` | LLM observability |
 | `changedetection` | Company change signals via `POST /api/signals/changedetection` |
 
-**Current:** compose uses real images/builds. Free-mode sidecars (`social-analyzer`, `google-maps-scraper`) start by default; paid/heavy services (`reacher`, `litellm`, `ollama`, `scrapoxy`, `langfuse`, `changedetection`) sit behind compose `profiles:` so a plain `docker compose up` stays free. `google-maps-scraper` is built locally (`Dockerfile.google-maps-scraper`) with a pre-assembled Playwright 1.57.0 driver — Hub `:latest` still hits the retired azureedge CDN. Do not volume-mount over `/opt`. Enrichers call real tools (subprocess/library/sidecar) selected by the Phase 0 provider layer (`app/providers/`), and **degrade to a valid empty fragment** when a tool, sidecar, or key is missing — never a crash. Free -> paid is an env flip via the mode flags in `config.py` (`PROXY_MODE`, `BROWSER_MODE`, `LLM_MODE`, `EMAIL_VERIFY_LEVEL`, `ENABLE_TIER1`).
+**Current:** compose uses real images/builds. Free-mode sidecars (`social-analyzer`, `google-maps-scraper`, `email-verifier`) start by default; paid/heavy services (`reacher`, `litellm`, `ollama`, `scrapoxy`, `langfuse`, `changedetection`) sit behind compose `profiles:` so a plain `docker compose up` stays free. Default-stack services (`postgres`, `redis`, `api`, `worker`, free sidecars) declare Compose `healthcheck`s; `api`/`worker` wait for `postgres` and `redis` with `condition: service_healthy`. `google-maps-scraper` is built locally (`Dockerfile.google-maps-scraper`) with a pre-assembled Playwright 1.57.0 driver — Hub `:latest` still hits the retired azureedge CDN. Do not volume-mount over `/opt`. Enrichers call real tools (subprocess/library/sidecar) selected by the Phase 0 provider layer (`app/providers/`), and **degrade to a valid empty fragment** when a tool, sidecar, or key is missing — never a crash. Free -> paid is an env flip via the mode flags in `config.py` (`PROXY_MODE`, `BROWSER_MODE`, `LLM_MODE`, `EMAIL_VERIFY_LEVEL`, `ENABLE_TIER1`).
 
 ### AGPL isolation
 
@@ -576,7 +576,8 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Tier 3 CLIs + email verify | gitrecon/Harvester/sleuth/CrossLinked + AfterShip | CLIs in worker/api images; `email-verifier` sidecar; two-phase verify in `runner.py`; `EMAIL_VERIFY_LEVEL=basic\|smtp`; `e2e_tier3.sh` |
 | LiteLLM disambiguation | Routed LLM calls | `LLM_MODE=stub|ollama|litellm` (default stub) via `providers/llm.py` |
 | Langfuse tracing | Per disambiguation call | `providers.llm.trace()`; no-op until `LANGFUSE_*` set |
-| Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:` |
+| Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:`; default stack Compose healthchecks (incl. redis/api/worker/GMaps) |
+| Compose healthchecks | Infra readiness gates | Default stack probes healthy; api/worker gate on healthy postgres + redis |
 | Opt-out auth | Authenticated (intentional v1) | Implemented — see `docs/LEGAL.md` |
 | Audit logs | SQL + 5-year retention script | Implemented |
 | DSAR flow | `POST/GET /api/dsar` | Implemented |

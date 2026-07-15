@@ -1,5 +1,16 @@
 # Changelog
 
+## [Infra] - 2026-07-15
+
+### Added
+
+- Compose healthchecks for the default stack: `redis`, `api`, `worker`, and `google-maps-scraper` (postgres / social-analyzer / email-verifier already had them)
+- `curl` in `Dockerfile.google-maps-scraper` for the `/api/docs` readiness probe
+
+### Changed
+
+- `api` and `worker` wait for Redis with `condition: service_healthy` (same gate pattern as Postgres)
+
 ## [Enrichers] - 2026-07-08
 
 ### Added
