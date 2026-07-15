@@ -12,7 +12,7 @@ from app.enrichers.email_discover import EmailDiscoverEnricher
 from app.enrichers.email_verify import EmailVerifyEnricher
 from app.enrichers.crosslinked import CrossLinkedEnricher
 from app.enrichers.gitrecon import GitReconEnricher, fragment_from_gitrecon_data
-from app.enrichers.jobspy import JobSpyEnricher
+from app.enrichers.jobspy import JOBSPY_SITES, JobSpyEnricher
 from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.sherlock import SherlockEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
@@ -289,6 +289,44 @@ async def test_jobspy_maps_scraped_rows(monkeypatch: pytest.MonkeyPatch) -> None
     fragment = await JobSpyEnricher().run(EnrichmentRequest(job_search="SRE"))
     assert fragment["jobs"][0]["title"] == "SRE"
     assert fragment["jobs"][0]["remote"] is True
+
+
+def test_jobspy_sites_are_all_five_boards() -> None:
+    assert JOBSPY_SITES == ("linkedin", "indeed", "glassdoor", "google", "zip_recruiter")
+
+
+async def test_jobspy_passes_all_five_sites_to_scrape_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class _Frame:
+        empty = False
+
+        def to_dict(self, orient: str = "records"):
+            return [
+                {
+                    "title": "SRE",
+                    "company": "Acme",
+                    "location": "Remote",
+                    "is_remote": True,
+                    "site": "linkedin",
+                }
+            ]
+
+    def _fake_scrape_jobs(**kwargs):
+        captured.update(kwargs)
+        return _Frame()
+
+    import sys
+    import types
+
+    fake_jobspy = types.ModuleType("jobspy")
+    fake_jobspy.scrape_jobs = _fake_scrape_jobs  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "jobspy", fake_jobspy)
+
+    fragment = await JobSpyEnricher().run(EnrichmentRequest(job_search="SRE"))
+    assert captured["site_name"] == list(JOBSPY_SITES)
+    assert fragment["jobs"][0]["title"] == "SRE"
+    assert fragment["jobs"][0]["source"] == "linkedin"
 
 
 def test_proxy_provider_free_mode_is_direct(monkeypatch: pytest.MonkeyPatch) -> None:
