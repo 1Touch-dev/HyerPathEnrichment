@@ -2,7 +2,7 @@
 
 Hyrepath Enrichment — compliance reference for operators and developers.
 
-**Version:** 0.2 (July 2026)
+**Version:** 0.3 (July 2026)
 
 ---
 
@@ -107,3 +107,20 @@ See `backend/docs/ARCHITECTURE.md` for architecture details.
 2. No bulk scraping.
 3. No private data sources.
 4. No enrichment without a customer-supplied identifier.
+
+---
+
+## LinkedIn scraping considerations
+
+Tier 1 (LinkedIn profile photo) is the only path that drives a browser against LinkedIn. Operators must treat it as high-risk automation and keep it narrowly scoped.
+
+| Constraint | Rule |
+|------------|------|
+| **Public photo only** | Enrichment may collect the **public profile photo** only. No private profile fields, connection lists, messaging, or non-public content. |
+| **Customer-supplied URL only** | A LinkedIn profile is fetched only when the customer supplies that profile URL (or an identifier that resolves to it). No unsolicited people-finding or URL discovery for LinkedIn. |
+| **No bulk scrape** | One enrichment job → at most one profile view for that request. Do not batch-crawl, directory-walk, or harvest profiles outside a single customer-initiated enrich. Matches product boundary #2. |
+| **Multilogin / session reuse** | Browser sessions run via Multilogin (stealth profiles). Prefer session reuse (`TIER1_SKIP_LOGIN_IF_SESSION_VALID` and related hardening) to reduce login churn and detection risk. Profiles are pooled and rate-limited; see `docs/TESTING_TIER1.md` and `docs/ARCHITECTURE.md`. |
+| **ToS / rate-limit operator risk** | LinkedIn’s Terms of Service and anti-automation controls apply to the **operator** of this self-hosted stack. Account restriction, CAPTCHA, and IP/profile bans are operational risks. Respect configured cooldowns and the production guidance of ~20–25 profile views/day per Multilogin profile. Hyrepath does not indemnify operators for ToS violations. |
+| **Gated by `ENABLE_TIER1`** | Tier 1 is **off by default**. Set `ENABLE_TIER1=true` on the **worker** only when Multilogin and bot credentials are configured. The API should keep `ENABLE_TIER1=false`. `/enrich/sync` never runs Tier 1 even when `tier1` is requested. |
+
+**Default posture:** leave Tier 1 disabled unless you accept LinkedIn automation risk and have Multilogin + rate limits operational.
