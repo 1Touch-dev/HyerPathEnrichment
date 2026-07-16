@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -48,6 +49,11 @@ from app.models import (
 from app.storage.redis_client import get_redis_client
 
 logger = logging.getLogger(__name__)
+
+_COMPANY_SUFFIXES = re.compile(
+    r"\b(inc\.?|llc\.?|l\.?l\.?c\.?|corp\.?|corporation|ltd\.?|limited|co\.?)\s*$",
+    re.IGNORECASE,
+)
 
 SUPPRESSION_SET_KEY = "suppression:hashes"
 
@@ -270,7 +276,7 @@ class PipelineOrchestrator:
         *,
         sync_mode: bool = False,
     ) -> list[dict[str, Any]]:
-        tiers = list(request.requested_tiers)
+        tiers = list(request.requested_tiers) or list(RequestedTier)
         if sync_mode:
             tiers = [tier for tier in tiers if tier != RequestedTier.tier1]
 
@@ -302,18 +308,40 @@ class PipelineOrchestrator:
         enrichers: list[Enricher],
         request: EnrichmentRequest,
     ) -> list[dict[str, Any]]:
-        return list(await asyncio.gather(*(self._invoke_enricher(enricher, request) for enricher in enrichers)))
+        results = await asyncio.gather(
+            *(self._invoke_enricher(enricher, request) for enricher in enrichers),
+            return_exceptions=True,
+        )
+        payloads: list[dict[str, Any]] = []
+        for result in results:
+            if isinstance(result, BaseException):
+                logger.exception("parallel enricher failed", exc_info=result)
+                payloads.append({})
+            else:
+                payloads.append(result)
+        return payloads
 
     async def _invoke_enricher(self, worker: Enricher, request: EnrichmentRequest) -> dict[str, Any]:
-        if not await worker.validate(request):
-            return {}
-        await worker.initialize()
         try:
-            payload = await worker.run(request)
-            payload = await worker.normalize(payload)
-            return await worker.score(payload)
-        finally:
-            await worker.cleanup()
+            if not await worker.validate(request):
+                return {}
+            await worker.initialize()
+            try:
+                payload = await worker.run(request)
+                payload = await worker.normalize(payload)
+                return await worker.score(payload)
+            finally:
+                await worker.cleanup()
+        except Exception:
+            logger.exception(
+                "enricher failed: %s",
+                getattr(worker, "source_name", type(worker).__name__),
+            )
+            try:
+                await worker.cleanup()
+            except Exception:
+                pass
+            return {}
 
     @staticmethod
     def _collect_email_candidates(
@@ -359,6 +387,7 @@ class PipelineOrchestrator:
         dossier = self._base_dossier(request)
         handles_seen: set[tuple[str, str]] = set()
         emails_seen: set[str] = set()
+        jobs_seen: dict[str, int] = {}
         sources: set[str] = set()
 
         for payload in payloads:
@@ -420,8 +449,21 @@ class PipelineOrchestrator:
                     if not isinstance(job, dict):
                         continue
                     job_candidate = JobListing.model_validate(job)
-                    if job_candidate.model_dump(mode="json") not in [existing.model_dump(mode="json") for existing in dossier.jobs]:
+                    key = self._normalize_job_key(
+                        job_candidate.title,
+                        job_candidate.company,
+                        job_candidate.location,
+                    )
+                    if key not in jobs_seen:
+                        jobs_seen[key] = len(dossier.jobs)
                         dossier.jobs.append(job_candidate)
+                        continue
+                    existing_idx = jobs_seen[key]
+                    existing = dossier.jobs[existing_idx]
+                    if self._job_location_specificity(job_candidate.location) > self._job_location_specificity(
+                        existing.location
+                    ):
+                        dossier.jobs[existing_idx] = job_candidate
 
             business = payload.get("business")
             if isinstance(business, dict) and dossier.business is None:
@@ -469,6 +511,22 @@ class PipelineOrchestrator:
                 )
 
         return kept, dropped
+
+    @staticmethod
+    def _normalize_job_key(title: str, company: str, location: str) -> str:
+        def norm(text: str) -> str:
+            cleaned = re.sub(r"[^\w\s]", " ", text.lower())
+            return re.sub(r"\s+", " ", cleaned).strip()
+
+        company_norm = _COMPANY_SUFFIXES.sub("", norm(company)).strip()
+        return f"{norm(title)}|{company_norm}|{norm(location)}"
+
+    @staticmethod
+    def _job_location_specificity(location: str) -> int:
+        loc = location.strip().lower()
+        if not loc or loc in {"remote", "anywhere"}:
+            return 0
+        return len(loc.split(",")) + len(loc.split())
 
     @staticmethod
     def _target_identity(request: EnrichmentRequest) -> str:
@@ -522,7 +580,9 @@ class PipelineOrchestrator:
             metadata={
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "pipeline_id": f"pipe_{uuid4().hex}",
-                "requested_tiers": [tier.value for tier in request.requested_tiers],
+                "requested_tiers": [
+                    tier.value for tier in (request.requested_tiers or list(RequestedTier))
+                ],
                 "identifier_summary": " • ".join([value for value in values if value]),
             }
         )
