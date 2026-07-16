@@ -1,49 +1,119 @@
-# Production deployment — enrich.hyrepath.io
+# Production deployment
 
-Operator runbook for Hyrepath Enrichment (Task 86–89). Architecture reference: [`backend/docs/ARCHITECTURE.md`](../backend/docs/ARCHITECTURE.md).
+Operator guide for deploying Hyrepath Enrichment to staging and production. The API listens on HTTP port 8000 inside Docker; **TLS terminates at the reverse proxy**.
 
-## Topology (v1)
+Target production host: `enrich.hyrepath.io` (or agreed domain).
+
+## Architecture
 
 ```
-Internet → Cloudflare (TLS) → Tunnel or reverse proxy → api:8000
-                              ├─ worker (RQ)
-                              ├─ postgres
-                              ├─ redis
-                              └─ free sidecars (social-analyzer, google-maps-scraper, email-verifier)
+Internet → Caddy/nginx (TLS :443) → API :8000 (127.0.0.1 only)
+                                  → Frontend static/BFF (if co-hosted)
+         → Managed Postgres / Redis (or internal compose services)
+         → Sidecars: social-analyzer, google-maps-scraper, email-verifier
+         → Worker (Tier 1 secrets via /etc/hyrepath/worker.env when enabled)
 ```
 
-**Tier 1 (LinkedIn photo):** Multilogin X runs on a **Windows host**. Use [`backend/docker/docker-compose.tier1.yml`](../backend/docker/docker-compose.tier1.yml) with `WORKER_ENV_FILE` and `MULTILOGIN_HOST_IP` pointing at the MLX machine.
+## Secrets checklist
 
-## Compose files
+| Secret | Services | Notes |
+|--------|----------|-------|
+| `API_TOKEN` | api, worker, frontend `BACKEND_API_TOKEN` | Must match across all |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `DATABASE_URL` | api, worker, postgres | Use strong password; no dev `hyrepath` default |
+| `REDIS_URL` | api, worker | Internal network URL with auth if exposed |
+| `R2_*` | worker (Tier 1) | Required when `APP_ENV=production\|staging` and `ENABLE_TIER1=true` |
+| `MULTILOGIN_*`, `LINKEDIN_BOT_*` | worker only | Via `WORKER_ENV_FILE=/etc/hyrepath/worker.env` |
+| `GITHUB_TOKEN`, LLM keys, webhooks | per feature flags | See [backend/.env.production.example](../backend/.env.production.example) |
+
+### Secret delivery
+
+1. **API + worker (non-Tier-1):** copy [backend/.env.production.example](../backend/.env.production.example) to `backend/.env.production` on the host (mode `600`). Set `API_ENV_FILE` if using a different path.
+2. **Tier 1 worker:** create `/etc/hyrepath/worker.env` (mode `600`) with Multilogin, LinkedIn bot, and R2 credentials. Use `docker-compose.tier1.yml` overlay.
+3. **Frontend:** set `BACKEND_API_URL=https://enrich.hyrepath.io` and `BACKEND_API_TOKEN` (same as `API_TOKEN`) in the deployment platform — never expose in client bundles.
+
+## Staging / production env parity
+
+Both environments must define the **same variable keys**. Values differ (URLs, tokens, bucket names).
+
+Templates:
+
+- [backend/.env.staging.example](../backend/.env.staging.example)
+- [backend/.env.production.example](../backend/.env.production.example)
+
+Verify parity before deploy:
 
 ```bash
-cd backend/docker
-docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file ../.env.production up -d --build
+python backend/scripts/verify_env_parity.py \
+  --staging backend/.env.staging.example \
+  --production backend/.env.production.example
 ```
 
-## Required environment
+Set `APP_ENV=staging` or `APP_ENV=production` — this enables R2 fail-fast validation when Tier 1 is on.
 
-| Variable | Purpose |
-|----------|---------|
-| `APP_ENV` | `production` |
-| `API_TOKEN` | Bearer token |
-| `DATABASE_URL` | Shared Postgres for api + worker |
-| `REDIS_URL` | Queue + rate limits |
-| `R2_*` | Photo cache when Tier 1 enabled |
+## Docker Compose (production overlay)
 
-## Deploy steps
+From `backend/docker`:
 
-1. Provision Linux VPS; install Docker.
-2. Clone repo; copy production secrets (not in git).
-3. `docker compose … up -d --build`
-4. Cloudflare Tunnel → `http://127.0.0.1:8000`; DNS `enrich.hyrepath.io`
-5. `BASE_URL=https://enrich.hyrepath.io API_TOKEN=<prod> bash backend/scripts/prod_acceptance.sh`
+```bash
+export API_TOKEN='…'
+export DATABASE_URL='postgresql+asyncpg://…'
+export REDIS_URL='redis://…'
+export POSTGRES_USER='…'
+export POSTGRES_PASSWORD='…'
 
-## Acceptance (Tasks 86–88)
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.prod.yml \
+  --env-file ../.env.production \
+  up -d api worker redis postgres social-analyzer google-maps-scraper email-verifier
+```
 
-- `GET /health` → 200
-- Authenticated `/enrich/sync`
-- `POST /api/opt-out` public (not 401)
-- Async `/enrich` + poll `completed`
+Tier 1 worker:
 
-See [`backend/docs/evidence/prod-deploy-86.md`](../backend/docs/evidence/prod-deploy-86.md).
+```bash
+export WORKER_ENV_FILE=/etc/hyrepath/worker.env
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.prod.yml \
+  -f docker-compose.tier1.yml \
+  up -d worker
+```
+
+[docker-compose.prod.yml](../backend/docker/docker-compose.prod.yml) binds API to `127.0.0.1:8000`, removes published DB/Redis ports, and requires `${API_TOKEN}`, `${DATABASE_URL}`, `${REDIS_URL}`.
+
+## TLS (Caddy example)
+
+Install Caddy on the host. Example `/etc/caddy/Caddyfile`:
+
+```
+enrich.hyrepath.io {
+    reverse_proxy 127.0.0.1:8000
+}
+```
+
+Caddy obtains Let's Encrypt certificates automatically. For Cloudflare, use DNS challenge or Cloudflare proxy with origin cert.
+
+Frontend (if separate): deploy to Vercel/Cloudflare Pages with `BACKEND_API_URL=https://enrich.hyrepath.io`.
+
+R2 CDN: configure custom domain TLS in Cloudflare for the bucket public URL (`R2_PUBLIC_BASE_URL`).
+
+## Readiness
+
+- `GET /health` — liveness (no dependency checks)
+- `GET /ready` — returns 503 if Postgres or Redis is unreachable
+
+Configure the reverse proxy or load balancer to use `/ready` for routing decisions.
+
+## Post-deploy verification
+
+```bash
+BASE_URL=https://enrich.hyrepath.io API_TOKEN='…' make smoke-prod
+```
+
+See [PROD_SMOKE.md](PROD_SMOKE.md) and [PROD_ACCEPTANCE.md](PROD_ACCEPTANCE.md).
+
+## Related docs
+
+- [backend/docs/ARCHITECTURE.md](../backend/docs/ARCHITECTURE.md) — env table, request flow
+- [backend/docs/LEGAL.md](../backend/docs/LEGAL.md) — compliance boundaries
+- [OPS.md](OPS.md) — rollback, audit purge, incidents

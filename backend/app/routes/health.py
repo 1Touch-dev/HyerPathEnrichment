@@ -1,7 +1,8 @@
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import PlainTextResponse
+from sqlalchemy import text
 
 try:
     from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -13,6 +14,8 @@ except ImportError:  # pragma: no cover - optional runtime dependency fallback
 
 from app.config import get_settings
 from app.models import HealthResponse
+from app.storage.db import SessionLocal
+from app.storage.redis_client import get_redis_client
 
 router = APIRouter(tags=["health"])
 
@@ -26,6 +29,15 @@ async def health() -> HealthResponse:
 @router.get("/ready", response_model=HealthResponse)
 async def ready() -> HealthResponse:
     settings = get_settings()
+    try:
+        async with SessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        await get_redis_client().ping()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"not ready: {type(exc).__name__}",
+        ) from exc
     return HealthResponse(status="ready", service=settings.app_name)
 
 

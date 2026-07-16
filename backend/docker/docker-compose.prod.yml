@@ -1,0 +1,51 @@
+# Production overlay — use with base compose:
+#   cd backend/docker
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Required host env (or ../.env.production via --env-file):
+#   API_TOKEN, DATABASE_URL, REDIS_URL
+#
+# Tier 1 worker secrets: set WORKER_ENV_FILE=/etc/hyrepath/worker.env and use
+#   -f docker-compose.tier1.yml as a third file when ENABLE_TIER1=true.
+#
+# TLS terminates at the reverse proxy (see docs/deployment.md); API listens HTTP :8000.
+
+services:
+  api:
+    env_file:
+      - ${API_ENV_FILE:-../.env.production}
+    environment:
+      APP_ENV: production
+      API_TOKEN: ${API_TOKEN:?set API_TOKEN}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:?set REDIS_URL}
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  worker:
+    env_file:
+      - ${WORKER_ENV_FILE:-../.env.production}
+    environment:
+      APP_ENV: production
+      API_TOKEN: ${API_TOKEN:?set API_TOKEN}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:?set REDIS_URL}
+
+  postgres:
+    ports: []
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-hyrepath}
+
+  redis:
+    ports: []
+
+  social-analyzer:
+    ports: []
+
+  google-maps-scraper:
+    ports: []
+
+  email-verifier:
+    ports: []
