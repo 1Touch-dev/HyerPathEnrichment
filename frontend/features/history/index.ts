@@ -1,4 +1,2 @@
-export const historyFeature = {
-  name: 'history',
-  routes: ['/app/history'],
-} as const;
+export { jobKeys } from './api/keys';
+export { useJobListQuery, useJobMetricsQuery } from './hooks/useJobList';
