@@ -76,13 +76,13 @@ class StageResult:
 
 def resolve_bash() -> list[str]:
     """Return argv prefix to run bash scripts (native bash or WSL on Windows)."""
-    bash = shutil.which("bash")
-    if bash:
-        return [bash]
     if platform.system() == "Windows":
         wsl = shutil.which("wsl")
         if wsl:
             return [wsl, "bash"]
+    bash = shutil.which("bash")
+    if bash:
+        return [bash]
     return []
 
 
@@ -102,11 +102,21 @@ def docker_available() -> bool:
         return False
 
 
+def _bash_script_path(bash_prefix: list[str], script: Path) -> str:
+    resolved = script.resolve()
+    if bash_prefix and Path(bash_prefix[0]).name.lower().startswith("wsl"):
+        drive = resolved.drive.rstrip(":").lower()
+        rest = resolved.as_posix().split(":", 1)[-1]
+        return f"/mnt/{drive}{rest}"
+    return resolved.as_posix()
+
+
 def run_script(bash_prefix: list[str], script_name: str) -> int:
     script = SCRIPTS / script_name
     if not script.is_file():
         raise FileNotFoundError(f"Missing script: {script}")
-    cmd = [*bash_prefix, str(script)]
+    script_path = _bash_script_path(bash_prefix, script)
+    cmd = [*bash_prefix, script_path]
     print("+", " ".join(cmd), flush=True)
     completed = subprocess.run(cmd, cwd=str(ROOT), check=False)
     return int(completed.returncode)
