@@ -15,7 +15,7 @@ help: ## List available targets
 	@echo "  up       Start free Docker stack detached (backend/docker)"
 	@echo "  down     Stop Docker Compose stack (backend/docker)"
 	@echo "  test     Run pytest in backend"
-	@echo "  smoke    Run backend/scripts/smoke_test.py"
+	@echo "  smoke    Run backend/scripts/smoke_test.py (SMOKE_SKIP_ASYNC=1 for sync-only)"
 	@echo "  migrate  Run Alembic upgrade head in backend"
 	@echo "  integration-e2e  Start backend stack and run frontend Playwright integration tests"
 	@echo "  e2e-full-path     Run backend full-path E2E harness (CI mode)"
