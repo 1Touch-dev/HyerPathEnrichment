@@ -625,6 +625,7 @@ Use this table when reviewing PRs, running `GRILLME.md` sessions, or planning th
 |-------|------|-------|
 | Shape tests | Every enricher returns valid dossier fragments | `tests/test_pipeline_shape.py` |
 | Integration | Fake sidecars in CI via compose override | Implemented — `docker-compose.fake-sidecars.yml` + `scripts/e2e_fake_sidecars.sh` |
+| Full-path E2E | CI compose + fake sidecars; optional live tier chain | `scripts/e2e_full_path.sh` + `scripts/e2e_full_path_runner.py` → `.e2e-results/full-path-report.json` |
 | Manual QA | 20-profile canary run/score (`run_canary_score.py`, `tier*_canary_set.example.json`) | Implemented — Tier 2–4 uses in-repo public identifiers; Tier 1 needs local Multilogin + gitignored `tier1_canary_set.json` |
 
 Run backend tests:
@@ -666,6 +667,18 @@ bash backend/scripts/e2e_compose_test.sh
 ```
 
 The script brings up `api`, `worker`, `redis`, `postgres`, then asserts: `/health` 200 → `POST /enrich` 202 `queued` → poll `completed` → opt-out blocks enrichment (suppression row in Postgres) → **worker restart** leaves the old job `completed` (data survives in the `postgres_data` volume). Verified 2026-07-08: all checks pass; `jobs` ends with one `completed` + one `suppressed` row, `suppression_list` with one row.
+
+### Full-path E2E runner
+
+Chains existing scripts for CI and/or live validation; writes `backend/.e2e-results/full-path-report.json`.
+
+```bash
+bash backend/scripts/e2e_full_path.sh              # --ci: compose test + fake sidecars
+bash backend/scripts/e2e_full_path.sh --live       # probe + tier2/3 + strict
+python backend/scripts/e2e_full_path_runner.py     # Windows-friendly wrapper
+```
+
+Set `E2E_SKIP_COMPOSE=1` to skip `e2e_compose_test.sh` when the stack is already running. See `docs/TESTING_TIER234.md` for stage details.
 
 ### Rate limits to respect (production)
 

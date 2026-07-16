@@ -4,10 +4,43 @@ Enrichers **fail silently**: the pipeline can return `status: "completed"` with 
 
 ---
 
+## Full-path runner (CI + live glue)
+
+One command chains the existing shell harnesses and writes an aggregate report.
+
+| Mode | Stages |
+|------|--------|
+| `--ci` (default) | `e2e_compose_test.sh` → `e2e_fake_sidecars.sh` |
+| `--live` | `probe_sidecars.sh` → `e2e_tier2.sh` → `e2e_tier3.sh` → `e2e_realworld_strict.sh` |
+| `--all` | `--ci` then `--live` |
+
+```bash
+bash backend/scripts/e2e_full_path.sh              # CI path (default)
+bash backend/scripts/e2e_full_path.sh --live
+bash backend/scripts/e2e_full_path.sh --all
+```
+
+Windows (PowerShell; uses WSL/bash when native bash is missing):
+
+```powershell
+cd g:\ThunderMarketingCorp\HyerEnrichment\backend
+python scripts/e2e_full_path_runner.py --ci
+```
+
+Report: `backend/.e2e-results/full-path-report.json` (non-zero exit if any stage fails).
+
+Env:
+
+- `E2E_SKIP_COMPOSE=1` — skip `e2e_compose_test.sh` when the compose stack is already up.
+- `E2E_KEEP_STACK=1` — forwarded to child scripts that tear down compose on exit.
+
+---
+
 ## Script responsibilities
 
 | Script | Validates | Services |
 |--------|-----------|----------|
+| `e2e_full_path.sh` / `e2e_full_path_runner.py` | Orchestrates CI and/or live stages above | varies by mode |
 | `probe_sidecars.sh` | Ephemeral sidecar smoke (HTTP reachability + job API) | GMaps, Social Analyzer, email-verifier |
 | `e2e_tier2.sh` | Tier 2 pipeline (CLIs + SA sidecar + sync/async API) | Sherlock, Maigret, Social Analyzer |
 | `e2e_tier3.sh` | Tier 3 pipeline (CLIs + email-verifier + sync/async API) | GitRecon, theHarvester, Email Sleuth, Email Verify, CrossLinked |
@@ -335,6 +368,15 @@ pytest tests/test_tier3_merge.py tests/test_enrichers.py
 
 ## Recommended order
 
+**Quick CI (compose + fake sidecars):**
+
+```bash
+bash backend/scripts/e2e_full_path.sh --ci
+# or: python backend/scripts/e2e_full_path_runner.py --ci
+```
+
+**Full manual / nightly (live sidecars + tiers):**
+
 1. `docker compose up` (api + worker + sidecars)
 2. `pytest tests/test_enrichers.py tests/test_pipeline_shape.py -v` (Layer 0 / shape + parser unit tests)
 3. `bash backend/scripts/probe_sidecars.sh` (Layer 2 sidecar smoke — GMaps / SA / email-verifier)
@@ -344,6 +386,8 @@ pytest tests/test_tier3_merge.py tests/test_enrichers.py
 7. For each FAIL → `python scripts/probe_enrichers.py --only <name>` then fix prerequisites and re-run
 8. Re-run tier curl commands above
 9. Test async: `POST /enrich` + poll `GET /enrich/{id}`
+
+Or run steps 3–6 in one shot: `bash backend/scripts/e2e_full_path.sh --live` (or `--all` after CI).
 
 ---
 
