@@ -15,7 +15,7 @@ def test_dsar_access_returns_summary_without_dossier_pii() -> None:
     client.post(
         "/enrich/sync",
         headers=enrich_headers,
-        json={"email": identifier, "requested_tiers": ["tier2"]},
+        json={"email": identifier, "username": "dsar-user", "requested_tiers": ["tier2"]},
     )
 
     # DSAR is public — no Authorization header.
@@ -43,7 +43,7 @@ def test_dsar_deletion_suppresses_and_purges() -> None:
     enrich = client.post(
         "/enrich/sync",
         headers=enrich_headers,
-        json={"email": identifier, "requested_tiers": ["tier2"]},
+        json={"email": identifier, "username": "dsar-user", "requested_tiers": ["tier2"]},
     )
     job_id = enrich.json()["id"]
 
@@ -63,6 +63,6 @@ def test_dsar_deletion_suppresses_and_purges() -> None:
     blocked = client.post(
         "/enrich/sync",
         headers=enrich_headers,
-        json={"email": identifier, "requested_tiers": ["tier2"]},
+        json={"email": identifier, "username": "dsar-user", "requested_tiers": ["tier2"]},
     )
     assert blocked.json()["status"] == "suppressed"
