@@ -1,4 +1,1 @@
-export const settingsFeature = {
-  name: 'settings',
-  routes: ['/app/settings'],
-} as const;
+export { SettingsView } from './components/SettingsView';
