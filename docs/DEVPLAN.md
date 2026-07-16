@@ -72,7 +72,7 @@ Close partial integrations called out in the guide audit and Architecture “ope
 ## Phase 4 — Observability, signals, hardening (guide 68, 71)
 
 - [ ] **Compose healthchecks completeness (gap 68)** — Ensure redis and remaining infra services that the API/worker depend on are gated; keep free-default vs profiled paid services clear.
-- [ ] **Change signals product flow (gap 71)** — Today `POST /api/signals/changedetection` accepts/logs. Still open: watch → detect → notify product flow beyond webhook logging (storage, alerting, or customer-visible signal surface). **Do not mark 71 done for logging-only.**
+- [x] **Change signals product flow (gap 71)** — Persist signals on webhook ingest; `GET /api/signals` (Bearer); console `/app/signals`; E2E script `e2e_signals_flow.py`.
 
 **Exit:** Stack readiness is measurable; change signals are a product path, not only an ingest log line.
 

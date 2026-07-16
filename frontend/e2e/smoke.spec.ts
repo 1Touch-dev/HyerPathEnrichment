@@ -39,4 +39,10 @@ test.describe('Console shell', () => {
     await expect(page.getByText('ok', { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('hyrepath-enrichment-mock')).toBeVisible();
   });
+
+  test('signals page lists mock change notifications', async ({ page }) => {
+    await page.goto('/app/signals');
+    await expect(page.getByRole('heading', { name: 'Change signals' })).toBeVisible();
+    await expect(page.getByText('Acme Careers')).toBeVisible({ timeout: 15_000 });
+  });
 });

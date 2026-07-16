@@ -21,10 +21,11 @@ from app.models import (  # noqa: E402
     DsarRecord,
     JobRecord,
     PhotoCacheRecord,
+    SignalRecord,
     SuppressionRecord,
 )
 
-_ = (JobRecord, SuppressionRecord, AuditLog, DsarRecord, PhotoCacheRecord)
+_ = (JobRecord, SuppressionRecord, AuditLog, DsarRecord, PhotoCacheRecord, SignalRecord)
 
 config = context.config
 if config.config_file_name is not None:

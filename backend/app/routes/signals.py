@@ -3,14 +3,20 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.models import SignalListResponse
 from app.providers.notify import notify_change_signal
+from app.signals.store import create_signal, list_signals
+from app.storage.db import get_db_session
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/signals", tags=["signals"])
+webhook_router = APIRouter(prefix="/api/signals", tags=["signals"])
+list_router = APIRouter(prefix="/api/signals", tags=["signals"])
+router = webhook_router
 
 
 def _parse_changedetection_payload(
@@ -27,18 +33,13 @@ def _parse_changedetection_payload(
     return watch_id, title, url, timestamp
 
 
-@router.post("/changedetection", status_code=status.HTTP_202_ACCEPTED)
+@webhook_router.post("/changedetection", status_code=status.HTTP_202_ACCEPTED)
 async def changedetection_webhook(
     payload: dict[str, Any],
     x_signal_token: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, str]:
-    """Consume changedetection.io change notifications.
-
-    Unauthenticated by design (external self-hosted watcher posts here), but an
-    optional shared secret can be required via CHANGEDETECTION_API_KEY. Only
-    non-PII fields (watch id/title/url of the monitored page) are logged or
-    forwarded to NOTIFY_WEBHOOK_URL.
-    """
+    """Consume changedetection.io change notifications."""
     settings = get_settings()
     expected = settings.changedetection_api_key.strip()
     if expected and x_signal_token != expected:
@@ -51,6 +52,13 @@ async def changedetection_webhook(
         watch_id,
         title,
     )
+    await create_signal(
+        db,
+        watch_id=watch_id,
+        title=title,
+        url=url,
+        timestamp=timestamp,
+    )
     await notify_change_signal(
         watch_id=watch_id,
         title=title,
@@ -58,3 +66,18 @@ async def changedetection_webhook(
         timestamp=timestamp,
     )
     return {"status": "accepted"}
+
+
+@list_router.get("", response_model=SignalListResponse)
+async def read_signals(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db_session),
+) -> SignalListResponse:
+    items, total = await list_signals(db, limit, offset)
+    return SignalListResponse(
+        signals=items,
+        total=total,
+        limit=max(1, min(limit, 100)),
+        offset=max(0, offset),
+    )

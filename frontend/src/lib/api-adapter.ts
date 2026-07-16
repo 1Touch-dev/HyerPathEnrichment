@@ -10,6 +10,8 @@ import {
   RequestedTier,
   DsarInput,
   DsarResponse,
+  SignalListItem,
+  SignalListResponse,
 } from '@/src/lib/types';
 
 type BackendPhoto = {
@@ -226,6 +228,44 @@ export function mapBackendJobListItem(item: BackendJobListItem): JobListItem {
 export function mapBackendJobListToFrontend(response: BackendJobListResponse): JobListResponse {
   return {
     jobs: response.jobs.map(mapBackendJobListItem),
+    total: response.total,
+    limit: response.limit,
+    offset: response.offset,
+  };
+}
+
+type BackendSignalListItem = {
+  id: string;
+  source: string;
+  watch_id: string;
+  title: string;
+  url: string;
+  timestamp?: string | null;
+  created_at: string;
+};
+
+type BackendSignalListResponse = {
+  signals: BackendSignalListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export function mapBackendSignalListItem(item: BackendSignalListItem): SignalListItem {
+  return {
+    id: item.id,
+    source: item.source,
+    watchId: item.watch_id,
+    title: item.title,
+    url: item.url,
+    timestamp: item.timestamp,
+    createdAt: item.created_at,
+  };
+}
+
+export function mapBackendSignalListToFrontend(response: BackendSignalListResponse): SignalListResponse {
+  return {
+    signals: response.signals.map(mapBackendSignalListItem),
     total: response.total,
     limit: response.limit,
     offset: response.offset,

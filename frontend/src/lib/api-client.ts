@@ -1,4 +1,4 @@
-import { EnrichmentInput, EnrichmentJob, EnrichMode, HealthStatus, JobListResponse, OptOutInput, DsarInput, DsarResponse } from '@/src/lib/types';
+import { EnrichmentInput, EnrichmentJob, EnrichMode, HealthStatus, JobListResponse, OptOutInput, DsarInput, DsarResponse, SignalListResponse } from '@/src/lib/types';
 
 async function parseJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T;
@@ -80,6 +80,21 @@ export async function submitDsar(payload: DsarInput): Promise<DsarResponse> {
   }
 
   return parseJson<DsarResponse>(response);
+}
+
+export async function listSignals(params: { limit?: number; offset?: number } = {}): Promise<SignalListResponse> {
+  const search = new URLSearchParams();
+  if (params.limit !== undefined) search.set('limit', String(params.limit));
+  if (params.offset !== undefined) search.set('offset', String(params.offset));
+
+  const query = search.toString();
+  const response = await fetch(`/api/signals${query ? `?${query}` : ''}`);
+
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+
+  return parseJson<SignalListResponse>(response);
 }
 
 export async function getHealth(): Promise<HealthStatus> {

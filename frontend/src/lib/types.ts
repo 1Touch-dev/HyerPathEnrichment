@@ -125,3 +125,20 @@ export type HealthStatus = {
   status: string;
   service: string;
 };
+
+export type SignalListItem = {
+  id: string;
+  source: string;
+  watchId: string;
+  title: string;
+  url: string;
+  timestamp?: string | null;
+  createdAt: string;
+};
+
+export type SignalListResponse = {
+  signals: SignalListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+};

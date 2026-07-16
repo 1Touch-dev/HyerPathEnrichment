@@ -188,6 +188,23 @@ class DsarResponse(BaseModel):
     summary: dict[str, Any] = Field(default_factory=dict)
 
 
+class SignalListItem(BaseModel):
+    id: str
+    source: str
+    watch_id: str
+    title: str
+    url: str
+    timestamp: str | None = None
+    created_at: datetime
+
+
+class SignalListResponse(BaseModel):
+    signals: list[SignalListItem]
+    total: int
+    limit: int
+    offset: int
+
+
 class JobRecord(Base):
     __tablename__ = "jobs"
 
@@ -229,6 +246,18 @@ class DsarRecord(Base):
     details: Mapped[dict[str, Any]] = mapped_column(JsonDoc, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SignalRecord(Base):
+    __tablename__ = "signals"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: f"sig_{uuid4().hex}")
+    source: Mapped[str] = mapped_column(String(32), default="changedetection", nullable=False)
+    watch_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    title: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    url: Mapped[str] = mapped_column(String(2048), default="", nullable=False)
+    signal_timestamp: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class PhotoCacheRecord(Base):

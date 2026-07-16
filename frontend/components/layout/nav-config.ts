@@ -9,6 +9,7 @@ import {
   LifeBuoy,
   LogOut,
   FileSearch,
+  Bell,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -30,6 +31,7 @@ export const mainNav: NavSection = {
     { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/app/enrich', label: 'New Enrichment', icon: PlusCircle },
     { href: '/app/history', label: 'History', icon: History },
+    { href: '/app/signals', label: 'Signals', icon: Bell },
     { href: '/app/jobs', label: 'Results', icon: FileSearch },
   ],
 };
