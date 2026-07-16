@@ -19,7 +19,7 @@ def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:
     enrich = client.post(
         "/enrich/sync",
         headers=enrich_headers,
-        json={"email": identifier, "requested_tiers": ["tier2"]},
+        json={"email": identifier, "username": "optout-user", "requested_tiers": ["tier2"]},
     )
     assert enrich.status_code == 200
     assert enrich.json()["status"] == "completed"
@@ -50,7 +50,7 @@ def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:
     blocked = client.post(
         "/enrich/sync",
         headers=enrich_headers,
-        json={"email": identifier, "requested_tiers": ["tier2"]},
+        json={"email": identifier, "username": "optout-user", "requested_tiers": ["tier2"]},
     )
     assert blocked.json()["status"] == "suppressed"
 
@@ -71,7 +71,7 @@ def test_enrich_still_requires_bearer() -> None:
     client = TestClient(app)
     response = client.post(
         "/enrich/sync",
-        json={"email": f"needs-auth-{uuid4().hex}@example.com", "requested_tiers": ["tier2"]},
+        json={"email": f"needs-auth-{uuid4().hex}@example.com", "username": "needs-auth", "requested_tiers": ["tier2"]},
     )
     assert response.status_code == 401
     assert response.json()["detail"] == "unauthorized"
