@@ -142,6 +142,22 @@ class EnrichmentJobResponse(BaseModel):
     dossier: Dossier
 
 
+class EnrichmentJobListItem(BaseModel):
+    id: str
+    status: JobStatus
+    created_at: datetime
+    updated_at: datetime
+    request_payload: dict[str, Any] = Field(default_factory=dict)
+    identifier_summary: str = ""
+
+
+class EnrichmentJobListResponse(BaseModel):
+    jobs: list[EnrichmentJobListItem]
+    total: int
+    limit: int
+    offset: int
+
+
 class SuppressionRequest(BaseModel):
     identifier: str
     reason: str | None = None
