@@ -54,7 +54,7 @@ Close partial integrations called out in the guide audit and Architecture “ope
 - [ ] **Email pattern fallback (gap 28)** — Move beyond `{username}@{domain}` only; cover common corporate patterns where email-sleuth input allows.
 - [ ] **Reacher order + catch-all (gap 31)** — SMTP mode: Reacher first; AfterShip only on miss/unknown; parse catch-all (`misc.is_catch_all` or equivalent) and surface low-trust / non-deliverable-strong status. Tests must prove order and catch-all behavior.
 - [ ] **JobSpy boards (gap 39)** — Expand beyond Indeed + LinkedIn toward Glassdoor / Google Jobs / ZipRecruiter (or document an explicit, intentional subset with guide buy-in).
-- [ ] **GitHub throttle around gitrecon (gap 64)** — Detect 403/429 / rate-limit stderr; backoff/cooldown; soft-fail empty fragment; config + `.env.example` keys; unit tests for throttle path.
+- [x] **GitHub throttle around gitrecon (gap 64)** — Code landed: `app/enrichers/gitrecon.py` detects 403/429 stderr, Redis throttle + cooldown, soft-fail empty fragment; config + `.env.example` keys; `tests/test_gitrecon_throttle.py`. Operator matrix doc: Phase 3 appendix in `backend/docs/LEGAL.md`.
 
 **Exit:** Tier 3/4 enrichers match guide contracts under missing tools, rate limits, and catch-all SMTP without crashing the pipeline.
 
@@ -63,7 +63,7 @@ Close partial integrations called out in the guide audit and Architecture “ope
 ## Phase 3 — Compliance docs & source limits (guide 61, 64 matrix)
 
 - [ ] **LinkedIn scraping section in LEGAL (gap 61)** — Document in [`backend/docs/LEGAL.md`](../backend/docs/LEGAL.md): public photo only, customer-supplied URL, no bulk scrape, Multilogin/session, ToS/rate-limit risk, `ENABLE_TIER1` gate. Link from operator docs; do not duplicate Architecture.
-- [ ] **Source-limit matrix (extends gap 64)** — Capture LinkedIn views/day, GitHub API, SMTP ~10/min, and other upstream caps in one operator-facing place (LEGAL appendix or ops runbook) and enforce where code already has hooks.
+- [x] **Source-limit matrix (extends gap 64)** — [`backend/docs/LEGAL.md`](../backend/docs/LEGAL.md) appendix *Upstream source limits* covers LinkedIn/Multilogin, gitrecon/GitHub, SMTP/Reacher, Hyrepath ingress, and GitHub REST 5k/hr; cross-linked from `backend/docs/ARCHITECTURE.md` production section.
 
 **Exit:** Legal/ops reviewers can answer “what’s allowed and what’s throttled” from docs alone.
 
@@ -81,7 +81,7 @@ Close partial integrations called out in the guide audit and Architecture “ope
 ## Phase 5 — QA depth (guide 76, 78)
 
 - [ ] **Real canary set (gap 76)** — Replace placeholder/example-only 20-entry sets with a maintained canary (technical / non-technical / private) and a runner that records pass/fail. Example JSON under `backend/docs/` is not sufficient.
-- [ ] **Full-path E2E (gap 78)** — One documented path: request → queue → tiers exercised → LLM disambiguation (when enabled) → durable storage. Split `e2e_*.sh` scripts today; gap stays open until a single full-path harness (or clearly composed meta-script) exists and is green.
+- [ ] **Full-path E2E (gap 78)** — Harness: `make e2e-full-path` / `python backend/scripts/e2e_full_path_runner.py --ci`. Evidence: `backend/docs/e2e-evidence/2026-07-16-full-path-ci.md`. **Green CI run still required** (Docker socket access on verification host).
 
 **Exit:** Releases can cite canary + full-path E2E evidence, not only shape tests and `/health`.
 
@@ -117,7 +117,7 @@ Track in-flight guide slices without claiming them done until merged:
 | 1 + 79 | Makefile | — | Phase 1 — open |
 | 31 | Email verify order / catch-all | — | Phase 2 — open |
 | 61 | LEGAL LinkedIn section | — | Phase 3 — open |
-| 64 | gitrecon GitHub throttle | — | Phase 2 — open |
+| 64 | gitrecon GitHub throttle + source-limit matrix | — | Phase 2 code done; Phase 3 matrix doc done |
 | 77 | Expand smoke | — | Phase 1 — open |
 | 82 | DEVPLAN.md | — | This file; keep checklist current |
 | 84 | Fresh-setup verify | 1+79, 77 | Phase 1 — blocked |
