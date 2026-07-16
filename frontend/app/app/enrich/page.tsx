@@ -3,23 +3,24 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { DossierView } from '@/components/console/DossierView';
 import { EnrichModeToggle } from '@/components/console/EnrichModeToggle';
 import { IntakeForm } from '@/components/console/IntakeForm';
-import { JobProgress } from '@/components/console/JobProgress';
 import { EmptyState } from '@/components/console/EmptyState';
-import { useEnrichMode } from '@/hooks/useEnrichMode';
-import { useEnrichmentJob } from '@/hooks/useEnrichmentJob';
+import { useCreateEnrichment } from '@/features/enrich';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { patchDraft, setEnrichMode } from '@/store/slices/intakeSlice';
 import { parseTiersFromQuery } from '@/src/lib/tier-utils';
+import { EnrichmentInput } from '@/src/lib/types';
 
 function EnrichPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { mode, setMode, ready } = useEnrichMode();
+  const dispatch = useAppDispatch();
+  const draft = useAppSelector((state) => state.intake.draft);
+  const mode = useAppSelector((state) => state.intake.enrichMode);
   const initialTiers = useMemo(() => parseTiersFromQuery(searchParams.get('tiers')), [searchParams]);
   const jobIdParam = searchParams.get('jobId');
-
-  const { job, loading, polling, pollTimedOut, error, submit } = useEnrichmentJob();
+  const createMutation = useCreateEnrichment();
 
   useEffect(() => {
     if (jobIdParam) {
@@ -27,44 +28,43 @@ function EnrichPageContent() {
     }
   }, [jobIdParam, router]);
 
-  const handleSubmit = async (input: Parameters<typeof submit>[0]) => {
-    const created = await submit(input, mode);
-    if (created) {
-      router.push(`/app/jobs/${created.id}`);
+  useEffect(() => {
+    if (initialTiers.length) {
+      dispatch(patchDraft({ requestedTiers: initialTiers }));
     }
-  };
+  }, [dispatch, initialTiers]);
 
-  if (!ready) {
-    return null;
-  }
+  const handleSubmit = async (input: EnrichmentInput) => {
+    dispatch(patchDraft(input));
+    const created = await createMutation.mutateAsync({ input, mode });
+    router.push(`/app/jobs/${created.id}`);
+  };
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">New enrichment</h1>
-        <p className="text-sm text-muted-foreground">Async default with live polling. Sync for Tier 2–4 quick runs.</p>
+        <p className="text-sm text-muted-foreground">Submit identifiers — results open on a shareable job page with live polling.</p>
       </div>
 
-      <EnrichModeToggle mode={mode} onChange={setMode} />
-      <IntakeForm mode={mode} initialTiers={initialTiers} onSubmit={handleSubmit} loading={loading || polling} />
+      <EnrichModeToggle mode={mode} onChange={(next) => dispatch(setEnrichMode(next))} />
+      <IntakeForm
+        mode={mode}
+        initialTiers={draft.requestedTiers}
+        onSubmit={handleSubmit}
+        loading={createMutation.isPending}
+      />
 
-      {error ? (
+      {createMutation.error ? (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{createMutation.error.message}</AlertDescription>
         </Alert>
       ) : null}
 
-      {job ? (
-        <>
-          <JobProgress job={job} polling={polling} pollTimedOut={pollTimedOut} />
-          <DossierView job={job} />
-        </>
-      ) : (
-        <EmptyState
-          title="No active job"
-          description="Submit an identifier to run the enrichment pipeline. Results appear on the job page with live updates."
-        />
-      )}
+      <EmptyState
+        title="Ready to enrich"
+        description="After submit you will be redirected to the job dossier page."
+      />
     </div>
   );
 }

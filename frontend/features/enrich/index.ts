@@ -1,4 +1,3 @@
-export const enrichFeature = {
-  name: 'enrich',
-  routes: ['/app/enrich', '/app/jobs'],
-} as const;
+export { enrichKeys } from './api/keys';
+export { useCreateEnrichment } from './hooks/useCreateEnrichment';
+export { useJobQuery } from './hooks/useJobQuery';
