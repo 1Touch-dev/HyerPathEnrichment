@@ -38,10 +38,10 @@ Scaffold that later phases assume. Confirm against Implementation status before 
 
 Make “clone → run → verify” one path. **These items are open until merged and verified on `main`.**
 
-- [ ] **Makefile (gaps 1 + 79)** — Root `Makefile` with at least: `setup`, `up`, `down`, `test`, `smoke`, `migrate`, `help`. README Getting started should point at `make …`, not only raw compose/uvicorn.
-- [ ] **Smoke beyond health (gap 77)** — Expand [`backend/scripts/smoke_test.py`](../backend/scripts/smoke_test.py) past `GET /health`: reject unauthenticated enrich; run a tiny authenticated `/enrich/sync`; exit non-zero on failure. Wire `make smoke` once the Makefile exists.
+- [x] **Makefile (gaps 1 + 79)** — Root `Makefile` with at least: `setup`, `up`, `down`, `test`, `smoke`, `migrate`, `help`. README Getting started should point at `make …`, not only raw compose/uvicorn.
+- [x] **Smoke beyond health (gap 77)** — Expand [`backend/scripts/smoke_test.py`](../backend/scripts/smoke_test.py) past `GET /health`: reject unauthenticated enrich; run a tiny authenticated `/enrich/sync`; exit non-zero on failure. Wire `make smoke` once the Makefile exists.
 - [ ] **DEVPLAN (gap 82)** — This file. Keep phases updated when milestones land; do not treat presence of the file as “project complete.”
-- [ ] **Fresh-setup verification (gap 84)** — After Makefile + smoke land: on a clean machine/worktree run `make setup` → `make up` → `make smoke` and record evidence (commands, dates, pass/fail). Blocked until 1/79 and 77 exist.
+- [x] **Fresh-setup verification (gap 84)** — After Makefile + smoke land: on a clean machine/worktree run `make setup` → `make up` → `make smoke` and record evidence (commands, dates, pass/fail). See [`SETUP_VERIFICATION.md`](SETUP_VERIFICATION.md).
 
 **Exit:** A new contributor can follow docs-only commands and get a green smoke without tribal knowledge.
 
