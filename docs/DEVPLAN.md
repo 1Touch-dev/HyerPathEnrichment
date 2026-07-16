@@ -54,7 +54,7 @@ Close partial integrations called out in the guide audit and Architecture “ope
 - [ ] **Email pattern fallback (gap 28)** — Move beyond `{username}@{domain}` only; cover common corporate patterns where email-sleuth input allows.
 - [ ] **Reacher order + catch-all (gap 31)** — SMTP mode: Reacher first; AfterShip only on miss/unknown; parse catch-all (`misc.is_catch_all` or equivalent) and surface low-trust / non-deliverable-strong status. Tests must prove order and catch-all behavior.
 - [ ] **JobSpy boards (gap 39)** — Expand beyond Indeed + LinkedIn toward Glassdoor / Google Jobs / ZipRecruiter (or document an explicit, intentional subset with guide buy-in).
-- [ ] **GitHub throttle around gitrecon (gap 64)** — Detect 403/429 / rate-limit stderr; backoff/cooldown; soft-fail empty fragment; config + `.env.example` keys; unit tests for throttle path.
+- [ ] **GitHub throttle around gitrecon (gap 64)** — **Code done** (`gitrecon.py`, tests, env keys); DEVPLAN checkbox tracks operator doc matrix in Phase 3.
 
 **Exit:** Tier 3/4 enrichers match guide contracts under missing tools, rate limits, and catch-all SMTP without crashing the pipeline.
 
@@ -63,7 +63,7 @@ Close partial integrations called out in the guide audit and Architecture “ope
 ## Phase 3 — Compliance docs & source limits (guide 61, 64 matrix)
 
 - [ ] **LinkedIn scraping section in LEGAL (gap 61)** — Document in [`backend/docs/LEGAL.md`](../backend/docs/LEGAL.md): public photo only, customer-supplied URL, no bulk scrape, Multilogin/session, ToS/rate-limit risk, `ENABLE_TIER1` gate. Link from operator docs; do not duplicate Architecture.
-- [ ] **Source-limit matrix (extends gap 64)** — Capture LinkedIn views/day, GitHub API, SMTP ~10/min, and other upstream caps in one operator-facing place (LEGAL appendix or ops runbook) and enforce where code already has hooks.
+- [x] **Source-limit matrix (extends gap 64)** — [`backend/docs/LEGAL.md`](../backend/docs/LEGAL.md) appendix; cross-linked from ARCHITECTURE.
 
 **Exit:** Legal/ops reviewers can answer “what’s allowed and what’s throttled” from docs alone.
 
