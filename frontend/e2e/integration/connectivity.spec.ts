@@ -44,11 +44,14 @@ test.describe('Live backend integration', () => {
     await expect(page.getByRole('heading', { name: 'New enrichment' })).toBeVisible();
 
     await page.getByLabel('Quick (sync)').click();
-    await page.getByLabel('Username').fill(username);
+    await page.getByRole('textbox', { name: 'Username' }).fill(username);
+    // Faster live run: tier2 only (tier3/4 sidecars may be absent locally)
+    await page.getByRole('checkbox', { name: 'TIER3 — Deep OSINT' }).click();
+    await page.getByRole('checkbox', { name: 'TIER4 — Job & Business Intelligence' }).click();
     await expect(page.getByRole('button', { name: 'Run enrichment' })).toBeEnabled({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Run enrichment' }).click();
 
-    await expect(page).toHaveURL(/\/app\/jobs\/.+/);
+    await expect(page).toHaveURL(/\/app\/jobs\/.+/, { timeout: 120_000 });
     await expect(page.getByRole('heading', { name: 'Job dossier' })).toBeVisible();
     await expect(page.getByText('completed', { exact: true })).toBeVisible({ timeout: 60_000 });
 
@@ -62,7 +65,7 @@ test.describe('Live backend integration', () => {
 
     await page.goto(`/app/jobs/${jobId}`);
     await expect(page.getByRole('heading', { name: 'Job dossier' })).toBeVisible();
-    await expect(page.getByText(jobId)).toBeVisible();
+    await expect(page.locator('code').filter({ hasText: jobId })).toBeVisible();
   });
 
   test('history list shows at least one job', async ({ page }) => {

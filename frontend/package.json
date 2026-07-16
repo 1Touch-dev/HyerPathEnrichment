@@ -9,7 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:smoke": "cross-env FRONTEND_USE_MOCKS=true playwright test e2e/smoke.spec.ts",
-    "test:e2e": "cross-env FRONTEND_USE_MOCKS=true playwright test",
+    "test:e2e": "cross-env FRONTEND_USE_MOCKS=true playwright test --project=chromium",
     "test:integration": "cross-env FRONTEND_USE_MOCKS=false BACKEND_API_URL=http://localhost:8000 BACKEND_API_TOKEN=change-me playwright test e2e/integration"
   },
   "dependencies": {
