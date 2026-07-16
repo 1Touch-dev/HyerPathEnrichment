@@ -1,4 +1,1 @@
-export const complianceFeature = {
-  name: 'compliance',
-  routes: ['/app/privacy'],
-} as const;
+export { DsarOpsForm } from './components/DsarOpsForm';
