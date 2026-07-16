@@ -335,6 +335,7 @@ Enrichment routes require `Authorization: Bearer <API_TOKEN>`. Opt-out and DSAR 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | `POST` | `/enrich` | Bearer | Create enrichment job (202 Accepted) |
+| `GET` | `/enrich` | Bearer | Paginated job list |
 | `GET` | `/enrich/{job_id}` | Bearer | Poll job status + dossier |
 | `POST` | `/enrich/sync` | Bearer | Synchronous enrichment path |
 | `POST` | `/api/opt-out` | Public | Register identifier suppression (LGPD/GDPR/CCPA) |

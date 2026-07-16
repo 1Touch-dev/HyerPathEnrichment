@@ -7,7 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from redis.exceptions import RedisError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.compliance.audit import log_event
@@ -169,6 +169,40 @@ class PipelineOrchestrator:
 
     async def get_job(self, job_id: str) -> JobRecord | None:
         return await self.db.get(JobRecord, job_id)
+
+    async def list_jobs(self, limit: int, offset: int) -> tuple[list[JobRecord], int]:
+        """Return paginated jobs ordered by created_at descending."""
+        clamped_limit = max(1, min(limit, 100))
+        clamped_offset = max(0, offset)
+
+        total_result = await self.db.execute(select(func.count()).select_from(JobRecord))
+        total = int(total_result.scalar_one())
+
+        statement = (
+            select(JobRecord)
+            .order_by(JobRecord.created_at.desc())
+            .limit(clamped_limit)
+            .offset(clamped_offset)
+        )
+        result = await self.db.execute(statement)
+        return list(result.scalars().all()), total
+
+    @staticmethod
+    def identifier_summary_from_payload(payload: dict[str, Any] | None) -> str:
+        """Mirror frontend identifierSummaryFromPayload in api-adapter.ts."""
+        if not payload:
+            return ""
+        values = [
+            payload.get("email"),
+            payload.get("linkedin_url"),
+            payload.get("linkedinUrl"),
+            payload.get("username"),
+            payload.get("company"),
+            payload.get("business"),
+            payload.get("job_search"),
+            payload.get("jobSearch"),
+        ]
+        return " • ".join(str(v) for v in values if isinstance(v, str) and v)
 
     async def register_opt_out(self, identifier: str, reason: str | None = None) -> PurgeResult:
         """Register suppression, audit the event, and purge stored data for the identifier."""
