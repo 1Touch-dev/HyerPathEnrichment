@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mapBackendDsarResponse, parseBackendError, toBackendDsarRequest } from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
-import { DsarInput } from '@/src/lib/types';
+import { isMockMode } from '@/src/lib/mocks/enabled';
+import { DsarInput, DsarResponse } from '@/src/lib/types';
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as DsarInput;
@@ -12,6 +13,24 @@ export async function POST(request: NextRequest) {
 
   if (!body.requestType) {
     return NextResponse.json({ message: 'Request type is required.' }, { status: 400 });
+  }
+
+  if (isMockMode()) {
+    const now = new Date().toISOString();
+    const mock: DsarResponse = {
+      id: `mock-dsar-${Date.now()}`,
+      status: 'completed',
+      requestType: body.requestType,
+      createdAt: now,
+      completedAt: now,
+      summary: {
+        jobs_matched: 0,
+        assets_purged: 0,
+        suppressed: body.requestType === 'deletion',
+        mock: true,
+      },
+    };
+    return NextResponse.json(mock, { status: 201 });
   }
 
   let backendResponse: Response;

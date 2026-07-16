@@ -2,8 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { BackendJobResponse, mapBackendJobToFrontend, parseBackendError } from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
 import { EnrichmentInput } from '@/src/lib/types';
+import { isMockMode } from '@/src/lib/mocks/enabled';
+import { getMockJob } from '@/src/lib/mocks/mock-jobs';
 
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+  if (isMockMode()) {
+    const job = getMockJob(params.id);
+    if (!job) {
+      return NextResponse.json({ message: 'Job not found.' }, { status: 404 });
+    }
+    return NextResponse.json(job);
+  }
+
   let backendResponse: Response;
   try {
     backendResponse = await backendFetch(`/enrich/${params.id}`);
@@ -24,9 +34,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     company: '',
     business: '',
     jobSearch: '',
-    requestedTiers: backendJob.dossier?.metadata
-      ? []
-      : [],
+    requestedTiers: backendJob.dossier?.metadata ? [] : [],
   };
 
   const metadata = backendJob.dossier?.metadata as Record<string, unknown> | undefined;

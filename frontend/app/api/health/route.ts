@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { mapBackendHealth } from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
+import { isMockMode } from '@/src/lib/mocks/enabled';
 
 export async function GET() {
+  if (isMockMode()) {
+    return NextResponse.json({ status: 'ok', service: 'hyrepath-enrichment-mock' });
+  }
+
   try {
     const backendResponse = await backendFetch('/health');
     if (!backendResponse.ok) {

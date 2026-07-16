@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mapBackendJobListToFrontend, parseBackendError } from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
+import { isMockMode } from '@/src/lib/mocks/enabled';
+import { listMockJobs } from '@/src/lib/mocks/mock-jobs';
 
 export async function GET(request: NextRequest) {
-  const limit = request.nextUrl.searchParams.get('limit') ?? '50';
-  const offset = request.nextUrl.searchParams.get('offset') ?? '0';
+  const limit = Number(request.nextUrl.searchParams.get('limit') ?? '50');
+  const offset = Number(request.nextUrl.searchParams.get('offset') ?? '0');
+
+  if (isMockMode()) {
+    const { jobs, total } = listMockJobs(limit, offset);
+    return NextResponse.json({ jobs, total, limit, offset });
+  }
 
   let backendResponse: Response;
   try {

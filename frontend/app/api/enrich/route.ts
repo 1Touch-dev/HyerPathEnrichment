@@ -8,6 +8,8 @@ import {
   toBackendEnrichmentRequest,
 } from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
+import { isMockMode } from '@/src/lib/mocks/enabled';
+import { createMockJobWithLifecycle } from '@/src/lib/mocks/mock-jobs';
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as Parameters<typeof parseEnrichmentInput>[0];
@@ -15,6 +17,11 @@ export async function POST(request: NextRequest) {
 
   if (!hasIdentifier(input)) {
     return NextResponse.json({ message: 'At least one identifier is required.' }, { status: 400 });
+  }
+
+  if (isMockMode()) {
+    const job = createMockJobWithLifecycle(input);
+    return NextResponse.json(job, { status: 202 });
   }
 
   let backendResponse: Response;
