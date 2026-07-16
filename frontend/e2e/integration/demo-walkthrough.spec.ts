@@ -1,8 +1,12 @@
+/**
+ * Full demo walkthrough against a live Docker backend (FRONTEND_USE_MOCKS=false).
+ * Covers marketing → enrich → job → history → console ops → opt-out.
+ */
 import { test, expect } from '@playwright/test';
 
 const BACKEND_URL = (process.env.BACKEND_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 
-async function pollBackendHealth(maxAttempts = 60, intervalMs = 2000): Promise<void> {
+async function pollBackendHealth(maxAttempts = 90, intervalMs = 2000): Promise<void> {
   let lastError = 'unknown';
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -27,29 +31,54 @@ test.beforeAll(async () => {
   await pollBackendHealth();
 });
 
-test.describe('Live backend integration', () => {
+test.describe('Demo walkthrough (live Docker backend)', () => {
   let jobId: string;
 
-  test('health page reports live backend (not mock)', async ({ page }) => {
+  test('hub and recruiter landing CTA opens enrich with tiers', async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /multi-tier public-signal dossier/i })).toBeVisible();
+    await page.goto('/recruiters');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    await page.getByRole('link', { name: /open console with recruiter tiers/i }).first().click();
+    await expect(page).toHaveURL(/\/app\/enrich\?tiers=/);
+    await expect(page.getByRole('heading', { name: 'New enrichment' })).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: /TIER1/i })).toBeChecked();
+    await expect(page.getByRole('checkbox', { name: /TIER2/i })).toBeChecked();
+  });
+
+  test('live health is not mock', async ({ page }) => {
     await page.goto('/app/health');
     await expect(page.getByRole('heading', { name: 'System health' })).toBeVisible();
     await expect(page.getByText('ok', { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('hyrepath-enrichment-mock')).toHaveCount(0);
   });
 
-  test('sync enrich completes dossier', async ({ page }) => {
-    // Docker sync (Sherlock/Maigret) routinely exceeds the default 30s test timeout.
+  test('sync enrich completes dossier (tier2)', async ({ page }) => {
     test.setTimeout(180_000);
-    const username = `e2e-${Date.now()}`;
+    const username = `demo-walk-${Date.now()}`;
 
     await page.goto('/app/enrich');
     await expect(page.getByRole('heading', { name: 'New enrichment' })).toBeVisible();
 
     await page.getByLabel('Quick (sync)').click();
     await page.getByRole('textbox', { name: 'Username' }).fill(username);
-    // Faster live run: tier2 only (tier3/4 sidecars may be absent locally)
-    await page.getByRole('checkbox', { name: 'TIER3 — Deep OSINT' }).click();
-    await page.getByRole('checkbox', { name: 'TIER4 — Job & Business Intelligence' }).click();
+    // Thin-stack friendly: tier2 only
+    const tier1 = page.getByRole('checkbox', { name: /TIER1/i });
+    if (await tier1.isChecked()) {
+      await tier1.click();
+    }
+    const tier3 = page.getByRole('checkbox', { name: /TIER3/i });
+    if (await tier3.isChecked()) {
+      await tier3.click();
+    }
+    const tier4 = page.getByRole('checkbox', { name: /TIER4/i });
+    if (await tier4.isChecked()) {
+      await tier4.click();
+    }
+    await expect(page.getByRole('checkbox', { name: /TIER2/i })).toBeChecked();
+
     await expect(page.getByRole('button', { name: 'Run enrichment' })).toBeEnabled({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Run enrichment' }).click();
 
@@ -62,34 +91,38 @@ test.describe('Live backend integration', () => {
     jobId = match![1];
   });
 
-  test('job detail page loads', async ({ page }) => {
-    test.skip(!jobId, 'requires job from sync enrich test');
+  test('job detail reload and history', async ({ page }) => {
+    test.skip(!jobId, 'requires job from sync enrich');
 
     await page.goto(`/app/jobs/${jobId}`);
     await expect(page.getByRole('heading', { name: 'Job dossier' })).toBeVisible();
     await expect(page.locator('code').filter({ hasText: jobId })).toBeVisible();
-  });
-
-  test('history list shows at least one job', async ({ page }) => {
-    test.skip(!jobId, 'requires job from sync enrich test');
 
     await page.goto('/app/history');
     await expect(page.getByRole('heading', { name: 'Job history' })).toBeVisible();
-    await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('link', { name: jobId })).toBeVisible();
+    await expect(page.getByRole('link', { name: jobId })).toBeVisible({ timeout: 15_000 });
   });
 
-  test('dashboard shows total jobs without error', async ({ page }) => {
+  test('dashboard, settings, privacy, results hub', async ({ page }) => {
     await page.goto('/app');
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
     await expect(page.getByText('Total jobs')).toBeVisible();
     await expect(page.locator('p.text-destructive')).toHaveCount(0);
+
+    await page.goto('/app/settings');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+
+    await page.goto('/app/privacy');
+    await expect(page.getByRole('heading', { name: 'Privacy & DSAR' })).toBeVisible();
+
+    await page.goto('/app/jobs');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
-  test('opt-out submission succeeds', async ({ page }) => {
+  test('opt-out succeeds against live API', async ({ page }) => {
     await page.goto('/opt-out');
     await expect(page.getByRole('heading', { name: /opt out of enrichment/i })).toBeVisible();
-    await page.getByLabel('Identifier').fill(`e2e-optout-${Date.now()}@example.com`);
+    await page.getByLabel('Identifier').fill(`demo-optout-${Date.now()}@example.com`);
     await page.getByRole('button', { name: /submit opt out/i }).click();
     await expect(page.getByTestId('opt-out-success')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Request accepted')).toBeVisible();
