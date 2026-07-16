@@ -53,25 +53,26 @@ export function OptOutForm() {
 
   if (submitted) {
     return (
-      <Card>
+      <Card className="border-brand-secondary/30" data-testid="opt-out-success">
         <CardHeader>
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand-secondary">Accepted</p>
           <CardTitle>Request accepted</CardTitle>
           <CardDescription>We process data subject requests within 30 days.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {mode === 'opt_out' ? (
             <p className="text-sm text-muted-foreground">
-              Your identifier has been suppressed and stored enrichment data has been purged. Future requests
-              return an empty dossier.
+              Your identifier has been suppressed and stored enrichment data has been purged. Future requests return an
+              empty dossier.
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Your {MODE_LABELS[mode].toLowerCase()} request was processed. Summary below contains counts only —
-              no dossier PII.
+              Your {MODE_LABELS[mode].toLowerCase()} request was processed. Summary below contains counts only — no
+              dossier PII.
             </p>
           )}
           {summary ? (
-            <pre className="rounded-md bg-muted p-3 text-xs overflow-x-auto">
+            <pre className="overflow-x-auto rounded-md border border-border bg-muted p-3 font-mono text-xs">
               {JSON.stringify(summary, null, 2)}
             </pre>
           ) : null}
@@ -81,9 +82,9 @@ export function OptOutForm() {
   }
 
   return (
-    <Card>
+    <Card className="border-border" data-testid="opt-out-form">
       <CardHeader>
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">Data subject request</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-primary">Data subject request</p>
         <CardTitle>Compliance requests</CardTitle>
         <CardDescription>
           Opt out of enrichment, request a copy of stored metadata, or request deletion (LGPD/GDPR/CCPA).
@@ -113,6 +114,7 @@ export function OptOutForm() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="email, LinkedIn URL, or username"
+              className="font-mono text-sm"
             />
           </div>
           <div className="flex flex-col gap-2">

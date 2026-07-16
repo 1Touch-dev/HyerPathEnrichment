@@ -10,7 +10,7 @@ export default function HubPage() {
     <MarketingShell>
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12">
         <section className="flex flex-col gap-4">
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">Hyrepath Enrichment</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand-primary">Hyrepath Enrichment</p>
           <h1 className="max-w-3xl text-4xl font-semibold tracking-tight">
             Customer-supplied identifiers → multi-tier public-signal dossier
           </h1>
@@ -18,18 +18,25 @@ export default function HubPage() {
             Self-hosted enrichment pipeline with async queue, sync quick runs, and ops-grade trace. Pick an audience or
             open the console directly.
           </p>
-          <Button asChild className="w-fit">
-            <Link href="/app">Open console</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild className="w-fit">
+              <Link href="/app">Open console</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-fit">
+              <Link href="/opt-out">Public opt-out</Link>
+            </Button>
+          </div>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {hubAudiences.map((audience) => (
-            <Card key={audience.slug}>
+            <Card key={audience.slug} className="border-border bg-card">
               <CardHeader>
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">{audience.eyebrow}</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-brand-tertiary">{audience.eyebrow}</p>
                 <CardTitle className="text-lg">{audience.headline}</CardTitle>
-                <CardDescription>{audience.tiers.map((t) => getTierLabel(t)).join(' · ')}</CardDescription>
+                <CardDescription className="font-mono text-xs">
+                  {audience.tiers.map((t) => getTierLabel(t)).join(' · ')}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button asChild variant="outline" size="sm">
