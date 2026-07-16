@@ -209,6 +209,7 @@ def test_sync_skips_tier1_photo(monkeypatch: pytest.MonkeyPatch) -> None:
         headers={"Authorization": "Bearer change-me"},
         json={
             "linkedin_url": "https://linkedin.com/in/alex-hyrepath",
+            "username": "alex-hyrepath",
             "requested_tiers": ["tier1", "tier2"],
         },
     )
@@ -234,7 +235,7 @@ def test_opt_out_suppresses_enrichment() -> None:
     response = client.post(
         "/enrich/sync",
         headers=headers,
-        json={"email": identifier, "requested_tiers": ["tier2"]},
+        json={"email": identifier, "username": "suppressed-user", "requested_tiers": ["tier2"]},
     )
     assert response.status_code == 200
     payload = response.json()
@@ -288,7 +289,7 @@ def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) 
     response = client.post(
         "/enrich",
         headers=headers,
-        json={"email": identifier, "requested_tiers": ["tier2"]},
+        json={"email": identifier, "username": "suppressed-user", "requested_tiers": ["tier2"]},
     )
 
     assert response.status_code == 202

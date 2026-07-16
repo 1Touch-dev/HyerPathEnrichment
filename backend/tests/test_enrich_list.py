@@ -62,7 +62,7 @@ def _create_sync_job(client: TestClient, headers: dict[str, str], email: str) ->
     response = client.post(
         "/enrich/sync",
         headers=headers,
-        json={"email": email, "requested_tiers": ["tier2"]},
+        json={"email": email, "username": email.split("@")[0], "requested_tiers": ["tier2"]},
     )
     assert response.status_code == 200
     return response.json()["id"]
@@ -102,7 +102,7 @@ def test_list_jobs_pagination() -> None:
         assert "updated_at" in job
         assert "request_payload" in job
         assert "identifier_summary" in job
-        assert job["identifier_summary"] == job["request_payload"].get("email", "")
+        assert job["request_payload"].get("email", "") in job["identifier_summary"]
 
 
 def test_list_jobs_requires_bearer() -> None:
