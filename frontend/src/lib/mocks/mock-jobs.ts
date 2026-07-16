@@ -1,7 +1,13 @@
 import { createMockJob } from '@/src/lib/mock-data';
 import { Dossier, EnrichmentInput, EnrichmentJob, JobListItem } from '@/src/lib/types';
 
-const mockJobStore = new Map<string, EnrichmentJob>();
+type MockJobGlobal = typeof globalThis & {
+  __hyrepathMockJobStore?: Map<string, EnrichmentJob>;
+};
+
+const mockGlobal = globalThis as MockJobGlobal;
+const mockJobStore = mockGlobal.__hyrepathMockJobStore ?? new Map<string, EnrichmentJob>();
+mockGlobal.__hyrepathMockJobStore = mockJobStore;
 
 const emptyDossier = (input: EnrichmentInput): Dossier => ({
   handles: [],
