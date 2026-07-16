@@ -136,7 +136,25 @@ async def test_fake_reacher_contract() -> None:
         response = await client.post("/v1/check_email", json={"to_email": "user@example.com"})
 
     assert response.status_code == 200
-    assert response.json()["is_reachable"] == "safe"
+    payload = response.json()
+    assert payload["is_reachable"] == "safe"
+    assert payload["misc"]["is_catch_all"] is False
+    assert payload["smtp"]["is_catch_all"] is False
+
+
+@pytest.mark.asyncio
+async def test_fake_reacher_catchall_contract() -> None:
+    app = _load_app("reacher")
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/v1/check_email",
+            json={"to_email": "guess@catchall.example.com"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["misc"]["is_catch_all"] is True
+    assert payload["smtp"]["is_catch_all"] is True
 
 
 @pytest.mark.asyncio
@@ -153,14 +171,47 @@ async def test_fake_reacher_enricher_integration(monkeypatch: pytest.MonkeyPatch
             response.raise_for_status()
             return response.json()
 
+    async def _aftership_should_not_run(self, url: str, email: str):
+        raise AssertionError("AfterShip must not run when fake Reacher is conclusive")
+
     monkeypatch.setattr(get_settings(), "email_verify_level", "smtp")
     monkeypatch.setattr(get_settings(), "reacher_url", base)
     monkeypatch.setattr(sidecar_mod.SidecarClient, "post_json", _post_json)
+    monkeypatch.setattr(EmailVerifier, "_aftership", _aftership_should_not_run)
 
     result = await EmailVerifier().verify("user@example.com")
     assert result is not None
     assert result["source"] == "Reacher"
     assert result["status"] == "verified"
+
+
+@pytest.mark.asyncio
+async def test_fake_reacher_catchall_enricher_integration(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = _load_app("reacher")
+    transport = httpx.ASGITransport(app=app)
+    base = "http://test"
+
+    from app.providers import sidecar as sidecar_mod
+
+    async def _post_json(self, path="", json=None):
+        async with httpx.AsyncClient(transport=transport, base_url=base) as client:
+            response = await client.post(path, json=json)
+            response.raise_for_status()
+            return response.json()
+
+    async def _aftership_should_not_run(self, url: str, email: str):
+        raise AssertionError("AfterShip must not run when Reacher reports catch-all")
+
+    monkeypatch.setattr(get_settings(), "email_verify_level", "smtp")
+    monkeypatch.setattr(get_settings(), "reacher_url", base)
+    monkeypatch.setattr(sidecar_mod.SidecarClient, "post_json", _post_json)
+    monkeypatch.setattr(EmailVerifier, "_aftership", _aftership_should_not_run)
+
+    result = await EmailVerifier().verify("guess@catchall.example.com")
+    assert result is not None
+    assert result["source"] == "Reacher"
+    assert result["status"] == "catch_all"
+    assert result["confidence"] < 0.5
 
 
 @pytest.mark.asyncio

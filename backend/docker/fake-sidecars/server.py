@@ -53,8 +53,39 @@ async def gmaps_job_download(request: Request) -> PlainTextResponse:
     return PlainTextResponse(_load_text("gmaps_job.csv"))
 
 
-async def reacher_check_email(_: Request) -> JSONResponse:
-    return JSONResponse({"is_reachable": "safe"})
+async def reacher_check_email(request: Request) -> JSONResponse:
+    body: dict[str, Any] = {}
+    try:
+        parsed = await request.json()
+        if isinstance(parsed, dict):
+            body = parsed
+    except Exception:
+        body = {}
+    to_email = str(body.get("to_email", "")).lower()
+    # Addresses containing "catchall" simulate accept-all domains (low trust).
+    if "catchall" in to_email.replace("-", "").replace("_", ""):
+        return JSONResponse(
+            {
+                "is_reachable": "risky",
+                "misc": {"is_catch_all": True, "is_disposable": False},
+                "smtp": {
+                    "can_connect_smtp": True,
+                    "is_catch_all": True,
+                    "is_deliverable": True,
+                },
+            }
+        )
+    return JSONResponse(
+        {
+            "is_reachable": "safe",
+            "misc": {"is_catch_all": False, "is_disposable": False},
+            "smtp": {
+                "can_connect_smtp": True,
+                "is_catch_all": False,
+                "is_deliverable": True,
+            },
+        }
+    )
 
 
 async def email_verification(request: Request) -> JSONResponse:

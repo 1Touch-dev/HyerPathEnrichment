@@ -12,6 +12,8 @@ from app.providers.sidecar import SidecarClient
 logger = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# Reacher verdicts that should not be overwritten by AfterShip.
+_CONCLUSIVE_REACHER = frozenset({"verified", "risky", "undeliverable", "catch_all"})
 
 
 class EmailVerifier:
@@ -19,10 +21,12 @@ class EmailVerifier:
 
     ``EMAIL_VERIFY_LEVEL=basic`` (free default): syntax, disposable blocklist
     (mailchecker), MX, plus the AfterShip email-verifier sidecar when reachable.
-    ``smtp`` adds the Reacher SMTP check (needs port 25 + a clean IP). Every path
-    returns the same ``VerifiedEmail`` shape (``value``, ``status``,
-    ``confidence``, ``source``) or ``None`` when the address is unusable, so
-    callers stay identical across free/paid.
+    ``smtp`` tries Reacher first (needs port 25 + a clean IP); AfterShip runs
+    only when Reacher is missing, unreachable, or returns an inconclusive
+    ``unknown`` verdict. Catch-all domains surface as ``catch_all`` so guessed
+    addresses are not over-trusted. Every path returns the same
+    ``VerifiedEmail`` shape (``value``, ``status``, ``confidence``, ``source``)
+    or ``None`` when the address is unusable.
     """
 
     async def verify(self, email: str) -> dict[str, Any] | None:
@@ -52,14 +56,23 @@ class EmailVerifier:
         elif mx_ok is False:
             result.update(status="undeliverable", confidence=0.1, source="mx")
 
+        smtp_mode = settings.email_verify_level.strip().lower() == "smtp"
+        if smtp_mode:
+            reacher = await self._reacher(settings.reacher_url, email)
+            if reacher is not None and reacher.get("status") in _CONCLUSIVE_REACHER:
+                result.update(reacher)
+                return result
+
+            aftership = await self._aftership(settings.email_verifier_url, email)
+            if aftership is not None:
+                result.update(aftership)
+            elif reacher is not None:
+                result.update(reacher)
+            return result
+
         aftership = await self._aftership(settings.email_verifier_url, email)
         if aftership is not None:
             result.update(aftership)
-
-        if settings.email_verify_level.strip().lower() == "smtp":
-            reacher = await self._reacher(settings.reacher_url, email)
-            if reacher is not None:
-                result.update(reacher)
 
         return result
 
@@ -115,6 +128,17 @@ class EmailVerifier:
         data = await client.post_json("/v1/check_email", json=payload)
         if not isinstance(data, dict):
             return None
+
+        # Prefer smtp.is_catch_all (Reacher docs); also accept misc.is_catch_all.
+        misc = data.get("misc") if isinstance(data.get("misc"), dict) else {}
+        smtp = data.get("smtp") if isinstance(data.get("smtp"), dict) else {}
+        if bool(misc.get("is_catch_all") or smtp.get("is_catch_all")):
+            return {
+                "status": "catch_all",
+                "confidence": 0.35,
+                "source": "Reacher",
+            }
+
         reachability = str(data.get("is_reachable", "unknown")).lower()
         confidence = {"safe": 0.95, "risky": 0.5, "invalid": 0.05, "unknown": 0.3}.get(
             reachability, 0.3
