@@ -1,0 +1,48 @@
+# Staging overrides — use with base compose:
+#   cd backend/docker
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# Optional profiles (same as base):
+#   --profile paid        scrapoxy (PROXY_MODE=scrapoxy)
+#   --profile llm         litellm
+#   --profile observability langfuse, changedetection
+#
+# Tier 1 worker: also pass -f docker-compose.tier1.yml
+
+services:
+  api:
+    environment:
+      APP_ENV: staging
+      PROXY_MODE: ${PROXY_MODE:-none}
+      SCRAPOXY_URL: ${SCRAPOXY_URL:-}
+      SCRAPOXY_USERNAME: ${SCRAPOXY_USERNAME:-}
+      SCRAPOXY_PASSWORD: ${SCRAPOXY_PASSWORD:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  worker:
+    environment:
+      APP_ENV: staging
+      PROXY_MODE: ${PROXY_MODE:-none}
+      SCRAPOXY_URL: ${SCRAPOXY_URL:-}
+      SCRAPOXY_USERNAME: ${SCRAPOXY_USERNAME:-}
+      SCRAPOXY_PASSWORD: ${SCRAPOXY_PASSWORD:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  scrapoxy:
+    profiles: ["paid"]
+    ports:
+      - "8888:8888"
+      - "8890:8890"
+    environment:
+      AUTH_LOCAL_USERNAME: ${SCRAPOXY_USERNAME:-admin}
+      AUTH_LOCAL_PASSWORD: ${SCRAPOXY_PASSWORD:-password}
+      BACKEND_JWT_SECRET: ${SCRAPOXY_BACKEND_JWT_SECRET:-change-me-backend}
+      FRONTEND_JWT_SECRET: ${SCRAPOXY_FRONTEND_JWT_SECRET:-change-me-frontend}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8890 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

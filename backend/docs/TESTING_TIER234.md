@@ -72,14 +72,18 @@ wsl -d Ubuntu -u root bash /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/sc
 
 ### Scrapoxy (optional, not gated)
 
-Default is `PROXY_MODE=none` (direct; ban risk at volume). CrossLinked uses **Yahoo** search by default (`CROSSLINKED_SEARCH_ENGINES=yahoo`) via the maintained fork in Docker images; upstream v0.3.0 Bing/Google are blocked in containers. Optional Scrapoxy:
+Default is `PROXY_MODE=none` (direct; ban risk at volume). CrossLinked uses **Yahoo** search by default (`CROSSLINKED_SEARCH_ENGINES=yahoo`) via the maintained fork in Docker images; upstream v0.3.0 Bing/Google are blocked in containers.
+
+**Staging proof (Task 62):**
 
 ```bash
+# backend/.env: PROXY_MODE=scrapoxy SCRAPOXY_URL=http://scrapoxy:8888
 cd backend/docker
-# Start scrapoxy behind paid profile, then:
-# PROXY_MODE=scrapoxy SCRAPOXY_URL=http://scrapoxy:8888 docker compose --profile paid up -d
-# Confirm Sherlock/Maigret CLI invocations include --proxy (see ProxyProvider + enricher args).
+docker compose -f docker-compose.yml -f docker-compose.staging.yml --profile paid up -d scrapoxy api worker
+bash backend/scripts/e2e_scrapoxy.sh
 ```
+
+Confirms `ProxyProvider` returns the scrapoxy URL inside the worker. Live enricher data still requires proxy fleet configured in the Scrapoxy commander GUI. See `backend/docs/evidence/scrapoxy-staging-62.md`.
 
 ---
 
