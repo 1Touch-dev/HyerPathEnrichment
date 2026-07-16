@@ -11,9 +11,9 @@ export function TrustBlock() {
           { title: 'Open source', body: 'Inspect enrichers, merge logic, and suppression handling in the repo.' },
           { title: 'You own the data', body: 'Customer-supplied identifiers only. Opt-out honored before dispatch.' },
         ].map((item) => (
-          <Card key={item.title}>
+          <Card key={item.title} className="border-border bg-card">
             <CardHeader>
-              <CardTitle className="text-base">{item.title}</CardTitle>
+              <CardTitle className="text-base text-brand-primary">{item.title}</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">{item.body}</CardContent>
           </Card>
@@ -27,13 +27,15 @@ export function SampleDossierCard({ audience }: { audience: string }) {
   return (
     <section className="flex flex-col gap-4">
       <h2 className="text-2xl font-semibold tracking-tight">Sample dossier</h2>
-      <Card>
+      <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Static preview</p>
-            <CardTitle className="text-lg">alexhyrepath</CardTitle>
+            <p className="text-xs font-semibold uppercase tracking-widest text-brand-secondary">Static preview</p>
+            <CardTitle className="font-mono text-lg">alexhyrepath</CardTitle>
           </div>
-          <Badge variant="outline">{audience}</Badge>
+          <Badge variant="outline" className="font-mono">
+            {audience}
+          </Badge>
         </CardHeader>
         <CardContent className="grid gap-4 text-sm md:grid-cols-3">
           <div>

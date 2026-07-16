@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseBackendError, toBackendOptOutRequest } from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
+import { isMockMode } from '@/src/lib/mocks/enabled';
 import { OptOutInput } from '@/src/lib/types';
 
 export async function POST(request: NextRequest) {
@@ -8,6 +9,10 @@ export async function POST(request: NextRequest) {
 
   if (!body.identifier?.trim()) {
     return NextResponse.json({ message: 'Identifier is required.' }, { status: 400 });
+  }
+
+  if (isMockMode()) {
+    return NextResponse.json({ status: 'accepted' }, { status: 202 });
   }
 
   let backendResponse: Response;

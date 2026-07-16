@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mapBackendDsarResponse, parseBackendError, toBackendDsarRequest } from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
-import { DsarInput } from '@/src/lib/types';
 import { isMockMode } from '@/src/lib/mocks/enabled';
+import { DsarInput, DsarResponse } from '@/src/lib/types';
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as DsarInput;
@@ -16,17 +16,21 @@ export async function POST(request: NextRequest) {
   }
 
   if (isMockMode()) {
-    return NextResponse.json(
-      {
-        id: `dsar_${Date.now()}`,
-        status: 'completed',
-        requestType: body.requestType,
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        summary: { recordsFound: 0, recordsDeleted: body.requestType === 'deletion' ? 0 : undefined, mock: true },
+    const now = new Date().toISOString();
+    const mock: DsarResponse = {
+      id: `mock-dsar-${Date.now()}`,
+      status: 'completed',
+      requestType: body.requestType,
+      createdAt: now,
+      completedAt: now,
+      summary: {
+        jobs_matched: 0,
+        assets_purged: 0,
+        suppressed: body.requestType === 'deletion',
+        mock: true,
       },
-      { status: 201 },
-    );
+    };
+    return NextResponse.json(mock, { status: 201 });
   }
 
   let backendResponse: Response;
