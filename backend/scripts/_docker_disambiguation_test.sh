@@ -42,12 +42,12 @@ from unittest.mock import AsyncMock
 from app.config import get_settings
 get_settings.cache_clear()
 from app.models import EnrichmentRequest, SocialHandle
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 async def main():
     s = get_settings()
     print("stub mode=", s.llm_mode)
-    orch = PipelineOrchestrator(db=AsyncMock())
+    orch = Pipeline(db=AsyncMock())
     req = EnrichmentRequest(username="jane-doe", email="jane.doe@acme.com")
     handles = [
         SocialHandle(platform="X", username="jane_doe", profile_url="https://x.com/jane_doe", confidence=0.35),

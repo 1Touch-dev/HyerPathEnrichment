@@ -5,7 +5,7 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from redis.exceptions import RedisError
 
 from app.config import Settings, get_settings
-from app.storage.redis_client import check_rate_limit, get_redis_client
+from app.infrastructure.redis import check_rate_limit, get_redis_client
 
 logger = logging.getLogger(__name__)
 

@@ -199,6 +199,38 @@ def trace(name: str, metadata: dict[str, object]) -> None:
         logger.warning("langfuse trace failed", exc_info=True)
 
 
+class LiteLLMDisambiguator:
+    """Identity disambiguator with a config-selected backend.
+
+    ``LLM_MODE=stub`` (free default) keeps the heuristic string match.
+    ``ollama`` uses a local model; ``litellm`` uses the LiteLLM proxy with a
+    fallback chain. Prompt assembly lives in ``build_disambiguation_messages``.
+    The ``compare`` signature is unchanged so the orchestrator and confidence
+    scoring never need to know which backend answered.
+    """
+
+    async def compare(self, left: str, right: str) -> LLMDecision:
+        settings = _settings()
+        mode = settings.llm_mode.strip().lower()
+        if mode == "litellm":
+            decision = await litellm_compare(left, right, settings)
+        elif mode == "ollama":
+            decision = await ollama_compare(left, right, settings)
+        else:
+            decision = heuristic_compare(left, right)
+
+        trace(
+            "identity-disambiguation",
+            {
+                "mode": mode,
+                "same_identity": decision.same_identity,
+                "confidence": decision.confidence,
+                "reason": decision.reason,
+            },
+        )
+        return decision
+
+
 def _settings() -> Settings:
     from app.config import get_settings
 

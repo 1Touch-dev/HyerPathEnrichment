@@ -17,7 +17,7 @@ from app.domain.enums import AuditEventType, DsarStatus, DsarType
 from app.modules.enrichment.models import JobRecord
 from app.storage.models import PhotoCacheRecord
 from app.storage.photo_cache import slug_hash
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 
 async def process_dsar(db: AsyncSession, request: DsarRequest) -> DsarResponse:
@@ -98,7 +98,7 @@ async def _process_deletion(
     identifier_hash: str,
     dsar_id: str,
 ) -> dict[str, Any]:
-    orchestrator = PipelineOrchestrator(db)
+    orchestrator = Pipeline(db)
     purge_result = await orchestrator.register_opt_out(identifier, reason=f"dsar_deletion:{dsar_id}")
     return {
         "suppressed": True,

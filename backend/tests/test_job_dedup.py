@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.models import EnrichmentRequest
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 
 @pytest.fixture
-def orchestrator() -> PipelineOrchestrator:
-    return PipelineOrchestrator(db=AsyncMock())
+def orchestrator() -> Pipeline:
+    return Pipeline(db=AsyncMock())
 
 
 def _job(
@@ -34,7 +34,7 @@ def _job(
 
 
 @pytest.mark.asyncio
-async def test_merge_dedupes_same_role_across_boards(orchestrator: PipelineOrchestrator) -> None:
+async def test_merge_dedupes_same_role_across_boards(orchestrator: Pipeline) -> None:
     request = EnrichmentRequest(job_search="software engineer", requested_tiers=["tier4"])
     payloads: list[dict[str, Any]] = [
         {
@@ -69,7 +69,7 @@ async def test_merge_dedupes_same_role_across_boards(orchestrator: PipelineOrche
 
 @pytest.mark.asyncio
 async def test_merge_keeps_different_locations_as_separate_jobs(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
 ) -> None:
     request = EnrichmentRequest(job_search="software engineer", requested_tiers=["tier4"])
     payloads: list[dict[str, Any]] = [
@@ -100,7 +100,7 @@ async def test_merge_keeps_different_locations_as_separate_jobs(
 
 
 @pytest.mark.asyncio
-async def test_merge_dedupes_exact_duplicate(orchestrator: PipelineOrchestrator) -> None:
+async def test_merge_dedupes_exact_duplicate(orchestrator: Pipeline) -> None:
     request = EnrichmentRequest(job_search="software engineer", requested_tiers=["tier4"])
     job = _job(
         title="Backend Developer",

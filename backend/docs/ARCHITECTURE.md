@@ -273,7 +273,7 @@ Runs in parallel when `tier2` is requested:
 
 ### LLM post-pass — disambiguation
 
-`app/llm_router.py` (`LiteLLMDisambiguator`) resolves ambiguous handles:
+`app/clients/llm.py` (`LiteLLMDisambiguator`) resolves ambiguous handles:
 
 - Trigger: confidence **&lt; 0.7** (configurable via `DISAMBIGUATION_THRESHOLD`)
 - Routed through **LiteLLM** to the cheapest capable model with fallback chain
@@ -439,7 +439,7 @@ HyerEnrichment/
     └── README.md
 ```
 
-Compatibility shims may temporarily remain at legacy paths (`app.models`, `app.providers`, `app.workers.runner`, `app.workers.jobs`, `app.services`, `app.config`, `app.routes`, `app.storage.db`, `app.storage.redis_client`) so RQ job paths and existing imports stay stable. Real logic lives in the new packages; shims only re-export.
+Compatibility shims may temporarily remain at legacy paths (`app.models`, `app.providers`, `app.workers.jobs`, `app.config`) so RQ job paths and existing imports stay stable. Real logic lives in the new packages; shims only re-export.
 ---
 
 ## Environment variables
@@ -709,7 +709,7 @@ Track these as architecture decisions mature:
 2. ~~Replace enricher mocks with subprocess/library integrations per upstream repo~~ (done) — remaining: GMaps sidecar against live deployments; Tier 2 SA + Sherlock/Maigret covered by `e2e_tier2.sh`; Tier 3 covered by `e2e_tier3.sh`
 3. ~~Remove Bearer auth from `POST /api/opt-out` for compliance accessibility~~ (done) — opt-out and DSAR are public with IP rate limiting; enrich remains Bearer-protected
 4. ~~Promote SQLite → PostgreSQL in default docker-compose wiring~~ (done) — ~~Alembic migrations and `JSONB` columns~~ (done)
-5. ~~Connect LiteLLM + Langfuse in `llm_router.py`~~ (done, opt-in) — remaining: real prompt tuning + cost dashboards once `LLM_MODE=litellm` is exercised
+5. ~~Connect LiteLLM + Langfuse in `clients/llm.py`~~ (done, opt-in) — remaining: real prompt tuning + cost dashboards once `LLM_MODE=litellm` is exercised
 6. ~~Swap nginx sidecar placeholders for real Reacher, social-analyzer, and GMaps images~~ (done) — GMaps Playwright CDN 404 fixed via local Dockerfile with npm-assembled driver (2026-07-13); free-sidecar smoke PASS; social-analyzer healthcheck + Tier 2 E2E harness
 
 For tier-specific issues, use `[Tier N]` in issue titles (e.g. `[Tier 3] Reacher fallback fails on catch-all`).

@@ -28,7 +28,7 @@ os.environ["DISAMBIGUATION_THRESHOLD"] = "0.7"
 from app.config import get_settings
 from app.models import EnrichmentRequest, SocialHandle
 from app.providers.llm import litellm_compare
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 get_settings.cache_clear()
 
@@ -48,7 +48,7 @@ async def main() -> None:
         f"conf={decision.confidence:.2f} reason={decision.reason!r}"
     )
 
-    orch = PipelineOrchestrator(db=AsyncMock())
+    orch = Pipeline(db=AsyncMock())
     request = EnrichmentRequest(
         username="jane-doe",
         email="jane.doe@acme.com",

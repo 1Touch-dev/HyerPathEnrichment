@@ -10,7 +10,7 @@ from sqlalchemy import delete
 
 from app.config import get_settings
 from app.models import AuditLog
-from app.storage.db import SessionLocal, init_db
+from app.database.session import SessionLocal, init_db
 
 
 async def main() -> None:

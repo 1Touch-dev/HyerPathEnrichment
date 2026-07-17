@@ -10,12 +10,12 @@ import pytest
 from app.config import get_settings
 from app.models import EnrichmentRequest, SocialHandle
 from app.providers.llm import LLMDecision
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 
 @pytest.fixture
-def orchestrator() -> PipelineOrchestrator:
-    return PipelineOrchestrator(db=AsyncMock())
+def orchestrator() -> Pipeline:
+    return Pipeline(db=AsyncMock())
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def _handle(platform: str, username: str, confidence: float) -> SocialHandle:
 
 @pytest.mark.asyncio
 async def test_low_conf_handle_kept_when_llm_confirms(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
     request_identity: EnrichmentRequest,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -57,7 +57,7 @@ async def test_low_conf_handle_kept_when_llm_confirms(
 
 @pytest.mark.asyncio
 async def test_low_conf_handle_dropped_when_llm_rejects(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
     request_identity: EnrichmentRequest,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -80,7 +80,7 @@ async def test_low_conf_handle_dropped_when_llm_rejects(
 
 @pytest.mark.asyncio
 async def test_low_conf_dropped_when_llm_confidence_below_threshold(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
     request_identity: EnrichmentRequest,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -100,7 +100,7 @@ async def test_low_conf_dropped_when_llm_confidence_below_threshold(
 
 @pytest.mark.asyncio
 async def test_merge_applies_disambiguation(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
     request_identity: EnrichmentRequest,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

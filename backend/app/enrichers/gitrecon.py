@@ -15,7 +15,7 @@ from app.config import get_settings
 from app.enrichers.base import Enricher
 from app.models import EnrichmentRequest
 from app.providers import run_command
-from app.storage.redis_client import check_rate_limit, get_redis_client
+from app.infrastructure.redis import check_rate_limit, get_redis_client
 
 logger = logging.getLogger(__name__)
 

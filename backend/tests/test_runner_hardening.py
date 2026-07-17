@@ -12,12 +12,12 @@ from app.enrichers.base import Enricher
 from app.models import EnrichmentRequest
 from app.providers.retry import is_transient_http_error, with_transient_retry
 from app.providers.sidecar import SidecarClient
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 
 @pytest.fixture
-def orchestrator() -> PipelineOrchestrator:
-    return PipelineOrchestrator(db=MagicMock())
+def orchestrator() -> Pipeline:
+    return Pipeline(db=MagicMock())
 
 
 class _BoomInit(Enricher):
@@ -67,7 +67,7 @@ class _OkEnricher(Enricher):
 
 @pytest.mark.asyncio
 async def test_invoke_enricher_returns_empty_on_initialize_failure(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
 ) -> None:
     payload = await orchestrator._invoke_enricher(
         _BoomInit(), EnrichmentRequest(username="jane", requested_tiers=["tier2"])
@@ -77,7 +77,7 @@ async def test_invoke_enricher_returns_empty_on_initialize_failure(
 
 @pytest.mark.asyncio
 async def test_invoke_enricher_returns_empty_on_score_failure(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
 ) -> None:
     payload = await orchestrator._invoke_enricher(
         _BoomScore(), EnrichmentRequest(username="jane", requested_tiers=["tier2"])
@@ -87,7 +87,7 @@ async def test_invoke_enricher_returns_empty_on_score_failure(
 
 @pytest.mark.asyncio
 async def test_parallel_tier_keeps_sibling_payload_on_failure(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
 ) -> None:
     results = await orchestrator._run_tier_parallel(
         [_BoomScore(), _OkEnricher()],
@@ -100,11 +100,11 @@ async def test_parallel_tier_keeps_sibling_payload_on_failure(
 
 @pytest.mark.asyncio
 async def test_execute_job_completes_when_one_tier2_enricher_fails() -> None:
-    from app.storage.db import SessionLocal, init_db
+    from app.database.session import SessionLocal, init_db
 
     await init_db()
     async with SessionLocal() as session:
-        local = PipelineOrchestrator(db=session)
+        local = Pipeline(db=session)
         local.tier2 = [_BoomScore(), _OkEnricher()]
         request = EnrichmentRequest(username="worker-user", requested_tiers=["tier2"])
         job = await local.create_queued_job(request)

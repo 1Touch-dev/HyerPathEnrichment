@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.compliance.identifiers import hash_identifier, request_identifier_values
 from app.compliance.models import SuppressionRecord
 from app.domain.enrichment import EnrichmentRequest
-from app.storage.redis_client import get_redis_client
+from app.infrastructure.redis import get_redis_client
 
 logger = logging.getLogger(__name__)
 

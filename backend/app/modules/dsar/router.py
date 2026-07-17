@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.compliance.dsar import get_dsar, process_dsar
 from app.models import DsarRequest, DsarResponse
-from app.storage.db import get_db_session
+from app.database.session import get_db_session
 
 router = APIRouter(prefix="/api", tags=["dsar"])
 

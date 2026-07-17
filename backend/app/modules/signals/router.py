@@ -10,7 +10,7 @@ from app.config import get_settings
 from app.models import SignalListResponse
 from app.providers.notify import notify_change_signal
 from app.signals.store import create_signal, list_signals
-from app.storage.db import get_db_session
+from app.database.session import get_db_session
 
 logger = logging.getLogger(__name__)
 

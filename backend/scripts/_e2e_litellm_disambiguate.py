@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 from app.config import get_settings
 from app.models import EnrichmentRequest, SocialHandle
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 
 async def main() -> None:
@@ -18,7 +18,7 @@ async def main() -> None:
     assert settings.llm_mode == "litellm", settings.llm_mode
     assert "litellm" in settings.litellm_api_base, settings.litellm_api_base
 
-    orch = PipelineOrchestrator(db=AsyncMock())
+    orch = Pipeline(db=AsyncMock())
     request = EnrichmentRequest(
         username="jane-doe",
         email="jane.doe@acme.com",

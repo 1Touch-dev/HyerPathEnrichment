@@ -7,7 +7,7 @@ import logging
 from app.config import get_settings
 from app.domain.dossier import SocialHandle
 from app.domain.enrichment import EnrichmentRequest
-from app.llm_router import LiteLLMDisambiguator
+from app.clients.llm import LiteLLMDisambiguator
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ from app.domain.enrichment import (
 )
 from app.modules.enrichment.service import get_enrichment_service
 from app.dependencies.rate_limit import enforce_async_rate_limit, enforce_sync_rate_limit
-from app.storage.db import get_db_session
+from app.database.session import get_db_session
 
 router = APIRouter(tags=["enrichment"])
 

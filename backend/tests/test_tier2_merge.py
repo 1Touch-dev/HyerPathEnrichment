@@ -8,16 +8,16 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.models import EnrichmentRequest
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 
 @pytest.fixture
-def orchestrator() -> PipelineOrchestrator:
-    return PipelineOrchestrator(db=AsyncMock())
+def orchestrator() -> Pipeline:
+    return Pipeline(db=AsyncMock())
 
 
 @pytest.mark.asyncio
-async def test_merge_prefers_higher_handle_confidence(orchestrator: PipelineOrchestrator) -> None:
+async def test_merge_prefers_higher_handle_confidence(orchestrator: Pipeline) -> None:
     request = EnrichmentRequest(username="jane", requested_tiers=["tier2"])
     payloads: list[dict[str, Any]] = [
         {
@@ -56,7 +56,7 @@ async def test_merge_prefers_higher_handle_confidence(orchestrator: PipelineOrch
 
 @pytest.mark.asyncio
 async def test_merge_keeps_first_when_incoming_confidence_lower(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
 ) -> None:
     request = EnrichmentRequest(username="jane", requested_tiers=["tier2"])
     payloads: list[dict[str, Any]] = [

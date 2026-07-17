@@ -19,8 +19,8 @@ from app.enrichers import (
 from app.main import app
 from app.models import EnrichmentRequest
 from app.modules.enrichment import service as enrichment_service
-from app.services import get_orchestrator
-from app.storage.db import SessionLocal, init_db
+from app.enrichers.pipeline import Pipeline
+from app.database.session import SessionLocal, init_db
 
 
 def _stub(fragment: dict[str, Any]):
@@ -302,7 +302,7 @@ def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) 
 async def test_execute_job_runs_pipeline() -> None:
     await init_db()
     async with SessionLocal() as session:
-        orchestrator = get_orchestrator(session)
+        orchestrator = Pipeline(session)
         request = EnrichmentRequest(username="worker-user", requested_tiers=["tier2"])
         job = await orchestrator.create_queued_job(request)
         assert job.status == "queued"
@@ -319,7 +319,7 @@ async def test_execute_job_runs_tier1_on_worker_path(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(get_settings(), "enable_tier1", True)
     await init_db()
     async with SessionLocal() as session:
-        orchestrator = get_orchestrator(session)
+        orchestrator = Pipeline(session)
         request = EnrichmentRequest(
             linkedin_url="https://linkedin.com/in/alex-hyrepath",
             requested_tiers=["tier1"],

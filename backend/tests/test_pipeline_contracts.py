@@ -18,8 +18,8 @@ from app.enrichers.base import Enricher
 from app.main import app
 from app.models import EnrichmentRequest, RequestedTier
 from app.modules.enrichment import service as enrichment_service
-from app.services import get_orchestrator
-from app.storage.db import SessionLocal, init_db
+from app.enrichers.pipeline import Pipeline
+from app.database.session import SessionLocal, init_db
 
 AUTH_HEADERS = {"Authorization": "Bearer change-me"}
 
@@ -125,7 +125,7 @@ class _BoomEnricher(Enricher):
 async def test_partial_failure_one_enricher_raises() -> None:
     await init_db()
     async with SessionLocal() as session:
-        orchestrator = get_orchestrator(session)
+        orchestrator = Pipeline(session)
         orchestrator.tier2 = [SherlockEnricher(), _BoomEnricher(), SocialAnalyzerEnricher()]
         request = EnrichmentRequest(username="pipeline-user", requested_tiers=["tier2"])
         result = await orchestrator.run(request)

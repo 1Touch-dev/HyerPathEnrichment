@@ -32,7 +32,7 @@ if _env.exists():
 from app.config import Settings, get_settings
 from app.models import EnrichmentRequest, SocialHandle
 from app.providers.llm import LLMDecision, litellm_compare
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 
 def _mask(value: str) -> str:
@@ -149,7 +149,7 @@ async def _disambiguate_keep_and_drop() -> None:
     os.environ["DISAMBIGUATION_THRESHOLD"] = "0.7"
     get_settings.cache_clear()
 
-    orch = PipelineOrchestrator(db=AsyncMock())
+    orch = Pipeline(db=AsyncMock())
     request = EnrichmentRequest(
         username="jane-doe",
         email="jane.doe@acme.com",

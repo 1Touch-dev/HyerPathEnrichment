@@ -6,6 +6,7 @@ from rq.timeouts import BaseDeathPenalty
 from app.config import get_settings, validate_tier1_settings
 from app.workers.queue import QUEUE_NAME, get_redis_connection
 
+
 class _NoOpDeathPenalty(BaseDeathPenalty):
     """Windows-safe timeout context: RQ's signal-based penalties don't work here."""
 

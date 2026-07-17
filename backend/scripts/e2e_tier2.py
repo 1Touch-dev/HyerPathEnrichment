@@ -36,7 +36,7 @@ from app.enrichers.sherlock import SherlockEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
 from app.models import EnrichmentRequest, SocialHandle
 from app.providers import SidecarClient
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 RESULTS_DIR = ROOT / ".e2e-results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -280,7 +280,7 @@ class Tier2Probe:
             )
             return
 
-        orch = PipelineOrchestrator(db=AsyncMock())
+        orch = Pipeline(db=AsyncMock())
         request = EnrichmentRequest(
             username="jane-doe",
             email="jane.doe@acme.com",

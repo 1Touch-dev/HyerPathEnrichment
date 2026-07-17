@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.config import get_settings
 from app.models import EnrichmentRequest, SocialHandle
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 
 async def main() -> None:
@@ -27,7 +27,7 @@ async def main() -> None:
     assert settings.llm_mode == "ollama", settings.llm_mode
     assert settings.ollama_base_url.strip(), "OLLAMA_BASE_URL required"
 
-    orch = PipelineOrchestrator(db=AsyncMock())
+    orch = Pipeline(db=AsyncMock())
     request = EnrichmentRequest(
         username="jane-doe",
         email="jane.doe@acme.com",

@@ -8,15 +8,15 @@ from app.config import get_settings
 from app.enrichers.email_verify import EmailVerifyEnricher
 from app.models import EnrichmentRequest
 from app.providers import EmailVerifier
-from app.workers.runner import PipelineOrchestrator
+from app.enrichers.pipeline import Pipeline
 
 
 @pytest.fixture
-def orchestrator() -> PipelineOrchestrator:
-    return PipelineOrchestrator(db=MagicMock())
+def orchestrator() -> Pipeline:
+    return Pipeline(db=MagicMock())
 
 
-def test_collect_email_candidates_dedupes_and_normalizes(orchestrator: PipelineOrchestrator) -> None:
+def test_collect_email_candidates_dedupes_and_normalizes(orchestrator: Pipeline) -> None:
     request = EnrichmentRequest(
         email="A@GitHub.com",
         username="torvalds",
@@ -31,14 +31,14 @@ def test_collect_email_candidates_dedupes_and_normalizes(orchestrator: PipelineO
     assert candidates == ["a@github.com", "b@github.com", "c@github.com"]
 
 
-def test_collect_email_candidates_synthetic_when_empty(orchestrator: PipelineOrchestrator) -> None:
+def test_collect_email_candidates_synthetic_when_empty(orchestrator: Pipeline) -> None:
     request = EnrichmentRequest(username="jane", company="Acme Corp", requested_tiers=["tier3"])
     candidates = orchestrator._collect_email_candidates(request, [])
     assert candidates == ["jane@acmecorp.com"]
 
 
 def test_collect_email_candidates_respects_cap(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(get_settings(), "email_verify_max_per_job", 2)
@@ -53,7 +53,7 @@ def test_collect_email_candidates_respects_cap(
     assert candidates == ["one@example.com", "two@example.com"]
 
 
-async def test_verify_email_batch_delegates_to_enricher(orchestrator: PipelineOrchestrator) -> None:
+async def test_verify_email_batch_delegates_to_enricher(orchestrator: Pipeline) -> None:
     expected = {
         "verified_emails": [{"value": "a@b.com", "status": "deliverable", "confidence": 0.8, "source": "mx"}],
         "sources": ["Email Verify"],
@@ -63,7 +63,7 @@ async def test_verify_email_batch_delegates_to_enricher(orchestrator: PipelineOr
     assert payload == expected
 
 
-async def test_verify_emails_returns_multiple(orchestrator: PipelineOrchestrator) -> None:
+async def test_verify_emails_returns_multiple(orchestrator: Pipeline) -> None:
     async def _verify(email: str):
         return {
             "value": email,
@@ -240,7 +240,7 @@ async def test_reacher_catch_all_surfaces_low_trust(
 
 
 async def test_tier3_dispatch_runs_verify_after_discover(
-    orchestrator: PipelineOrchestrator,
+    orchestrator: Pipeline,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     discover_payload = {"emails": ["found@github.com"], "sources": ["theHarvester"]}

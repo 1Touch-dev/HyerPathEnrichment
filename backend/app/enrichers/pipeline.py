@@ -30,7 +30,7 @@ from app.enrichers.registry import (
     tier3_discover_enrichers,
     tier4_enrichers,
 )
-from app.llm_router import LiteLLMDisambiguator
+from app.clients.llm import LiteLLMDisambiguator
 from app.modules.enrichment.models import JobRecord
 from app.modules.enrichment.repository import JobRepository
 

@@ -40,10 +40,10 @@ from app.config import get_settings
 from app.models import PhotoAsset
 from app.providers.linkedin.urls import extract_linkedin_slug
 from app.providers.linkedin_browser import LinkedInBrowserClient, LinkedInPhotoError
-from app.storage.db import init_db
+from app.database.session import init_db
 from app.storage.photo_cache import PhotoCache, _redis_key, slug_hash
 from app.storage.r2 import R2StorageClient, R2StorageError, object_key_with_extension, r2_is_configured
-from app.storage.redis_client import get_redis_client
+from app.infrastructure.redis import get_redis_client
 
 DEFAULT_URL = "https://www.linkedin.com/in/rajshamani/?isSelfProfile=false"
 OUT_DIR = ROOT / "artifacts" / "tier1"
