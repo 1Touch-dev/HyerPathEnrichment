@@ -12,7 +12,7 @@ FREE_STACK := api worker redis postgres social-analyzer google-maps-scraper
 help: ## List available targets
 	@echo "Targets:"
 	@echo "  setup    Copy backend/.env if missing; create backend/.venv; pip install -e .[dev] + requests"
-	@echo "  up       Start free Docker stack detached (backend/docker)"
+	@echo "  up       Start free Docker stack detached (runs migrate job before api/worker)"
 	@echo "  down     Stop Docker Compose stack (backend/docker)"
 	@echo "  test     Run pytest in backend"
 	@echo "  smoke    Run backend/scripts/smoke_test.py (SMOKE_SKIP_ASYNC=1 for sync-only)"

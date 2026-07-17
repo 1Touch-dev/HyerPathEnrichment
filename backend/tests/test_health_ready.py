@@ -34,6 +34,21 @@ def test_ready_returns_503_when_db_fails() -> None:
     assert "not ready" in response.json()["detail"]
 
 
+def test_ready_returns_503_when_schema_behind() -> None:
+    redis = AsyncMock()
+    redis.ping = AsyncMock(return_value=True)
+
+    with (
+        patch("app.modules.health.router.get_redis_client", return_value=redis),
+        patch("app.modules.health.router.database_schema_at_head", new_callable=AsyncMock, return_value=False),
+    ):
+        client = TestClient(app)
+        response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert "not ready" in response.json()["detail"]
+
+
 def test_ready_returns_503_when_redis_fails() -> None:
     redis = AsyncMock()
     redis.ping = AsyncMock(side_effect=ConnectionError("redis down"))

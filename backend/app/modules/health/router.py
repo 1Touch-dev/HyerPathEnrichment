@@ -13,9 +13,9 @@ except ImportError:  # pragma: no cover - optional runtime dependency fallback
         return b""
 
 from app.config import get_settings
+from app.database.session import SessionLocal, database_schema_at_head
+from app.infrastructure.redis import get_redis_client
 from app.models import HealthResponse
-from app.storage.db import SessionLocal
-from app.storage.redis_client import get_redis_client
 
 router = APIRouter(tags=["health"])
 
@@ -32,6 +32,8 @@ async def ready() -> HealthResponse:
     try:
         async with SessionLocal() as session:
             await session.execute(text("SELECT 1"))
+            if not await database_schema_at_head(session):
+                raise RuntimeError("schema not at alembic head")
         await get_redis_client().ping()
     except Exception as exc:
         raise HTTPException(

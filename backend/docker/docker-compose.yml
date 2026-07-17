@@ -1,5 +1,17 @@
 ﻿version: "3.9"
 services:
+  migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    working_dir: /app/backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
   api:
     build:
       context: ..
@@ -44,8 +56,8 @@ services:
       CHANGEDETECTION_API_KEY: ${CHANGEDETECTION_API_KEY:-}
       NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     ports:
@@ -94,8 +106,8 @@ services:
       CROSSLINKED_SEARCH_ENGINES: ${CROSSLINKED_SEARCH_ENGINES:-yahoo}
       CROSSLINKED_TIMEOUT_SECONDS: ${CROSSLINKED_TIMEOUT_SECONDS:-120}
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     volumes:

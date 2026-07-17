@@ -4,6 +4,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -82,6 +83,26 @@ def run_migrations(database_url: str, *, stamp_if_legacy: bool = True) -> None:
         return
 
     _stamp_and_upgrade(database_url, stamp_if_legacy=stamp_if_legacy)
+
+
+def expected_schema_revision(database_url: str | None = None) -> str:
+    """Return the Alembic head revision id for the configured database."""
+    script = ScriptDirectory.from_config(alembic_config(database_url))
+    head = script.get_current_head()
+    if head is None:
+        raise RuntimeError("no alembic head revision configured")
+    return head
+
+
+async def database_schema_at_head(session: AsyncSession) -> bool:
+    """True when alembic_version matches the repository head revision."""
+    head = expected_schema_revision()
+    try:
+        result = await session.execute(text("SELECT version_num FROM alembic_version"))
+        current = result.scalar_one_or_none()
+    except Exception:
+        return False
+    return current == head
 
 
 async def init_db() -> None:
