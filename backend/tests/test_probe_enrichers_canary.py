@@ -63,6 +63,7 @@ def test_score_probe_to_canary() -> None:
     assert probe.score_probe_to_canary("EMPTY", enricher="gitrecon") == "SKIP"
     assert probe.score_probe_to_canary("EMPTY", enricher="crosslinked") == "SKIP"
     assert probe.score_probe_to_canary("EMPTY", enricher="theharvester") == "SKIP"
+    assert probe.score_probe_to_canary("EMPTY", enricher="maigret") == "SKIP"
     assert probe.score_probe_to_canary("CRASH", enricher="jobspy") == "FAIL"
 
 

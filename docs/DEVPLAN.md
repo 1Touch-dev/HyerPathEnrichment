@@ -109,7 +109,7 @@ All incomplete until there is evidence for **`enrich.hyrepath.io`** (or the agre
 | Item | Status | Link |
 |------|--------|------|
 | Full-path E2E (78) | PASS | [2026-07-17 evidence](../backend/docs/e2e-evidence/2026-07-17-full-path-ci.md), [GHA 29563202825](https://github.com/1Touch-dev/HyerPathEnrichment/actions/runs/29563202825) |
-| Tier 2–4 live CI | Fix pending merge (host DB schema + CrossLinked soft-pass sync) | [tier234 evidence](../backend/docs/evidence/tier234-live-m4.md) |
+| Tier 2–4 live CI | Repair (post-#96: canary Maigret EMPTY soft-skip) | [tier234 evidence](../backend/docs/evidence/tier234-live-m4.md), [GHA 29569501682](https://github.com/1Touch-dev/HyerPathEnrichment/actions/runs/29569501682) |
 | Staging Scrapoxy / Langfuse | PASS (GHA 29563202825) | [scrapoxy](../backend/docs/evidence/scrapoxy-staging-62.md), [langfuse](../backend/docs/evidence/langfuse-staging-49.md) |
 | Local prod acceptance | Pending green `local-acceptance` job | [`PROD_ACCEPTANCE.md`](PROD_ACCEPTANCE.md) |
 | Tier 1 Multilogin live canary | **SKIP** — creds not configured | [skip evidence](../backend/docs/evidence/tier1-multilogin-canary-skip.md) |

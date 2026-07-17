@@ -320,6 +320,7 @@ def score_probe_to_canary(probe_status: str, *, enricher: str = "") -> str:
         "gitrecon",
         "crosslinked",
         "theharvester",
+        "maigret",
     }:
         return "SKIP"
     if probe_status in {"EMPTY", "CRASH"}:
