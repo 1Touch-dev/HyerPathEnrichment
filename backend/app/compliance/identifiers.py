@@ -5,8 +5,8 @@ from __future__ import annotations
 import hashlib
 import re
 
-from app.models import EnrichmentRequest
-from app.providers.linkedin.urls import extract_linkedin_slug
+from app.domain.enrichment import EnrichmentRequest
+from app.integrations.linkedin.urls import extract_linkedin_slug
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 

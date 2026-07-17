@@ -18,7 +18,7 @@ from app.enrichers import (
 )
 from app.main import app
 from app.models import EnrichmentRequest
-from app.routes import enrich as enrich_route
+from app.modules.enrichment import service as enrichment_service
 from app.services import get_orchestrator
 from app.storage.db import SessionLocal, init_db
 
@@ -260,7 +260,7 @@ def test_sync_rate_limit_returns_429(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_async_enrich_enqueues_queued_job(monkeypatch: pytest.MonkeyPatch) -> None:
     enqueued: list[str] = []
-    monkeypatch.setattr(enrich_route, "enqueue_enrichment", lambda job_id: enqueued.append(job_id))
+    monkeypatch.setattr(enrichment_service, "enqueue_enrichment", lambda job_id: enqueued.append(job_id))
 
     client = TestClient(app)
     response = client.post(
@@ -278,7 +278,7 @@ def test_async_enrich_enqueues_queued_job(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) -> None:
     enqueued: list[str] = []
-    monkeypatch.setattr(enrich_route, "enqueue_enrichment", lambda job_id: enqueued.append(job_id))
+    monkeypatch.setattr(enrichment_service, "enqueue_enrichment", lambda job_id: enqueued.append(job_id))
 
     client = TestClient(app)
     headers = {"Authorization": "Bearer change-me"}

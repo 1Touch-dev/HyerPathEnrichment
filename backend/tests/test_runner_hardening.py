@@ -164,7 +164,7 @@ async def test_sidecar_get_json_retries_transient_failure() -> None:
                 raise httpx.ConnectError("down")
             return _FakeResponse()
 
-    with patch("app.providers.sidecar.httpx.AsyncClient", return_value=_FakeHttpClient()):
+    with patch("app.clients.sidecar.httpx.AsyncClient", return_value=_FakeHttpClient()):
         payload = await client.get_json("/health")
 
     assert payload == {"ok": "true"}

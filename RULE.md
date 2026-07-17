@@ -22,15 +22,17 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 
 | Need | Use this | Do not |
 |------|----------|--------|
-| Settings / env | `get_settings()` in `config.py` | Hardcode tokens, URLs, thresholds |
-| DB session | `get_db_session()` in `storage/db.py` | Create engines or sessions ad hoc |
-| Orchestrator | `get_orchestrator(db)` in `services.py` | Instantiate `PipelineOrchestrator` in routes |
-| Identifier hash | `hash_identifier()` in `app/compliance/identifiers.py` | Inline `hashlib.sha256` elsewhere |
-| Suppression check | `_is_suppressed()` / `check_suppression()` | Duplicate opt-out logic in routes |
-| Dossier merge | `_merge()` in `workers/runner.py` | Merge enricher output in routes or enrichers |
+| Settings / env | `get_settings()` in `core/config.py` (shim: `config.py`) | Hardcode tokens, URLs, thresholds |
+| DB session | `get_db_session()` in `database/session.py` (shim: `storage/db.py`) | Create engines or sessions ad hoc |
+| Start enrichment | `EnrichmentService` / module routers | Put merge, suppression Redis keys, or enricher dispatch in routes |
+| Run enrichment | `Pipeline` in `enrichers/pipeline.py` | A second orchestrator in workers or services |
+| Job persistence | `JobRepository` in `modules/enrichment/repository.py` | Ad-hoc SQLAlchemy updates in routes |
+| Identifier hash | `hash_identifier()` in `compliance/identifiers.py` | Inline `hashlib.sha256` elsewhere |
+| Suppression check | `compliance/suppression.py` | Duplicate opt-out Redis/SQL logic in Pipeline or routes |
+| Dossier merge | `enrichers/merge.py` (Pipeline only) | Merge enricher output in routes, services, or enrichers |
 | Asset upload | `R2StorageClient` in `storage/r2.py` | Write files outside the storage client |
-| Request validation | `EnrichmentRequest` in `models.py` | Re-validate identifiers in routes or enrichers |
-| Response models | Pydantic models in `models.py` | Ad-hoc dicts in route handlers |
+| Domain contracts | `domain/` (`Dossier`, `EnrichmentRequest`, enums) | Recreate a global `models.py` dumping ground |
+| Redis connection | `infrastructure/redis.py` | One god-object RedisCache for queue + photos + suppression |
 
 ### Enrichers
 
@@ -38,6 +40,30 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 - **Extend `Enricher` in `base.py`** — only override `validate`, `run`, and hooks you need
 - **Return partial dicts** — keys like `photo`, `handles`, `emails`, `sources`; not a full `Dossier`
 - **Check `enrichers/` before adding** — if a tool is already wrapped, extend it; do not add a second wrapper
+- **Tier registration** — add enrichers only in `enrichers/registry.py`; only `Pipeline` consumes the registry
+
+### Layer ownership
+
+| Component | Owns |
+|-----------|------|
+| `domain/` | Shared business contracts (`Dossier`, `EnrichmentRequest`, enums) — no imports from modules/workers/clients/ORM |
+| `modules/` | API-facing use cases (routers, services, feature ORM, HTTP schemas) |
+| `enrichers/pipeline.py` | Enrichment execution (suppression decision, dispatch, merge, disambiguate) |
+| `enrichers/merge.py` | Deterministic dossier assembly only |
+| `enrichers/disambiguate.py` | LLM keep/drop policy (not the LLM HTTP client) |
+| `workers/` | Background execution adapter + RQ; must not import module routers/services |
+| `compliance/` | Identifier hashing, suppression impl, purge, audit, DSAR processing + compliance ORM |
+| `clients/` | Thin external communication |
+| `integrations/` | Complex platform implementations (LinkedIn, browser, Multilogin) |
+| `infrastructure/` | Shared technical connections (Redis factory) |
+| `storage/` | R2, photo cache API, filesystem |
+| `database/` | SQLAlchemy `Base` / session |
+
+### Allowed / forbidden imports
+
+**Allowed:** `modules` → domain, enrichers, module repositories, `workers.queue`, compliance; `workers/tasks` → domain, `enrichers.pipeline`, `modules/*/repository`, compliance; `enrichers` → domain, clients, integrations, storage, compliance.
+
+**Forbidden:** `workers/tasks` → `modules/*/service|router|dependencies`; `enrichers` → modules or workers; `domain` → modules, workers, clients, ORM; `clients` → `Dossier` / business orchestration; `merge` → LLM client.
 
 ### Frontend
 
@@ -52,8 +78,8 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 
 ## No redundant code
 
-- **Do not duplicate validation** — backend: `EnrichmentRequest`; frontend: form validation only for UX, not business rules
-- **Do not duplicate merge logic** — all dossier assembly stays in `runner.py` `_merge()`
+- **Do not duplicate validation** — backend: `EnrichmentRequest` in `domain/`; frontend: form validation only for UX, not business rules
+- **Do not duplicate merge logic** — all dossier assembly stays in `enrichers/merge.py`
 - **Do not duplicate API field mapping** — all backend ↔ frontend naming goes through `api-adapter.ts`
 - **Do not add thin wrappers** — if a one-liner helper is used once, inline it
 - **Do not copy-paste enricher patterns** — extract shared behavior into `base.py` or a small shared module only when used by 2+ enrichers
@@ -65,18 +91,20 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 
 ### Backend
 
-- **Routes are thin** — auth, parse request, call orchestrator, return response
-- **Suppression before dispatch** — any path that runs enrichers must check opt-out first
+- **Routes are thin** — auth, parse request, call module service, return response
+- **One enrichment engine** — sync and async both converge on `Pipeline.run()`; workers are adapters only
+- **Suppression before dispatch** — Pipeline decides effect; `compliance/suppression.py` owns Redis/SQL dual-write
+- **ORM lives with its owner** — enrichment jobs in `modules/enrichment/models.py`; compliance tables in `compliance/models.py`; never recreate a global `app/models.py` dumping ground
 - **AGPL tools in sidecars only** — `social-analyzer`, Reacher, etc. are called over HTTP; never import AGPL code into `app/`
-- **No browser work in routes** — Playwright / Multilogin stays in Tier 1 enrichers
+- **No browser work in routes** — Playwright / Multilogin stays in Tier 1 enrichers / integrations
 - **Async end-to-end** — DB, storage, enrichers, and route handlers are `async`; no `run_until_complete` in request paths
-- **Tier registration in one place** — add enrichers to `PipelineOrchestrator.__init__` in `runner.py`
-- **Schema changes via Alembic only** — never reintroduce `_migrate_schema` or durable `create_all`; new columns/indexes = new revision under `backend/alembic/versions/`
+- **Tier registration in one place** — `enrichers/registry.py` only
+- **Schema changes via Alembic only** — never reintroduce `_migrate_schema` or durable `create_all`; new columns/indexes = new revision under `backend/alembic/versions/`; Alembic stays at repo-level `backend/alembic/`
 
 ### Frontend
 
 - **Components display; lib handles data** — fetching and mapping live in `src/lib/`, not scattered in JSX
-- **Keep types in sync** — if `Dossier` changes in `backend/app/models.py`, update `types.ts` and `api-adapter.ts` in the same change
+- **Keep types in sync** — if `Dossier` changes in `backend/app/domain/dossier.py`, update `types.ts` and `api-adapter.ts` in the same change
 - **No direct backend shape in UI** — components consume frontend `Dossier`, not snake_case payloads
 
 ### Cross-cutting
@@ -115,7 +143,7 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 
 - **Never log raw identifiers** (email, LinkedIn URL, username) — use job IDs or hashed values
 - **Never commit secrets** — `.env` stays gitignored; update `.env.example` with placeholders only
-- **Do not weaken opt-out** — no bypass of `_is_suppressed()` for sync, debug, or "fast" paths
+- **Do not weaken opt-out** — no bypass of suppression checks for sync, debug, or "fast" paths
 - **Public data only** — no private sources, face recognition, or bulk scraping (see `backend/docs/ARCHITECTURE.md` product boundaries)
 - **Customer-supplied identifiers only** — do not add "discover people" flows
 

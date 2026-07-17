@@ -11,7 +11,7 @@ def test_ready_returns_200_when_db_and_redis_ok() -> None:
     redis = AsyncMock()
     redis.ping = AsyncMock(return_value=True)
 
-    with patch("app.routes.health.get_redis_client", return_value=redis):
+    with patch("app.modules.health.router.get_redis_client", return_value=redis):
         client = TestClient(app)
         response = client.get("/ready")
 
@@ -26,7 +26,7 @@ def test_ready_returns_503_when_db_fails() -> None:
     session_cm.__aenter__ = AsyncMock(return_value=session)
     session_cm.__aexit__ = AsyncMock(return_value=None)
 
-    with patch("app.routes.health.SessionLocal", return_value=session_cm):
+    with patch("app.modules.health.router.SessionLocal", return_value=session_cm):
         client = TestClient(app)
         response = client.get("/ready")
 
@@ -38,7 +38,7 @@ def test_ready_returns_503_when_redis_fails() -> None:
     redis = AsyncMock()
     redis.ping = AsyncMock(side_effect=ConnectionError("redis down"))
 
-    with patch("app.routes.health.get_redis_client", return_value=redis):
+    with patch("app.modules.health.router.get_redis_client", return_value=redis):
         client = TestClient(app)
         response = client.get("/ready")
 

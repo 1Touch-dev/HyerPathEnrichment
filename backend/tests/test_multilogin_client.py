@@ -31,7 +31,7 @@ def mlx_settings(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_sign_in_hashes_password_and_caches_token(mlx_settings: None) -> None:
     client = MultiloginClient()
 
-    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+    with patch("app.clients.multilogin.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
@@ -59,7 +59,7 @@ async def test_sign_in_exchanges_workspace_token(
     monkeypatch.setattr(settings, "multilogin_workspace_id", "ws-uuid")
     client = MultiloginClient()
 
-    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+    with patch("app.clients.multilogin.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
@@ -92,7 +92,7 @@ async def test_start_profile_returns_port(mlx_settings: None) -> None:
     client._token = "tok-123"
     client._token_expires_at = 1e12
 
-    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+    with patch("app.clients.multilogin.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
@@ -114,7 +114,7 @@ async def test_stop_profile_uses_v1_launcher_path(mlx_settings: None) -> None:
     client._token = "tok-123"
     client._token_expires_at = 1e12
 
-    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+    with patch("app.clients.multilogin.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
@@ -132,7 +132,7 @@ async def test_list_profiles_filters_folder(mlx_settings: None) -> None:
     client._token = "tok-123"
     client._token_expires_at = 1e12
 
-    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+    with patch("app.clients.multilogin.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
@@ -164,7 +164,7 @@ async def test_list_profiles_uses_fixed_profile_id(
     monkeypatch.setattr(settings, "multilogin_profile_id", "fixed-profile-uuid")
     client = MultiloginClient()
 
-    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+    with patch("app.clients.multilogin.httpx.AsyncClient") as mock_client_cls:
         ids = await client.list_profiles()
         assert ids == ["fixed-profile-uuid"]
         mock_client_cls.assert_not_called()
@@ -176,7 +176,7 @@ async def test_list_profiles_search_400_raises(mlx_settings: None) -> None:
     client._token = "tok-123"
     client._token_expires_at = 1e12
 
-    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+    with patch("app.clients.multilogin.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
@@ -192,7 +192,7 @@ async def test_list_profiles_search_400_raises(mlx_settings: None) -> None:
 
 @pytest.mark.asyncio
 async def test_sign_in_failure_raises(mlx_settings: None) -> None:
-    with patch("app.providers.multilogin.httpx.AsyncClient") as mock_client_cls:
+    with patch("app.clients.multilogin.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
@@ -205,7 +205,7 @@ async def test_sign_in_failure_raises(mlx_settings: None) -> None:
 
 @pytest.mark.asyncio
 async def test_module_wrappers_delegate(mlx_settings: None) -> None:
-    with patch("app.providers.multilogin._default_client") as mock_default:
+    with patch("app.clients.multilogin._default_client") as mock_default:
         mock_default.sign_in = AsyncMock(return_value="tok")
         mock_default.start_profile = AsyncMock(return_value=12345)
         mock_default.stop_profile = AsyncMock()

@@ -10,7 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.compliance.identifiers import hash_identifier, linkedin_slug_from_identifier, request_identifier_values
-from app.models import EnrichmentRequest, JobRecord, JobStatus, PhotoCacheRecord
+from app.domain.enrichment import EnrichmentRequest
+from app.domain.enums import JobStatus
+from app.modules.enrichment.models import JobRecord
+from app.storage.models import PhotoCacheRecord
 from app.storage.photo_cache import PhotoCache, slug_hash
 from app.storage.r2 import R2StorageClient
 

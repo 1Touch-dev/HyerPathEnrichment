@@ -85,7 +85,7 @@ async def test_profile_pool_refund_view(monkeypatch: pytest.MonkeyPatch) -> None
             return True
 
     fake = _FakeRedis()
-    monkeypatch.setattr("app.providers.profile_pool.get_redis_client", lambda: fake)
+    monkeypatch.setattr("app.integrations.multilogin.profile_pool.get_redis_client", lambda: fake)
 
     async def _fake_profile_ids(_self: ProfilePool) -> list[str]:
         return ["profile-1"]
@@ -112,7 +112,7 @@ async def test_profile_release_rate_limit_uses_shorter_cooldown(monkeypatch: pyt
             return True
 
     monkeypatch.setattr(get_settings(), "multilogin_rate_limit_cooldown_seconds", 1800)
-    monkeypatch.setattr("app.providers.profile_pool.get_redis_client", lambda: _FakeRedis())
+    monkeypatch.setattr("app.integrations.multilogin.profile_pool.get_redis_client", lambda: _FakeRedis())
 
     pool = ProfilePool()
     await pool.release("profile-1", ProfileOutcome.RATE_LIMITED)

@@ -11,16 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.compliance.audit import log_event
 from app.compliance.identifiers import hash_identifier, linkedin_slug_from_identifier
-from app.models import (
-    AuditEventType,
-    DsarRecord,
-    DsarRequest,
-    DsarResponse,
-    DsarStatus,
-    DsarType,
-    JobRecord,
-    PhotoCacheRecord,
-)
+from app.compliance.models import DsarRecord
+from app.domain.enrichment import DsarRequest, DsarResponse
+from app.domain.enums import AuditEventType, DsarStatus, DsarType
+from app.modules.enrichment.models import JobRecord
+from app.storage.models import PhotoCacheRecord
 from app.storage.photo_cache import slug_hash
 from app.workers.runner import PipelineOrchestrator
 

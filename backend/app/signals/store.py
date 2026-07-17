@@ -7,7 +7,8 @@ from uuid import uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import SignalListItem, SignalRecord
+from app.domain.enrichment import SignalListItem
+from app.modules.signals.models import SignalRecord
 
 
 async def create_signal(

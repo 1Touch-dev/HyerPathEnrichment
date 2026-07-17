@@ -20,7 +20,7 @@ AUTH_HEADERS = {"Authorization": "Bearer change-me"}
 
 
 def _post_signal(client: TestClient, watch_id: str, title: str, url: str) -> None:
-    with patch("app.routes.signals.notify_change_signal", new_callable=AsyncMock):
+    with patch("app.modules.signals.router.notify_change_signal", new_callable=AsyncMock):
         response = client.post(
             "/api/signals/changedetection",
             json={
@@ -73,7 +73,7 @@ def test_webhook_persists_before_notify(
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "")
 
     watch_id = "persist-watch-1"
-    with patch("app.routes.signals.notify_change_signal", new_callable=AsyncMock) as notify:
+    with patch("app.modules.signals.router.notify_change_signal", new_callable=AsyncMock) as notify:
         response = client.post(
             "/api/signals/changedetection",
             json={

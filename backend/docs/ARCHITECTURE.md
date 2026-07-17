@@ -2,57 +2,73 @@
 
 Hyrepath Enrichment backend — architecture reference for the FastAPI service under `backend/`.
 
-**Version:** 0.2 (July 2026)  
-**Last verified against code:** 2026-07-15  
+**Version:** 0.3 (July 2026)  
+**Last verified against code:** 2026-07-17  
 **Repo layout:** `HyerEnrichment/backend/` (split from the Next.js frontend in `frontend/`)
 
 ---
 
 ## Agent quick reference
 
-**Read this file when:** backend API, orchestrator, enricher, opt-out, tier, storage, or Docker work.
+**Read this file when:** backend API, pipeline, enricher, opt-out, tier, storage, or Docker work.
 
 **Trust order (highest wins):**
 
 1. Code in `backend/app/`
 2. **Implementation status** section below (scaffold vs target)
 3. This doc (architecture + routing)
-4. `docs/architecture-plan-azi-10-hyre-enrichment.md` (original plan — may be ahead of code)
-5. `docs/IMPLEMENTATION_NOTES.md` (AZI-11 handoff)
+4. `RULE.md` (ownership + import rules)
+5. `docs/architecture-plan-azi-10-hyre-enrichment.md` (original plan — may be ahead of code)
+
+### Modular ownership (locked)
+
+| Layer | Path | Role |
+|-------|------|------|
+| Domain | `app/domain/` | Shared contracts (`Dossier`, `EnrichmentRequest`, enums) |
+| Modules | `app/modules/` | HTTP use cases (enrichment, opt_out, dsar, health, signals) |
+| Pipeline | `app/enrichers/pipeline.py` | **Only** enrichment execution owner |
+| Merge | `app/enrichers/merge.py` | Deterministic dossier assembly |
+| Workers | `app/workers/` | RQ adapter; calls Pipeline + JobRepository |
+| Compliance | `app/compliance/` | Hashing, suppression impl, purge, audit, DSAR + compliance ORM |
+| Clients / integrations | `app/clients/`, `app/integrations/` | External systems |
+| Infrastructure | `app/infrastructure/redis.py` | Redis connection factory only |
+| Database | `app/database/` | `Base`, session; Alembic stays at `backend/alembic/` |
+
+**Execution split:** `EnrichmentService` starts/polls jobs; `Pipeline` runs enrichment; workers only provide the async environment. Sync and async both end at `Pipeline.run()`.
 
 ### Do not assume (common agent mistakes)
 
 | Assumption | Reality today |
 |------------|---------------|
-| `POST /enrich` runs inline | Enqueues to **Redis + RQ**; the worker process runs the orchestrator. `/enrich/sync` still runs inline. In Docker, API + worker share Postgres so polling works cross-process |
-| Enrichers call real tools | They do (subprocess/library/sidecar) behind the `app/providers/` layer, but **degrade to empty fragments** when a tool/sidecar/key is missing. Defaults are fully free/self-hosted; free -> paid is an env flip |
+| `POST /enrich` runs inline | Enqueues to **Redis + RQ**; the worker process runs the pipeline. `/enrich/sync` still runs inline. In Docker, API + worker share Postgres so polling works cross-process |
+| Enrichers call real tools | They do (subprocess/library/sidecar) behind clients/integrations (legacy shim: `app/providers/`), but **degrade to empty fragments** when a tool/sidecar/key is missing. Defaults are fully free/self-hosted; free -> paid is an env flip |
 | Database is Postgres everywhere | Local dev default is **SQLite** (`sqlite+aiosqlite:///./hyrepath.db`); **Docker compose uses Postgres** (`postgresql+asyncpg://...@postgres:5432/hyrepath`) shared by API + worker. Schema via **Alembic** (`init_db` → upgrade head); document columns are **JSONB** on Postgres |
 | R2 uploads go to Cloudflare | **R2 when `R2_*` creds set** (`aioboto3` PutObject + HeadObject); else local `backend/.asset-cache/` |
-| LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in. Orchestrator walks handles below `DISAMBIGUATION_THRESHOLD` and keep/drops via `llm.compare` |
+| LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in. Pipeline walks handles below `DISAMBIGUATION_THRESHOLD` via `enrichers/disambiguate.py` → LLM client |
 | Opt-out / DSAR are unauthenticated | **Public** (IP rate-limited via `MAX_COMPLIANCE_REQUESTS_PER_MINUTE`); enrich routes still require Bearer |
-| Suppression lives in Redis only | **SQL table** `suppression_list` is the durable record; Redis set `suppression:hashes` is a fast-path cache (dual-write, SQL fallback) |
+| Suppression lives in Redis only | **SQL table** `suppression_list` is the durable record; Redis set `suppression:hashes` is a fast-path cache (dual-write, SQL fallback) in `compliance/suppression.py` |
 | Audit logs | **SQL `audit_logs`** — 5-year retention via `purge_audit_logs.py` |
 | DSAR flow | **`POST/GET /api/dsar`** — automated access/deletion in v1 |
-| Data erasure on opt-out | **`register_opt_out()`** purges jobs, photo cache, R2/local assets |
+| Data erasure on opt-out | Opt-out service → compliance suppress + purge jobs, photo cache, R2/local assets |
 | Sidecars are real services | Compose uses **real images**; free-mode ones default-on, paid/heavy ones behind `profiles:` |
 
 ### Task routing — where to start
 
 | Task | Read first | Edit |
 |------|------------|------|
-| New enricher | Enricher protocol + tier table | `enrichers/base.py` → new module → `workers/runner.py` tier list |
-| Change merge/dossier shape | `models.py` `Dossier` + frontend types | `workers/runner.py` `_merge()`, `models.py`, `frontend/src/lib/types.ts` |
-| API route / auth | API endpoints section | `routes/enrich.py`, `routes/opt_out.py`, `main.py` |
-| Async job queue | Implementation status | `routes/enrich.py`, `workers/runner.py`, `docker/docker-compose.yml` |
-| Opt-out / suppression | Legal section + `_is_suppressed()` | `workers/runner.py`, `routes/opt_out.py`, `models.py` `SuppressionRecord` |
-| Photo / Tier 1 | Tier 1 section | `enrichers/linkedin_photo.py`, `providers/multilogin.py`, `providers/profile_pool.py`, `providers/linkedin_browser.py`, `storage/photo_cache.py`, `storage/r2.py`, `docker/docker-compose.tier1.yml` (`env_file`), `config.validate_tier1_settings` |
-| Env / config | Environment variables section | `config.py`, `.env.example` |
+| New enricher | Enricher protocol + tier table | `enrichers/base.py` → new module → `enrichers/registry.py` |
+| Change merge/dossier shape | `domain/dossier.py` + frontend types | `enrichers/merge.py`, `domain/dossier.py`, `frontend/src/lib/types.ts` |
+| API route / auth | API endpoints section | `modules/*/router.py`, `main.py` |
+| Async job queue | Implementation status | `modules/enrichment/`, `workers/`, `docker/docker-compose.yml` |
+| Opt-out / suppression | Legal section | `compliance/suppression.py`, `modules/opt_out/`, `compliance/models.py` |
+| Photo / Tier 1 | Tier 1 section | `enrichers/linkedin_photo.py`, integrations/clients Multilogin + LinkedIn, `storage/photo_cache.py`, `storage/r2.py` |
+| Env / config | Environment variables section | `core/config.py` (shim `config.py`), `.env.example` |
 | Tests | Testing strategy | `tests/test_pipeline_shape.py` |
 | Frontend integration | Frontend contract below | `frontend/src/lib/api-adapter.ts`, `frontend/src/lib/types.ts` |
 
 ### Frontend contract (keep in sync)
 
-Backend `Dossier` is defined in `backend/app/models.py`. Frontend mirror: `frontend/src/lib/types.ts`. API adapter: `frontend/src/lib/api-adapter.ts`. Field naming differs (`linkedin_url` backend vs `linkedinUrl` frontend) — check adapter, don't guess.
+Backend `Dossier` source of truth: `backend/app/domain/dossier.py`. Frontend mirror: `frontend/src/lib/types.ts`. API adapter: `frontend/src/lib/api-adapter.ts`. Field naming differs (`linkedin_url` backend vs `linkedinUrl` frontend) — check adapter, don't guess. Moving the import path is not an API contract change if serialized JSON stays identical.
 
 ### Agent read order (minimal tokens)
 
@@ -149,12 +165,14 @@ Everything is built on **open-source enrichers** behind a common plugin interfac
 
 The backend is a **modular monolith**:
 
-1. **Routes** (`app/routes/`) — HTTP surface, auth, request/response models
-2. **Services** (`app/services.py`) — factory for the orchestrator
-3. **Orchestrator** (`app/workers/runner.py`) — suppression check, tier dispatch, merge, confidence
-4. **Enrichers** (`app/enrichers/`) — one module per upstream tool, shared `Enricher` protocol
-5. **Storage** (`app/storage/`) — async SQLAlchemy sessions, R2 asset client
-6. **LLM router** (`app/llm_router.py`) — disambiguation for low-confidence handles
+1. **Modules** (`app/modules/`) — HTTP use cases (routers + services)
+2. **Domain** (`app/domain/`) — shared contracts (`Dossier`, `EnrichmentRequest`, enums)
+3. **Pipeline** (`app/enrichers/pipeline.py`) — suppression decision, tier dispatch, merge, disambiguation
+4. **Enrichers** (`app/enrichers/`) — one module per upstream tool, shared `Enricher` protocol + registry
+5. **Workers** (`app/workers/`) — RQ adapter calling Pipeline + JobRepository
+6. **Compliance** (`app/compliance/`) — hashing, suppression impl, purge, audit, DSAR
+7. **Storage / clients / integrations / infrastructure** — persistence and external systems
+8. **Database** (`app/database/`) — SQLAlchemy base + session (Alembic at `backend/alembic/`)
 
 ---
 
@@ -392,57 +410,32 @@ Authorization: Bearer <API_TOKEN>
 
 ```text
 HyerEnrichment/
-├── frontend/                     # Next.js UI (intake, pipeline, dossier)
+├── frontend/
 └── backend/
     ├── app/
-    │   ├── main.py               # FastAPI entrypoint, auth, route registration
-    │   ├── config.py             # Env-driven settings
-    │   ├── models.py             # Pydantic schemas + SQLAlchemy models
-    │   ├── services.py           # Orchestrator factory
-    │   ├── providers/
-    │   │   ├── multilogin.py     # Multilogin API client (Tier 1)
-    │   │   ├── profile_pool.py   # Profile rotation + daily limits
-    │   │   ├── browser.py        # Playwright browser (local dev)
-    │   │   └── ...
-    │   ├── multilogin.py         # Re-exports providers.multilogin (compat)
-    │   ├── llm_router.py         # LiteLLM disambiguation
-    │   ├── enrichers/
-    │   │   ├── base.py           # Enricher protocol
-    │   │   ├── linkedin_photo.py # Tier 1
-    │   │   ├── sherlock.py       # Tier 2
-    │   │   ├── maigret.py        # Tier 2
-    │   │   ├── social_analyzer.py# Tier 2 (HTTP sidecar)
-    │   │   ├── gitrecon.py       # Tier 3
-    │   │   ├── theharvester.py   # Tier 3
-    │   │   ├── email_discover.py # Tier 3 (email-sleuth)
-    │   │   ├── email_verify.py   # Tier 3 (Reacher + AfterShip)
-    │   │   ├── crosslinked.py    # Tier 3 (coworkers)
-    │   │   ├── jobspy.py         # Tier 4
-    │   │   └── local_business.py # Tier 4 (GMaps sidecar)
-    │   ├── routes/
-    │   │   ├── enrich.py         # /enrich, /enrich/sync, /enrich/{id}
-    │   │   ├── health.py         # /health, /ready, /metrics
-    │   │   └── opt_out.py        # /api/opt-out, /api/opt-out/check
-    │   ├── storage/
-    │   │   ├── db.py             # Async SQLAlchemy session
-    │   │   └── r2.py             # R2 asset client
-    │   └── workers/
-    │       └── runner.py         # PipelineOrchestrator
+    │   ├── main.py
+    │   ├── core/                 # config, lifespan
+    │   ├── domain/               # Dossier, EnrichmentRequest, enums
+    │   ├── modules/              # enrichment, opt_out, dsar, health, signals
+    │   ├── enrichers/            # pipeline, merge, disambiguate, registry, tiers
+    │   ├── compliance/           # identifiers, suppression, purge, audit, dsar, models
+    │   ├── workers/              # queue, tasks, RQ shims
+    │   ├── clients/              # thin external clients
+    │   ├── integrations/         # linkedin, browser, multilogin
+    │   ├── infrastructure/       # redis connection factory
+    │   ├── database/             # Base, session
+    │   ├── storage/              # r2, photo_cache
+    │   └── observability/
+    ├── alembic/                  # migrations (repo-level; do not move under app/)
     ├── docker/
-    │   ├── Dockerfile.api
-    │   ├── Dockerfile.worker
-    │   └── docker-compose.yml    # api, worker, pg, redis, sidecar placeholders
     ├── docs/
-    │   └── ARCHITECTURE.md       # this file
     ├── scripts/
-    │   └── smoke_test.py
     ├── tests/
-    │   └── test_pipeline_shape.py
-    ├── .env.example
     ├── pyproject.toml
     └── README.md
 ```
 
+Compatibility shims may temporarily remain at legacy paths (`app.models`, `app.providers`, `app.workers.runner`, `app.workers.jobs`, `app.services`, `app.config`, `app.routes`, `app.storage.db`, `app.storage.redis_client`) so RQ job paths and existing imports stay stable. Real logic lives in the new packages; shims only re-export.
 ---
 
 ## Environment variables

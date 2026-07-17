@@ -15,9 +15,9 @@ if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
 from app.config import get_settings  # noqa: E402
-from app.models import (  # noqa: E402
+from app.database.base import Base  # noqa: E402
+from app.database.orm_registry import (  # noqa: E402
     AuditLog,
-    Base,
     DsarRecord,
     JobRecord,
     PhotoCacheRecord,

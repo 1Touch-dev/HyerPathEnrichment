@@ -47,9 +47,14 @@ def sqlite_url(tmp_path: Path) -> str:
 
 def test_no_migrate_schema_symbol() -> None:
     assert not hasattr(db_mod, "_migrate_schema")
-    source = Path(db_mod.__file__).read_text(encoding="utf-8")
+    # Session implementation lives in database/session; storage/db is a shim.
+    session_source = Path(db_mod.__file__).resolve().parents[1] / "database" / "session.py"
+    source = session_source.read_text(encoding="utf-8")
+    shim_source = Path(db_mod.__file__).read_text(encoding="utf-8")
     assert "metadata.create_all" not in source
+    assert "metadata.create_all" not in shim_source
     assert "_migrate_schema" not in source
+    assert "_migrate_schema" not in shim_source
     assert "command.upgrade" in source
 
 
@@ -280,7 +285,7 @@ def test_mixed_identifier_hashes_already_jsonb() -> None:
                     """
                     INSERT INTO jobs (id, status, request_payload, dossier_payload, identifier_hashes)
                     VALUES (
-                        'job_mix', 'queued', '{"x":1}'::json, '{}'::json,
+                        'job_mix', 'queued', '{"x": true}'::json, '{}'::json,
                         '["abc"]'::jsonb
                     )
                     """

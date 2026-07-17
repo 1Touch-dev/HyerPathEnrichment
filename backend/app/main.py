@@ -1,19 +1,14 @@
-from contextlib import asynccontextmanager
-
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 
-from app.config import Settings, get_settings
-from app.routes import (
-    dsar_router,
-    enrich_router,
-    health_router,
-    opt_out_router,
-    signals_list_router,
-    signals_webhook_router,
-)
-from app.routes.rate_limit import enforce_compliance_rate_limit
-from app.storage.db import init_db
-from app.storage.redis_client import close_redis, get_redis_client
+from app.core.config import Settings, get_settings
+from app.core.lifespan import lifespan
+from app.dependencies.rate_limit import enforce_compliance_rate_limit
+from app.modules.dsar.router import router as dsar_router
+from app.modules.enrichment.router import router as enrich_router
+from app.modules.health.router import router as health_router
+from app.modules.opt_out.router import router as opt_out_router
+from app.modules.signals.router import list_router as signals_list_router
+from app.modules.signals.router import webhook_router as signals_webhook_router
 
 
 async def verify_token(
@@ -23,14 +18,6 @@ async def verify_token(
     expected = f"Bearer {settings.api_token}"
     if authorization != expected:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthorized")
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    await init_db()
-    get_redis_client()
-    yield
-    await close_redis()
 
 
 app = FastAPI(title="Hyrepath Enrichment Backend", version="0.1.0", lifespan=lifespan)

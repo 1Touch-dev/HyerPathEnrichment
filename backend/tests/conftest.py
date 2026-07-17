@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from app.compliance import suppression
 from app.config import get_settings
-from app.routes import rate_limit
+from app.dependencies import rate_limit
 from app.storage import photo_cache
-from app.workers import runner
 from tests.migration_helpers import upgrade_head
 
 
@@ -53,12 +53,15 @@ class FakeRedis:
     async def delete(self, key: str) -> int:
         return 1 if self._kv.pop(key, None) is not None else 0
 
+    async def ping(self) -> bool:
+        return True
+
 
 @pytest.fixture(autouse=True)
 def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     """No live Redis in CI — in-memory stand-in for suppression, rate limits, photo cache."""
     fake = FakeRedis()
-    monkeypatch.setattr(runner, "get_redis_client", lambda: fake)
+    monkeypatch.setattr(suppression, "get_redis_client", lambda: fake)
     monkeypatch.setattr(rate_limit, "get_redis_client", lambda: fake)
     monkeypatch.setattr(photo_cache, "get_redis_client", lambda: fake)
     return fake

@@ -11,9 +11,10 @@ from redis.exceptions import RedisError
 from sqlalchemy import select
 
 from app.config import get_settings
-from app.models import PhotoAsset, PhotoCacheRecord
-from app.storage.db import SessionLocal
-from app.storage.redis_client import get_redis_client
+from app.domain.dossier import PhotoAsset
+from app.storage.models import PhotoCacheRecord
+from app.database.session import SessionLocal
+from app.infrastructure.redis import get_redis_client
 
 logger = logging.getLogger(__name__)
 

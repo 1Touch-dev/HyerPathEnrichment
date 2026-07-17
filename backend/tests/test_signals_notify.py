@@ -26,7 +26,7 @@ def test_changedetection_webhook_accepts_without_token_when_key_unset(
     monkeypatch.setattr(get_settings(), "changedetection_api_key", "")
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "")
 
-    with patch("app.routes.signals.notify_change_signal", new_callable=AsyncMock) as notify:
+    with patch("app.modules.signals.router.notify_change_signal", new_callable=AsyncMock) as notify:
         response = client.post(
             "/api/signals/changedetection",
             json={
@@ -67,7 +67,7 @@ def test_changedetection_webhook_accepts_valid_token(
     monkeypatch.setattr(get_settings(), "changedetection_api_key", "secret-token")
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "")
 
-    with patch("app.routes.signals.notify_change_signal", new_callable=AsyncMock):
+    with patch("app.modules.signals.router.notify_change_signal", new_callable=AsyncMock):
         response = client.post(
             "/api/signals/changedetection",
             headers={"X-Signal-Token": "secret-token"},
