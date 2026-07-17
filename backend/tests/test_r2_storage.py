@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import SecretStr
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.storage.r2 import (
     LOCAL_ASSET_CACHE_DIR,
     R2StorageClient,

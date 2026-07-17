@@ -4,9 +4,10 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.enrichers.base import Enricher
-from app.models import EnrichmentRequest, PhotoAsset
+from app.domain.enrichment import EnrichmentRequest
+from app.domain.dossier import PhotoAsset
 from app.observability.tier1_metrics import (
     tier1_cache_hits_total,
     tier1_cache_misses_total,

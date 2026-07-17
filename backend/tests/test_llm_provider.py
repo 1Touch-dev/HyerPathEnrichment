@@ -1,4 +1,4 @@
-﻿"""LLM provider: prompt assembly, parse hardening, and backend wiring."""
+"""LLM provider: prompt assembly, parse hardening, and backend wiring."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from app.config import Settings
+from app.core.config import Settings
 from app.providers.llm import (
     LLMDecision,
     _parse_decision,

@@ -36,7 +36,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.enrichers.base import Enricher
 from app.enrichers.crosslinked import CrossLinkedEnricher
 from app.enrichers.email_discover import EmailDiscoverEnricher
@@ -48,7 +48,7 @@ from app.enrichers.maigret import MaigretEnricher
 from app.enrichers.sherlock import SherlockEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher
 from app.enrichers.theharvester import TheHarvesterEnricher
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 
 RESULTS_DIR = ROOT / ".e2e-results"
 
@@ -466,7 +466,7 @@ ROOT = Path({str(ROOT)!r})
 sys.path.insert(0, str(ROOT))
 
 from app.enrichers.jobspy import JobSpyEnricher
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 
 async def _run():
     req = EnrichmentRequest(**json.loads({payload!r}))

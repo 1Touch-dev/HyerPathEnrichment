@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.enrichers._shared import MAIGRET_HANDLE_CONFIDENCE, extract_urls, urls_to_handles
 from app.enrichers.base import Enricher
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 from app.providers import ProxyProvider, run_command
 
 

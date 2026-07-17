@@ -13,7 +13,7 @@ import asyncio
 import httpx
 from selenium import webdriver
 from selenium.webdriver.chromium.options import ChromiumOptions
-from app.config import get_settings
+from app.core.config import get_settings
 from app.providers.multilogin import MultiloginClient
 
 async def main() -> None:

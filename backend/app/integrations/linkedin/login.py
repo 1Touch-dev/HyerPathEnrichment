@@ -12,7 +12,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
-from app.config import get_settings
+from app.core.config import get_settings
 
 from app.integrations.linkedin.constants import (
     LINKEDIN_FEED_URL,

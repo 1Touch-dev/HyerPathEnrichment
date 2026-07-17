@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.compliance import suppression
-from app.config import get_settings
+from app.core.config import get_settings
 from app.dependencies import rate_limit
 from app.storage import photo_cache
 from tests.migration_helpers import upgrade_head

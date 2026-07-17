@@ -6,7 +6,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.models import PhotoAsset, PhotoCacheRecord
+from app.domain.dossier import PhotoAsset
+from app.storage.models import PhotoCacheRecord
 from app.storage.photo_cache import PhotoCache, slug_hash
 
 
@@ -62,7 +63,7 @@ async def test_put_and_get_hit_redis(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "linkedin_photo_ttl_seconds", 3600)
     cache = PhotoCache()
@@ -94,7 +95,7 @@ async def test_same_slug_different_url_variants_hit_cache(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "linkedin_photo_ttl_seconds", 3600)
     cache = PhotoCache()
@@ -145,7 +146,7 @@ async def test_sql_fallback_when_redis_empty(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "linkedin_photo_ttl_seconds", 3600)
     cache = PhotoCache()

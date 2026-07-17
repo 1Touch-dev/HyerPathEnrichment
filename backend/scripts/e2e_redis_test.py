@@ -18,7 +18,7 @@ import time
 import httpx
 import redis
 
-from app.config import get_settings
+from app.core.config import get_settings
 
 BASE = "http://localhost:8000"
 HEADERS = {"Authorization": f"Bearer {get_settings().api_token}"}

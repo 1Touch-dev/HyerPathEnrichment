@@ -1,7 +1,7 @@
 from redis import Redis
 from rq import Queue
 
-from app.config import get_settings
+from app.core.config import get_settings
 
 QUEUE_NAME = "enrichment"
 

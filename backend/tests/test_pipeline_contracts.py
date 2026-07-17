@@ -16,7 +16,8 @@ from app.enrichers import (
 )
 from app.enrichers.base import Enricher
 from app.main import app
-from app.models import EnrichmentRequest, RequestedTier
+from app.domain.enrichment import EnrichmentRequest
+from app.domain.enums import RequestedTier
 from app.modules.enrichment import service as enrichment_service
 from app.enrichers.pipeline import Pipeline
 from app.database.session import SessionLocal, init_db
@@ -156,7 +157,7 @@ def test_multi_tier_dispatch_respects_selection() -> None:
 
 
 def test_tier1_skipped_on_sync_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "enable_tier1", True)
     client = TestClient(app)

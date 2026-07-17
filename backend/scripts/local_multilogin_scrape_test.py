@@ -36,8 +36,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.config import get_settings
-from app.models import PhotoAsset
+from app.core.config import get_settings
+from app.domain.dossier import PhotoAsset
 from app.providers.linkedin.urls import extract_linkedin_slug
 from app.providers.linkedin_browser import LinkedInBrowserClient, LinkedInPhotoError
 from app.database.session import init_db

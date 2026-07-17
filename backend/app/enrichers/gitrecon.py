@@ -11,9 +11,9 @@ from typing import Any
 
 from redis.exceptions import RedisError
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.enrichers.base import Enricher
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 from app.providers import run_command
 from app.infrastructure.redis import check_rate_limit, get_redis_client
 

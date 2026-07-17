@@ -1,4 +1,4 @@
-﻿"""Manual probe: disambiguation via local Ollama (no vendor keys).
+"""Manual probe: disambiguation via local Ollama (no vendor keys).
 
 Run from backend/ after starting Ollama:
   LLM_MODE=ollama OLLAMA_BASE_URL=http://localhost:11434 python scripts/_probe_ollama_disambiguation.py
@@ -14,8 +14,9 @@ from unittest.mock import AsyncMock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.config import get_settings
-from app.models import EnrichmentRequest, SocialHandle
+from app.core.config import get_settings
+from app.domain.dossier import SocialHandle
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.pipeline import Pipeline
 
 

@@ -10,7 +10,7 @@ import sys
 
 import httpx
 
-from app.config import get_settings
+from app.core.config import get_settings
 
 DEFAULT_SIGNAL_URL = "post://api:8000/api/signals/changedetection"
 NOTIFICATION_BODY = json.dumps(

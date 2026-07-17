@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.pipeline import Pipeline
 
 

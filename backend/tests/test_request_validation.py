@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.main import app
-from app.models import EnrichmentRequest, RequestedTier
+from app.domain.enrichment import EnrichmentRequest
+from app.domain.enums import RequestedTier
 
 AUTH_HEADERS = {"Authorization": "Bearer change-me"}
 

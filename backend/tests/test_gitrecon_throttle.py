@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.enrichers import gitrecon as gitrecon_mod
 from app.enrichers.gitrecon import GitReconEnricher, _looks_like_github_rate_limit
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 from tests.conftest import FakeRedis
 
 

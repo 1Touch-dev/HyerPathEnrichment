@@ -8,8 +8,8 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete
 
-from app.config import get_settings
-from app.models import AuditLog
+from app.compliance.models import AuditLog
+from app.core.config import get_settings
 from app.database.session import SessionLocal, init_db
 
 

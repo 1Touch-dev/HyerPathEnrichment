@@ -4,7 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 
 logger = logging.getLogger(__name__)
 

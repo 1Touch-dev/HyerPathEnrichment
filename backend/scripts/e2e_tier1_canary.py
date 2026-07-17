@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.providers.linkedin_browser import extract_linkedin_slug
 
 RESULTS_DIR = ROOT / ".e2e-results"

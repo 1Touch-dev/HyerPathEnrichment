@@ -39,9 +39,10 @@ echo "== STUB test inside api =="
 docker compose --env-file "$ENV_FILE" exec -T -e LLM_MODE=stub api sh -c 'cd /app/backend && python -' <<'PY'
 import asyncio
 from unittest.mock import AsyncMock
-from app.config import get_settings
+from app.core.config import get_settings
 get_settings.cache_clear()
-from app.models import EnrichmentRequest, SocialHandle
+from app.domain.enrichment import EnrichmentRequest
+from app.domain.dossier import SocialHandle
 from app.enrichers.pipeline import Pipeline
 
 async def main():
@@ -70,7 +71,7 @@ docker compose --env-file "$ENV_FILE" exec -T \
   -e LITELLM_API_BASE=http://litellm:4000 \
   -e LITELLM_MODEL=gemini/gemini-2.5-flash \
   -e LITELLM_FALLBACKS= \
-  api sh -c 'cd /app/backend && python -c "from app.config import get_settings; get_settings.cache_clear()" && python -' \
+  api sh -c 'cd /app/backend && python -c "from app.core.config import get_settings; get_settings.cache_clear()" && python -' \
   < "$SCRIPT_DIR/_e2e_litellm_disambiguate.py"
 
 echo "== ALL DOCKER TESTS PASSED =="

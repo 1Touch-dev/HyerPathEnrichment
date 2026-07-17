@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.integrations.linkedin.login import connect_selenium
 from app.integrations.linkedin.photo import save_failure_screenshot
 from app.integrations.linkedin.scrape import download_image, map_outcome_to_profile, scrape_on_driver

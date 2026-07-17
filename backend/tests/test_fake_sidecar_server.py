@@ -10,10 +10,10 @@ from pathlib import Path
 import httpx
 import pytest
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 from app.providers import EmailVerifier
 
 FAKE_ROOT = Path(__file__).resolve().parents[1] / "docker" / "fake-sidecars"

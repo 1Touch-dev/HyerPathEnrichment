@@ -7,8 +7,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.main import app
-from app.models import AuditLog, JobRecord
+from app.compliance.models import AuditLog
 from app.database.session import SessionLocal, init_db
+from app.modules.enrichment.models import JobRecord
 
 
 def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:

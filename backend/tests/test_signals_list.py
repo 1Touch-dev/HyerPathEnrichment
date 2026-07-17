@@ -67,7 +67,7 @@ def test_webhook_persists_before_notify(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "changedetection_api_key", "")
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "")

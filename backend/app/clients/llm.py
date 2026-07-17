@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import logging
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from app.config import Settings
+from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -232,6 +232,6 @@ class LiteLLMDisambiguator:
 
 
 def _settings() -> Settings:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     return get_settings()

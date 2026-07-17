@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from app.config import get_settings
+from app.core.config import get_settings
 
 from app.integrations.linkedin.constants import PLACEHOLDER_RE, PLACEHOLDER_SUBSTRINGS
 

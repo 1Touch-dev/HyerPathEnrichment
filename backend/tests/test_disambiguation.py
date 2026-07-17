@@ -7,8 +7,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.config import get_settings
-from app.models import EnrichmentRequest, SocialHandle
+from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
+from app.domain.dossier import SocialHandle
 from app.providers.llm import LLMDecision
 from app.enrichers.pipeline import Pipeline
 

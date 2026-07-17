@@ -17,7 +17,7 @@ from app.enrichers import (
     TheHarvesterEnricher,
 )
 from app.main import app
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 from app.modules.enrichment import service as enrichment_service
 from app.enrichers.pipeline import Pipeline
 from app.database.session import SessionLocal, init_db
@@ -200,7 +200,7 @@ def test_sync_enrich_shape() -> None:
 
 
 def test_sync_skips_tier1_photo(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "enable_tier1", True)
     client = TestClient(app)
@@ -244,7 +244,7 @@ def test_opt_out_suppresses_enrichment() -> None:
 
 
 def test_sync_rate_limit_returns_429(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "max_sync_requests_per_minute", 2)
     client = TestClient(app)
@@ -314,7 +314,7 @@ async def test_execute_job_runs_pipeline() -> None:
 
 
 async def test_execute_job_runs_tier1_on_worker_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "enable_tier1", True)
     await init_db()

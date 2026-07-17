@@ -9,7 +9,8 @@ import pytest
 from sqlalchemy import JSON, DateTime, String, Text, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from app.models import JobRecord, JsonDoc
+from app.modules.enrichment.models import JobRecord
+from app.database.base import JsonDoc
 from app.storage import db as db_mod
 from tests.migration_helpers import (
     column_udt,

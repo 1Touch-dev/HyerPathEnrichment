@@ -19,7 +19,7 @@ sleep 5
 
 echo "== settings =="
 docker compose --env-file ../.env exec -T api \
-  bash -lc 'cd /app/backend && python -c "from app.config import get_settings; s=get_settings(); print(s.llm_mode, s.litellm_api_base, s.litellm_model)"'
+  bash -lc 'cd /app/backend && python -c "from app.core.config import get_settings; s=get_settings(); print(s.llm_mode, s.litellm_api_base, s.litellm_model)"'
 
 echo "== disambiguate =="
 docker compose --env-file ../.env exec -i api \

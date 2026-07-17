@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from app.enrichers.base import Enricher
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 from app.providers.retry import is_transient_http_error, with_transient_retry
 from app.providers.sidecar import SidecarClient
 from app.enrichers.pipeline import Pipeline

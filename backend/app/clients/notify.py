@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from app.config import get_settings
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 

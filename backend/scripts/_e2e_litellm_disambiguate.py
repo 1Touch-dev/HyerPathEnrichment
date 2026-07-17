@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock
 
-from app.config import get_settings
-from app.models import EnrichmentRequest, SocialHandle
+from app.core.config import get_settings
+from app.domain.dossier import SocialHandle
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.pipeline import Pipeline
 
 

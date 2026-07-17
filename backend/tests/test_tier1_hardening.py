@@ -28,7 +28,7 @@ class _FakeDriver:
 
 
 def test_placeholder_fragments_includes_env_extras(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "tier1_placeholder_denylist", "custom-placeholder,Another")
     fragments = placeholder_fragments()
@@ -47,7 +47,7 @@ def test_has_valid_linkedin_session_on_feed() -> None:
 
 
 def test_login_skips_form_when_session_valid(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     settings = get_settings()
     monkeypatch.setattr(settings, "tier1_skip_login_if_session_valid", True)
@@ -102,7 +102,7 @@ async def test_profile_pool_refund_view(monkeypatch: pytest.MonkeyPatch) -> None
 
 @pytest.mark.asyncio
 async def test_profile_release_rate_limit_uses_shorter_cooldown(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     captured: dict[str, int] = {}
 

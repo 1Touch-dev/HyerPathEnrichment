@@ -7,7 +7,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.providers.multilogin import MultiloginClient, MultiloginError, sign_in, start_profile, stop_profile
 
 

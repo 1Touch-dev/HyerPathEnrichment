@@ -5,7 +5,7 @@ cd /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/docker
 docker compose -f docker-compose.yml -f docker-compose.tier1.yml exec -T worker python - <<'PY'
 import asyncio
 import httpx
-from app.config import get_settings
+from app.core.config import get_settings
 from app.providers.multilogin import MultiloginClient
 
 async def main() -> None:

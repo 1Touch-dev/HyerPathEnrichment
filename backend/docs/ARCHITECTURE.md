@@ -439,7 +439,7 @@ HyerEnrichment/
     └── README.md
 ```
 
-Compatibility shims may temporarily remain at legacy paths (`app.models`, `app.providers`, `app.workers.jobs`, `app.config`) so RQ job paths and existing imports stay stable. Real logic lives in the new packages; shims only re-export.
+Compatibility shims may temporarily remain at legacy paths (`app.providers`, `app.workers.jobs`) so RQ job paths and existing imports stay stable. Real logic lives in the new packages; shims only re-export.
 ---
 
 ## Environment variables

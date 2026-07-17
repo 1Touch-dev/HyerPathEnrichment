@@ -12,7 +12,7 @@ from app.providers.multilogin import MultiloginClient
 from app.providers.linkedin.client import LinkedInBrowserClient
 from app.storage.r2 import R2StorageClient
 from app.storage.photo_cache import PhotoCache
-from app.models import PhotoAsset
+from app.domain.dossier import PhotoAsset
 from datetime import datetime, timezone
 import hashlib
 from app.storage.r2 import object_key_with_extension

@@ -122,7 +122,7 @@ if [ "$has_vendor_key" = "1" ]; then
       export LLM_MODE=litellm
       export LITELLM_API_BASE=http://litellm:4000
       export LITELLM_FALLBACKS="${LITELLM_FALLBACKS:-gemini/gemini-2.5-flash}"
-      python -c "from app.config import get_settings; get_settings.cache_clear()"
+      python -c "from app.core.config import get_settings; get_settings.cache_clear()"
       python -
   ' < "$SCRIPT_DIR/_e2e_litellm_disambiguate.py"
   pass "Stage B litellm disambiguation"

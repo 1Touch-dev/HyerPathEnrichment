@@ -30,11 +30,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.enrichers.maigret import MaigretEnricher
 from app.enrichers.sherlock import SherlockEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
-from app.models import EnrichmentRequest, SocialHandle
+from app.domain.enrichment import EnrichmentRequest
+from app.domain.dossier import SocialHandle
 from app.providers import SidecarClient
 from app.enrichers.pipeline import Pipeline
 

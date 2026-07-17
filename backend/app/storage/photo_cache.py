@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from redis.exceptions import RedisError
 from sqlalchemy import select
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.domain.dossier import PhotoAsset
 from app.storage.models import PhotoCacheRecord
 from app.database.session import SessionLocal

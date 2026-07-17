@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import quote, urlsplit, urlunsplit
 
-from app.config import get_settings
+from app.core.config import get_settings
 
 
 class ProxyProvider:

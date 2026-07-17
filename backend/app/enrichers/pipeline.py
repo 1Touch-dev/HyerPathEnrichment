@@ -16,7 +16,7 @@ from app.compliance.suppression import (
     check_suppression,
     is_request_suppressed,
 )
-from app.config import get_settings
+from app.core.config import get_settings
 from app.domain.enrichment import EnrichmentRequest
 from app.domain.enums import AuditEventType, JobStatus, RequestedTier
 from app.enrichers._shared import common_email_patterns, slugify_domain

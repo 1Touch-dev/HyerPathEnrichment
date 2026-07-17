@@ -17,7 +17,7 @@ from app.enrichers import (
     TheHarvesterEnricher,
 )
 from app.main import app
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 
 
 def _stub(fragment: dict[str, Any]):

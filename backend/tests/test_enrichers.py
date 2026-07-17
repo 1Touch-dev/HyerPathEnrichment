@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.enrichers import gitrecon as gitrecon_mod
 from app.enrichers import sherlock as sherlock_mod
 from app.enrichers.base import Enricher
@@ -16,7 +16,7 @@ from app.enrichers.jobspy import JOBSPY_SITES, JobSpyEnricher
 from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.sherlock import SherlockEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
-from app.models import EnrichmentRequest
+from app.domain.enrichment import EnrichmentRequest
 from app.providers import EmailVerifier, ProxyProvider
 from app.providers import sidecar as sidecar_mod
 from tests.conftest import FakeRedis

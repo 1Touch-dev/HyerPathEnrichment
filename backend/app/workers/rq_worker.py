@@ -3,7 +3,7 @@ import os
 from rq import Queue, SimpleWorker, Worker
 from rq.timeouts import BaseDeathPenalty
 
-from app.config import get_settings, validate_tier1_settings
+from app.core.config import get_settings, validate_tier1_settings
 from app.workers.queue import QUEUE_NAME, get_redis_connection
 
 

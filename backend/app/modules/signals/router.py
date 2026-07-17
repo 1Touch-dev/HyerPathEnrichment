@@ -6,8 +6,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
-from app.models import SignalListResponse
+from app.core.config import get_settings
+from app.domain.enrichment import SignalListResponse
 from app.providers.notify import notify_change_signal
 from app.signals.store import create_signal, list_signals
 from app.database.session import get_db_session

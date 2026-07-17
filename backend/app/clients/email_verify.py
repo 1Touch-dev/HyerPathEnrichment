@@ -6,7 +6,7 @@ from typing import Any
 
 from MailChecker import MailChecker
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.clients.sidecar import SidecarClient
 
 logger = logging.getLogger(__name__)

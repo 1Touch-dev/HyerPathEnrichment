@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 from selenium.webdriver.support.ui import WebDriverWait
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.integrations.linkedin.constants import DOM_FALLBACK_CONFIDENCE, OG_IMAGE_CONFIDENCE
 from app.integrations.linkedin.login import detect_page_state, login_linkedin
 from app.integrations.linkedin.photo import (

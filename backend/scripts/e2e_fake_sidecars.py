@@ -24,11 +24,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher
 from app.enrichers.email_verify import EmailVerifyEnricher
-from app.models import EnrichmentRequest, RequestedTier
+from app.domain.enrichment import EnrichmentRequest
+from app.domain.enums import RequestedTier
 from app.providers import EmailVerifier, SidecarClient
 
 RESULTS_DIR = ROOT / ".e2e-results"

@@ -22,7 +22,7 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 
 | Need | Use this | Do not |
 |------|----------|--------|
-| Settings / env | `get_settings()` in `core/config.py` (shim: `config.py`) | Hardcode tokens, URLs, thresholds |
+| Settings / env | `get_settings()` in `core/config.py` | Hardcode tokens, URLs, thresholds |
 | DB session | `get_db_session()` in `database/session.py` (shim: `storage/db.py`) | Create engines or sessions ad hoc |
 | Start enrichment | `EnrichmentService` / module routers | Put merge, suppression Redis keys, or enricher dispatch in routes |
 | Run enrichment | `Pipeline` in `enrichers/pipeline.py` | A second orchestrator in workers or services |

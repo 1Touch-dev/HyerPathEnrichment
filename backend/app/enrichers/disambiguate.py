@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.domain.dossier import SocialHandle
 from app.domain.enrichment import EnrichmentRequest
 from app.clients.llm import LiteLLMDisambiguator

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import SecretStr
 
-from app.config import Settings, validate_tier1_settings
+from app.core.config import Settings, validate_tier1_settings
 
 
 def _settings(**overrides: object) -> Settings:

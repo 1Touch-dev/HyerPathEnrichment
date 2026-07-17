@@ -12,10 +12,10 @@ except ImportError:  # pragma: no cover - optional runtime dependency fallback
     def generate_latest(*args: Any, **kwargs: Any) -> bytes:
         return b""
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.database.session import SessionLocal, database_schema_at_head
+from app.domain.enrichment import HealthResponse
 from app.infrastructure.redis import get_redis_client
-from app.models import HealthResponse
 
 router = APIRouter(tags=["health"])
 

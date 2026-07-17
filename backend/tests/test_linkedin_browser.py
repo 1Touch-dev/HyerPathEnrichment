@@ -360,7 +360,7 @@ def test_type_into_login_field_runs_react_sync_script() -> None:
 
 
 def test_login_linkedin_requires_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     settings = get_settings()
     monkeypatch.setattr(settings, "tier1_skip_login_if_session_valid", False)
@@ -380,7 +380,7 @@ async def test_scrape_photo_invalid_url() -> None:
 
 @pytest.mark.asyncio
 async def test_scrape_photo_success_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     settings = get_settings()
     monkeypatch.setattr(settings, "browser_mode", "multilogin")
@@ -403,7 +403,7 @@ async def test_scrape_photo_success_path(monkeypatch: pytest.MonkeyPatch) -> Non
 
 @pytest.mark.asyncio
 async def test_browser_client_downloads_image(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
+    from app.core.config import get_settings
 
     settings = get_settings()
     monkeypatch.setattr(settings, "browser_mode", "multilogin")
