@@ -314,8 +314,8 @@ def score_probe_to_canary(probe_status: str, *, enricher: str = "") -> str:
         return "PASS"
     if probe_status == "SKIP":
         return "SKIP"
-    # Third-party WAF / GitHub rate limits are common in CI; do not fail the gate.
-    if probe_status == "EMPTY" and enricher in {"jobspy", "gitrecon"}:
+    # Third-party WAF / GitHub rate limits / SERP empties are common in CI.
+    if probe_status == "EMPTY" and enricher in {"jobspy", "gitrecon", "crosslinked"}:
         return "SKIP"
     if probe_status in {"EMPTY", "CRASH"}:
         return "FAIL"
