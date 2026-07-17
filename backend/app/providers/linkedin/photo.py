@@ -123,13 +123,17 @@ def log_photo_extraction_debug(driver: Any) -> None:
 
 
 def wait_for_profile_photo_ready(driver: Any, wait: Any) -> None:
-    """Wait until og:image or the real profile photo img (inside figure) is present."""
+    """Wait until og:image or a profile photo container/img is present."""
 
     def _ready(_d: Any) -> bool:
         css = "css selector"
 
         for node in _d.find_elements(css, 'meta[property="og:image"]'):
             if (node.get_attribute("content") or "").strip():
+                return True
+
+        for selector in TOPCARD_PHOTO_CONTAINER_SELECTORS:
+            if _d.find_elements(css, selector):
                 return True
 
         if _d.find_elements(css, FIGURE_PHOTO_SELECTOR):

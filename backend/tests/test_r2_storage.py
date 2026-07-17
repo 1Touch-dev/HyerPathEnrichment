@@ -35,7 +35,15 @@ def test_object_key_with_extension_appends_when_missing() -> None:
 
 
 def test_r2_is_configured_requires_all_credentials() -> None:
-    settings = get_settings()
+    # Isolate from local .env — get_settings() may already have R2 filled in.
+    settings = get_settings().model_copy(
+        update={
+            "r2_account_id": "",
+            "r2_access_key_id": "",
+            "r2_secret_access_key": SecretStr(""),
+            "r2_bucket": "",
+        }
+    )
     assert r2_is_configured(settings) is False
 
     configured = settings.model_copy(

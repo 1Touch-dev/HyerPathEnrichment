@@ -19,7 +19,7 @@ npm run dev
 4. **Job detail** — `/app/jobs/{id}` loads on refresh; polls if still running.
 5. **History** — `/app/history` lists jobs (requires backend `GET /enrich`).
 6. **Opt-out** — `/opt-out` → submit → success message.
-7. **Marketing** — `/`, `/recruiters`, … `/journalists` render; CTAs link to `/app?tiers=...`.
+7. **Marketing** — `/`, `/recruiters`, … `/journalists` render; CTAs link to `/app/enrich?tiers=...`.
 8. **Build** — `npm run build` and `npm run typecheck` pass.
 
 ## Integration E2E (live backend)

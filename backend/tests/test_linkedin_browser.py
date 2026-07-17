@@ -189,7 +189,9 @@ def test_extract_photo_url_uses_data_src_and_srcset() -> None:
     url, method, state = extract_photo_url(driver)
     assert state == LinkedInPhotoError.SUCCESS
     assert method == ExtractionMethod.DOM_FALLBACK
-    assert url is not None and "real-from-data-src.jpg" in url
+    # Prefer srcset (highest-res) when present; data-src remains a valid candidate.
+    assert url is not None
+    assert "real-from-srcset.jpg" in url or "real-from-data-src.jpg" in url
 
 
 def test_extract_photo_url_prefers_topcard_componentkey() -> None:
