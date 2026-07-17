@@ -27,6 +27,13 @@ REPORT = RESULTS / "verify-tier1-live.json"
 CANARY = DOCS / "tier1_canary_set.json"
 
 
+def _python() -> str:
+    venv = ROOT / ".venv" / "bin" / "python"
+    if venv.is_file():
+        return str(venv)
+    return sys.executable
+
+
 @dataclass
 class StepResult:
     name: str
@@ -95,7 +102,7 @@ def main() -> int:
         )
 
     shape_cmd = [
-        sys.executable,
+        _python(),
         "-m",
         "pytest",
         "tests/test_pipeline_shape.py::test_sync_skips_tier1_photo",
@@ -106,7 +113,7 @@ def main() -> int:
     code, out = _run(shape_cmd)
     record("shape_tests", shape_cmd, code, out.splitlines()[-1] if out else "")
 
-    prereq_cmd = [sys.executable, str(SCRIPTS / "probe_tier1.py"), "--prereqs"]
+    prereq_cmd = [_python(), str(SCRIPTS / "probe_tier1.py"), "--prereqs"]
     code, out = _run(prereq_cmd)
     record("prereqs", prereq_cmd, code, "audit complete" if code == 0 else out[-200:])
 
@@ -131,7 +138,7 @@ def main() -> int:
             StepResult(name="canary_file", command=f"check {CANARY}", exit_code=0, status="pass", detail="filled")
         )
 
-    connect_cmd = [sys.executable, str(SCRIPTS / "probe_tier1.py"), "--connect-test"]
+    connect_cmd = [_python(), str(SCRIPTS / "probe_tier1.py"), "--connect-test"]
     code, out = _run(connect_cmd)
     record("mlx_connect", connect_cmd, code, out.splitlines()[-1] if out else "")
 
@@ -147,7 +154,7 @@ def main() -> int:
 
     if canary_url:
         scrape_cmd = [
-            sys.executable,
+            _python(),
             str(SCRIPTS / "probe_tier1.py"),
             "--scrape",
             "--linkedin-url",
@@ -156,7 +163,7 @@ def main() -> int:
         code, out = _run(scrape_cmd)
         record("isolation_scrape", scrape_cmd, code, out.splitlines()[-1] if out else "")
 
-    probe_args = [sys.executable, str(SCRIPTS / "probe_tier1_canary.py"), "--file", str(CANARY), "--pool-status", "--json"]
+    probe_args = [_python(), str(SCRIPTS / "probe_tier1_canary.py"), "--file", str(CANARY), "--pool-status", "--json"]
     code, out = _run(probe_args)
     record("probe_canary", probe_args, code, out.splitlines()[-1] if out else "")
 
@@ -185,7 +192,7 @@ def main() -> int:
                 )
             )
 
-    e2e_args = [sys.executable, str(SCRIPTS / "e2e_tier1_canary.py"), "--file", str(CANARY), "--json"]
+    e2e_args = [_python(), str(SCRIPTS / "e2e_tier1_canary.py"), "--file", str(CANARY), "--json"]
     if args.limit is not None:
         e2e_args.extend(["--limit", str(args.limit)])
     code, out = _run(e2e_args)
@@ -217,7 +224,7 @@ def main() -> int:
                 )
             )
 
-    score_cmd = [sys.executable, str(SCRIPTS / "run_canary_score.py"), "--tier", "tier1", "--json"]
+    score_cmd = [_python(), str(SCRIPTS / "run_canary_score.py"), "--tier", "tier1", "--json"]
     if args.limit is not None:
         score_cmd.extend(["--limit", str(args.limit)])
     code, out = _run(score_cmd)

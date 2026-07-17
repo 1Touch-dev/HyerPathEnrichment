@@ -26,6 +26,13 @@ RESULTS = ROOT / ".e2e-results"
 REPORT = RESULTS / "verify-tier234-live.json"
 
 
+def _python() -> str:
+    venv = ROOT / ".venv" / "bin" / "python"
+    if venv.is_file():
+        return str(venv)
+    return sys.executable
+
+
 @dataclass
 class StepResult:
     name: str
@@ -56,7 +63,7 @@ def _bash(script: str, *extra: str) -> list[str]:
 
 
 def _python_script(script: str, *extra: str) -> list[str]:
-    return [sys.executable, str(SCRIPTS / script), *extra]
+    return [_python(), str(SCRIPTS / script), *extra]
 
 
 def _run(cmd: list[str]) -> tuple[int, str]:
@@ -98,7 +105,7 @@ def main() -> int:
         )
 
     unit_cmd = [
-        sys.executable,
+        _python(),
         "-m",
         "pytest",
         "tests/test_pipeline_shape.py",
@@ -129,7 +136,7 @@ def main() -> int:
         code, out = _run(cmd)
         record(name, cmd, code, out.splitlines()[-1] if out else "")
 
-    score_cmd = [sys.executable, "scripts/run_canary_score.py", "--tier", "tier234", "--json"]
+    score_cmd = [_python(), "scripts/run_canary_score.py", "--tier", "tier234", "--json"]
     code, out = _run(score_cmd)
     record("canary_score", score_cmd, code, out.splitlines()[-1] if out else "")
 
