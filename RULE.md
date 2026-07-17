@@ -69,7 +69,7 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 
 | Need | Use this | Do not |
 |------|----------|--------|
-| Shared types | `frontend/src/lib/types.ts` | Duplicate `Dossier` / `EnrichmentInput` shapes inline |
+| Shared types | `frontend/src/lib/types.ts` (UI camelCase) + `frontend/src/lib/generated/` (OpenAPI wire types) | Duplicate `Dossier` / `EnrichmentInput` shapes inline |
 | API mapping | `frontend/src/lib/api-adapter.ts` | Map snake_case ↔ camelCase in components |
 | Utilities | `frontend/src/lib/utils.ts` | Copy small helpers into components |
 | UI components | `frontend/components/` | Rebuild intake, pipeline, or dossier UI from scratch |
@@ -104,7 +104,7 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 ### Frontend
 
 - **Components display; lib handles data** — fetching and mapping live in `src/lib/`, not scattered in JSX
-- **Keep types in sync** — if `Dossier` changes in `backend/app/domain/dossier.py`, update `types.ts` and `api-adapter.ts` in the same change
+- **Keep types in sync** — backend wire contract: run `cd frontend && npm run openapi:export && npm run openapi:gen` after changing Pydantic models in `backend/app/domain/` or module response models; commit `frontend/openapi/openapi.json` and `frontend/src/lib/generated/openapi.ts`. Update `types.ts` and `api-adapter.ts` when UI camelCase shapes change.
 - **No direct backend shape in UI** — components consume frontend `Dossier`, not snake_case payloads
 
 ### Cross-cutting

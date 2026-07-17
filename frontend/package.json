@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "openapi:export": "python ../backend/scripts/export_openapi.py -o openapi/openapi.json",
+    "openapi:gen": "openapi-typescript openapi/openapi.json -o src/lib/generated/openapi.ts",
+    "openapi:check": "npm run openapi:export && npm run openapi:gen && git diff --exit-code openapi/openapi.json src/lib/generated/openapi.ts",
     "test:smoke": "cross-env FRONTEND_USE_MOCKS=true playwright test e2e/smoke.spec.ts",
     "test:e2e": "cross-env FRONTEND_USE_MOCKS=true playwright test --project=chromium",
     "test:integration": "cross-env FRONTEND_USE_MOCKS=false BACKEND_API_URL=http://localhost:8000 BACKEND_API_TOKEN=change-me playwright test e2e/integration"
@@ -40,10 +43,11 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "cross-env": "^7.0.3",
     "@types/node": "20.14.10",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
+    "cross-env": "^7.0.3",
+    "openapi-typescript": "^6.7.6",
     "typescript": "5.5.3"
   }
 }

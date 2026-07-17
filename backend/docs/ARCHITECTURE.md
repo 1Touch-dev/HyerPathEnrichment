@@ -64,11 +64,15 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Photo / Tier 1 | Tier 1 section | `enrichers/linkedin_photo.py`, integrations/clients Multilogin + LinkedIn, `storage/photo_cache.py`, `storage/r2.py` |
 | Env / config | Environment variables section | `core/config.py` (shim `config.py`), `.env.example` |
 | Tests | Testing strategy | `tests/test_pipeline_shape.py` |
-| Frontend integration | Frontend contract below | `frontend/src/lib/api-adapter.ts`, `frontend/src/lib/types.ts` |
+| Frontend integration | Frontend contract below | `frontend/src/lib/api-adapter.ts`, `frontend/src/lib/types.ts`, `frontend/src/lib/generated/` |
 
 ### Frontend contract (keep in sync)
 
-Backend `Dossier` source of truth: `backend/app/domain/dossier.py`. Frontend mirror: `frontend/src/lib/types.ts`. API adapter: `frontend/src/lib/api-adapter.ts`. Field naming differs (`linkedin_url` backend vs `linkedinUrl` frontend) — check adapter, don't guess. Moving the import path is not an API contract change if serialized JSON stays identical.
+Backend wire contract source: FastAPI `/openapi.json` (from Pydantic models in `backend/app/domain/` and module routers). Committed snapshot: `frontend/openapi/openapi.json`. Generated TypeScript: `frontend/src/lib/generated/openapi.ts` via `npm run openapi:gen` (CI enforces drift with `npm run openapi:check`).
+
+UI camelCase mirror: `frontend/src/lib/types.ts`. API adapter: `frontend/src/lib/api-adapter.ts` (imports wire types from `frontend/src/lib/generated/api-schemas.ts`). Field naming differs (`linkedin_url` backend vs `linkedinUrl` frontend) — mapping stays in the adapter, not components.
+
+After changing backend response/request models: `cd frontend && npm run openapi:export && npm run openapi:gen`, then update `types.ts` / adapter if UI shapes change.
 
 ### Agent read order (minimal tokens)
 

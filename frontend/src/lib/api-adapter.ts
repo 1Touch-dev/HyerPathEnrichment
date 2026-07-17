@@ -13,70 +13,18 @@ import {
   SignalListItem,
   SignalListResponse,
 } from '@/src/lib/types';
+import type {
+  BackendDossier,
+  BackendDsarResponse,
+  BackendHealthResponse,
+  BackendJobListItem,
+  BackendJobListResponse,
+  BackendJobResponse,
+  BackendSignalListItem,
+  BackendSignalListResponse,
+} from '@/src/lib/generated/api-schemas';
 
-type BackendPhoto = {
-  source: string;
-  asset_url: string;
-  captured_at: string;
-  confidence: number;
-};
-
-type BackendSocialHandle = {
-  platform: string;
-  username: string;
-  profile_url: string;
-  confidence: number;
-  metadata?: Record<string, string | number | boolean>;
-};
-
-type BackendVerifiedEmail = {
-  value: string;
-  status: string;
-  confidence: number;
-  source: string;
-};
-
-type BackendDossier = {
-  photo?: BackendPhoto | null;
-  handles?: BackendSocialHandle[];
-  emails?: string[];
-  verified_emails?: BackendVerifiedEmail[];
-  github?: Dossier['github'];
-  coworkers?: string[];
-  jobs?: Dossier['jobs'];
-  business?: Dossier['business'];
-  confidence?: Dossier['confidence'];
-  sources?: string[];
-  metadata?: Record<string, unknown>;
-};
-
-export type BackendJobResponse = {
-  id: string;
-  status: string;
-  dossier: BackendDossier;
-  error?: string;
-};
-
-type BackendJobListItem = {
-  id: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  request_payload?: Record<string, unknown>;
-  identifier_summary?: string;
-};
-
-type BackendJobListResponse = {
-  jobs: BackendJobListItem[];
-  total: number;
-  limit: number;
-  offset: number;
-};
-
-type BackendHealthResponse = {
-  status: string;
-  service?: string;
-};
+export type { BackendJobResponse } from '@/src/lib/generated/api-schemas';
 
 function normalizeJobStatus(status: string): JobStatus {
   if (
@@ -125,6 +73,21 @@ function mapGithub(github: BackendDossier['github']): Dossier['github'] | undefi
   };
 }
 
+function normalizeHandleMetadata(
+  metadata: Record<string, unknown> | undefined,
+): Record<string, string | number | boolean> | undefined {
+  if (!metadata) {
+    return undefined;
+  }
+  const normalized: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      normalized[key] = value;
+    }
+  }
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
 function mapDossier(dossier: BackendDossier): Dossier {
   const metadata = dossier.metadata ?? {};
 
@@ -145,7 +108,7 @@ function mapDossier(dossier: BackendDossier): Dossier {
       username: handle.username,
       profileUrl: handle.profile_url,
       confidence: handle.confidence,
-      metadata: handle.metadata,
+      metadata: normalizeHandleMetadata(handle.metadata),
     })),
     emails: dossier.emails ?? [],
     verifiedEmails: (dossier.verified_emails ?? []).map((email) => ({
@@ -157,7 +120,7 @@ function mapDossier(dossier: BackendDossier): Dossier {
     github: mapGithub(dossier.github),
     coworkers: dossier.coworkers ?? [],
     jobs: dossier.jobs ?? [],
-    business: dossier.business,
+    business: dossier.business ?? undefined,
     confidence: dossier.confidence ?? [],
     sources: dossier.sources ?? [],
     metadata: {
@@ -234,23 +197,6 @@ export function mapBackendJobListToFrontend(response: BackendJobListResponse): J
   };
 }
 
-type BackendSignalListItem = {
-  id: string;
-  source: string;
-  watch_id: string;
-  title: string;
-  url: string;
-  timestamp?: string | null;
-  created_at: string;
-};
-
-type BackendSignalListResponse = {
-  signals: BackendSignalListItem[];
-  total: number;
-  limit: number;
-  offset: number;
-};
-
 export function mapBackendSignalListItem(item: BackendSignalListItem): SignalListItem {
   return {
     id: item.id,
@@ -298,15 +244,6 @@ export function toBackendDsarRequest(input: DsarInput) {
     notes: input.notes || null,
   };
 }
-
-type BackendDsarResponse = {
-  id: string;
-  status: string;
-  request_type: string;
-  created_at: string;
-  completed_at?: string | null;
-  summary: Record<string, unknown>;
-};
 
 export function mapBackendDsarResponse(response: BackendDsarResponse): DsarResponse {
   return {
