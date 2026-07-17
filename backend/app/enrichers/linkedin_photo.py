@@ -13,7 +13,7 @@ from app.observability.tier1_metrics import (
     tier1_scrape_total,
     tier1_upload_total,
 )
-from app.providers.linkedin.urls import extract_linkedin_slug
+from app.integrations.linkedin.urls import extract_linkedin_slug
 from app.storage.photo_cache import PhotoCache
 from app.storage.r2 import R2StorageClient, R2StorageError, object_key_with_extension
 
