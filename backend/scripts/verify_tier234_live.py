@@ -127,9 +127,9 @@ def main() -> int:
 
     live_steps: list[tuple[str, list[str]]] = [
         ("probe_sidecars", _bash("probe_sidecars.sh")),
-        ("tier2_e2e", _python_script("e2e_tier2.py")),
-        ("tier3_e2e", _python_script("e2e_tier3.py")),
-        ("strict_e2e", _python_script("e2e_realworld_strict.py")),
+        ("tier2_e2e", _bash("e2e_tier2.sh")),
+        ("tier3_e2e", _bash("e2e_tier3.sh")),
+        ("strict_e2e", _bash("e2e_realworld_strict.sh")),
         ("full_path_live", _bash("e2e_full_path.sh", "--live")),
     ]
     for name, cmd in live_steps:
