@@ -9,7 +9,7 @@ from typing import Any
 from app.core.config import get_settings
 from app.enrichers.base import Enricher
 from app.domain.enrichment import EnrichmentRequest
-from app.providers import SidecarClient
+from app.clients.sidecar import SidecarClient
 
 
 class LocalBusinessEnricher(Enricher):

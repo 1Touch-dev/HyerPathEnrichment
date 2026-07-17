@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.providers.linkedin_browser import (
+from app.integrations.linkedin.browser_facade import (
     ExtractionMethod,
     LinkedInBrowserClient,
     LinkedInPhotoError,
@@ -393,7 +393,7 @@ async def test_scrape_photo_success_path(monkeypatch: pytest.MonkeyPatch) -> Non
     fake_result.confidence = 0.84
 
     with patch(
-        "app.providers.linkedin_browser.LinkedInBrowserClient.scrape_photo",
+        "app.integrations.linkedin.browser_facade.LinkedInBrowserClient.scrape_photo",
         new=AsyncMock(return_value=fake_result),
     ):
         result = await scrape_photo("https://linkedin.com/in/jane-doe")

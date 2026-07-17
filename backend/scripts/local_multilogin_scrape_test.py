@@ -36,11 +36,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.core.config import get_settings
 from app.domain.dossier import PhotoAsset
-from app.providers.linkedin.urls import extract_linkedin_slug
-from app.providers.linkedin_browser import LinkedInBrowserClient, LinkedInPhotoError
 from app.database.session import init_db
+from app.core.config import get_settings
+from app.integrations.linkedin.urls import extract_linkedin_slug
+from app.integrations.linkedin.browser_facade import LinkedInBrowserClient, LinkedInPhotoError
 from app.storage.photo_cache import PhotoCache, _redis_key, slug_hash
 from app.storage.r2 import R2StorageClient, R2StorageError, object_key_with_extension, r2_is_configured
 from app.infrastructure.redis import get_redis_client

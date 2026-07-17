@@ -6,8 +6,8 @@ cd /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/docker
 docker compose -f docker-compose.yml -f docker-compose.tier1.yml exec -T worker python - <<'PY'
 import asyncio
 import traceback
-from app.providers.multilogin import MultiloginClient
-from app.providers.linkedin.client import LinkedInBrowserClient
+from app.clients.multilogin import MultiloginClient
+from app.integrations.linkedin.client import LinkedInBrowserClient
 
 async def main() -> None:
     mlx = MultiloginClient()

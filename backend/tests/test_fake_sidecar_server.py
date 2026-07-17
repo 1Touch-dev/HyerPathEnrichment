@@ -14,7 +14,7 @@ from app.core.config import get_settings
 from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher
 from app.domain.enrichment import EnrichmentRequest
-from app.providers import EmailVerifier
+from app.clients.email_verify import EmailVerifier
 
 FAKE_ROOT = Path(__file__).resolve().parents[1] / "docker" / "fake-sidecars"
 if str(FAKE_ROOT) not in sys.path:
@@ -57,7 +57,7 @@ async def test_fake_social_analyzer_enricher_integration(monkeypatch: pytest.Mon
             return response.text
         return response.json()
 
-    from app.providers import sidecar as sidecar_mod
+    from app.clients import sidecar as sidecar_mod
 
     async def _post_json(self, path="", json=None):
         return await _request(self, "POST", f"{self.base_url}{path}", json=json)
@@ -94,7 +94,7 @@ async def test_fake_gmaps_enricher_integration(monkeypatch: pytest.MonkeyPatch) 
     transport = httpx.ASGITransport(app=app)
     base = "http://test"
 
-    from app.providers import sidecar as sidecar_mod
+    from app.clients import sidecar as sidecar_mod
 
     async def _post_json(self, path="", json=None):
         async with httpx.AsyncClient(transport=transport, base_url=base) as client:
@@ -163,7 +163,7 @@ async def test_fake_reacher_enricher_integration(monkeypatch: pytest.MonkeyPatch
     transport = httpx.ASGITransport(app=app)
     base = "http://test"
 
-    from app.providers import sidecar as sidecar_mod
+    from app.clients import sidecar as sidecar_mod
 
     async def _post_json(self, path="", json=None):
         async with httpx.AsyncClient(transport=transport, base_url=base) as client:
@@ -191,7 +191,7 @@ async def test_fake_reacher_catchall_enricher_integration(monkeypatch: pytest.Mo
     transport = httpx.ASGITransport(app=app)
     base = "http://test"
 
-    from app.providers import sidecar as sidecar_mod
+    from app.clients import sidecar as sidecar_mod
 
     async def _post_json(self, path="", json=None):
         async with httpx.AsyncClient(transport=transport, base_url=base) as client:
@@ -232,7 +232,7 @@ async def test_fake_email_verifier_enricher_integration(monkeypatch: pytest.Monk
     transport = httpx.ASGITransport(app=app)
     base = "http://test"
 
-    from app.providers import sidecar as sidecar_mod
+    from app.clients import sidecar as sidecar_mod
 
     async def _get_json(self, path="", params=None):
         async with httpx.AsyncClient(transport=transport, base_url=base) as client:

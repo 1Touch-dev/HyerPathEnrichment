@@ -10,8 +10,8 @@ import pytest
 
 from app.enrichers.base import Enricher
 from app.domain.enrichment import EnrichmentRequest
-from app.providers.retry import is_transient_http_error, with_transient_retry
-from app.providers.sidecar import SidecarClient
+from app.clients.retry import is_transient_http_error, with_transient_retry
+from app.clients.sidecar import SidecarClient
 from app.enrichers.pipeline import Pipeline
 
 

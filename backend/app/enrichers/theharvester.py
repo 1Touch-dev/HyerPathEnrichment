@@ -6,7 +6,8 @@ from app.core.config import get_settings
 from app.enrichers._shared import extract_emails
 from app.enrichers.base import Enricher
 from app.domain.enrichment import EnrichmentRequest
-from app.providers import ProxyProvider, run_command
+from app.clients.proxy import ProxyProvider
+from app.clients.process import run_command
 
 
 class TheHarvesterEnricher(Enricher):

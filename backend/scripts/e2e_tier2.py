@@ -36,7 +36,7 @@ from app.enrichers.sherlock import SherlockEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
 from app.domain.enrichment import EnrichmentRequest
 from app.domain.dossier import SocialHandle
-from app.providers import SidecarClient
+from app.clients.sidecar import SidecarClient
 from app.enrichers.pipeline import Pipeline
 
 RESULTS_DIR = ROOT / ".e2e-results"

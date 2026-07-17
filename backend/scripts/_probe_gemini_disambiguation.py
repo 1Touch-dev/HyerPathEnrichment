@@ -25,10 +25,10 @@ os.environ["LITELLM_MODEL"] = "gemini-2.5-flash"
 os.environ["LITELLM_FALLBACKS"] = "gemini-flash-latest"
 os.environ["DISAMBIGUATION_THRESHOLD"] = "0.7"
 
-from app.core.config import get_settings
 from app.domain.enrichment import EnrichmentRequest
 from app.domain.dossier import SocialHandle
-from app.providers.llm import litellm_compare
+from app.core.config import get_settings
+from app.clients.llm import litellm_compare
 from app.enrichers.pipeline import Pipeline
 
 get_settings.cache_clear()

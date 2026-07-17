@@ -7,7 +7,7 @@ import pytest
 from app.core.config import get_settings
 from app.enrichers.email_verify import EmailVerifyEnricher
 from app.domain.enrichment import EnrichmentRequest
-from app.providers import EmailVerifier
+from app.clients.email_verify import EmailVerifier
 from app.enrichers.pipeline import Pipeline
 
 
@@ -220,7 +220,7 @@ async def test_reacher_catch_all_surfaces_low_trust(
     async def _aftership_should_not_run(self, url: str, email: str):
         raise AssertionError("AfterShip must not run when Reacher reports catch-all")
 
-    from app.providers import sidecar as sidecar_mod
+    from app.clients import sidecar as sidecar_mod
 
     async def _post_json(self, path="", json=None):
         return {

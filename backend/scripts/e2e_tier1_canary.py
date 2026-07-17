@@ -32,7 +32,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.core.config import get_settings
-from app.providers.linkedin_browser import extract_linkedin_slug
+from app.integrations.linkedin.browser_facade import extract_linkedin_slug
 
 RESULTS_DIR = ROOT / ".e2e-results"
 SOURCE_NAME = "linkedin-photo"

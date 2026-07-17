@@ -14,7 +14,7 @@ import httpx
 from selenium import webdriver
 from selenium.webdriver.chromium.options import ChromiumOptions
 from app.core.config import get_settings
-from app.providers.multilogin import MultiloginClient
+from app.clients.multilogin import MultiloginClient
 
 async def main() -> None:
     s = get_settings()

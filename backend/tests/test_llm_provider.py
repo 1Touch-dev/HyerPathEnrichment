@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from app.core.config import Settings
-from app.providers.llm import (
+from app.clients.llm import (
     LLMDecision,
     _parse_decision,
     build_disambiguation_messages,

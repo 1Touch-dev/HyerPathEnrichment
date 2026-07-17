@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.providers.linkedin_browser import extract_linkedin_slug, is_placeholder_image_url
+from app.integrations.linkedin.browser_facade import extract_linkedin_slug, is_placeholder_image_url
 
 
 @pytest.mark.parametrize(

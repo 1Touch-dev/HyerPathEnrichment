@@ -10,7 +10,7 @@ sleep 2
 # Start profile inside worker, print port only, leave profile running briefly
 PORT=$(docker compose -f docker-compose.yml -f docker-compose.tier1.yml exec -T worker python -u - <<'PY'
 import asyncio
-from app.providers.multilogin import MultiloginClient
+from app.clients.multilogin import MultiloginClient
 
 async def main() -> None:
     mlx = MultiloginClient()
@@ -51,7 +51,7 @@ PY
 # Stop profile
 docker compose -f docker-compose.yml -f docker-compose.tier1.yml exec -T worker python -u - <<'PY'
 import asyncio
-from app.providers.multilogin import MultiloginClient
+from app.clients.multilogin import MultiloginClient
 async def main():
     mlx = MultiloginClient()
     token = await mlx.sign_in(force=True)

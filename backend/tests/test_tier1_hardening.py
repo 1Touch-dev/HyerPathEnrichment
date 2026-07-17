@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.providers.linkedin_browser import (
+from app.integrations.linkedin.browser_facade import (
     LinkedInPhotoError,
     has_valid_linkedin_session,
     is_placeholder_image_url,
     login_linkedin,
     placeholder_fragments,
 )
-from app.providers.profile_pool import ProfileOutcome, ProfilePool
+from app.integrations.multilogin.profile_pool import ProfileOutcome, ProfilePool
 
 
 class _FakeDriver:

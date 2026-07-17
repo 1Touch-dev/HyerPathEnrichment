@@ -15,7 +15,7 @@ import socket
 import sys
 import httpx
 from app.core.config import get_settings
-from app.providers.multilogin import MultiloginClient
+from app.clients.multilogin import MultiloginClient
 
 def tcp_check(host: str, port: int, timeout: float = 5.0) -> str:
     try:

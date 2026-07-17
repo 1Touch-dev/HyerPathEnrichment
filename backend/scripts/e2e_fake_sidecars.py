@@ -30,7 +30,8 @@ from app.enrichers.social_analyzer import SocialAnalyzerEnricher
 from app.enrichers.email_verify import EmailVerifyEnricher
 from app.domain.enrichment import EnrichmentRequest
 from app.domain.enums import RequestedTier
-from app.providers import EmailVerifier, SidecarClient
+from app.clients.email_verify import EmailVerifier
+from app.clients.sidecar import SidecarClient
 
 RESULTS_DIR = ROOT / ".e2e-results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -164,7 +165,7 @@ class FakeSidecarProbe:
         from unittest.mock import patch
 
         basic_settings = get_settings().model_copy(update={"email_verify_level": "basic"})
-        with patch("app.providers.email_verify.get_settings", return_value=basic_settings):
+        with patch("app.clients.email_verify.get_settings", return_value=basic_settings):
             basic = await EmailVerifier().verify("user@example.com")
         self.record(
             "enricher_email_verify_basic",

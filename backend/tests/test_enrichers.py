@@ -17,8 +17,9 @@ from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.sherlock import SherlockEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
 from app.domain.enrichment import EnrichmentRequest
-from app.providers import EmailVerifier, ProxyProvider
-from app.providers import sidecar as sidecar_mod
+from app.clients.email_verify import EmailVerifier
+from app.clients.proxy import ProxyProvider
+from app.clients import sidecar as sidecar_mod
 from tests.conftest import FakeRedis
 
 
@@ -274,7 +275,7 @@ async def test_email_verifier_reacher_catch_all_status(
     async def _no_mx(self, domain: str):
         return None
 
-    from app.providers import sidecar as sidecar_mod
+    from app.clients import sidecar as sidecar_mod
 
     async def _post_json(self, path="", json=None):
         return {

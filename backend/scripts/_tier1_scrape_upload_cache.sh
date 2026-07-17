@@ -8,8 +8,8 @@ docker compose -f docker-compose.yml -f docker-compose.tier1.yml up -d worker
 
 docker compose -f docker-compose.yml -f docker-compose.tier1.yml exec -T worker python - <<'PY'
 import asyncio, json, time, urllib.request
-from app.providers.multilogin import MultiloginClient
-from app.providers.linkedin.client import LinkedInBrowserClient
+from app.clients.multilogin import MultiloginClient
+from app.integrations.linkedin.client import LinkedInBrowserClient
 from app.storage.r2 import R2StorageClient
 from app.storage.photo_cache import PhotoCache
 from app.domain.dossier import PhotoAsset

@@ -64,7 +64,7 @@ pass "scrapoxy container up"
 
 echo "== ProxyProvider endpoint inside worker =="
 proxy_out="$(docker compose -f docker-compose.yml -f docker-compose.staging.yml exec -T worker \
-  python -c "from app.providers.proxy import ProxyProvider; print(ProxyProvider().get() or '')")"
+  python -c "from app.clients.proxy import ProxyProvider; print(ProxyProvider().get() or '')")"
 if [ -z "$proxy_out" ]; then
   fail "ProxyProvider.get() returned empty with PROXY_MODE=scrapoxy"
 fi

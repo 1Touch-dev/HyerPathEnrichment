@@ -23,8 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.providers.linkedin_browser import LinkedInBrowserClient, LinkedInPhotoError, extract_linkedin_slug
-from app.providers.profile_pool import ProfilePool
+from app.integrations.linkedin.browser_facade import LinkedInBrowserClient, LinkedInPhotoError, extract_linkedin_slug
+from app.integrations.multilogin.profile_pool import ProfilePool
 from app.storage.photo_cache import PhotoCache
 
 

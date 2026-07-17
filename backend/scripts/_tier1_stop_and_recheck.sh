@@ -6,7 +6,7 @@ docker compose -f docker-compose.yml -f docker-compose.tier1.yml exec -T worker 
 import asyncio
 import httpx
 from app.core.config import get_settings
-from app.providers.multilogin import MultiloginClient
+from app.clients.multilogin import MultiloginClient
 
 async def main() -> None:
     s = get_settings()

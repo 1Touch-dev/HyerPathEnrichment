@@ -85,7 +85,7 @@ PY
 pass "langfuse UI reachable"
 
 docker compose -f docker-compose.yml exec -T worker \
-  python -c "from app.providers.llm import trace; trace('e2e-langfuse-smoke', {'source': 'e2e_langfuse.sh'}); print('ok')"
+  python -c "from app.clients.llm import trace; trace('e2e-langfuse-smoke', {'source': 'e2e_langfuse.sh'}); print('ok')"
 pass "trace() smoke invoked"
 
 write_report 0

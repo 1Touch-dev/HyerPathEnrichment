@@ -35,7 +35,7 @@ from app.enrichers.email_verify import EmailVerifyEnricher
 from app.enrichers.gitrecon import GitReconEnricher
 from app.enrichers.theharvester import TheHarvesterEnricher
 from app.domain.enrichment import EnrichmentRequest
-from app.providers import SidecarClient
+from app.clients.sidecar import SidecarClient
 
 RESULTS_DIR = ROOT / ".e2e-results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)

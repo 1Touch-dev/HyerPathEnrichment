@@ -29,10 +29,10 @@ if _env.exists():
         value = value.strip().strip('"').strip("'")
         os.environ.setdefault(key, value)
 
-from app.core.config import Settings, get_settings
 from app.domain.enrichment import EnrichmentRequest
 from app.domain.dossier import SocialHandle
-from app.providers.llm import LLMDecision, litellm_compare
+from app.core.config import Settings, get_settings
+from app.clients.llm import LLMDecision, litellm_compare
 from app.enrichers.pipeline import Pipeline
 
 

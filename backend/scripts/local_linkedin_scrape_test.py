@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT))
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-from app.providers.linkedin_browser import (
+from app.integrations.linkedin.browser_facade import (
     LinkedInPhotoError,
     _scrape_on_driver,
     download_image,

@@ -31,7 +31,7 @@ class LinkedInPhotoEnricher(Enricher):
     def browser(self) -> Any:
         # Lazy: selenium lives in linkedin_browser; unit tests must not need it.
         if self._browser is None:
-            from app.providers.linkedin_browser import LinkedInBrowserClient
+            from app.integrations.linkedin.browser_facade import LinkedInBrowserClient
 
             self._browser = LinkedInBrowserClient()
         return self._browser
