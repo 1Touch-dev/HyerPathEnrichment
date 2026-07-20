@@ -2,6 +2,17 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
+# Bind a dedicated SQLite file before any app import creates the async engine.
+# Relative ``./hyrepath.db`` (and local ``.env`` overrides) diverge between
+# repo-root CI, ``cd backend``, and leftover developer DBs.
+_TEST_DB = Path(__file__).resolve().parent / "_pytest_hyrepath.db"
+if _TEST_DB.exists():
+    _TEST_DB.unlink()
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_TEST_DB.as_posix()}"
+
 import pytest
 
 from app.compliance import suppression

@@ -30,6 +30,7 @@ dev = [
   "ruff>=0.5,<1.0",
   # LinkedIn unit tests import selenium-backed modules at collection time
   "selenium>=4.21,<5.0",
+  "requests>=2.31,<3.0",
 ]
 # Real enricher backends (Phase 1/2/3). All are lazily imported / shelled out
 # so the app degrades gracefully when a tool is absent; install for production.
