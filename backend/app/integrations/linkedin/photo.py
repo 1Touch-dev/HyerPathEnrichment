@@ -27,17 +27,15 @@ logger = logging.getLogger(__name__)
 
 def photo_candidates_from_element(img: Any) -> list[str]:
     candidates: list[str] = []
+    srcset = (img.get_attribute("srcset") or "").strip()
+    if srcset:
+        parsed = photo_url_from_srcset(srcset)
+        if parsed:
+            candidates.append(parsed)
     for attr in DOM_PHOTO_ATTRS:
         value = (img.get_attribute(attr) or "").strip()
         if value and value not in candidates:
             candidates.append(value)
-    # Prefer explicit DOM attrs (e.g. `data-src`) over srcset.
-    # Unit tests expect `data-src` to win when both are present.
-    srcset = (img.get_attribute("srcset") or "").strip()
-    if srcset:
-        parsed = photo_url_from_srcset(srcset)
-        if parsed and parsed not in candidates:
-            candidates.append(parsed)
     return candidates
 
 
