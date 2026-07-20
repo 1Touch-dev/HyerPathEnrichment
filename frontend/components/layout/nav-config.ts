@@ -1,15 +1,11 @@
 import {
   LayoutDashboard,
-  PlusCircle,
   History,
   Shield,
   Settings,
   Activity,
-  Sparkles,
-  LifeBuoy,
-  LogOut,
-  FileSearch,
   Bell,
+  Search,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -26,29 +22,22 @@ export type NavSection = {
 };
 
 export const mainNav: NavSection = {
-  title: 'MAIN',
+  title: 'Main',
   items: [
-    { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/app/enrich', label: 'New Enrichment', icon: PlusCircle },
+    { href: '/app/enrich', label: 'Look up', icon: Search },
     { href: '/app/history', label: 'History', icon: History },
     { href: '/app/signals', label: 'Signals', icon: Bell },
-    { href: '/app/jobs', label: 'Results', icon: FileSearch },
   ],
 };
 
 export const systemNav: NavSection = {
-  title: 'SYSTEM',
+  title: 'System',
   items: [
+    { href: '/app/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/app/privacy', label: 'Privacy', icon: Shield },
     { href: '/app/settings', label: 'Settings', icon: Settings },
-    { href: '/app/health', label: 'System Health', icon: Activity },
+    { href: '/app/health', label: 'Health', icon: Activity },
   ],
 };
-
-export const footerNav: NavItem[] = [
-  { href: '#upgrade', label: 'Upgrade', icon: Sparkles, disabled: true },
-  { href: '#support', label: 'Support', icon: LifeBuoy, disabled: true },
-  { href: '#signout', label: 'Sign out', icon: LogOut, disabled: true },
-];
 
 export const allNavSections = [mainNav, systemNav];

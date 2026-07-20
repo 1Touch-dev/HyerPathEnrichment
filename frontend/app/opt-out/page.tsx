@@ -24,7 +24,7 @@ export default function OptOutPage() {
     <MarketingShell>
       <div className="mx-auto flex max-w-xl flex-col gap-10 px-4 py-12">
         <section className="flex flex-col gap-3 text-center">
-          <p className="text-xs font-semibold uppercase tracking-widest text-brand-primary">Privacy</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-primary">Privacy</p>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Opt out of enrichment</h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Public data-subject request form. No console login required. We process opt-out, access, and deletion
@@ -41,7 +41,7 @@ export default function OptOutPage() {
           <ol className="flex flex-col gap-3">
             {HOW_IT_WORKS.map((item) => (
               <li key={item.step} className="rounded-lg border border-border bg-card p-4">
-                <p className="font-mono text-xs text-brand-secondary">{item.step}</p>
+                <p className="font-mono text-xs text-primary">{item.step}</p>
                 <p className="mt-1 text-sm font-medium">{item.title}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>
               </li>

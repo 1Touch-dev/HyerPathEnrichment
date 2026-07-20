@@ -28,7 +28,7 @@ export function HealthView() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="h-4 w-4 text-brand-primary" />
+              <Activity className="h-4 w-4 text-primary" />
               API status
             </CardTitle>
             <CardDescription>Health endpoint via Next.js BFF</CardDescription>
@@ -40,7 +40,7 @@ export function HealthView() {
               <p className="text-sm text-destructive">{error.message}</p>
             ) : (
               <div className="flex items-center gap-3">
-                <span className={cn('h-3 w-3 rounded-full', online ? 'bg-brand-secondary' : 'bg-destructive')} />
+                <span className={cn('h-3 w-3 rounded-full', online ? 'bg-success' : 'bg-destructive')} />
                 <span className="font-mono text-sm">{data?.status ?? 'unknown'}</span>
               </div>
             )}

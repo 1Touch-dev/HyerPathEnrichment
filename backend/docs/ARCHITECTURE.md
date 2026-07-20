@@ -729,18 +729,17 @@ Upstream caps (LinkedIn, GitHub, SMTP) and Hyrepath ingress limits are documente
 - `docs/IMPLEMENTATION_NOTES.md` — AZI-11 delivery handoff
 - `GRILLME.md` — challenge-mode readiness checks
 - `CHANGELOG.md` — ticket-level release notes
+- [`docs/adr/README.md`](../../docs/adr/README.md) — formal architecture decision records (why X over Y)
 
 ---
 
 ## Open questions and next slices
 
-Track these as architecture decisions mature:
+Resolved architecture decisions are recorded in [`docs/adr/README.md`](../../docs/adr/README.md) (e.g. [0001 async Redis/RQ](../../docs/adr/0001-async-redis-rq.md), [0002 SQLite vs Postgres](../../docs/adr/0002-sqlite-local-postgres-docker.md), [0003 pipeline model](../../docs/adr/0003-pipeline-enricher-model.md)).
 
-1. ~~Wire Redis/RQ so `/enrich` is truly async~~ (done) — ~~make `/enrich/sync` exclude Tier 1 browser work~~ (done: `runner.py` sync_mode skips tier1)
-2. ~~Replace enricher mocks with subprocess/library integrations per upstream repo~~ (done) — remaining: GMaps sidecar against live deployments; Tier 2 SA + Sherlock/Maigret covered by `e2e_tier2.sh`; Tier 3 covered by `e2e_tier3.sh`
-3. ~~Remove Bearer auth from `POST /api/opt-out` for compliance accessibility~~ (done) — opt-out and DSAR are public with IP rate limiting; enrich remains Bearer-protected
-4. ~~Promote SQLite → PostgreSQL in default docker-compose wiring~~ (done) — ~~Alembic migrations and `JSONB` columns~~ (done)
-5. ~~Connect LiteLLM + Langfuse in `clients/llm.py`~~ (done, opt-in) — remaining: real prompt tuning + cost dashboards once `LLM_MODE=litellm` is exercised
-6. ~~Swap nginx sidecar placeholders for real Reacher, social-analyzer, and GMaps images~~ (done) — GMaps Playwright CDN 404 fixed via local Dockerfile with npm-assembled driver (2026-07-13); free-sidecar smoke PASS; social-analyzer healthcheck + Tier 2 E2E harness
+**Remaining work (not yet ADR-worthy or still in flight):**
 
-For tier-specific issues, use `[Tier N]` in issue titles (e.g. `[Tier 3] Reacher fallback fails on catch-all`).
+- GMaps sidecar validation against live deployments beyond free-stack smoke
+- LiteLLM prompt tuning and cost dashboards once `LLM_MODE=litellm` is exercised in staging/prod
+
+For new architectural choices or reversals, add ADR 0007+ (copy [`docs/adr/template.md`](../../docs/adr/template.md)) or open a GitHub issue with `[ADR]` prefix. For tier-specific bugs, use `[Tier N]` in issue titles (e.g. `[Tier 3] Reacher fallback fails on catch-all`).

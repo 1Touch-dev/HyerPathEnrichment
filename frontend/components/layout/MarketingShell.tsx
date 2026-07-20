@@ -12,7 +12,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
       <header className="border-b border-border bg-card/40">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href="/" className="flex flex-col gap-0.5">
-            <span className="text-xs font-semibold uppercase tracking-widest text-brand-primary">Hyrepath</span>
+            <span className="text-xs font-semibold uppercase tracking-widest text-primary">Hyrepath</span>
             <span className="text-sm font-semibold tracking-tight">Enrichment</span>
           </Link>
           <div className="flex items-center gap-2">
@@ -20,7 +20,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
               <Link href="/opt-out">Opt-out</Link>
             </Button>
             <Button asChild size="sm">
-              <Link href="/app">Open console</Link>
+              <Link href="/app/enrich">Open console</Link>
             </Button>
           </div>
         </div>
@@ -30,10 +30,10 @@ export function MarketingShell({ children }: MarketingShellProps) {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-xs text-muted-foreground">
           <span>Self-hosted enrichment · LGPD / GDPR / CCPA</span>
           <div className="flex gap-4">
-            <Link href="/opt-out" className="hover:text-brand-primary">
+            <Link href="/opt-out" className="hover:text-primary">
               Opt-out
             </Link>
-            <Link href="/app" className="hover:text-brand-primary">
+            <Link href="/app/enrich" className="hover:text-primary">
               Console
             </Link>
           </div>

@@ -53,9 +53,9 @@ export function OptOutForm() {
 
   if (submitted) {
     return (
-      <Card className="border-brand-secondary/30" data-testid="opt-out-success">
+      <Card className="border-success/30" data-testid="opt-out-success">
         <CardHeader>
-          <p className="text-xs font-semibold uppercase tracking-widest text-brand-secondary">Accepted</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-success">Accepted</p>
           <CardTitle>Request accepted</CardTitle>
           <CardDescription>We process data subject requests within 30 days.</CardDescription>
         </CardHeader>
@@ -84,7 +84,7 @@ export function OptOutForm() {
   return (
     <Card className="border-border" data-testid="opt-out-form">
       <CardHeader>
-        <p className="text-xs font-semibold uppercase tracking-widest text-brand-primary">Data subject request</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary">Data subject request</p>
         <CardTitle>Compliance requests</CardTitle>
         <CardDescription>
           Opt out of enrichment, request a copy of stored metadata, or request deletion (LGPD/GDPR/CCPA).

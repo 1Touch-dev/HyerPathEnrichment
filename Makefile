@@ -1,7 +1,7 @@
 # HyerEnrichment — common local-dev targets
 # Free Docker stack: api, worker, redis, postgres, social-analyzer, google-maps-scraper
 
-.PHONY: help setup up down test smoke smoke-prod boundary-checks migrate integration-e2e e2e-full-path load-test audit audit-python audit-frontend
+.PHONY: help setup up down test smoke smoke-prod boundary-checks migrate integration-e2e e2e-full-path load-test audit audit-python audit-frontend verify-adrs
 
 .DEFAULT_GOAL := help
 
@@ -25,6 +25,7 @@ help: ## List available targets
 	@echo "  audit    Run pip-audit (backend dev+enrichers) and npm audit (high/critical)"
 	@echo "  audit-python      Python dependency audit only"
 	@echo "  audit-frontend    Frontend npm audit only"
+	@echo "  verify-adrs  Validate formal ADR structure and cross-links (Task 6)"
 	@echo "  help     Show this help"
 
 setup: ## Env file + editable backend install (venv; avoids PEP 668)
@@ -96,3 +97,10 @@ audit-python: ## Python dependency audit only
 
 audit-frontend: ## Frontend npm audit only (high/critical)
 	cd frontend && npm ci --silent && npm run audit:ci
+
+verify-adrs: ## Validate formal ADR structure and cross-links (Task 6)
+	@if [ -x $(BACKEND_DIR)/.venv/bin/python ]; then \
+		$(BACKEND_DIR)/.venv/bin/python $(BACKEND_DIR)/scripts/verify_adrs.py --json; \
+	else \
+		python3 $(BACKEND_DIR)/scripts/verify_adrs.py --json; \
+	fi

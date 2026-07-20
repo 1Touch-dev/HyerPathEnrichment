@@ -16,8 +16,8 @@ export default function HistoryPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Job history</h1>
-        <p className="text-sm text-muted-foreground">Paginated enrichment runs with shareable job links.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">History</h1>
+        <p className="text-sm text-muted-foreground">Recent enrichment runs with shareable job links.</p>
       </div>
 
       {error ? (

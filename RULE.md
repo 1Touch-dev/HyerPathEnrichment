@@ -178,3 +178,4 @@ Sometimes the right fix violates a rule. When that happens:
 - [ ] Tests or typecheck run for the area changed
 - [ ] No secrets, raw PII in logs, or opt-out bypass
 - [ ] `backend/docs/ARCHITECTURE.md` **Implementation status** updated if scaffold changed
+- [ ] New architectural choice or reversal → add/update an ADR in [`docs/adr/`](docs/adr/); link from ARCHITECTURE if implementation status changes

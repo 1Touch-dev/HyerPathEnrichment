@@ -1,12 +1,16 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { Dossier } from '@/src/lib/types';
 import { DossierSummary } from '@/components/console/DossierSummary';
 import { RawJsonPanel } from '@/components/console/RawJsonPanel';
 import { EmptyState } from '@/components/console/EmptyState';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { DossierScanList } from './DossierScanList';
+import { EntityDetailPanel } from './EntityDetailPanel';
+import type { DossierEntity } from './dossier-entity';
 import { formatPercent, initialsFrom } from '@/src/lib/utils';
 import { EnrichmentJob } from '@/src/lib/types';
 
@@ -32,6 +36,68 @@ export function DossierView({ job }: DossierViewProps) {
   const loading = status === 'running' || status === 'queued';
   const suppressed = status === 'suppressed';
 
+  // Legacy helpers below are kept temporarily during the refactor.
+  // Referencing them prevents TS noUnusedLocals errors while the codebase migrates.
+  void IdentitySection;
+  void HandlesSection;
+  void EmailsSection;
+  void GithubSection;
+  void JobsBusinessSection;
+  void ConfidenceSection;
+  void SourcesSection;
+
+  const [selectedEntity, setSelectedEntity] = useState<DossierEntity | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 767px)');
+
+    const apply = () => setIsMobile(mql.matches);
+    apply();
+
+    const onChange = () => apply();
+
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', onChange);
+      return () => mql.removeEventListener('change', onChange);
+    }
+
+    // Safari fallback for older MediaQueryList implementations.
+    const legacy = mql as unknown as {
+      addListener: (cb: () => void) => void;
+      removeListener: (cb: () => void) => void;
+    };
+
+    legacy.addListener(onChange);
+    return () => legacy.removeListener(onChange);
+  }, []);
+
+  useEffect(() => {
+    setSelectedEntity(null);
+    setSheetOpen(false);
+  }, [job.id]);
+
+  const hasFindings = useMemo(
+    () =>
+      dossier.handles.length ||
+      dossier.emails.length ||
+      dossier.verifiedEmails.length ||
+      dossier.jobs.length ||
+      dossier.confidence.length ||
+      dossier.sources.length,
+    [dossier],
+  );
+
+  const selectedId = selectedEntity?.id ?? null;
+
+  const handleSelect = (entity: DossierEntity) => {
+    setSelectedEntity(entity);
+    if (isMobile) {
+      setSheetOpen(true);
+    }
+  };
+
   if (suppressed) {
     return (
       <div className="flex flex-col gap-4">
@@ -52,40 +118,39 @@ export function DossierView({ job }: DossierViewProps) {
           <DossierSummary dossier={dossier} loading={loading} />
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="identity">
-            <TabsList className="mb-4 flex h-auto flex-wrap">
-              <TabsTrigger value="identity">Identity</TabsTrigger>
-              <TabsTrigger value="handles">Handles</TabsTrigger>
-              <TabsTrigger value="emails">Verified emails</TabsTrigger>
-              <TabsTrigger value="github">GitHub & coworkers</TabsTrigger>
-              <TabsTrigger value="jobs">Jobs & business</TabsTrigger>
-              <TabsTrigger value="confidence">Confidence</TabsTrigger>
-              <TabsTrigger value="sources">Sources</TabsTrigger>
-            </TabsList>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="min-w-0">
+              {loading && !hasFindings ? <SectionSkeleton /> : null}
+              {hasFindings ? (
+                <DossierScanList dossier={dossier} selectedId={selectedId} onSelect={handleSelect} />
+              ) : (
+                <EmptyMessage message={loading ? 'Building findings…' : 'No findings returned.'} />
+              )}
+            </div>
 
-            <TabsContent value="identity" className="flex flex-col gap-4">
-              {loading ? <SectionSkeleton /> : null}
-              <IdentitySection dossier={dossier} />
-            </TabsContent>
-            <TabsContent value="handles">
-              {loading && !dossier.handles.length ? <SectionSkeleton /> : <HandlesSection dossier={dossier} />}
-            </TabsContent>
-            <TabsContent value="emails">
-              {loading && !dossier.verifiedEmails.length ? <SectionSkeleton /> : <EmailsSection dossier={dossier} />}
-            </TabsContent>
-            <TabsContent value="github">
-              {loading && !dossier.github ? <SectionSkeleton /> : <GithubSection dossier={dossier} />}
-            </TabsContent>
-            <TabsContent value="jobs">
-              {loading && !dossier.jobs.length ? <SectionSkeleton /> : <JobsBusinessSection dossier={dossier} />}
-            </TabsContent>
-            <TabsContent value="confidence">
-              {loading && !dossier.confidence.length ? <SectionSkeleton /> : <ConfidenceSection dossier={dossier} />}
-            </TabsContent>
-            <TabsContent value="sources">
-              {loading && !dossier.sources.length ? <SectionSkeleton /> : <SourcesSection dossier={dossier} />}
-            </TabsContent>
-          </Tabs>
+            <div className="hidden lg:block">
+              {selectedEntity ? (
+                <EntityDetailPanel dossier={dossier} entity={selectedEntity} />
+              ) : (
+                <EmptyMessage message="Select a finding to view details." />
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 lg:hidden">
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+              <SheetContent side="right">
+                {selectedEntity ? (
+                  <EntityDetailPanel dossier={dossier} entity={selectedEntity} />
+                ) : (
+                  <EmptyState
+                    title="Select a finding"
+                    description="Pick a row from the scan list to view details."
+                  />
+                )}
+              </SheetContent>
+            </Sheet>
+          </div>
         </CardContent>
       </Card>
       <RawJsonPanel job={job} />
@@ -107,7 +172,7 @@ function IdentitySection({ dossier }: { dossier: Dossier }) {
               <div className="flex size-16 items-center justify-center rounded-full bg-muted text-lg font-semibold">
                 {initialsFrom(title)}
               </div>
-              <a href={dossier.photo.assetUrl} target="_blank" rel="noreferrer" className="text-accent break-all">
+              <a href={dossier.photo.assetUrl} target="_blank" rel="noreferrer" className="text-primary break-all">
                 {dossier.photo.assetUrl}
               </a>
               <p className="text-muted-foreground">
@@ -150,7 +215,7 @@ function HandlesSection({ dossier }: { dossier: Dossier }) {
           <div className="font-medium">
             {handle.platform} · {handle.username}
           </div>
-          <a href={handle.profileUrl} target="_blank" rel="noreferrer" className="text-accent break-all">
+          <a href={handle.profileUrl} target="_blank" rel="noreferrer" className="text-primary break-all">
             {handle.profileUrl}
           </a>
           <div className="text-muted-foreground">{formatPercent(handle.confidence)}</div>
@@ -187,7 +252,7 @@ function GithubSection({ dossier }: { dossier: Dossier }) {
         </CardHeader>
         <CardContent className="text-sm">
           {dossier.github?.profile ? (
-            <a href={dossier.github.profile} target="_blank" rel="noreferrer" className="text-accent">
+            <a href={dossier.github.profile} target="_blank" rel="noreferrer" className="text-primary">
               {dossier.github.profile}
             </a>
           ) : (
@@ -257,7 +322,7 @@ function JobsBusinessSection({ dossier }: { dossier: Dossier }) {
               <li>{dossier.business.name}</li>
               <li>{dossier.business.address}</li>
               <li>
-                <a href={dossier.business.website} target="_blank" rel="noreferrer" className="text-accent">
+                <a href={dossier.business.website} target="_blank" rel="noreferrer" className="text-primary">
                   {dossier.business.website}
                 </a>
               </li>

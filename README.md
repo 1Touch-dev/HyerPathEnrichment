@@ -1043,6 +1043,7 @@ When filing issues, use tier prefixes: `[Tier 3] Reacher fallback fails on catch
 | Document | Contents |
 |----------|----------|
 | [`backend/docs/ARCHITECTURE.md`](backend/docs/ARCHITECTURE.md) | Detailed backend architecture, agent quick reference, implementation status |
+| [`docs/adr/README.md`](docs/adr/README.md) | Formal ADRs — why we chose X over Y (onboarding, no re-litigation) |
 | [`backend/README.md`](backend/README.md) | Backend run and test commands |
 | [`RULE.md`](RULE.md) | Development rules — reuse, no redundancy, safety |
 | [`docs/IMPLEMENTATION_NOTES.md`](docs/IMPLEMENTATION_NOTES.md) | AZI-11 delivery handoff |

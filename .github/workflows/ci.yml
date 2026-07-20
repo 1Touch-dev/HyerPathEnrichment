@@ -50,6 +50,9 @@ jobs:
       - name: Pytest
         run: pytest backend/tests -m "not postgres" -q --cov=app --cov-report=term-missing
 
+      - name: Verify formal ADRs
+        run: python backend/scripts/verify_adrs.py --json
+
   frontend-contract:
     runs-on: ubuntu-latest
     steps:

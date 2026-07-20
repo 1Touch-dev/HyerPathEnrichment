@@ -135,6 +135,13 @@ def wait_for_profile_photo_ready(driver: Any, wait: Any) -> None:
         if _d.find_elements(css, FIGURE_PHOTO_SELECTOR):
             return True
 
+        # The stable topcard avatar container indicates the browser has rendered
+        # the profile photo section even when the inner <img> isn't directly matched
+        # by our selectors (unit tests cover this path).
+        for container_sel in TOPCARD_PHOTO_CONTAINER_SELECTORS:
+            if _d.find_elements(css, container_sel):
+                return True
+
         for selector in DOM_PHOTO_SELECTORS:
             if _d.find_elements(css, selector):
                 return True

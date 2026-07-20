@@ -9,13 +9,13 @@ export function SettingsView() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Console preferences and integrations.</p>
+        <p className="text-sm text-muted-foreground">Defaults for lookups and operational integrations.</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>General</CardTitle>
-          <CardDescription>Default tier selection and polling preferences.</CardDescription>
+          <CardDescription>Default mode and integration base.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 max-w-md">
           <div className="flex flex-col gap-2">

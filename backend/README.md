@@ -44,6 +44,8 @@ make test
 
 CI enforces a line-coverage floor for `app/` via `fail_under` in `pyproject.toml`.
 
+Architecture decisions (why Redis vs in-process, SQLite vs Postgres, etc.): [`docs/adr/README.md`](../docs/adr/README.md).
+
 Change-signal ops (changedetection.io → `NOTIFY_WEBHOOK_URL`): see [ARCHITECTURE.md — Change signals](docs/ARCHITECTURE.md#change-signals-changedetectionio).
 
 Tier 2–4 debugging (prerequisites, isolation probes, tier-by-tier API curls): [`docs/TESTING_TIER234.md`](docs/TESTING_TIER234.md). Tier 2 full E2E: `bash scripts/e2e_tier2.sh`. Tier 3 full E2E: `bash scripts/e2e_tier3.sh`.

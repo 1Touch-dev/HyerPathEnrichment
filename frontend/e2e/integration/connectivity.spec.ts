@@ -41,15 +41,17 @@ test.describe('Live backend integration', () => {
     const username = `e2e-${Date.now()}`;
 
     await page.goto('/app/enrich');
-    await expect(page.getByRole('heading', { name: 'New enrichment' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Look someone up' })).toBeVisible();
 
     await page.getByLabel('Quick (sync)').click();
-    await page.getByRole('textbox', { name: 'Username' }).fill(username);
-    // Faster live run: tier2 only (tier3/4 sidecars may be absent locally)
-    await page.getByRole('checkbox', { name: 'TIER3 — Deep OSINT' }).click();
-    await page.getByRole('checkbox', { name: 'TIER4 — Job & Business Intelligence' }).click();
-    await expect(page.getByRole('button', { name: 'Run enrichment' })).toBeEnabled({ timeout: 15_000 });
-    await page.getByRole('button', { name: 'Run enrichment' }).click();
+    await page.getByRole('textbox', { name: 'Identifier' }).fill(username);
+
+    // Include tiers 2/3/4 (sync mode filters tier1 automatically).
+    await page.getByRole('button', { name: 'Advanced' }).click();
+    await page.getByRole('radio', { name: 'Deep' }).click();
+
+    await expect(page.getByRole('button', { name: 'Look up' })).toBeEnabled({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Look up' }).click();
 
     await expect(page).toHaveURL(/\/app\/jobs\/.+/, { timeout: 120_000 });
     await expect(page.getByRole('heading', { name: 'Job dossier' })).toBeVisible();
@@ -72,13 +74,13 @@ test.describe('Live backend integration', () => {
     test.skip(!jobId, 'requires job from sync enrich test');
 
     await page.goto('/app/history');
-    await expect(page.getByRole('heading', { name: 'Job history' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
     await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('link', { name: jobId })).toBeVisible();
+    await expect(page.getByText(jobId)).toBeVisible();
   });
 
   test('dashboard shows total jobs without error', async ({ page }) => {
-    await page.goto('/app');
+    await page.goto('/app/dashboard');
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
     await expect(page.getByText('Total jobs')).toBeVisible();
     await expect(page.locator('p.text-destructive')).toHaveCount(0);

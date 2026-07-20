@@ -27,7 +27,7 @@ test.describe('Public surfaces', () => {
 
 test.describe('Console shell', () => {
   test('dashboard renders KPI cards', async ({ page }) => {
-    await page.goto('/app');
+    await page.goto('/app/dashboard');
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
     await expect(page.getByText('Total jobs')).toBeVisible();
     await expect(page.getByText('Success rate')).toBeVisible();
@@ -42,7 +42,7 @@ test.describe('Console shell', () => {
 
   test('signals page lists mock change notifications', async ({ page }) => {
     await page.goto('/app/signals');
-    await expect(page.getByRole('heading', { name: 'Change signals' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Signals' })).toBeVisible();
     await expect(page.getByText('Acme Careers')).toBeVisible({ timeout: 15_000 });
   });
 });

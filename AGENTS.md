@@ -15,7 +15,7 @@ Before doing anything else:
 3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context — **local-only** (gitignored; create the folder on disk if missing; never commit to the org repo)
 4. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md`
 5. **Before writing code:** Read `RULE.md` — reuse, no redundancy, architecture, and safety rules for the whole repo
-6. **If the task touches the backend** (API, enrichers, orchestrator, tiers, opt-out, Docker): Read the **Agent quick reference** section at the top of `backend/docs/ARCHITECTURE.md` before editing code. Skim **Implementation status** there — do not assume queue, real enrichers, Postgres, or LiteLLM exist yet.
+6. **If the task touches the backend** (API, enrichers, orchestrator, tiers, opt-out, Docker): Read the **Agent quick reference** section at the top of `backend/docs/ARCHITECTURE.md` before editing code. Skim **Implementation status** there — do not assume queue, real enrichers, Postgres, or LiteLLM exist yet. For settled *why* questions (SQLite vs Postgres, Redis vs in-process), see [`docs/adr/README.md`](docs/adr/README.md).
 
 Don't ask permission. Just do it.
 
@@ -137,8 +137,9 @@ Before implementing anything in this repo:
 For enrichment API, orchestrator, enricher, tier, opt-out, or storage tasks:
 
 1. Read `RULE.md` and **Agent quick reference** at the top of `backend/docs/ARCHITECTURE.md`
-2. Check **Implementation status** — scaffold vs target
-3. Verify behavior in `backend/app/` before implementing
+2. Read [`docs/adr/README.md`](docs/adr/README.md) for settled architectural decisions (the why)
+3. Check **Implementation status** — scaffold vs target
+4. Verify behavior in `backend/app/` before implementing
 
 Do not assume Redis queue, real enricher integrations, Postgres, or LiteLLM exist yet.
 
