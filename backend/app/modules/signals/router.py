@@ -3,19 +3,21 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.enrichment import SignalListResponse
-from app.core.config import get_settings
 from app.clients.notify import notify_change_signal
-from app.signals.store import create_signal, list_signals
+from app.core.api_route import EnvelopeAPIRoute
+from app.core.config import get_settings
+from app.core.errors import UnauthorizedError
 from app.database.session import get_db_session
+from app.domain.enrichment import SignalListResponse
+from app.signals.store import create_signal, list_signals
 
 logger = logging.getLogger(__name__)
 
-webhook_router = APIRouter(prefix="/api/signals", tags=["signals"])
-list_router = APIRouter(prefix="/api/signals", tags=["signals"])
+webhook_router = APIRouter(prefix="/api/signals", tags=["signals"], route_class=EnvelopeAPIRoute)
+list_router = APIRouter(prefix="/api/signals", tags=["signals"], route_class=EnvelopeAPIRoute)
 router = webhook_router
 
 
@@ -43,7 +45,7 @@ async def changedetection_webhook(
     settings = get_settings()
     expected = settings.changedetection_api_key.strip()
     if expected and x_signal_token != expected:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid signal token")
+        raise UnauthorizedError("invalid signal token")
 
     watch_id, title, url, timestamp = _parse_changedetection_payload(payload)
 

@@ -65,7 +65,7 @@ def _create_sync_job(client: TestClient, headers: dict[str, str], email: str) ->
         json={"email": email, "username": email.split("@")[0], "requested_tiers": ["tier2"]},
     )
     assert response.status_code == 200
-    return response.json()["id"]
+    return response.json()["data"]["id"]
 
 
 def test_list_jobs_pagination() -> None:
@@ -78,7 +78,7 @@ def test_list_jobs_pagination() -> None:
 
     page_one = client.get("/enrich?limit=2&offset=0", headers=headers)
     assert page_one.status_code == 200
-    payload = page_one.json()
+    payload = page_one.json()["data"]
     assert payload["total"] >= 3
     assert payload["limit"] == 2
     assert payload["offset"] == 0
@@ -86,16 +86,16 @@ def test_list_jobs_pagination() -> None:
 
     page_two = client.get("/enrich?limit=2&offset=2", headers=headers)
     assert page_two.status_code == 200
-    payload_two = page_two.json()
+    payload_two = page_two.json()["data"]
     assert payload_two["limit"] == 2
     assert payload_two["offset"] == 2
     assert len(payload_two["jobs"]) >= 1
 
-    page_one_ids = {job["id"] for job in page_one.json()["jobs"]}
+    page_one_ids = {job["id"] for job in page_one.json()["data"]["jobs"]}
     page_two_ids = {job["id"] for job in payload_two["jobs"]}
     assert page_one_ids.isdisjoint(page_two_ids)
 
-    for job in page_one.json()["jobs"]:
+    for job in page_one.json()["data"]["jobs"]:
         assert "id" in job
         assert "status" in job
         assert "created_at" in job
@@ -109,4 +109,4 @@ def test_list_jobs_requires_bearer() -> None:
     client = TestClient(app)
     response = client.get("/enrich")
     assert response.status_code == 401
-    assert response.json()["detail"] == "unauthorized"
+    assert response.json()["error"]["message"] == "unauthorized"

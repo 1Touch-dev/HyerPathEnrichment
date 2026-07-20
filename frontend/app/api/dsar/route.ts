@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { mapBackendDsarResponse, parseBackendError, toBackendDsarRequest } from '@/src/lib/api-adapter';
+import {
+  BackendDsarResponse,
+  mapBackendDsarResponse,
+  parseBackendError,
+  toBackendDsarRequest,
+  unwrapBackendData,
+} from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
 import { isMockMode } from '@/src/lib/mocks/enabled';
 import { DsarInput, DsarResponse } from '@/src/lib/types';
@@ -49,6 +55,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message }, { status: backendResponse.status });
   }
 
-  const payload = mapBackendDsarResponse(await backendResponse.json());
+  const payload = mapBackendDsarResponse(
+    unwrapBackendData<BackendDsarResponse>(await backendResponse.json()),
+  );
   return NextResponse.json(payload, { status: 201 });
 }

@@ -16,7 +16,7 @@ def test_ready_returns_200_when_db_and_redis_ok() -> None:
         response = client.get("/ready")
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ready"
+    assert response.json()["data"]["status"] == "ready"
 
 
 def test_ready_returns_503_when_db_fails() -> None:
@@ -31,7 +31,7 @@ def test_ready_returns_503_when_db_fails() -> None:
         response = client.get("/ready")
 
     assert response.status_code == 503
-    assert "not ready" in response.json()["detail"]
+    assert "not ready" in response.json()["error"]["message"]
 
 
 def test_ready_returns_503_when_schema_behind() -> None:
@@ -46,7 +46,7 @@ def test_ready_returns_503_when_schema_behind() -> None:
         response = client.get("/ready")
 
     assert response.status_code == 503
-    assert "not ready" in response.json()["detail"]
+    assert "not ready" in response.json()["error"]["message"]
 
 
 def test_ready_returns_503_when_redis_fails() -> None:
@@ -58,4 +58,4 @@ def test_ready_returns_503_when_redis_fails() -> None:
         response = client.get("/ready")
 
     assert response.status_code == 503
-    assert "not ready" in response.json()["detail"]
+    assert "not ready" in response.json()["error"]["message"]

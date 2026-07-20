@@ -23,8 +23,8 @@ def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:
         json={"email": identifier, "username": "optout-user", "requested_tiers": ["tier2"]},
     )
     assert enrich.status_code == 200
-    assert enrich.json()["status"] == "completed"
-    job_id = enrich.json()["id"]
+    assert enrich.json()["data"]["status"] == "completed"
+    job_id = enrich.json()["data"]["id"]
 
     # Opt-out is public — no Authorization header.
     opt_out = client.post(
@@ -53,7 +53,7 @@ def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:
         headers=enrich_headers,
         json={"email": identifier, "username": "optout-user", "requested_tiers": ["tier2"]},
     )
-    assert blocked.json()["status"] == "suppressed"
+    assert blocked.json()["data"]["status"] == "suppressed"
 
 
 def test_opt_out_and_check_work_without_bearer() -> None:
@@ -65,7 +65,7 @@ def test_opt_out_and_check_work_without_bearer() -> None:
 
     check = client.get("/api/opt-out/check", params={"identifier": identifier})
     assert check.status_code == 200
-    assert check.json()["suppressed"] is True
+    assert check.json()["data"]["suppressed"] is True
 
 
 def test_enrich_still_requires_bearer() -> None:
@@ -75,4 +75,4 @@ def test_enrich_still_requires_bearer() -> None:
         json={"email": f"needs-auth-{uuid4().hex}@example.com", "username": "needs-auth", "requested_tiers": ["tier2"]},
     )
     assert response.status_code == 401
-    assert response.json()["detail"] == "unauthorized"
+    assert response.json()["error"]["message"] == "unauthorized"

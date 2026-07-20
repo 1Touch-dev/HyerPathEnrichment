@@ -6,6 +6,7 @@ import {
   parseBackendError,
   parseEnrichmentInput,
   toBackendEnrichmentRequest,
+  unwrapBackendData,
 } from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
 import { isMockMode } from '@/src/lib/mocks/enabled';
@@ -40,6 +41,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message }, { status: backendResponse.status });
   }
 
-  const backendJob = (await backendResponse.json()) as BackendJobResponse;
+  const backendJob = unwrapBackendData<BackendJobResponse>(await backendResponse.json());
   return NextResponse.json(mapBackendJobToFrontend(backendJob, input), { status: 202 });
 }

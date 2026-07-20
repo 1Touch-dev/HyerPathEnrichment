@@ -3,7 +3,7 @@
 Hyrepath Enrichment backend — architecture reference for the FastAPI service under `backend/`.
 
 **Version:** 0.3 (July 2026)  
-**Last verified against code:** 2026-07-17  
+**Last verified against code:** 2026-07-20  
 **Repo layout:** `HyerEnrichment/backend/` (split from the Next.js frontend in `frontend/`)
 
 ---
@@ -33,6 +33,7 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Clients / integrations | `app/clients/`, `app/integrations/` | External systems |
 | Infrastructure | `app/infrastructure/redis.py` | Redis connection factory only |
 | Database | `app/database/` | `Base`, session; Alembic stays at `backend/alembic/` |
+| HTTP envelopes | `app/core/responses.py`, `errors.py`, `exception_handlers.py`, `api_route.py` | All JSON success/error bodies use shared envelopes (`success`/`data` or `success`/`error` + `meta`) |
 
 **Execution split:** `EnrichmentService` starts/polls jobs; `Pipeline` runs enrichment; workers only provide the async environment. Sync and async both end at `Pipeline.run()`.
 
@@ -587,7 +588,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 
 | Area | Target (v0.2 guide) | Current scaffold |
 |------|---------------------|------------------|
-| API routes + auth | FastAPI + Bearer | Implemented |
+| API routes + auth | FastAPI + Bearer | Implemented — JSON responses use shared success/error envelopes (`app/core/`) |
 | Orchestrator + tier dispatch | `runner.py` | Implemented |
 | Enricher modules (11) | Real tool integrations | Real subprocess/library/sidecar calls behind `app/clients/` and `app/integrations/`; degrade to empty fragments when a backend is absent |
 | External clients layer | Config-selected free/paid backends | `app/clients/` (proxy, llm, email_verify, sidecar, process) + `app/integrations/` (linkedin, multilogin, browser); mode flags in `core/config.py` |

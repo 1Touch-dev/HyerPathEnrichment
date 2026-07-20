@@ -39,7 +39,7 @@ def test_list_signals_pagination(client: TestClient) -> None:
 
     page_one = client.get("/api/signals?limit=2&offset=0", headers=AUTH_HEADERS)
     assert page_one.status_code == 200
-    payload = page_one.json()
+    payload = page_one.json()["data"]
     assert payload["total"] >= 3
     assert payload["limit"] == 2
     assert payload["offset"] == 0
@@ -47,12 +47,12 @@ def test_list_signals_pagination(client: TestClient) -> None:
 
     page_two = client.get("/api/signals?limit=2&offset=2", headers=AUTH_HEADERS)
     assert page_two.status_code == 200
-    payload_two = page_two.json()
+    payload_two = page_two.json()["data"]
     assert payload_two["limit"] == 2
     assert payload_two["offset"] == 2
     assert len(payload_two["signals"]) >= 1
 
-    page_one_ids = {item["id"] for item in page_one.json()["signals"]}
+    page_one_ids = {item["id"] for item in page_one.json()["data"]["signals"]}
     page_two_ids = {item["id"] for item in payload_two["signals"]}
     assert page_one_ids.isdisjoint(page_two_ids)
 
@@ -60,7 +60,7 @@ def test_list_signals_pagination(client: TestClient) -> None:
 def test_list_signals_requires_bearer(client: TestClient) -> None:
     response = client.get("/api/signals")
     assert response.status_code == 401
-    assert response.json()["detail"] == "unauthorized"
+    assert response.json()["error"]["message"] == "unauthorized"
 
 
 def test_webhook_persists_before_notify(
@@ -88,7 +88,7 @@ def test_webhook_persists_before_notify(
 
     listing = client.get("/api/signals?limit=10&offset=0", headers=AUTH_HEADERS)
     assert listing.status_code == 200
-    signals = listing.json()["signals"]
+    signals = listing.json()["data"]["signals"]
     match = next((item for item in signals if item["watch_id"] == watch_id), None)
     assert match is not None
     assert match["title"] == "Persist Test"

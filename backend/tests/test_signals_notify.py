@@ -37,7 +37,7 @@ def test_changedetection_webhook_accepts_without_token_when_key_unset(
         )
 
     assert response.status_code == 202
-    assert response.json() == {"status": "accepted"}
+    assert response.json()["data"] == {"status": "accepted"}
     notify.assert_awaited_once_with(
         watch_id="abc-123",
         title="Acme Careers",

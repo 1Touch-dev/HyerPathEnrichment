@@ -24,7 +24,13 @@ import type {
   BackendSignalListResponse,
 } from '@/src/lib/generated/api-schemas';
 
-export type { BackendJobResponse } from '@/src/lib/generated/api-schemas';
+export type {
+  BackendDsarResponse,
+  BackendHealthResponse,
+  BackendJobListResponse,
+  BackendJobResponse,
+  BackendSignalListResponse,
+} from '@/src/lib/generated/api-schemas';
 
 function normalizeJobStatus(status: string): JobStatus {
   if (
@@ -281,12 +287,37 @@ export function hasIdentifier(input: EnrichmentInput): boolean {
   );
 }
 
+/** Unwrap backend SuccessResponse `{ success, data }` (or return bare payload for mocks/legacy). */
+export function unwrapBackendData<T>(payload: unknown): T {
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'success' in payload &&
+    (payload as { success: unknown }).success === true &&
+    'data' in payload
+  ) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+}
+
 export async function parseBackendError(response: Response): Promise<string> {
   const detail = await response.text();
   let message = detail || 'Backend error';
 
   try {
-    const parsed = JSON.parse(detail) as { detail?: string | Array<{ msg?: string }>; message?: string };
+    const parsed = JSON.parse(detail) as {
+      detail?: string | Array<{ msg?: string }>;
+      message?: string;
+      error?: { message?: string; details?: Array<{ msg?: string }> };
+    };
+    if (typeof parsed.error?.message === 'string') {
+      return parsed.error.message;
+    }
+    if (Array.isArray(parsed.error?.details)) {
+      const joined = parsed.error.details.map((item) => item.msg).filter(Boolean).join(', ');
+      if (joined) return joined;
+    }
     if (typeof parsed.message === 'string') {
       return parsed.message;
     }

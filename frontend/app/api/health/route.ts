@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { mapBackendHealth } from '@/src/lib/api-adapter';
+import { BackendHealthResponse, mapBackendHealth, unwrapBackendData } from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
 import { isMockMode } from '@/src/lib/mocks/enabled';
 
@@ -13,7 +13,7 @@ export async function GET() {
     if (!backendResponse.ok) {
       return NextResponse.json({ status: 'error', service: 'hyrepath-enrichment' }, { status: 502 });
     }
-    const payload = await backendResponse.json();
+    const payload = unwrapBackendData<BackendHealthResponse>(await backendResponse.json());
     return NextResponse.json(mapBackendHealth(payload));
   } catch {
     return NextResponse.json({ status: 'error', service: 'hyrepath-enrichment' }, { status: 502 });

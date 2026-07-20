@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException, status
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import NotFoundError, ServiceUnavailableError
 from app.domain.dossier import Dossier
 from app.domain.enrichment import (
     EnrichmentJobListItem,
@@ -34,9 +34,9 @@ class EnrichmentService:
         except RedisError:
             job.status = JobStatus.failed.value
             await self.db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="job queue unavailable",
+            raise ServiceUnavailableError(
+                "job queue unavailable",
+                meta={"job_id": job.id},
             )
         return self._to_response(job)
 
@@ -47,7 +47,7 @@ class EnrichmentService:
     async def get_job(self, job_id: str) -> EnrichmentJobResponse:
         job = await self.pipeline.get_job(job_id)
         if job is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
+            raise NotFoundError("job not found", meta={"job_id": job_id})
         return self._to_response(job)
 
     async def list_jobs(self, limit: int, offset: int) -> EnrichmentJobListResponse:

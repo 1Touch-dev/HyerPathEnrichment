@@ -173,7 +173,7 @@ def test_health_endpoint() -> None:
     client = TestClient(app)
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.json()["data"]["status"] == "ok"
 
 
 def test_sync_enrich_shape() -> None:
@@ -191,7 +191,7 @@ def test_sync_enrich_shape() -> None:
         },
     )
     assert response.status_code == 200
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "completed"
     assert payload["dossier"]["handles"]
     assert payload["dossier"]["confidence"]
@@ -214,7 +214,7 @@ def test_sync_skips_tier1_photo(monkeypatch: pytest.MonkeyPatch) -> None:
         },
     )
     assert response.status_code == 200
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "completed"
     assert payload["dossier"]["photo"] is None
     assert "linkedin-photo" not in payload["dossier"]["sources"]
@@ -230,7 +230,7 @@ def test_opt_out_suppresses_enrichment() -> None:
 
     response = client.get("/api/opt-out/check", params={"identifier": identifier})
     assert response.status_code == 200
-    assert response.json()["suppressed"] is True
+    assert response.json()["data"]["suppressed"] is True
 
     response = client.post(
         "/enrich/sync",
@@ -238,7 +238,7 @@ def test_opt_out_suppresses_enrichment() -> None:
         json={"email": identifier, "username": "suppressed-user", "requested_tiers": ["tier2"]},
     )
     assert response.status_code == 200
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "suppressed"
     assert payload["dossier"]["metadata"]["suppressed"] is True
 
@@ -255,7 +255,7 @@ def test_sync_rate_limit_returns_429(monkeypatch: pytest.MonkeyPatch) -> None:
     assert client.post("/enrich/sync", headers=headers, json=body).status_code == 200
     third = client.post("/enrich/sync", headers=headers, json=body)
     assert third.status_code == 429
-    assert third.json()["detail"] == "rate limit exceeded"
+    assert third.json()["error"]["message"] == "rate limit exceeded"
 
 
 def test_async_enrich_enqueues_queued_job(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -270,7 +270,7 @@ def test_async_enrich_enqueues_queued_job(monkeypatch: pytest.MonkeyPatch) -> No
     )
 
     assert response.status_code == 202
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "queued"
     assert payload["dossier"]["handles"] == []
     assert enqueued == [payload["id"]]
@@ -293,7 +293,7 @@ def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) 
     )
 
     assert response.status_code == 202
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "suppressed"
     assert payload["dossier"]["metadata"]["suppressed"] is True
     assert enqueued == []

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { mapBackendJobListToFrontend, parseBackendError } from '@/src/lib/api-adapter';
+import {
+  BackendJobListResponse,
+  mapBackendJobListToFrontend,
+  parseBackendError,
+  unwrapBackendData,
+} from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
 import { isMockMode } from '@/src/lib/mocks/enabled';
 import { listMockJobs } from '@/src/lib/mocks/mock-jobs';
@@ -25,6 +30,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message }, { status: backendResponse.status });
   }
 
-  const payload = await backendResponse.json();
+  const payload = unwrapBackendData<BackendJobListResponse>(await backendResponse.json());
   return NextResponse.json(mapBackendJobListToFrontend(payload));
 }

@@ -1,10 +1,11 @@
 import hashlib
 import logging
 
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Depends, Header, Request
 from redis.exceptions import RedisError
 
 from app.core.config import Settings, get_settings
+from app.core.errors import RateLimitError
 from app.infrastructure.redis import check_rate_limit, get_redis_client
 
 logger = logging.getLogger(__name__)
@@ -31,9 +32,9 @@ async def _enforce(scope: str, limit: int) -> None:
         logger.warning("redis unavailable during rate limit check; allowing request")
         return
     if not allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="rate limit exceeded",
+        raise RateLimitError(
+            "rate limit exceeded",
+            meta={"scope": scope.split(":", 1)[0], "limit_per_minute": limit},
         )
 
 

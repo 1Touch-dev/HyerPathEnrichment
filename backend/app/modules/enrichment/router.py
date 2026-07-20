@@ -1,16 +1,17 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.api_route import EnvelopeAPIRoute
+from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_async_rate_limit, enforce_sync_rate_limit
 from app.domain.enrichment import (
     EnrichmentJobListResponse,
     EnrichmentJobResponse,
     EnrichmentRequest,
 )
 from app.modules.enrichment.service import get_enrichment_service
-from app.dependencies.rate_limit import enforce_async_rate_limit, enforce_sync_rate_limit
-from app.database.session import get_db_session
 
-router = APIRouter(tags=["enrichment"])
+router = APIRouter(tags=["enrichment"], route_class=EnvelopeAPIRoute)
 
 
 @router.post(

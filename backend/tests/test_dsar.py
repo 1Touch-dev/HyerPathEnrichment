@@ -24,7 +24,7 @@ def test_dsar_access_returns_summary_without_dossier_pii() -> None:
         json={"identifier": identifier, "request_type": "access"},
     )
     assert response.status_code == 201
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "completed"
     assert payload["request_type"] == "access"
     assert payload["summary"]["job_count"] >= 1
@@ -32,7 +32,7 @@ def test_dsar_access_returns_summary_without_dossier_pii() -> None:
 
     fetched = client.get(f"/api/dsar/{payload['id']}")
     assert fetched.status_code == 200
-    assert fetched.json()["id"] == payload["id"]
+    assert fetched.json()["data"]["id"] == payload["id"]
 
 
 def test_dsar_deletion_suppresses_and_purges() -> None:
@@ -45,24 +45,25 @@ def test_dsar_deletion_suppresses_and_purges() -> None:
         headers=enrich_headers,
         json={"email": identifier, "username": "dsar-user", "requested_tiers": ["tier2"]},
     )
-    job_id = enrich.json()["id"]
+    job_id = enrich.json()["data"]["id"]
 
     response = client.post(
         "/api/dsar",
         json={"identifier": identifier, "request_type": "deletion"},
     )
     assert response.status_code == 201
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "completed"
     assert payload["summary"]["suppressed"] is True
     assert payload["summary"]["jobs_cleared"] >= 1
 
     job = client.get(f"/enrich/{job_id}", headers=enrich_headers)
-    assert job.json()["dossier"] == {} or job.json()["status"] == "purged"
+    job_data = job.json()["data"]
+    assert job_data["dossier"] == {} or job_data["status"] == "purged"
 
     blocked = client.post(
         "/enrich/sync",
         headers=enrich_headers,
         json={"email": identifier, "username": "dsar-user", "requested_tiers": ["tier2"]},
     )
-    assert blocked.json()["status"] == "suppressed"
+    assert blocked.json()["data"]["status"] == "suppressed"

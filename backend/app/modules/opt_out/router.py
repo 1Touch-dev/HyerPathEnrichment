@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.api_route import EnvelopeAPIRoute
+from app.database.session import get_db_session
 from app.domain.enrichment import SuppressionCheckResponse, SuppressionRequest
 from app.modules.opt_out.service import get_opt_out_service
-from app.database.session import get_db_session
 
-router = APIRouter(prefix="/api", tags=["opt-out"])
+router = APIRouter(prefix="/api", tags=["opt-out"], route_class=EnvelopeAPIRoute)
 
 
 @router.post("/opt-out", status_code=202)

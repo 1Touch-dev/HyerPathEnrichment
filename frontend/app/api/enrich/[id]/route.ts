@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BackendJobResponse, mapBackendJobToFrontend, parseBackendError } from '@/src/lib/api-adapter';
+import { BackendJobResponse, mapBackendJobToFrontend, parseBackendError, unwrapBackendData } from '@/src/lib/api-adapter';
 import { backendFetch } from '@/src/lib/backend-client';
 import { EnrichmentInput } from '@/src/lib/types';
 import { isMockMode } from '@/src/lib/mocks/enabled';
@@ -26,7 +26,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ message }, { status: backendResponse.status });
   }
 
-  const backendJob = (await backendResponse.json()) as BackendJobResponse;
+  const backendJob = unwrapBackendData<BackendJobResponse>(await backendResponse.json());
   const input: EnrichmentInput = {
     email: '',
     linkedinUrl: '',

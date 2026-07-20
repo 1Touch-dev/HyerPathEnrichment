@@ -1,6 +1,9 @@
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header
 
+from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import Settings, get_settings
+from app.core.errors import UnauthorizedError
+from app.core.exception_handlers import register_exception_handlers
 from app.core.lifespan import lifespan
 from app.dependencies.rate_limit import enforce_compliance_rate_limit
 from app.modules.dsar.router import router as dsar_router
@@ -17,10 +20,16 @@ async def verify_token(
 ) -> None:
     expected = f"Bearer {settings.api_token}"
     if authorization != expected:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthorized")
+        raise UnauthorizedError("unauthorized")
 
 
-app = FastAPI(title="Hyrepath Enrichment Backend", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Hyrepath Enrichment Backend",
+    version="0.1.0",
+    lifespan=lifespan,
+    route_class=EnvelopeAPIRoute,
+)
+register_exception_handlers(app)
 app.include_router(health_router)
 app.include_router(enrich_router, dependencies=[Depends(verify_token)])
 _compliance_deps = [Depends(enforce_compliance_rate_limit)]

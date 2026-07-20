@@ -148,7 +148,7 @@ def test_multi_tier_dispatch_respects_selection() -> None:
         },
     )
     assert response.status_code == 200
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "completed"
     assert payload["dossier"]["handles"]
     assert payload["dossier"]["jobs"]
@@ -171,7 +171,7 @@ def test_tier1_skipped_on_sync_path(monkeypatch: pytest.MonkeyPatch) -> None:
         },
     )
     assert response.status_code == 200
-    payload = response.json()
+    payload = response.json()["data"]
     assert payload["status"] == "completed"
     assert payload["dossier"]["photo"] is None
 
@@ -221,7 +221,7 @@ def test_suppressed_async_and_sync() -> None:
         json={"email": identifier, "username": "ignored", "requested_tiers": ["tier2"]},
     )
     assert async_resp.status_code == 202
-    assert async_resp.json()["status"] == "suppressed"
+    assert async_resp.json()["data"]["status"] == "suppressed"
 
     sync_resp = client.post(
         "/enrich/sync",
@@ -229,7 +229,7 @@ def test_suppressed_async_and_sync() -> None:
         json={"email": identifier, "username": "ignored", "requested_tiers": ["tier2"]},
     )
     assert sync_resp.status_code == 200
-    assert sync_resp.json()["status"] == "suppressed"
+    assert sync_resp.json()["data"]["status"] == "suppressed"
 
 
 def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -246,5 +246,5 @@ def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) 
         json={"email": identifier, "username": "ignored", "requested_tiers": ["tier2"]},
     )
     assert response.status_code == 202
-    assert response.json()["status"] == "suppressed"
+    assert response.json()["data"]["status"] == "suppressed"
     assert enqueued == []
