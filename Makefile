@@ -1,7 +1,7 @@
 # HyerEnrichment — common local-dev targets
 # Free Docker stack: api, worker, redis, postgres, social-analyzer, google-maps-scraper
 
-.PHONY: help setup up down test smoke smoke-prod boundary-checks migrate integration-e2e e2e-full-path load-test
+.PHONY: help setup up down test smoke smoke-prod boundary-checks migrate integration-e2e e2e-full-path load-test audit audit-python audit-frontend
 
 .DEFAULT_GOAL := help
 
@@ -22,6 +22,9 @@ help: ## List available targets
 	@echo "  integration-e2e  Start backend stack and run frontend Playwright integration tests"
 	@echo "  e2e-full-path     Run backend full-path E2E harness (CI mode)"
 	@echo "  load-test         k6 load harness (fake sidecars + elevated rate limits); LOAD_PROFILE=smoke|full"
+	@echo "  audit    Run pip-audit (backend dev+enrichers) and npm audit (high/critical)"
+	@echo "  audit-python      Python dependency audit only"
+	@echo "  audit-frontend    Frontend npm audit only"
 	@echo "  help     Show this help"
 
 setup: ## Env file + editable backend install (venv; avoids PEP 668)
@@ -81,3 +84,15 @@ load-test: ## k6 load test (compose + fake sidecars + loadtest rate limits)
 	else \
 		python3 $(BACKEND_DIR)/scripts/run_load_test.py; \
 	fi
+
+audit: ## pip-audit (backend dev+enrichers) + npm audit (high/critical)
+	bash scripts/dependency_audit.sh
+
+audit-python: ## Python dependency audit only
+	@python3 -m pip install -e "$(BACKEND_DIR)[dev]" -q
+	@python3 -m pip_audit --desc on --progress-spinner off
+	@python3 -m pip install -e "$(BACKEND_DIR)[enrichers]" -q
+	@python3 -m pip_audit --desc on --progress-spinner off --ignore-vuln PYSEC-2026-1604
+
+audit-frontend: ## Frontend npm audit only (high/critical)
+	cd frontend && npm ci --silent && npm run audit:ci

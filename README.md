@@ -925,6 +925,20 @@ See `backend/.env.example` for the full list including sidecar URLs, timeouts, L
 
 ## Testing
 
+### Dependency security audit
+
+Automated checks for known high/critical CVEs in Python and npm dependencies:
+
+```bash
+make audit              # pip-audit (backend dev + enrichers) + npm audit (frontend)
+make audit-python       # Python only
+make audit-frontend     # Frontend only
+```
+
+CI runs the same checks in the `dependency-audit` job on every PR. Dependabot opens weekly upgrade PRs for pip (`backend/`), npm (`frontend/`), and GitHub Actions.
+
+See [`docs/DEPENDENCY_AUDIT_VERIFICATION.md`](docs/DEPENDENCY_AUDIT_VERIFICATION.md) for verification evidence and known limitations (Docker sidecar clones are out of scope).
+
 ### Backend
 
 ```bash

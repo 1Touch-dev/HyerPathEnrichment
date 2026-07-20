@@ -71,6 +71,7 @@ Close partial integrations called out in the guide audit and Architecture “ope
 
 ## Phase 4 — Observability, signals, hardening (guide 68, 71)
 
+- [x] **Dependency vulnerability scanning (gap 4)** — Dependabot (pip, npm, GitHub Actions), CI `dependency-audit` job, `make audit` (pip-audit + npm audit via audit-ci). Evidence: [`DEPENDENCY_AUDIT_VERIFICATION.md`](DEPENDENCY_AUDIT_VERIFICATION.md).
 - [ ] **Compose healthchecks completeness (gap 68)** — Ensure redis and remaining infra services that the API/worker depend on are gated; keep free-default vs profiled paid services clear.
 - [x] **Central error tracking (Sentry-style)** — Self-hosted GlitchTip under `--profile observability` + `sentry-sdk` in API/worker; opt-in via `SENTRY_DSN`. Evidence: `backend/scripts/e2e_error_tracking.sh`, `backend/tests/test_error_tracking.py`.
 - [ ] **Change signals product flow (gap 71)** — Today `POST /api/signals/changedetection` accepts/logs. Still open: watch → detect → notify product flow beyond webhook logging (storage, alerting, or customer-visible signal surface). **Do not mark 71 done for logging-only.**
@@ -149,6 +150,7 @@ Track in-flight guide slices without claiming them done until merged:
 | 77 | Expand smoke | — | Phase 1 — done |
 | 82 | DEVPLAN.md | — | This file; keep checklist current |
 | 84 | Fresh-setup verify | 1+79, 77 | Phase 1 — done |
+| **4** | Dependency vulnerability scanning | — | Phase 4 — **done** (Dependabot + CI + make audit) |
 | **71** | Signals watch/detect/notify | 70 (compose webhook) | Phase 4 — **open** |
 | **76** | Real canary set | Example sets exist | Phase 5 — **open** (runner exists; live Tier 1 blocked) |
 | **78** | Full request→…→storage E2E | Split e2e scripts | Phase 5 — **done** (2026-07-17) |
