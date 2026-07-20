@@ -31,9 +31,7 @@ export function SignalsTable({ signals, total, loading, onLoadMore }: SignalsTab
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Watch</TableHead>
               <TableHead>Title</TableHead>
-              <TableHead>URL</TableHead>
               <TableHead>Source</TableHead>
               <TableHead>Detected</TableHead>
             </TableRow>
@@ -41,21 +39,19 @@ export function SignalsTable({ signals, total, loading, onLoadMore }: SignalsTab
           <TableBody>
             {signals.map((signal) => (
               <TableRow key={signal.id}>
-                <TableCell className="font-mono text-xs">{signal.watchId}</TableCell>
-                <TableCell>{signal.title}</TableCell>
-                <TableCell className="max-w-[240px] truncate">
+                <TableCell className="max-w-[280px] truncate">
                   {signal.url ? (
                     <a
                       href={signal.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-accent hover:underline"
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
                     >
-                      {signal.url}
+                      {signal.title}
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   ) : (
-                    '—'
+                    signal.title
                   )}
                 </TableCell>
                 <TableCell>{signal.source}</TableCell>

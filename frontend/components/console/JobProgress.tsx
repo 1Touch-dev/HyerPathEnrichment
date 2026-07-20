@@ -127,7 +127,7 @@ export function JobProgress({ job, polling, pollTimedOut, onRetry }: JobProgress
         {pollTimedOut ? (
           <p className="text-sm text-muted-foreground">
             Still running — check{' '}
-            <Link href={`/app/jobs/${job.id}`} className="text-accent underline">
+            <Link href={`/app/jobs/${job.id}`} className="text-primary underline">
               job detail
             </Link>{' '}
             or History.

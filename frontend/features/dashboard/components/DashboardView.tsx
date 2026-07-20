@@ -34,7 +34,7 @@ export function DashboardView() {
               {isLoading ? (
                 <Skeleton className="h-9 w-16" />
               ) : (
-                <CardTitle className="text-3xl text-brand-primary">{kpi.value}</CardTitle>
+                <CardTitle className="text-3xl text-primary">{kpi.value}</CardTitle>
               )}
             </CardHeader>
           </Card>
@@ -61,7 +61,7 @@ export function DashboardView() {
             <ul className="flex flex-col gap-2">
               {data.recent.map((job) => (
                 <li key={job.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                  <Link href={`/app/jobs/${job.id}`} className="font-mono text-brand-primary hover:underline">
+                  <Link href={`/app/jobs/${job.id}`} className="font-mono text-primary hover:underline">
                     {job.id}
                   </Link>
                   <span className="max-w-[200px] truncate text-muted-foreground">{job.identifierSummary}</span>

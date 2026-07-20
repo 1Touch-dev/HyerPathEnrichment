@@ -4,72 +4,87 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useHealth } from '@/hooks/useHealth';
-import { ALL_TIERS, availableTiersForMode, getTierLabel, hasValidTierSelection } from '@/src/lib/tier-utils';
-import { EnrichmentInput, EnrichMode, RequestedTier } from '@/src/lib/types';
+import {
+  DepthPreset,
+  getTiersFromDepthPreset,
+  hasValidTierSelection,
+  inferDepthPresetFromTiers,
+} from '@/src/lib/tier-utils';
+import { EnrichmentInput, EnrichMode } from '@/src/lib/types';
 
 type IntakeFormProps = {
   mode: EnrichMode;
-  initialTiers?: RequestedTier[];
+  initialTiers?: EnrichmentInput['requestedTiers'];
   onSubmit: (input: EnrichmentInput) => Promise<void>;
   loading?: boolean;
 };
 
-const emptyInput = (tiers: RequestedTier[]): EnrichmentInput => ({
-  email: '',
-  linkedinUrl: '',
-  username: '',
-  company: '',
-  business: '',
-  jobSearch: '',
-  requestedTiers: tiers,
-});
-
 export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeFormProps) {
   const { online } = useHealth();
-  const allowedTiers = availableTiersForMode(mode);
-  const [form, setForm] = useState<EnrichmentInput>(emptyInput(initialTiers?.length ? initialTiers : ALL_TIERS));
+  const [identifier, setIdentifier] = useState('');
+  const [company, setCompany] = useState('');
+  const [business, setBusiness] = useState('');
+  const [jobSearch, setJobSearch] = useState('');
+
+  const [depthPreset, setDepthPreset] = useState<DepthPreset>(() => inferDepthPresetFromTiers(initialTiers ?? [], mode));
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (initialTiers?.length) {
-      setForm((current) => ({ ...current, requestedTiers: initialTiers }));
+      setDepthPreset(inferDepthPresetFromTiers(initialTiers, mode));
     }
-  }, [initialTiers]);
+  }, [initialTiers, mode]);
 
-  useEffect(() => {
-    if (mode === 'sync') {
-      setForm((current) => ({
-        ...current,
-        requestedTiers: current.requestedTiers.filter((tier) => tier !== 'tier1'),
-      }));
+  const requestedTiers = useMemo(() => getTiersFromDepthPreset(depthPreset, mode), [depthPreset, mode]);
+  const hasIdentifier = useMemo(() => Boolean(identifier.trim()), [identifier]);
+  const canSubmit = hasIdentifier && hasValidTierSelection(requestedTiers, mode) && online && !loading;
+
+  const parseIdentifier = (raw: string): Pick<EnrichmentInput, 'email' | 'linkedinUrl' | 'username'> => {
+    const value = raw.trim();
+    const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    const looksLikeLinkedIn = /linkedin\.com/i.test(value);
+
+    if (looksLikeEmail) {
+      return { email: value };
     }
-  }, [mode]);
 
-  const hasIdentifier = useMemo(
-    () => Boolean(form.email || form.linkedinUrl || form.username || form.company || form.business || form.jobSearch),
-    [form],
-  );
+    if (looksLikeLinkedIn) {
+      const normalized = value.startsWith('http') ? value : `https://${value}`;
+      return { linkedinUrl: normalized };
+    }
 
-  const canSubmit = hasIdentifier && hasValidTierSelection(form.requestedTiers, mode) && online && !loading;
-
-  const toggleTier = (tier: RequestedTier) => {
-    setForm((current) => ({
-      ...current,
-      requestedTiers: current.requestedTiers.includes(tier)
-        ? current.requestedTiers.filter((value) => value !== tier)
-        : [...current.requestedTiers, tier],
-    }));
+    // Treat everything else as a username (strip leading '@' if present).
+    return { username: value.replace(/^@/, '') };
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
     try {
-      await onSubmit(form);
+      const base: EnrichmentInput = {
+        requestedTiers,
+      };
+
+      const identifierInput = parseIdentifier(identifier);
+      if (identifierInput.email) base.email = identifierInput.email;
+      if (identifierInput.linkedinUrl) base.linkedinUrl = identifierInput.linkedinUrl;
+      if (identifierInput.username) base.username = identifierInput.username;
+
+      const trimmedCompany = company.trim();
+      if (trimmedCompany) base.company = trimmedCompany;
+
+      const trimmedBusiness = business.trim();
+      if (trimmedBusiness) base.business = trimmedBusiness;
+
+      const trimmedJobSearch = jobSearch.trim();
+      if (trimmedJobSearch) base.jobSearch = trimmedJobSearch;
+
+      await onSubmit(base);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Submit failed');
     }
@@ -79,8 +94,8 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
     <Card>
       <CardHeader>
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Request intake</p>
-        <CardTitle className="text-2xl">Submit identifiers and tiers</CardTitle>
-        <CardDescription>At least one identifier and one tier required.</CardDescription>
+        <CardTitle className="text-2xl">Look up a person</CardTitle>
+        <CardDescription>Paste one identifier. Choose depth and extras under Advanced.</CardDescription>
       </CardHeader>
       <CardContent>
         {mode === 'sync' ? (
@@ -90,54 +105,86 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
         ) : null}
 
         <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[
-              ['email', 'Email', 'alex@company.com'],
-              ['linkedinUrl', 'LinkedIn URL', 'https://linkedin.com/in/example'],
-              ['username', 'Username', 'alexhyrepath'],
-              ['company', 'Company', 'Hyrepath'],
-              ['business', 'Local business query', 'Coffee roasters near SoMa'],
-              ['jobSearch', 'Job search query', 'Staff Backend Engineer'],
-            ].map(([key, label, placeholder]) => (
-              <div key={key} className="flex flex-col gap-2">
-                <Label htmlFor={key}>{label}</Label>
-                <Input
-                  id={key}
-                  value={form[key as keyof EnrichmentInput] as string}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                  placeholder={placeholder}
-                />
-              </div>
-            ))}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="identifier">Identifier</Label>
+            <Input
+              id="identifier"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="Email, LinkedIn URL, or username"
+            />
           </div>
 
-          <fieldset className="flex flex-col gap-3 rounded-lg border p-4">
-            <legend className="px-1 text-sm font-medium">Requested tiers</legend>
-            <div className="flex flex-wrap gap-3">
-              {ALL_TIERS.map((tier) => {
-                const disabled = !allowedTiers.includes(tier);
-                return (
-                  <label
-                    key={tier}
-                    className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${disabled ? 'opacity-50' : ''}`}
-                  >
-                    <Checkbox
-                      checked={form.requestedTiers.includes(tier)}
-                      disabled={disabled}
-                      onCheckedChange={() => toggleTier(tier)}
+          <Collapsible defaultOpen={false}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" type="button" className="w-fit px-0">
+                Advanced
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-4 flex flex-col gap-6 rounded-lg border bg-card p-4">
+                <div className="flex flex-col gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="company">Company (optional)</Label>
+                      <Input id="company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="business">Business (optional)</Label>
+                      <Input id="business" value={business} onChange={(e) => setBusiness(e.target.value)} placeholder="Coffee roasters near SoMa" />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="jobSearch">Job search (optional)</Label>
+                    <Input
+                      id="jobSearch"
+                      value={jobSearch}
+                      onChange={(e) => setJobSearch(e.target.value)}
+                      placeholder="Staff Backend Engineer"
                     />
-                    <span>
-                      {tier.toUpperCase()} — {getTierLabel(tier)}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
+                  </div>
+                </div>
+
+                <fieldset className="flex flex-col gap-3 rounded-lg border p-4">
+                  <legend className="px-1 text-sm font-medium">Depth</legend>
+                  <RadioGroup
+                    value={depthPreset}
+                    onValueChange={(v) => setDepthPreset(v as DepthPreset)}
+                    className="grid gap-3 sm:grid-cols-3"
+                  >
+                    <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+                      <RadioGroupItem value="quick" className="mt-1" />
+                      <div>
+                        <span className="block text-sm font-medium">Quick</span>
+                        <span className="block text-xs text-muted-foreground">Tier 2</span>
+                      </div>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+                      <RadioGroupItem value="standard" className="mt-1" />
+                      <div>
+                        <span className="block text-sm font-medium">Standard</span>
+                        <span className="block text-xs text-muted-foreground">Tier 2 + 3</span>
+                      </div>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+                      <RadioGroupItem value="deep" className="mt-1" />
+                      <div>
+                        <span className="block text-sm font-medium">Deep</span>
+                        <span className="block text-xs text-muted-foreground">
+                          Tier 1–4 {mode === 'sync' ? '(tier 1 excluded)' : ''}
+                        </span>
+                      </div>
+                    </label>
+                  </RadioGroup>
+                </fieldset>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           <div className="flex flex-col gap-2">
             <Button type="submit" disabled={!canSubmit}>
-              {loading ? 'Submitting…' : 'Run enrichment'}
+              {loading ? 'Looking up…' : 'Look up'}
             </Button>
             {!online ? <p className="text-sm text-destructive">Backend unreachable — submit disabled.</p> : null}
             {error ? <p className="text-sm text-destructive">{error}</p> : null}

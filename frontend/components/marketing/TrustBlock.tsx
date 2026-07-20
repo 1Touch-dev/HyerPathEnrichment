@@ -13,7 +13,7 @@ export function TrustBlock() {
         ].map((item) => (
           <Card key={item.title} className="border-border bg-card">
             <CardHeader>
-              <CardTitle className="text-base text-brand-primary">{item.title}</CardTitle>
+              <CardTitle className="text-base text-primary">{item.title}</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">{item.body}</CardContent>
           </Card>
@@ -30,7 +30,7 @@ export function SampleDossierCard({ audience }: { audience: string }) {
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-brand-secondary">Static preview</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Static preview</p>
             <CardTitle className="font-mono text-lg">alexhyrepath</CardTitle>
           </div>
           <Badge variant="outline" className="font-mono">

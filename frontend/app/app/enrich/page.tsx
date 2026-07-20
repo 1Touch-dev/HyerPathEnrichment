@@ -43,8 +43,10 @@ function EnrichPageContent() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">New enrichment</h1>
-        <p className="text-sm text-muted-foreground">Submit identifiers — results open on a shareable job page with live polling.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Look someone up</h1>
+        <p className="text-sm text-muted-foreground">
+          Paste one identifier (email, LinkedIn URL, or username). Results are opened in a shareable job page with live polling.
+        </p>
       </div>
 
       <EnrichModeToggle mode={mode} onChange={(next) => dispatch(setEnrichMode(next))} />
@@ -62,8 +64,8 @@ function EnrichPageContent() {
       ) : null}
 
       <EmptyState
-        title="Ready to enrich"
-        description="After submit you will be redirected to the job dossier page."
+        title="Ready to look up"
+        description="After submit you will be redirected to the profile results page."
       />
     </div>
   );

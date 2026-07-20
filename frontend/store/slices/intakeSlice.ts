@@ -1,5 +1,4 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { ALL_TIERS } from '@/src/lib/tier-utils';
 import { EnrichMode, EnrichmentInput } from '@/src/lib/types';
 
 const emptyDraft = (): EnrichmentInput => ({
@@ -9,7 +8,8 @@ const emptyDraft = (): EnrichmentInput => ({
   company: '',
   business: '',
   jobSearch: '',
-  requestedTiers: ALL_TIERS,
+  // Default depth matches the Figma "Standard" preset.
+  requestedTiers: ['tier2', 'tier3'],
 });
 
 type IntakeState = {

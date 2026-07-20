@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/src/lib/utils';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { toggleSidebar } from '@/store/slices/uiSlice';
-import { allNavSections, footerNav } from './nav-config';
+import { allNavSections } from './nav-config';
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -15,7 +15,6 @@ export function AppSidebar() {
   const sidebarOpen = useAppSelector((state) => state.ui.sidebarOpen);
 
   const isActive = (href: string) => {
-    if (href === '/app') return pathname === '/app';
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
@@ -28,12 +27,12 @@ export function AppSidebar() {
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-4">
         {sidebarOpen ? (
-          <Link href="/app" className="flex flex-col gap-0.5 px-1">
-            <span className="text-xs font-semibold uppercase tracking-widest text-brand-primary">Hyrepath</span>
-            <span className="text-[10px] text-muted-foreground">Enrichment Console</span>
+          <Link href="/app/enrich" className="flex flex-col gap-0.5 px-1">
+            <span className="text-sm font-semibold tracking-tight text-primary">Hyrepath</span>
+            <span className="text-[11px] text-muted-foreground">Lookup console</span>
           </Link>
         ) : (
-          <Link href="/app" className="mx-auto text-xs font-bold text-brand-primary">
+          <Link href="/app/enrich" className="mx-auto text-xs font-bold text-primary">
             H
           </Link>
         )}
@@ -52,7 +51,7 @@ export function AppSidebar() {
         {allNavSections.map((section) => (
           <div key={section.title}>
             {sidebarOpen ? (
-              <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              <p className="mb-2 px-2 text-xs font-medium text-muted-foreground">
                 {section.title}
               </p>
             ) : null}
@@ -66,9 +65,7 @@ export function AppSidebar() {
                       href={item.href}
                       className={cn(
                         'flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors',
-                        active
-                          ? 'bg-brand-primary/15 text-brand-primary'
-                          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                        active ? 'bg-secondary text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                         !sidebarOpen && 'justify-center px-0',
                       )}
                       title={!sidebarOpen ? item.label : undefined}
@@ -84,29 +81,8 @@ export function AppSidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-border px-2 py-3">
-        <ul className="space-y-1">
-          {footerNav.map((item) => {
-            const Icon = item.icon;
-            return (
-              <li key={item.label}>
-                <button
-                  type="button"
-                  disabled={item.disabled}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm text-muted-foreground',
-                    !sidebarOpen && 'justify-center px-0',
-                    item.disabled && 'cursor-not-allowed opacity-50',
-                  )}
-                  title={!sidebarOpen ? item.label : undefined}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {sidebarOpen ? <span>{item.label}</span> : null}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+      <div className="border-t border-border px-3 py-4">
+        {sidebarOpen ? <p className="text-xs text-subtle-foreground">Public signals only. Respect opt-out before every run.</p> : null}
       </div>
     </aside>
   );

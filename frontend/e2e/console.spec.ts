@@ -3,19 +3,20 @@ import { test, expect } from '@playwright/test';
 test.describe('Enrichment flow', () => {
   test('async enrichment completes mock job dossier', async ({ page }) => {
     await page.goto('/app/enrich');
-    await expect(page.getByRole('heading', { name: 'New enrichment' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Look someone up' })).toBeVisible();
 
-    await page.getByRole('textbox', { name: 'Username' }).fill('e2e-playwright');
-    await expect(page.getByRole('button', { name: 'Run enrichment' })).toBeEnabled({ timeout: 15_000 });
-    await page.getByRole('button', { name: 'Run enrichment' }).click();
+    await page.getByRole('textbox', { name: 'Identifier' }).fill('e2e-playwright');
+    await expect(page.getByRole('button', { name: 'Look up' })).toBeEnabled({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Look up' }).click();
 
-    await expect(page.getByRole('heading', { name: 'Job dossier' })).toBeVisible();
+    await expect(page).toHaveURL(/\/app\/jobs\/.+/, { timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Job dossier' })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('completed', { exact: true })).toBeVisible({ timeout: 15_000 });
   });
 
   test('history page lists jobs after enrichment', async ({ page }) => {
     await page.goto('/app/history');
-    await expect(page.getByRole('heading', { name: 'Job history' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
   });
 
   test('settings page loads', async ({ page }) => {
@@ -25,6 +26,6 @@ test.describe('Enrichment flow', () => {
 
   test('privacy DSAR ops form loads', async ({ page }) => {
     await page.goto('/app/privacy');
-    await expect(page.getByRole('heading', { name: 'Privacy & DSAR' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Privacy requests' })).toBeVisible();
   });
 });
