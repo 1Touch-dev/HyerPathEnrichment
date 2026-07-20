@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
-import pytest
+import os
+from pathlib import Path
 
-from app.compliance import suppression
-from app.core.config import get_settings
-from app.dependencies import rate_limit
-from app.storage import photo_cache
-from tests.migration_helpers import upgrade_head
+# Bind a dedicated SQLite file before any app import creates the async engine.
+# Relative ``./hyrepath.db`` (and local ``.env`` overrides) diverge between
+# repo-root CI, ``cd backend``, and leftover developer DBs.
+_TEST_DB = Path(__file__).resolve().parent / "_pytest_hyrepath.db"
+if _TEST_DB.exists():
+    _TEST_DB.unlink()
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_TEST_DB.as_posix()}"
+
+import pytest  # noqa: E402
+
+from app.compliance import suppression  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
+from app.dependencies import rate_limit  # noqa: E402
+from app.storage import photo_cache  # noqa: E402
+from tests.migration_helpers import upgrade_head  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)

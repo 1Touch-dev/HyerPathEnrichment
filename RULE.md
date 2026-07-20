@@ -130,7 +130,8 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 - **New enricher → extend `tests/test_pipeline_shape.py`** — assert valid partial dossier dict keys and types
 - **New route behavior → API test** — status code, auth, response shape
 - **No live external calls in CI** — mock subprocess, HTTP sidecars, and third-party APIs
-- **Run:** `cd backend && pytest tests`
+- **Coverage gate** — CI fails if `app/` line coverage drops below `fail_under` in `backend/pyproject.toml` (currently 78%)
+- **Run:** `make test` (or `cd backend && pytest tests -m "not postgres" -q --cov=app --cov-report=term-missing`)
 
 ### Frontend
 

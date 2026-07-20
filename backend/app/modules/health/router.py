@@ -9,8 +9,10 @@ try:
 except ImportError:  # pragma: no cover - optional runtime dependency fallback
     CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"
 
-    def generate_latest(*args: Any, **kwargs: Any) -> bytes:
+    def _generate_latest_noop(*_args: Any, **_kwargs: Any) -> bytes:
         return b""
+
+    generate_latest = _generate_latest_noop  # type: ignore[assignment]
 
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import get_settings

@@ -41,6 +41,15 @@ def auth_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {API_TOKEN}"}
 
 
+def unwrap_success(body: object, label: str) -> dict:
+    if not isinstance(body, dict) or body.get("success") is not True or "data" not in body:
+        fail(f"{label} expected success envelope, got: {body}")
+    data = body["data"]
+    if not isinstance(data, dict):
+        fail(f"{label} expected object data, got: {body}")
+    return data
+
+
 def main() -> None:
     if SMOKE_PROD and BASE_URL in {"http://localhost:8000", "http://127.0.0.1:8000"}:
         fail("SMOKE_PROD=1 requires BASE_URL pointing at production/staging host")
@@ -52,9 +61,9 @@ def main() -> None:
         fail(f"/health unreachable: {exc}")
     if health.status_code != 200:
         fail(f"/health expected 200, got {health.status_code}")
-    body = health.json()
+    body = unwrap_success(health.json(), "/health")
     if body.get("status") != "ok":
-        fail(f"/health unexpected body: {body}")
+        fail(f"/health unexpected data: {body}")
     ok("/health")
 
     # 2. Readiness (Postgres + Redis)
@@ -64,9 +73,9 @@ def main() -> None:
         fail(f"/ready unreachable: {exc}")
     if ready.status_code != 200:
         fail(f"/ready expected 200, got {ready.status_code}: {ready.text[:200]}")
-    ready_body = ready.json()
+    ready_body = unwrap_success(ready.json(), "/ready")
     if ready_body.get("status") != "ready":
-        fail(f"/ready unexpected body: {ready_body}")
+        fail(f"/ready unexpected data: {ready_body}")
     ok("/ready")
 
     # 3. Auth required on enrich
@@ -94,7 +103,7 @@ def main() -> None:
         fail(f"/enrich/sync unreachable: {exc}")
     if enrich.status_code != 200:
         fail(f"/enrich/sync expected 200, got {enrich.status_code}: {enrich.text[:200]}")
-    payload = enrich.json()
+    payload = unwrap_success(enrich.json(), "/enrich/sync")
     if "status" not in payload:
         fail(f"/enrich/sync missing status: {payload}")
     dossier = payload.get("dossier")
@@ -131,7 +140,7 @@ def main() -> None:
         fail(f"/api/dsar unreachable: {exc}")
     if dsar.status_code != 201:
         fail(f"/api/dsar expected 201, got {dsar.status_code}: {dsar.text[:200]}")
-    dsar_body = dsar.json()
+    dsar_body = unwrap_success(dsar.json(), "/api/dsar")
     if "id" not in dsar_body:
         fail(f"/api/dsar missing id: {dsar_body}")
     ok("unauth /api/dsar → 201")
@@ -152,7 +161,7 @@ def main() -> None:
         fail(f"/enrich unreachable: {exc}")
     if async_resp.status_code != 202:
         fail(f"/enrich expected 202, got {async_resp.status_code}: {async_resp.text[:200]}")
-    async_body = async_resp.json()
+    async_body = unwrap_success(async_resp.json(), "/enrich")
     if async_body.get("status") != "queued":
         fail(f"/enrich expected status queued, got: {async_body}")
     job_id = async_body.get("id")
@@ -169,7 +178,7 @@ def main() -> None:
             fail(f"/enrich/{job_id} poll unreachable: {exc}")
         if poll.status_code != 200:
             fail(f"/enrich/{job_id} expected 200, got {poll.status_code}: {poll.text[:200]}")
-        final = poll.json()
+        final = unwrap_success(poll.json(), f"/enrich/{job_id}")
         if final.get("status") not in ("queued", "running"):
             break
         time.sleep(POLL_INTERVAL)

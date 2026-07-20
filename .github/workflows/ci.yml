@@ -25,10 +25,10 @@ jobs:
         run: ruff check backend/app backend/tests
 
       - name: Mypy
-        run: mypy backend/app
+        run: mypy --config-file=backend/pyproject.toml backend/app
 
       - name: Pytest
-        run: pytest backend/tests -m "not postgres" -q
+        run: pytest backend/tests -m "not postgres" -q --cov=app --cov-report=term-missing
 
   frontend-contract:
     runs-on: ubuntu-latest

@@ -104,6 +104,13 @@ class LinkedInBrowserClient:
                         await self.pool.refund_view(profile_id)
                     return partial
 
+                if not image_url:
+                    if attempt < same_profile_retries:
+                        continue
+                    save_failure_screenshot(driver, job_id)
+                    await self.pool.release(profile_id, ProfileOutcome.TEMPORARY_FAILURE)
+                    return LinkedInPhotoResult(outcome=LinkedInPhotoError.TEMPORARY_FAILURE)
+
                 image_bytes, content_type = await download_image(image_url)
                 if image_bytes:
                     await self.pool.release(profile_id, ProfileOutcome.SUCCESS)

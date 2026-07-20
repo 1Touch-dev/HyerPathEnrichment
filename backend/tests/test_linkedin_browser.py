@@ -127,14 +127,17 @@ def test_extract_photo_url_prefers_og_image() -> None:
 
 
 def test_extract_photo_url_skips_placeholder_og_and_uses_dom() -> None:
+    avatar_img = _FakeElement({"src": "https://media.licdn.com/dms/image/real.jpg"})
+    container = _FakeElement(
+        {"componentkey": "topcard-logo-image-referencekey"},
+        children={"img": [avatar_img]},
+    )
     driver = _FakeDriver(
         elements={
             'meta[property="og:image"]': [
                 _FakeElement({"content": "https://static.licdn.com/aero-v1/sc/h/ghost-person.png"})
             ],
-            "img.pv-top-card-profile-picture__image": [
-                _FakeElement({"src": "https://media.licdn.com/dms/image/real.jpg"})
-            ],
+            'div[componentkey="topcard-logo-image-referencekey"]': [container],
         }
     )
     url, method, state = extract_photo_url(driver)
@@ -158,13 +161,18 @@ def test_extract_photo_url_placeholder_only() -> None:
 
 
 def test_extract_photo_url_profile_displayphoto_selector() -> None:
+    avatar_img = _FakeElement(
+        {
+            "src": "https://media.licdn.com/dms/image/profile-displayphoto-shrink_200_200/photo.jpg"
+        }
+    )
+    container = _FakeElement(
+        {"aria-label": "Profile photo"},
+        children={"img": [avatar_img]},
+    )
     driver = _FakeDriver(
         elements={
-            'img[src*="profile-displayphoto"]': [
-                _FakeElement(
-                    {"src": "https://media.licdn.com/dms/image/profile-displayphoto-shrink_200_200/photo.jpg"}
-                )
-            ]
+            'div[aria-label="Profile photo"]': [container],
         }
     )
     url, method, state = extract_photo_url(driver)
@@ -174,22 +182,26 @@ def test_extract_photo_url_profile_displayphoto_selector() -> None:
 
 
 def test_extract_photo_url_uses_data_src_and_srcset() -> None:
+    avatar_img = _FakeElement(
+        {
+            "data-src": "https://media.licdn.com/dms/image/real-from-data-src.jpg",
+            "srcset": "https://media.licdn.com/dms/image/real-from-srcset.jpg 1x",
+        }
+    )
+    container = _FakeElement(
+        {"componentkey": "topcard-logo-image-referencekey"},
+        children={"img": [avatar_img]},
+    )
     driver = _FakeDriver(
         elements={
-            "img.pv-top-card-profile-picture__image": [
-                _FakeElement(
-                    {
-                        "data-src": "https://media.licdn.com/dms/image/real-from-data-src.jpg",
-                        "srcset": "https://media.licdn.com/dms/image/real-from-srcset.jpg 1x",
-                    }
-                )
-            ]
+            'div[componentkey="topcard-logo-image-referencekey"]': [container],
         }
     )
     url, method, state = extract_photo_url(driver)
     assert state == LinkedInPhotoError.SUCCESS
     assert method == ExtractionMethod.DOM_FALLBACK
-    assert url is not None and "real-from-data-src.jpg" in url
+    # srcset is preferred over data-src when both are present
+    assert url is not None and "real-from-srcset.jpg" in url
 
 
 def test_extract_photo_url_prefers_topcard_componentkey() -> None:
@@ -257,6 +269,7 @@ def test_wait_for_profile_photo_ready_topcard_container() -> None:
     driver = _FakeDriver(
         elements={
             'div[componentkey="topcard-logo-image-referencekey"]': [container],
+            'div[componentkey="topcard-logo-image-referencekey"] img': [avatar_img],
         }
     )
     _wait_for_profile_photo_ready(driver, _FakeWait(driver))

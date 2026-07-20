@@ -14,7 +14,7 @@ help: ## List available targets
 	@echo "  setup    Copy backend/.env if missing; create backend/.venv; pip install -e .[dev] + requests"
 	@echo "  up       Start free Docker stack detached (runs migrate job before api/worker)"
 	@echo "  down     Stop Docker Compose stack (backend/docker)"
-	@echo "  test     Run pytest in backend"
+	@echo "  test     Run pytest in backend (coverage gate)"
 	@echo "  smoke    Run backend/scripts/smoke_test.py (SMOKE_SKIP_ASYNC=1 for sync-only)"
 	@echo "  smoke-prod  Smoke against BASE_URL (requires BASE_URL + API_TOKEN)"
 	@echo "  boundary-checks  Run compliance/rate-limit boundary pytest bundle"
@@ -43,8 +43,8 @@ up: ## Start documented free Compose stack
 down: ## Stop Compose stack
 	cd $(DOCKER_DIR) && docker compose down
 
-test: ## Run backend pytest
-	cd $(BACKEND_DIR) && pytest tests
+test: ## Run backend pytest with coverage gate
+	cd $(BACKEND_DIR) && pytest tests -m "not postgres" -q --cov=app --cov-report=term-missing
 
 smoke: ## Quick health smoke test
 	@if [ -x $(BACKEND_DIR)/.venv/bin/python ]; then \

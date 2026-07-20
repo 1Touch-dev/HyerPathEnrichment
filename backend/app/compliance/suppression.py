@@ -24,7 +24,7 @@ async def add_suppression(db: AsyncSession, identifier: str, reason: str | None 
     await db.merge(record)
     await db.commit()
     try:
-        await get_redis_client().sadd(SUPPRESSION_SET_KEY, identifier_hash)
+        await get_redis_client().sadd(SUPPRESSION_SET_KEY, identifier_hash)  # type: ignore[misc]
     except RedisError:
         logger.warning("redis unavailable during add_suppression; SQL record persisted")
 
@@ -32,7 +32,7 @@ async def add_suppression(db: AsyncSession, identifier: str, reason: str | None 
 async def check_suppression(db: AsyncSession, identifier: str) -> bool:
     identifier_hash = hash_identifier(identifier)
     try:
-        if await get_redis_client().sismember(SUPPRESSION_SET_KEY, identifier_hash):
+        if await get_redis_client().sismember(SUPPRESSION_SET_KEY, identifier_hash):  # type: ignore[misc]
             return True
     except RedisError:
         logger.warning("redis unavailable during check_suppression; falling back to SQL")
@@ -41,7 +41,7 @@ async def check_suppression(db: AsyncSession, identifier: str) -> bool:
     suppressed = result.scalar_one_or_none() is not None
     if suppressed:
         try:
-            await get_redis_client().sadd(SUPPRESSION_SET_KEY, identifier_hash)
+            await get_redis_client().sadd(SUPPRESSION_SET_KEY, identifier_hash)  # type: ignore[misc]
         except RedisError:
             pass
     return suppressed

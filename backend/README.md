@@ -38,8 +38,11 @@ curl http://localhost:8000/enrich/<job_id> -H "Authorization: Bearer change-me"
 ## Test
 
 ```bash
-pytest backend/tests
+make test
+# or: cd backend && pytest tests -m "not postgres" -q --cov=app --cov-report=term-missing
 ```
+
+CI enforces a line-coverage floor for `app/` via `fail_under` in `pyproject.toml`.
 
 Change-signal ops (changedetection.io → `NOTIFY_WEBHOOK_URL`): see [ARCHITECTURE.md — Change signals](docs/ARCHITECTURE.md#change-signals-changedetectionio).
 

@@ -140,9 +140,9 @@ def merge_payloads(request: EnrichmentRequest, payloads: list[dict[str, Any]]) -
                     dossier.jobs.append(job_candidate)
                     continue
                 existing_idx = jobs_seen[job_key]
-                existing = dossier.jobs[existing_idx]
+                existing_job = dossier.jobs[existing_idx]
                 if job_location_specificity(job_candidate.location) > job_location_specificity(
-                    existing.location
+                    existing_job.location
                 ):
                     dossier.jobs[existing_idx] = job_candidate
 

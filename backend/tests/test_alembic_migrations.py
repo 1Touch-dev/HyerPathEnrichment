@@ -11,7 +11,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.modules.enrichment.models import JobRecord
 from app.database.base import JsonDoc
-from app.storage import db as db_mod
+from app.database import session as db_mod
 from tests.migration_helpers import (
     column_udt,
     downgrade_base,
@@ -48,14 +48,11 @@ def sqlite_url(tmp_path: Path) -> str:
 
 def test_no_migrate_schema_symbol() -> None:
     assert not hasattr(db_mod, "_migrate_schema")
-    # Session implementation lives in database/session; storage/db is a shim.
-    session_source = Path(db_mod.__file__).resolve().parents[1] / "database" / "session.py"
+    # Session implementation lives in database/session (storage/db shim removed).
+    session_source = Path(db_mod.__file__).resolve()
     source = session_source.read_text(encoding="utf-8")
-    shim_source = Path(db_mod.__file__).read_text(encoding="utf-8")
     assert "metadata.create_all" not in source
-    assert "metadata.create_all" not in shim_source
     assert "_migrate_schema" not in source
-    assert "_migrate_schema" not in shim_source
     assert "command.upgrade" in source
 
 

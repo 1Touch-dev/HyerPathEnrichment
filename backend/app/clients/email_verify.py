@@ -130,8 +130,10 @@ class EmailVerifier:
             return None
 
         # Prefer smtp.is_catch_all (Reacher docs); also accept misc.is_catch_all.
-        misc = data.get("misc") if isinstance(data.get("misc"), dict) else {}
-        smtp = data.get("smtp") if isinstance(data.get("smtp"), dict) else {}
+        misc_raw = data.get("misc")
+        smtp_raw = data.get("smtp")
+        misc: dict[str, Any] = misc_raw if isinstance(misc_raw, dict) else {}
+        smtp: dict[str, Any] = smtp_raw if isinstance(smtp_raw, dict) else {}
         if bool(misc.get("is_catch_all") or smtp.get("is_catch_all")):
             return {
                 "status": "catch_all",
