@@ -19,6 +19,10 @@ def _mock_response(status_code: int, json_data: dict) -> MagicMock:
     return resp
 
 
+def _success(data: dict) -> dict:
+    return {"success": True, "data": data, "message": None, "meta": None}
+
+
 def _dossier() -> dict:
     return {
         "handles": [{"platform": "X", "username": "smoke-user"}],
@@ -48,16 +52,16 @@ def test_smoke_async_polls_until_completed(
 
     mock_post.side_effect = [
         _mock_response(401, {}),
-        _mock_response(200, {"status": "completed", "dossier": _dossier()}),
-        _mock_response(202, {"status": "accepted"}),
-        _mock_response(201, {"id": "dsar-1"}),
-        _mock_response(202, {"status": "queued", "id": "job-123"}),
+        _mock_response(200, _success({"status": "completed", "dossier": _dossier()})),
+        _mock_response(202, _success({"status": "accepted"})),
+        _mock_response(201, _success({"id": "dsar-1"})),
+        _mock_response(202, _success({"status": "queued", "id": "job-123"})),
     ]
     mock_get.side_effect = [
-        _mock_response(200, {"status": "ok"}),
-        _mock_response(200, {"status": "ready"}),
-        _mock_response(200, {"status": "running"}),
-        _mock_response(200, {"status": "completed", "dossier": _dossier()}),
+        _mock_response(200, _success({"status": "ok", "service": "test"})),
+        _mock_response(200, _success({"status": "ready"})),
+        _mock_response(200, _success({"status": "running"})),
+        _mock_response(200, _success({"status": "completed", "dossier": _dossier()})),
     ]
 
     with patch.object(smoke.time, "sleep"):
@@ -78,14 +82,14 @@ def test_smoke_skip_async(
     smoke = _load_smoke(monkeypatch, skip_async="1")
 
     mock_get.side_effect = [
-        _mock_response(200, {"status": "ok"}),
-        _mock_response(200, {"status": "ready"}),
+        _mock_response(200, _success({"status": "ok", "service": "test"})),
+        _mock_response(200, _success({"status": "ready"})),
     ]
     mock_post.side_effect = [
         _mock_response(401, {}),
-        _mock_response(200, {"status": "completed", "dossier": _dossier()}),
-        _mock_response(202, {"status": "accepted"}),
-        _mock_response(201, {"id": "dsar-1"}),
+        _mock_response(200, _success({"status": "completed", "dossier": _dossier()})),
+        _mock_response(202, _success({"status": "accepted"})),
+        _mock_response(201, _success({"id": "dsar-1"})),
     ]
 
     smoke.main()
