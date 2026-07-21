@@ -112,6 +112,10 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 - **Trust code over docs when they disagree** — then update the doc in the same PR if the code is correct
 - **Scaffold vs target** — label new work clearly; do not pretend queue, Postgres, or real enrichers exist if they do not yet
 
+### When to add an ADR
+
+If the PR introduces or changes **storage**, **queue**, **auth**, or **layer ownership**, add or update an ADR in [`docs/adr/`](docs/adr/) and link it in the PR (checkbox in [`.github/pull_request_template.md`](.github/pull_request_template.md)). Criteria and steps: [`docs/adr/README.md`](docs/adr/README.md) § When to add an ADR. Skip only when none of those apply (mark N/A on the PR template).
+
 ---
 
 ## Change scope
@@ -178,4 +182,4 @@ Sometimes the right fix violates a rule. When that happens:
 - [ ] Tests or typecheck run for the area changed
 - [ ] No secrets, raw PII in logs, or opt-out bypass
 - [ ] `backend/docs/ARCHITECTURE.md` **Implementation status** updated if scaffold changed
-- [ ] New architectural choice or reversal → add/update an ADR in [`docs/adr/`](docs/adr/); link from ARCHITECTURE if implementation status changes
+- [ ] New/changed storage, queue, auth, or layer ownership → ADR linked in the PR ([`.github/pull_request_template.md`](.github/pull_request_template.md)); see [`docs/adr/README.md`](docs/adr/README.md) § When to add an ADR; link from ARCHITECTURE if implementation status changes

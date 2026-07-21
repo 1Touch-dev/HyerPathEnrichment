@@ -35,6 +35,8 @@ CROSS_LINK_FILES = (
     REPO_ROOT / "RULE.md",
     BACKEND_ROOT / "docs" / "ARCHITECTURE.md",
 )
+PR_TEMPLATE = REPO_ROOT / ".github" / "pull_request_template.md"
+ADR_README = ADR_DIR / "README.md"
 
 
 @dataclass
@@ -171,6 +173,32 @@ def _check_min_accepted(adr_files: list[Path]) -> CheckResult:
     return CheckResult("min_accepted", True, f"{accepted} accepted")
 
 
+def _check_pr_template() -> CheckResult:
+    """Ensure contributors see the ADR checkbox on every PR (habit, not product)."""
+    if not PR_TEMPLATE.is_file():
+        return CheckResult(
+            "pr_template",
+            False,
+            ".github/pull_request_template.md missing",
+        )
+    text = PR_TEMPLATE.read_text(encoding="utf-8")
+    if "ADR" not in text or "docs/adr" not in text:
+        return CheckResult(
+            "pr_template",
+            False,
+            "PR template must mention ADR and docs/adr",
+        )
+    if not ADR_README.is_file() or "pull_request_template" not in ADR_README.read_text(
+        encoding="utf-8"
+    ):
+        return CheckResult(
+            "pr_template_docs",
+            False,
+            "docs/adr/README.md must reference pull_request_template.md",
+        )
+    return CheckResult("pr_template", True, "PR template + ADR README pointer present")
+
+
 def run_checks() -> tuple[list[CheckResult], bool]:
     adr_files = _adr_files()
     readme = ADR_DIR / "README.md"
@@ -181,6 +209,7 @@ def run_checks() -> tuple[list[CheckResult], bool]:
         _check_required_numbers(adr_files),
         _check_cross_links(),
         _check_min_accepted(adr_files),
+        _check_pr_template(),
     ]
     for path in adr_files:
         checks.extend(_check_adr_content(path))
