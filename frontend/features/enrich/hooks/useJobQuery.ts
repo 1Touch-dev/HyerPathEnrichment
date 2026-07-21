@@ -10,6 +10,8 @@ export function useJobQuery(jobId: string | undefined) {
     queryKey: enrichKeys.job(jobId ?? ''),
     queryFn: async () => (await getEnrichmentJob(jobId!)).data,
     enabled: Boolean(jobId),
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       if (!status || isTerminalStatus(status)) return false;
