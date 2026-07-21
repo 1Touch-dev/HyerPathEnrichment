@@ -2,6 +2,7 @@ import os
 
 from rq import Queue, SimpleWorker, Worker
 from rq.timeouts import BaseDeathPenalty
+from rq.worker import BaseWorker
 
 from app.core.config import get_settings, validate_tier1_settings
 from app.core.logging import configure_logging
@@ -30,11 +31,12 @@ def main() -> None:
     # RQ's default Worker forks (no os.fork on Windows) and uses SIGALRM
     # for job timeouts (also unavailable on Windows). SimpleWorker + no-op
     # death penalty keeps local dev working; Linux production keeps defaults.
+    worker: BaseWorker
     if hasattr(os, "fork"):
         worker = Worker([queue], connection=connection)
     else:
         worker = SimpleWorker([queue], connection=connection)
-        worker.death_penalty_class = _NoOpDeathPenalty  # type: ignore[assignment]
+        worker.death_penalty_class = _NoOpDeathPenalty
     worker.work(with_scheduler=True)
 
 
