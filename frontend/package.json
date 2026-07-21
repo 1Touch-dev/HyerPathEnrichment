@@ -52,7 +52,8 @@
     "next": {
       "postcss": "8.5.16"
     },
-    "undici": "^6.27.0"
+    "undici": "^6.27.0",
+    "js-yaml": "^4.3.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
