@@ -92,9 +92,11 @@ Close partial integrations called out in the guide audit and Architecture “ope
 
 ## Phase 6 — Production launch (guide 86–89)
 
-All incomplete until there is evidence for **`enrich.hyrepath.io`** (or the agreed production host). **No prod VPS chosen yet (2026-07-17) — deferred.**
+All incomplete until there is evidence for **`enrich.hyrepath.io`** (or the agreed production host). **No prod VPS chosen yet — deferred.** (Framing unchanged as of 2026-07-21; a parallel workstream `fix/task90-prod-deploy-dryrun` is producing local dry-run evidence — see Phase 7 table below. Do not treat that as a live VPS result.)
 
-- [ ] **86** — Production deploy of API + worker + Postgres + Redis + required free sidecars — **PENDING** awaiting VPS
+Repo-side (code/docs) deliverables for 86–89 are complete on `main` (CD pipeline, alerting, structured logging, ops-runbook docs landed through 2026-07-21). **Live VPS cutover itself is still pending** — external/unresolved, not something this repo can close without an actual host.
+
+- [ ] **86** — Production deploy of API + worker + Postgres + Redis + required free sidecars — code/CD deliverables on `main`; live deploy **PENDING** VPS
 - [ ] **87** — Secrets, TLS, and env parity with staging (tokens, `DATABASE_URL`, `REDIS_URL`, R2 when used) — repo deliverables on `main`; live apply **PENDING** VPS
 - [ ] **88** — Production acceptance: health/ready, authenticated enrich, opt-out/DSAR reachable without Bearer, smoke against prod base URL — **PENDING** VPS
 - [ ] **89** — Ops runbook: rollback, audit purge cron, rate-limit/incident notes; link LEGAL product boundaries — docs on `main`; live drill **PENDING** VPS
@@ -105,18 +107,18 @@ All incomplete until there is evidence for **`enrich.hyrepath.io`** (or the agre
 
 ## Phase 7 — Guide completion gate (guide 90)
 
-- [ ] **90 — Project complete under this Developer Guide** — **PARTIAL (local/staging)** as of 2026-07-17. Not fully complete until Multilogin live canary + prod 86–89.
+- [ ] **90 — Project complete under this Developer Guide** — **PARTIAL (local/staging)** as of 2026-07-21. Not fully complete until Multilogin live canary + prod 86–89.
 
 **Local/staging completion evidence**
 
 | Item | Status | Link |
 |------|--------|------|
 | Full-path E2E (78) | PASS | [2026-07-17 evidence](../backend/docs/e2e-evidence/2026-07-17-full-path-ci.md), [GHA 29563202825](https://github.com/1Touch-dev/HyerPathEnrichment/actions/runs/29563202825) |
-| Tier 2–4 live CI | Repair (post-#96: canary Maigret EMPTY soft-skip) | [tier234 evidence](../backend/docs/evidence/tier234-live-m4.md), [GHA 29569501682](https://github.com/1Touch-dev/HyerPathEnrichment/actions/runs/29569501682) |
+| Tier 2–4 live CI | **PASS** — Maigret EMPTY→SKIP soft-skip (landed PR #97) confirmed by live local re-run, 20/20 profiles, 0 fail | [tier234-live-m5 evidence](../backend/docs/e2e-evidence/tier234-live-m5.md) (supersedes prior FAIL in [tier234-live-m4](../backend/docs/evidence/tier234-live-m4.md), [GHA 29569501682](https://github.com/1Touch-dev/HyerPathEnrichment/actions/runs/29569501682)). Full GHA `tier234-live` re-confirmation still blocked by an unrelated `e2e-full-path` job failure on every push since 2026-07-17 — see m5 "Known blocker" (out of scope here). |
 | Staging Scrapoxy / Langfuse | PASS (GHA 29563202825) | [scrapoxy](../backend/docs/evidence/scrapoxy-staging-62.md), [langfuse](../backend/docs/evidence/langfuse-staging-49.md) |
 | Local prod acceptance | Pending green `local-acceptance` job | [`PROD_ACCEPTANCE.md`](PROD_ACCEPTANCE.md) |
-| Tier 1 Multilogin live canary | **SKIP** — creds not configured | [skip evidence](../backend/docs/evidence/tier1-multilogin-canary-skip.md) |
-| Prod host 86–89 | **DEFERRED** — no VPS yet | — |
+| Tier 1 Multilogin live canary | **PENDING** — result from parallel workstream `fix/task90-tier1-live-canary`; to be finalized by the master agent after that PR merges | [prior skip evidence](../backend/docs/evidence/tier1-multilogin-canary-skip.md) |
+| Prod host 86–89 | **DEFERRED** — no VPS yet; local dry-run evidence in progress via parallel workstream `fix/task90-prod-deploy-dryrun` | — |
 
 **Exit:** Guide audit can mark task 90 complete with evidence links (PRs, canary runs, prod acceptance).
 
@@ -124,16 +126,17 @@ See [PROJECT_COMPLETE_AUDIT.md](PROJECT_COMPLETE_AUDIT.md) for the launch gate s
 
 ---
 
-## Phase 6–7 progress (2026-07-17)
+## Phase 6–7 progress (2026-07-21)
 
 | Task | Status |
 |------|--------|
 | 78 full-path E2E | **Done on main** — green local Podman + GHA |
-| 87–89 repo artifacts | On `main` (merged earlier) |
-| 90 local/staging | **Partial** — CI workflow + evidence; Multilogin + prod still open |
-| 86 prod host | **Deferred** — operator chose no VPS yet |
+| 86–89 code/docs | **Done on main** — CD pipeline, alerting, structured logging, ops runbook docs all merged; live VPS cutover still pending (external, unresolved) |
+| Tier 2–4 canary | **Fixed** — Maigret EMPTY→SKIP confirmed present (PR #97) and verified with a clean live local re-run (20/20 profiles); see [tier234-live-m5](../backend/docs/e2e-evidence/tier234-live-m5.md) |
+| 90 local/staging | **Partial** — CI workflow + evidence; Multilogin Tier 1 live canary pending parallel workstream `fix/task90-tier1-live-canary`; prod still open |
+| 86 prod host | **Deferred** — operator chose no VPS yet; local dry-run evidence in progress via parallel workstream `fix/task90-prod-deploy-dryrun` |
 
-**Remaining for full Task 90:** Multilogin Tier 1 live canary; production VPS cutover (86–89 signed).
+**Remaining for full Task 90:** Multilogin Tier 1 live canary (parallel workstream, pending merge); production VPS cutover (86–89 code done, live host pending).
 
 ---
 
