@@ -43,12 +43,12 @@ export function DashboardView() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <CardTitle>Recent jobs</CardTitle>
             <CardDescription>Latest enrichment runs from the pipeline.</CardDescription>
           </div>
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" className="shrink-0 self-start sm:self-auto">
             <Link href="/app/history">View all</Link>
           </Button>
         </CardHeader>
@@ -61,12 +61,21 @@ export function DashboardView() {
           ) : data?.recent.length ? (
             <ul className="flex flex-col gap-2">
               {data.recent.map((job) => (
-                <li key={job.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                  <Link href={`/app/jobs/${job.id}`} className="font-mono text-primary hover:underline">
-                    {job.id}
-                  </Link>
-                  <span className="max-w-[200px] truncate text-muted-foreground">{job.identifierSummary}</span>
-                  <JobStatusBadge status={job.status} />
+                <li key={job.id} className="flex min-w-0 flex-col gap-1 rounded-md border px-3 py-2 text-sm">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Link
+                      href={`/app/jobs/${job.id}`}
+                      className="min-w-0 flex-1 truncate font-mono text-primary hover:underline"
+                    >
+                      {job.id}
+                    </Link>
+                    <span className="shrink-0">
+                      <JobStatusBadge status={job.status} />
+                    </span>
+                  </div>
+                  {job.identifierSummary ? (
+                    <span className="truncate text-muted-foreground">{job.identifierSummary}</span>
+                  ) : null}
                 </li>
               ))}
             </ul>
