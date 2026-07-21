@@ -1,6 +1,6 @@
-import Link from 'next/link';
-import { ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
+import Link from "next/link";
+import { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 
 type MarketingShellProps = {
   children: ReactNode;
@@ -12,7 +12,9 @@ export function MarketingShell({ children }: MarketingShellProps) {
       <header className="border-b border-border bg-card/40">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link href="/" className="flex flex-col gap-0.5">
-            <span className="text-xs font-semibold uppercase tracking-widest text-primary">Hyrepath</span>
+            <span className="text-xs font-semibold uppercase tracking-widest text-primary">
+              Hyrepath
+            </span>
             <span className="text-sm font-semibold tracking-tight">Enrichment</span>
           </Link>
           <div className="flex items-center gap-2">

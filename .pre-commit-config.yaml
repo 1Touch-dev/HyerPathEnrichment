@@ -1,4 +1,4 @@
-# Local lint/format gates — mirrors CI lint-test + frontend-contract (typecheck only).
+# Local lint/format gates — mirrors CI lint-test + frontend-contract.
 # Install: make setup  (runs pre-commit install + commit-msg hook)
 
 repos:
@@ -34,6 +34,13 @@ repos:
         entry: python scripts/hooks/run_mypy.py
         language: system
         files: ^backend/
+        pass_filenames: false
+
+      - id: frontend-format
+        name: frontend prettier format check
+        entry: python scripts/hooks/run_frontend_format.py
+        language: system
+        files: ^frontend/
         pass_filenames: false
 
       - id: frontend-typecheck

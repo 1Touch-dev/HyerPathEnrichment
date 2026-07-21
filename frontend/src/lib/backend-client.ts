@@ -1,11 +1,11 @@
-import 'server-only';
+import "server-only";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export function getBackendConfig(): { baseUrl: string; token: string } {
   return {
-    baseUrl: process.env.BACKEND_API_URL ?? 'http://localhost:8000',
-    token: process.env.BACKEND_API_TOKEN ?? 'change-me',
+    baseUrl: process.env.BACKEND_API_URL ?? "http://localhost:8000",
+    token: process.env.BACKEND_API_TOKEN ?? "change-me",
   };
 }
 

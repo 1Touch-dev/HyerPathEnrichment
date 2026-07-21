@@ -1,5 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export function TrustBlock() {
   return (
@@ -7,9 +7,18 @@ export function TrustBlock() {
       <h2 className="text-2xl font-semibold tracking-tight">Why Hyrepath</h2>
       <div className="grid gap-4 md:grid-cols-3">
         {[
-          { title: 'Self-hosted', body: 'Run the pipeline on your infrastructure. No third-party dossier store.' },
-          { title: 'Open source', body: 'Inspect enrichers, merge logic, and suppression handling in the repo.' },
-          { title: 'You own the data', body: 'Customer-supplied identifiers only. Opt-out honored before dispatch.' },
+          {
+            title: "Self-hosted",
+            body: "Run the pipeline on your infrastructure. No third-party dossier store.",
+          },
+          {
+            title: "Open source",
+            body: "Inspect enrichers, merge logic, and suppression handling in the repo.",
+          },
+          {
+            title: "You own the data",
+            body: "Customer-supplied identifiers only. Opt-out honored before dispatch.",
+          },
         ].map((item) => (
           <Card key={item.title} className="border-border bg-card">
             <CardHeader>
@@ -30,7 +39,9 @@ export function SampleDossierCard({ audience }: { audience: string }) {
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Static preview</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">
+              Static preview
+            </p>
             <CardTitle className="font-mono text-lg">alexhyrepath</CardTitle>
           </div>
           <Badge variant="outline" className="font-mono">
@@ -52,7 +63,9 @@ export function SampleDossierCard({ audience }: { audience: string }) {
           </div>
         </CardContent>
       </Card>
-      <p className="text-xs text-muted-foreground">Preview only — marketing pages do not call the live API.</p>
+      <p className="text-xs text-muted-foreground">
+        Preview only — marketing pages do not call the live API.
+      </p>
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { ApiError } from '@/src/lib/api-envelope';
+import { ApiError } from "@/src/lib/api-envelope";
 
 export type FormattedApiError = {
   message: string;
@@ -19,7 +19,7 @@ export function formatApiError(error: unknown): FormattedApiError {
     return { message: error.message };
   }
 
-  return { message: 'Request failed' };
+  return { message: "Request failed" };
 }
 
 export function formatApiErrorMessage(error: unknown): string {

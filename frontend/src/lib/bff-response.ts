@@ -1,20 +1,25 @@
-import 'server-only';
+import "server-only";
 
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 import {
   errorEnvelope,
   isSuccessEnvelope,
   parseResponseEnvelopeError,
   successEnvelope,
   unwrapEnvelopeData,
-} from '@/src/lib/api-envelope';
+} from "@/src/lib/api-envelope";
 
-export function bffSuccess<T>(data: T, status = 200, message: string | null = null, meta: Record<string, unknown> | null = null) {
+export function bffSuccess<T>(
+  data: T,
+  status = 200,
+  message: string | null = null,
+  meta: Record<string, unknown> | null = null,
+) {
   return NextResponse.json(successEnvelope(data, message, meta), { status });
 }
 
 export function bffValidationError(message: string, details: unknown = null, status = 400) {
-  return NextResponse.json(errorEnvelope('VALIDATION_ERROR', message, status, details), { status });
+  return NextResponse.json(errorEnvelope("VALIDATION_ERROR", message, status, details), { status });
 }
 
 export function bffError(
@@ -27,14 +32,23 @@ export function bffError(
   return NextResponse.json(errorEnvelope(code, message, status, details, meta), { status });
 }
 
-export function bffServiceUnavailable(message = 'Unable to reach enrichment backend.', status = 502) {
-  return NextResponse.json(errorEnvelope('SERVICE_UNAVAILABLE', message, status), { status });
+export function bffServiceUnavailable(
+  message = "Unable to reach enrichment backend.",
+  status = 502,
+) {
+  return NextResponse.json(errorEnvelope("SERVICE_UNAVAILABLE", message, status), { status });
 }
 
 export async function backendFailureResponse(response: Response) {
   const apiError = await parseResponseEnvelopeError(response);
   return NextResponse.json(
-    errorEnvelope(apiError.code, apiError.message, apiError.statusCode, apiError.details ?? null, apiError.meta ?? null),
+    errorEnvelope(
+      apiError.code,
+      apiError.message,
+      apiError.statusCode,
+      apiError.details ?? null,
+      apiError.meta ?? null,
+    ),
     { status: apiError.statusCode },
   );
 }
@@ -59,5 +73,10 @@ export async function handleBackendJson<TBackend, TFrontend>(
     ? { message: raw.message ?? null, meta: raw.meta ?? null }
     : { message: null, meta: null };
 
-  return bffSuccess(mapFn(backendData), successStatus, envelopeMeta.message ?? null, envelopeMeta.meta ?? null);
+  return bffSuccess(
+    mapFn(backendData),
+    successStatus,
+    envelopeMeta.message ?? null,
+    envelopeMeta.meta ?? null,
+  );
 }

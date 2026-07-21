@@ -1,7 +1,7 @@
-import { EnrichmentInput, RequestedTier } from '@/src/lib/types';
-import { tierLabels } from '@/src/lib/utils';
+import { EnrichmentInput, RequestedTier } from "@/src/lib/types";
+import { tierLabels } from "@/src/lib/utils";
 
-export const ALL_TIERS: RequestedTier[] = ['tier1', 'tier2', 'tier3', 'tier4'];
+export const ALL_TIERS: RequestedTier[] = ["tier1", "tier2", "tier3", "tier4"];
 
 export type TierFieldRequirements = {
   linkedinUrl: boolean;
@@ -12,7 +12,7 @@ export type TierFieldRequirements = {
 
 export type EnrichmentFieldValues = Pick<
   EnrichmentInput,
-  'email' | 'linkedinUrl' | 'username' | 'company' | 'business' | 'jobSearch'
+  "email" | "linkedinUrl" | "username" | "company" | "business" | "jobSearch"
 >;
 
 export function parseTiersFromQuery(value: string | null): RequestedTier[] {
@@ -21,44 +21,48 @@ export function parseTiersFromQuery(value: string | null): RequestedTier[] {
   }
 
   return value
-    .split(',')
+    .split(",")
     .map((tier) => tier.trim())
-    .filter((tier): tier is RequestedTier =>
-      tier === 'tier1' || tier === 'tier2' || tier === 'tier3' || tier === 'tier4',
+    .filter(
+      (tier): tier is RequestedTier =>
+        tier === "tier1" || tier === "tier2" || tier === "tier3" || tier === "tier4",
     );
 }
 
 export function tiersToQuery(tiers: RequestedTier[]): string {
-  return tiers.join(',');
+  return tiers.join(",");
 }
 
 export function getTierLabel(tier: RequestedTier): string {
   return tierLabels[tier] ?? tier;
 }
 
-export function availableTiersForMode(mode: 'async' | 'sync'): RequestedTier[] {
-  if (mode === 'sync') {
-    return ALL_TIERS.filter((tier) => tier !== 'tier1');
+export function availableTiersForMode(mode: "async" | "sync"): RequestedTier[] {
+  if (mode === "sync") {
+    return ALL_TIERS.filter((tier) => tier !== "tier1");
   }
   return ALL_TIERS;
 }
 
-export function normalizeTiersForMode(tiers: RequestedTier[], mode: 'async' | 'sync'): RequestedTier[] {
+export function normalizeTiersForMode(
+  tiers: RequestedTier[],
+  mode: "async" | "sync",
+): RequestedTier[] {
   const allowed = new Set(availableTiersForMode(mode));
   return ALL_TIERS.filter((tier) => tiers.includes(tier) && allowed.has(tier));
 }
 
-export function hasValidTierSelection(tiers: RequestedTier[], mode: 'async' | 'sync'): boolean {
+export function hasValidTierSelection(tiers: RequestedTier[], mode: "async" | "sync"): boolean {
   return normalizeTiersForMode(tiers, mode).length > 0;
 }
 
 /** Flags matching backend EnrichmentRequest tier-specific identifier rules. */
 export function tierFieldRequirements(tiers: RequestedTier[]): TierFieldRequirements {
   return {
-    linkedinUrl: tiers.includes('tier1'),
-    username: tiers.includes('tier2'),
-    emailOrCompanyOrUsername: tiers.includes('tier3'),
-    businessOrJobSearch: tiers.includes('tier4'),
+    linkedinUrl: tiers.includes("tier1"),
+    username: tiers.includes("tier2"),
+    emailOrCompanyOrUsername: tiers.includes("tier3"),
+    businessOrJobSearch: tiers.includes("tier4"),
   };
 }
 

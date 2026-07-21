@@ -925,6 +925,26 @@ See `backend/.env.example` for the full list including sidecar URLs, timeouts, L
 
 ## Testing
 
+### Format (backend + frontend)
+
+One-shot apply:
+
+```bash
+make format
+# equivalent:
+#   ruff format backend/app backend/tests
+#   cd frontend && npm run format
+```
+
+Check only (CI / pre-commit parity):
+
+```bash
+ruff format --check backend/app backend/tests
+cd frontend && npm run format:check
+```
+
+After `make setup`, pre-commit runs Ruff format on `backend/` and Prettier check on `frontend/` when those paths change. Full sweep: `make pre-commit`.
+
 ### Dependency security audit
 
 Automated checks for known high/critical CVEs in Python and npm dependencies:
@@ -988,6 +1008,7 @@ Concurrent traffic against `/health`, `/ready`, async `/enrich` + poll, and ligh
 cd frontend
 npm run build
 npm run lint
+npm run format:check
 npm run typecheck
 ```
 
@@ -1063,6 +1084,7 @@ When filing issues, use tier prefixes: `[Tier 3] Reacher fallback fails on catch
 | Change free→paid backend | `config.py` mode flag + `providers/` module |
 | Debug async jobs | Check Redis, worker logs, shared `DATABASE_URL` |
 | Setup / install backend | `make setup` |
+| Format backend + frontend | `make format` |
 | Run free Docker stack | `make up` (`make down` to stop) |
 | Run tests / smoke / migrate | `make test` / `make smoke` / `make migrate` |
 | Run k6 load test | `make load-test` (see `backend/docs/LOAD_TESTING.md`) |

@@ -1,10 +1,17 @@
-'use client';
+"use client";
 
-import { ExternalLink } from 'lucide-react';
-import { EmptyState } from '@/components/console/EmptyState';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { SignalListItem } from '@/src/lib/types';
+import { ExternalLink } from "lucide-react";
+import { EmptyState } from "@/components/console/EmptyState";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { SignalListItem } from "@/src/lib/types";
 
 type SignalsTableProps = {
   signals: SignalListItem[];
@@ -65,7 +72,7 @@ export function SignalsTable({ signals, total, loading, onLoadMore }: SignalsTab
       </div>
       {hasMore && onLoadMore ? (
         <Button variant="outline" onClick={onLoadMore} disabled={loading}>
-          {loading ? 'Loading…' : 'Load more'}
+          {loading ? "Loading…" : "Load more"}
         </Button>
       ) : null}
     </div>

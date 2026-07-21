@@ -41,7 +41,7 @@ export class ApiError extends Error {
     },
   ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.code = code;
     this.statusCode = statusCode;
     this.details = details;
@@ -52,23 +52,23 @@ export class ApiError extends Error {
 export function isSuccessEnvelope(value: unknown): value is SuccessEnvelope<unknown> {
   return (
     !!value &&
-    typeof value === 'object' &&
-    'success' in value &&
+    typeof value === "object" &&
+    "success" in value &&
     (value as { success: unknown }).success === true &&
-    'data' in value
+    "data" in value
   );
 }
 
 export function isErrorEnvelope(value: unknown): value is ErrorEnvelope {
   return (
     !!value &&
-    typeof value === 'object' &&
-    'success' in value &&
+    typeof value === "object" &&
+    "success" in value &&
     (value as { success: unknown }).success === false &&
-    'error' in value &&
-    typeof (value as { error: unknown }).error === 'object' &&
+    "error" in value &&
+    typeof (value as { error: unknown }).error === "object" &&
     (value as { error: { message?: unknown } }).error !== null &&
-    typeof (value as { error: { message?: unknown } }).error.message === 'string'
+    typeof (value as { error: { message?: unknown } }).error.message === "string"
   );
 }
 
@@ -109,38 +109,38 @@ export function unwrapEnvelopeData<T>(payload: unknown): T {
 
 function httpStatusToCode(statusCode: number): string {
   const mapping: Record<number, string> = {
-    400: 'VALIDATION_ERROR',
-    401: 'UNAUTHORIZED',
-    403: 'FORBIDDEN',
-    404: 'NOT_FOUND',
-    409: 'CONFLICT',
-    422: 'VALIDATION_ERROR',
-    429: 'RATE_LIMIT_EXCEEDED',
-    502: 'SERVICE_UNAVAILABLE',
-    503: 'SERVICE_UNAVAILABLE',
+    400: "VALIDATION_ERROR",
+    401: "UNAUTHORIZED",
+    403: "FORBIDDEN",
+    404: "NOT_FOUND",
+    409: "CONFLICT",
+    422: "VALIDATION_ERROR",
+    429: "RATE_LIMIT_EXCEEDED",
+    502: "SERVICE_UNAVAILABLE",
+    503: "SERVICE_UNAVAILABLE",
   };
   if (mapping[statusCode]) {
     return mapping[statusCode];
   }
-  return statusCode >= 500 ? 'INTERNAL_ERROR' : 'VALIDATION_ERROR';
+  return statusCode >= 500 ? "INTERNAL_ERROR" : "VALIDATION_ERROR";
 }
 
 function detailMessage(detail: unknown): string {
-  if (typeof detail === 'string') {
+  if (typeof detail === "string") {
     return detail;
   }
   if (Array.isArray(detail)) {
     const parts = detail
       .map((item) => {
-        if (item && typeof item === 'object' && 'msg' in item && typeof item.msg === 'string') {
+        if (item && typeof item === "object" && "msg" in item && typeof item.msg === "string") {
           return item.msg;
         }
         return String(item);
       })
       .filter(Boolean);
-    return parts.length ? parts.join(', ') : 'request failed';
+    return parts.length ? parts.join(", ") : "request failed";
   }
-  return detail != null ? String(detail) : 'request failed';
+  return detail != null ? String(detail) : "request failed";
 }
 
 /** Build ApiError from an error envelope or legacy FastAPI / BFF shapes. */
@@ -154,7 +154,7 @@ export function parseEnvelopeError(body: unknown, httpStatus: number): ApiError 
     });
   }
 
-  if (body && typeof body === 'object') {
+  if (body && typeof body === "object") {
     const parsed = body as {
       detail?: unknown;
       message?: string;
@@ -162,7 +162,7 @@ export function parseEnvelopeError(body: unknown, httpStatus: number): ApiError 
       meta?: Record<string, unknown> | null;
     };
 
-    if (parsed.error && typeof parsed.error.message === 'string') {
+    if (parsed.error && typeof parsed.error.message === "string") {
       return new ApiError(parsed.error.message, {
         code: parsed.error.code ?? httpStatusToCode(httpStatus),
         statusCode: parsed.error.status_code ?? httpStatus,
@@ -171,7 +171,7 @@ export function parseEnvelopeError(body: unknown, httpStatus: number): ApiError 
       });
     }
 
-    if (typeof parsed.message === 'string') {
+    if (typeof parsed.message === "string") {
       return new ApiError(parsed.message, {
         code: httpStatusToCode(httpStatus),
         statusCode: httpStatus,
@@ -190,14 +190,14 @@ export function parseEnvelopeError(body: unknown, httpStatus: number): ApiError 
     }
   }
 
-  if (typeof body === 'string' && body.trim()) {
+  if (typeof body === "string" && body.trim()) {
     return new ApiError(body, {
       code: httpStatusToCode(httpStatus),
       statusCode: httpStatus,
     });
   }
 
-  return new ApiError('Request failed', {
+  return new ApiError("Request failed", {
     code: httpStatusToCode(httpStatus),
     statusCode: httpStatus,
   });
