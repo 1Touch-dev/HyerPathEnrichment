@@ -6,6 +6,8 @@ See also: [deployment.md](deployment.md), [PROD_SMOKE.md](PROD_SMOKE.md), [PROD_
 
 ## Rollback
 
+Prefer the CD rollback in [deployment.md](deployment.md) (pin previous GHCR SHA via `docker-compose.cd-images.yml`). Manual fallback:
+
 1. **Identify last known-good image tag** (or git SHA used for the build).
 2. On the host:
    ```bash
