@@ -1,16 +1,26 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { JobHistoryTable } from '@/components/console/JobHistoryTable';
 import { JobStatusBadge } from '@/components/console/JobStatusBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { evictStaleJobDetails } from '@/features/enrich';
 import { useJobMetricsQuery } from '@/features/history';
 import { formatApiErrorMessage } from '@/src/lib/format-api-error';
 
 export function DashboardView() {
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useJobMetricsQuery();
+
+  useEffect(() => {
+    if (data?.recent?.length) {
+      evictStaleJobDetails(queryClient, data.recent);
+    }
+  }, [queryClient, data?.recent]);
 
   const kpis = [
     { label: 'Total jobs', value: data?.total ?? 0 },

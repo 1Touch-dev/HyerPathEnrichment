@@ -1,18 +1,26 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { JobHistoryTable } from '@/components/console/JobHistoryTable';
+import { evictStaleJobDetails } from '@/features/enrich';
 import { useJobListQuery } from '@/features/history';
 import { formatApiErrorMessage } from '@/src/lib/format-api-error';
 
 const PAGE_SIZE = 50;
 
 export default function HistoryPage() {
+  const queryClient = useQueryClient();
   const { data, isLoading, error, isFetching, fetchNextPage, hasNextPage } = useJobListQuery();
 
-  const jobs = data?.pages.flatMap((page) => page.jobs) ?? [];
+  const jobs = useMemo(() => data?.pages.flatMap((page) => page.jobs) ?? [], [data]);
   const total = data?.pages[0]?.total ?? 0;
   const offset = Math.max(0, jobs.length - PAGE_SIZE);
+
+  useEffect(() => {
+    evictStaleJobDetails(queryClient, jobs);
+  }, [queryClient, jobs]);
 
   return (
     <div className="flex flex-col gap-6">
