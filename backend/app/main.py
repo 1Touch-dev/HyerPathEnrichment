@@ -5,6 +5,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import UnauthorizedError
 from app.core.exception_handlers import register_exception_handlers
 from app.core.lifespan import lifespan
+from app.core.logging import RequestContextMiddleware
 from app.dependencies.rate_limit import enforce_compliance_rate_limit
 from app.modules.dsar.router import router as dsar_router
 from app.modules.enrichment.router import router as enrich_router
@@ -29,6 +30,7 @@ app = FastAPI(
     lifespan=lifespan,
     route_class=EnvelopeAPIRoute,
 )
+app.add_middleware(RequestContextMiddleware)
 register_exception_handlers(app)
 app.include_router(health_router)
 app.include_router(enrich_router, dependencies=[Depends(verify_token)])

@@ -41,3 +41,4 @@ Add or update an ADR when you:
 | [0004](0004-public-compliance-apis.md) | Public opt-out and DSAR APIs | Accepted | 2026-07-20 |
 | [0005](0005-suppression-sql-redis-dual-store.md) | SQL durable suppression with Redis cache | Accepted | 2026-07-20 |
 | [0006](0006-llm-heuristic-default.md) | Heuristic LLM stub default with opt-in LiteLLM | Accepted | 2026-07-20 |
+| [0007](0007-stdlib-json-logging.md) | Stdlib JSON logging over structlog | Accepted | 2026-07-21 |

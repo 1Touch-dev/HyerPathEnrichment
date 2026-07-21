@@ -121,6 +121,12 @@ class Settings(BaseSettings):
     changedetection_api_key: str = Field(default="", alias="CHANGEDETECTION_API_KEY")
     notify_webhook_url: str = Field(default="", alias="NOTIFY_WEBHOOK_URL")
 
+    # Structured logging (stdlib; see app/core/logging.py + ADR 0007)
+    # LOG_FORMAT empty = auto (json when APP_ENV is staging|production, else text)
+    log_format: str = Field(default="", alias="LOG_FORMAT")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_service: str = Field(default="hyrepath-enrichment", alias="LOG_SERVICE")
+
     # Central error tracking (Sentry-compatible; GlitchTip or Sentry SaaS)
     sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
     sentry_environment: str = Field(default="", alias="SENTRY_ENVIRONMENT")

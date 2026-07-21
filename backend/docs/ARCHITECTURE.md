@@ -551,6 +551,16 @@ python scripts/setup_changedetection_watches.py list
 
 Flow: changedetection detects a page change → `POST /api/signals/changedetection` → API forwards `{source, watch_id, title, url, timestamp}` to `NOTIFY_WEBHOOK_URL` when configured.
 
+### Structured logging
+
+One setup for API + RQ workers (`app/core/logging.py`). Default format is **text** locally and **JSON** when `APP_ENV` is `staging`/`production`; override with `LOG_FORMAT=json|text`. Lines include `timestamp`, `level`, `logger`, `message`, `service`, and optional `request_id` / `job_id`. Configure before Sentry so `LoggingIntegration` stays compatible. See [ADR 0007](../../docs/adr/0007-stdlib-json-logging.md).
+
+| Variable | Purpose |
+|----------|---------|
+| `LOG_FORMAT` | `json` \| `text` \| empty (auto from `APP_ENV`) |
+| `LOG_LEVEL` | Root log level (default `INFO`) |
+| `LOG_SERVICE` | Service name field (default `hyrepath-enrichment`) |
+
 ### Central error tracking (GlitchTip / Sentry-compatible)
 
 Opt-in crash reporting for unhandled API 500s and RQ worker failures. The SDK is a **no-op** until `SENTRY_DSN` is set (same pattern as Langfuse).
