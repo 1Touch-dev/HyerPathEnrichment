@@ -92,9 +92,9 @@ Close partial integrations called out in the guide audit and Architecture “ope
 
 ## Phase 6 — Production launch (guide 86–89)
 
-All incomplete until there is evidence for **`enrich.hyrepath.io`** (or the agreed production host). **No prod VPS chosen yet — deferred.** (Framing unchanged as of 2026-07-21; a parallel workstream `fix/task90-prod-deploy-dryrun` is producing local dry-run evidence — see Phase 7 table below. Do not treat that as a live VPS result.)
+All incomplete until there is evidence for **`enrich.hyrepath.io`** (or the agreed production host). **No prod VPS chosen yet — deferred.** The deploy + acceptance automation itself is now verified end-to-end via a fully isolated local dry run (PR #143, merged) — see Phase 7 table below. Do not treat that as a live VPS result; it proves the automation is correct, not that a host is live.
 
-Repo-side (code/docs) deliverables for 86–89 are complete on `main` (CD pipeline, alerting, structured logging, ops-runbook docs landed through 2026-07-21). **Live VPS cutover itself is still pending** — external/unresolved, not something this repo can close without an actual host.
+Repo-side (code/docs) deliverables for 86–89 are complete on `main` (CD pipeline, alerting, structured logging, ops-runbook docs, and a passing local dry-run of `prod_full_acceptance.sh` landed through 2026-07-21). **Live VPS cutover itself is still pending** — external/unresolved, not something this repo can close without an actual host.
 
 - [ ] **86** — Production deploy of API + worker + Postgres + Redis + required free sidecars — code/CD deliverables on `main`; live deploy **PENDING** VPS
 - [ ] **87** — Secrets, TLS, and env parity with staging (tokens, `DATABASE_URL`, `REDIS_URL`, R2 when used) — repo deliverables on `main`; live apply **PENDING** VPS
@@ -116,9 +116,9 @@ Repo-side (code/docs) deliverables for 86–89 are complete on `main` (CD pipeli
 | Full-path E2E (78) | PASS | [2026-07-17 evidence](../backend/docs/e2e-evidence/2026-07-17-full-path-ci.md), [GHA 29563202825](https://github.com/1Touch-dev/HyerPathEnrichment/actions/runs/29563202825) |
 | Tier 2–4 live CI | **PASS** — Maigret EMPTY→SKIP soft-skip (landed PR #97) confirmed by live local re-run, 20/20 profiles, 0 fail | [tier234-live-m5 evidence](../backend/docs/e2e-evidence/tier234-live-m5.md) (supersedes prior FAIL in [tier234-live-m4](../backend/docs/evidence/tier234-live-m4.md), [GHA 29569501682](https://github.com/1Touch-dev/HyerPathEnrichment/actions/runs/29569501682)). Full GHA `tier234-live` re-confirmation still blocked by an unrelated `e2e-full-path` job failure on every push since 2026-07-17 — see m5 "Known blocker" (out of scope here). |
 | Staging Scrapoxy / Langfuse | PASS (GHA 29563202825) | [scrapoxy](../backend/docs/evidence/scrapoxy-staging-62.md), [langfuse](../backend/docs/evidence/langfuse-staging-49.md) |
-| Local prod acceptance | Pending green `local-acceptance` job | [`PROD_ACCEPTANCE.md`](PROD_ACCEPTANCE.md) |
-| Tier 1 Multilogin live canary | **PENDING** — result from parallel workstream `fix/task90-tier1-live-canary`; to be finalized by the master agent after that PR merges | [prior skip evidence](../backend/docs/evidence/tier1-multilogin-canary-skip.md) |
-| Prod host 86–89 | **DEFERRED** — no VPS yet; local dry-run evidence in progress via parallel workstream `fix/task90-prod-deploy-dryrun` | — |
+| Local prod acceptance | **PASS** — full local dry run (isolated `docker compose -p task90dryrun`) of `prod_full_acceptance.sh --local`: setup, compose up, `/ready`, smoke, boundary checks, full-path E2E all exit 0 | [prod-dryrun-2026-07-21 evidence](../backend/docs/e2e-evidence/prod-dryrun-2026-07-21/) (PR #143, merged); sign-off row in [`PROD_ACCEPTANCE.md`](PROD_ACCEPTANCE.md) |
+| Tier 1 Multilogin live canary | **PARTIAL** — real live scrapes succeeded (single-profile + 4/4 isolation-mode retry), and 3 real pipeline/worker bugs were found and fixed (SQLite write-lock, stale Redis pub/sub client, uncommitted `running`-status transaction). Full 10-profile API+worker re-run not yet completed: first attempt hit the daily Multilogin view-budget cap, second attempt (after raising the cap) was burned by an operator mistake before the run started. Budget resets nightly; profiles 11-20 are earmarked for manual operator verification. PR #142 is open, **not merged** | [tier1-multilogin-canary-skip.md](../backend/docs/evidence/tier1-multilogin-canary-skip.md), [tier1-live-2026-07-21 evidence](../backend/docs/e2e-evidence/tier1-live-2026-07-21/) (on branch `fix/task90-tier1-live-canary`, PR [#142](https://github.com/1Touch-dev/HyerPathEnrichment/pull/142)) |
+| Prod host 86–89 | **DEFERRED** — no VPS yet; deploy/acceptance automation itself fully verified locally (PR #143, merged) | — |
 
 **Exit:** Guide audit can mark task 90 complete with evidence links (PRs, canary runs, prod acceptance).
 
@@ -131,10 +131,10 @@ See [PROJECT_COMPLETE_AUDIT.md](PROJECT_COMPLETE_AUDIT.md) for the launch gate s
 | Task | Status |
 |------|--------|
 | 78 full-path E2E | **Done on main** — green local Podman + GHA |
-| 86–89 code/docs | **Done on main** — CD pipeline, alerting, structured logging, ops runbook docs all merged; live VPS cutover still pending (external, unresolved) |
-| Tier 2–4 canary | **Fixed** — Maigret EMPTY→SKIP confirmed present (PR #97) and verified with a clean live local re-run (20/20 profiles); see [tier234-live-m5](../backend/docs/e2e-evidence/tier234-live-m5.md) |
-| 90 local/staging | **Partial** — CI workflow + evidence; Multilogin Tier 1 live canary pending parallel workstream `fix/task90-tier1-live-canary`; prod still open |
-| 86 prod host | **Deferred** — operator chose no VPS yet; local dry-run evidence in progress via parallel workstream `fix/task90-prod-deploy-dryrun` |
+| 86–89 code/docs | **Done on main** — CD pipeline, alerting, structured logging, ops runbook docs, and a fully verified local deploy dry-run (PR #143) all merged; live VPS cutover still pending (external, unresolved) |
+| Tier 2–4 canary | **Fixed** — Maigret EMPTY→SKIP confirmed present (PR #97) and verified with a clean live local re-run (20/20 profiles); see [tier234-live-m5](../backend/docs/e2e-evidence/tier234-live-m5.md) (PR #141, merged) |
+| 90 local/staging | **Partial** — CI workflow + evidence; Multilogin Tier 1 live canary partially verified with 3 real bugs fixed, full re-run still open on PR #142 (not merged); prod deploy automation locally verified, real VPS still open |
+| 86 prod host | **Deferred** — operator chose no VPS yet; local dry-run evidence complete and merged (PR #143) |
 
 **Remaining for full Task 90:** Multilogin Tier 1 live canary (parallel workstream, pending merge); production VPS cutover (86–89 code done, live host pending).
 
