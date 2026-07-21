@@ -1,14 +1,21 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useState } from 'react';
-import { Copy } from 'lucide-react';
-import { JobStatusBadge } from '@/components/console/JobStatusBadge';
-import { EmptyState } from '@/components/console/EmptyState';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { JobListItem } from '@/src/lib/types';
-import { copyToClipboard } from '@/src/lib/utils';
+import Link from "next/link";
+import { useState } from "react";
+import { Copy } from "lucide-react";
+import { JobStatusBadge } from "@/components/console/JobStatusBadge";
+import { EmptyState } from "@/components/console/EmptyState";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { JobListItem } from "@/src/lib/types";
+import { copyToClipboard } from "@/src/lib/utils";
 
 type JobHistoryTableProps = {
   jobs: JobListItem[];
@@ -19,7 +26,14 @@ type JobHistoryTableProps = {
   onLoadMore?: () => void;
 };
 
-export function JobHistoryTable({ jobs, total, limit, offset, loading, onLoadMore }: JobHistoryTableProps) {
+export function JobHistoryTable({
+  jobs,
+  total,
+  limit,
+  offset,
+  loading,
+  onLoadMore,
+}: JobHistoryTableProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
 
@@ -30,7 +44,12 @@ export function JobHistoryTable({ jobs, total, limit, offset, loading, onLoadMor
   };
 
   if (!jobs.length && !loading) {
-    return <EmptyState title="No jobs yet" description="Run an enrichment from the console to populate history." />;
+    return (
+      <EmptyState
+        title="No jobs yet"
+        description="Run an enrichment from the console to populate history."
+      />
+    );
   }
 
   const hasMore = offset + jobs.length < total;
@@ -66,24 +85,37 @@ export function JobHistoryTable({ jobs, total, limit, offset, loading, onLoadMor
                         {job.identifierSummary || job.id}
                       </Link>
                     </div>
-                    <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{job.id}</div>
+                    <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                      {job.id}
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell>
                   <JobStatusBadge status={job.status} />
                 </TableCell>
-                <TableCell className="text-xs text-muted-foreground">{formatDate(job.createdAt)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {formatDate(job.createdAt)}
+                </TableCell>
                 {showMore ? (
                   <>
                     <TableCell>
-                      <Link href={`/app/jobs/${job.id}`} className="font-mono text-sm text-primary hover:underline">
+                      <Link
+                        href={`/app/jobs/${job.id}`}
+                        className="font-mono text-sm text-primary hover:underline"
+                      >
                         {job.id}
                       </Link>
                     </TableCell>
-                    <TableCell className="max-w-[240px] truncate">{job.identifierSummary || '—'}</TableCell>
-                    <TableCell>{job.requestedTiers.join(', ') || '—'}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{formatDate(job.createdAt)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{formatDate(job.updatedAt)}</TableCell>
+                    <TableCell className="max-w-[240px] truncate">
+                      {job.identifierSummary || "—"}
+                    </TableCell>
+                    <TableCell>{job.requestedTiers.join(", ") || "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatDate(job.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatDate(job.updatedAt)}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button asChild variant="outline" size="sm">
@@ -91,7 +123,7 @@ export function JobHistoryTable({ jobs, total, limit, offset, loading, onLoadMor
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => void copyId(job.id)}>
                           <Copy className="size-3" />
-                          {copiedId === job.id ? 'Copied' : 'Copy ID'}
+                          {copiedId === job.id ? "Copied" : "Copy ID"}
                         </Button>
                       </div>
                     </TableCell>
@@ -113,11 +145,11 @@ export function JobHistoryTable({ jobs, total, limit, offset, loading, onLoadMor
             onClick={() => setShowMore((s) => !s)}
             disabled={loading || (!hasMore && jobs.length === 0)}
           >
-            {showMore ? 'Show less' : 'Show more columns'}
+            {showMore ? "Show less" : "Show more columns"}
           </Button>
           {hasMore ? (
             <Button variant="outline" size="sm" disabled={loading} onClick={onLoadMore}>
-              {loading ? 'Loading…' : 'Load more'}
+              {loading ? "Loading…" : "Load more"}
             </Button>
           ) : null}
         </div>
@@ -127,6 +159,6 @@ export function JobHistoryTable({ jobs, total, limit, offset, loading, onLoadMor
 }
 
 function formatDate(value: string) {
-  if (!value) return '—';
-  return value.replace('T', ' ').slice(0, 19);
+  if (!value) return "—";
+  return value.replace("T", " ").slice(0, 19);
 }

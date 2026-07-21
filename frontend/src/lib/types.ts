@@ -1,8 +1,8 @@
-export type RequestedTier = 'tier1' | 'tier2' | 'tier3' | 'tier4';
+export type RequestedTier = "tier1" | "tier2" | "tier3" | "tier4";
 
-export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'suppressed';
+export type JobStatus = "queued" | "running" | "completed" | "failed" | "suppressed";
 
-export type EnrichMode = 'async' | 'sync';
+export type EnrichMode = "async" | "sync";
 
 export type EnrichmentInput = {
   email?: string;
@@ -30,7 +30,7 @@ export type SocialHandle = {
 
 export type VerifiedEmail = {
   value: string;
-  status: 'verified' | 'risky' | 'unknown' | 'disposable';
+  status: "verified" | "risky" | "unknown" | "disposable";
   confidence: number;
   source: string;
 };
@@ -104,7 +104,7 @@ export type OptOutInput = {
   reason?: string;
 };
 
-export type DsarType = 'access' | 'deletion';
+export type DsarType = "access" | "deletion";
 
 export type DsarInput = {
   identifier: string;

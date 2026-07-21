@@ -1,10 +1,10 @@
-import type { ConfidenceBreakdown, Dossier, SocialHandle, VerifiedEmail } from '@/src/lib/types';
+import type { ConfidenceBreakdown, Dossier, SocialHandle, VerifiedEmail } from "@/src/lib/types";
 
-type DossierJob = Dossier['jobs'][number];
+type DossierJob = Dossier["jobs"][number];
 
 export type DossierEntity =
   | {
-      kind: 'handle';
+      kind: "handle";
       id: string;
       title: string;
       subtitle?: string;
@@ -12,7 +12,7 @@ export type DossierEntity =
       entity: SocialHandle;
     }
   | {
-      kind: 'verifiedEmail';
+      kind: "verifiedEmail";
       id: string;
       title: string;
       subtitle?: string;
@@ -20,20 +20,20 @@ export type DossierEntity =
       entity: VerifiedEmail;
     }
   | {
-      kind: 'email';
+      kind: "email";
       id: string;
       title: string;
       entity: string;
     }
   | {
-      kind: 'job';
+      kind: "job";
       id: string;
       title: string;
       subtitle?: string;
       entity: DossierJob;
     }
   | {
-      kind: 'confidence';
+      kind: "confidence";
       id: string;
       title: string;
       subtitle?: string;
@@ -41,7 +41,7 @@ export type DossierEntity =
       entity: ConfidenceBreakdown;
     }
   | {
-      kind: 'source';
+      kind: "source";
       id: string;
       title: string;
       entity: string;

@@ -1,7 +1,7 @@
 # HyerEnrichment — common local-dev targets
 # Free Docker stack: api, worker, redis, postgres, social-analyzer, google-maps-scraper
 
-.PHONY: help setup up down test smoke smoke-prod boundary-checks migrate integration-e2e e2e-full-path load-test audit audit-python audit-frontend verify-adrs lint pre-commit
+.PHONY: help setup up down test smoke smoke-prod boundary-checks migrate integration-e2e e2e-full-path load-test audit audit-python audit-frontend verify-adrs lint format pre-commit
 
 .DEFAULT_GOAL := help
 
@@ -26,7 +26,8 @@ help: ## List available targets
 	@echo "  audit-python      Python dependency audit only"
 	@echo "  audit-frontend    Frontend npm audit only"
 	@echo "  verify-adrs  Validate formal ADR structure and cross-links (Task 6)"
-	@echo "  lint     Run ruff, mypy, and frontend typecheck (CI parity)"
+	@echo "  lint     Run ruff/mypy/format checks + frontend typecheck (CI parity)"
+	@echo "  format   One-shot: ruff format backend + prettier frontend"
 	@echo "  pre-commit  Run all pre-commit hooks on the full repo"
 	@echo "  help     Show this help"
 
@@ -109,10 +110,16 @@ verify-adrs: ## Validate formal ADR structure and cross-links (Task 6)
 		python3 $(BACKEND_DIR)/scripts/verify_adrs.py --json; \
 	fi
 
-lint: ## Ruff + mypy + frontend typecheck (matches CI lint/contract jobs)
+lint: ## Ruff + format check + mypy + frontend typecheck/format (matches CI)
 	$(BACKEND_DIR)/.venv/bin/ruff check $(BACKEND_DIR)/app $(BACKEND_DIR)/tests
+	$(BACKEND_DIR)/.venv/bin/ruff format --check $(BACKEND_DIR)/app $(BACKEND_DIR)/tests
 	cd $(BACKEND_DIR) && ../$(BACKEND_DIR)/.venv/bin/mypy app
+	cd frontend && npm run format:check
 	cd frontend && npm run typecheck
+
+format: ## One-shot format: ruff (backend) + prettier (frontend)
+	$(BACKEND_DIR)/.venv/bin/ruff format $(BACKEND_DIR)/app $(BACKEND_DIR)/tests
+	cd frontend && npm run format
 
 pre-commit: ## Run all pre-commit hooks on the full repo
 	$(BACKEND_DIR)/.venv/bin/pre-commit run --all-files

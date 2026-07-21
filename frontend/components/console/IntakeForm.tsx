@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useHealth } from '@/hooks/useHealth';
-import { tierDescriptions } from '@/src/lib/landing-content';
+import { useEffect, useMemo, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useHealth } from "@/hooks/useHealth";
+import { tierDescriptions } from "@/src/lib/landing-content";
 import {
   ALL_TIERS,
   getTierLabel,
@@ -16,37 +16,37 @@ import {
   isEnrichmentInputValidForTiers,
   normalizeTiersForMode,
   tierFieldRequirements,
-} from '@/src/lib/tier-utils';
-import { formatApiErrorMessage } from '@/src/lib/format-api-error';
-import { EnrichmentInput, EnrichMode, RequestedTier } from '@/src/lib/types';
+} from "@/src/lib/tier-utils";
+import { formatApiErrorMessage } from "@/src/lib/format-api-error";
+import { EnrichmentInput, EnrichMode, RequestedTier } from "@/src/lib/types";
 
 type IntakeFormProps = {
   mode: EnrichMode;
-  initialTiers?: EnrichmentInput['requestedTiers'];
+  initialTiers?: EnrichmentInput["requestedTiers"];
   onSubmit: (input: EnrichmentInput) => Promise<void>;
   loading?: boolean;
 };
 
 function fieldSuffix(required: boolean): string {
-  return required ? '(required)' : '(optional)';
+  return required ? "(required)" : "(optional)";
 }
 
 export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeFormProps) {
   const { online } = useHealth();
-  const [email, setEmail] = useState('');
-  const [linkedinUrl, setLinkedinUrl] = useState('');
-  const [username, setUsername] = useState('');
-  const [company, setCompany] = useState('');
-  const [business, setBusiness] = useState('');
-  const [jobSearch, setJobSearch] = useState('');
+  const [email, setEmail] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [username, setUsername] = useState("");
+  const [company, setCompany] = useState("");
+  const [business, setBusiness] = useState("");
+  const [jobSearch, setJobSearch] = useState("");
 
   const [requestedTiers, setRequestedTiers] = useState<RequestedTier[]>(() =>
-    normalizeTiersForMode(initialTiers ?? ['tier2', 'tier3'], mode),
+    normalizeTiersForMode(initialTiers ?? ["tier2", "tier3"], mode),
   );
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    setRequestedTiers(normalizeTiersForMode(initialTiers ?? ['tier2', 'tier3'], mode));
+    setRequestedTiers(normalizeTiersForMode(initialTiers ?? ["tier2", "tier3"], mode));
     // Seed from query/draft tiers only; mode changes are handled below.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally ignore mode here
   }, [initialTiers]);
@@ -72,16 +72,13 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
     hasValidTierSelection(requestedTiers, mode) && fieldsValid && online && !loading;
 
   const tier3Unsatisfied =
-    requirements.emailOrCompanyOrUsername &&
-    !username.trim() &&
-    !email.trim() &&
-    !company.trim();
+    requirements.emailOrCompanyOrUsername && !username.trim() && !email.trim() && !company.trim();
 
   const tier4Unsatisfied =
     requirements.businessOrJobSearch && !business.trim() && !jobSearch.trim();
 
   const toggleTier = (tier: RequestedTier, checked: boolean) => {
-    if (mode === 'sync' && tier === 'tier1') {
+    if (mode === "sync" && tier === "tier1") {
       return;
     }
 
@@ -95,7 +92,7 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError('');
+    setError("");
     try {
       const base: EnrichmentInput = {
         requestedTiers: normalizedTiers,
@@ -106,12 +103,12 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
 
       const trimmedLinkedin = linkedinUrl.trim();
       if (trimmedLinkedin) {
-        base.linkedinUrl = trimmedLinkedin.startsWith('http')
+        base.linkedinUrl = trimmedLinkedin.startsWith("http")
           ? trimmedLinkedin
           : `https://${trimmedLinkedin}`;
       }
 
-      const trimmedUsername = username.trim().replace(/^@/, '');
+      const trimmedUsername = username.trim().replace(/^@/, "");
       if (trimmedUsername) base.username = trimmedUsername;
 
       const trimmedCompany = company.trim();
@@ -135,13 +132,16 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Request intake</p>
         <CardTitle className="text-2xl">Look up a person</CardTitle>
         <CardDescription>
-          Choose tiers, then fill the fields they require. Unselected tiers leave their fields optional.
+          Choose tiers, then fill the fields they require. Unselected tiers leave their fields
+          optional.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {mode === 'sync' ? (
+        {mode === "sync" ? (
           <Alert className="mb-4">
-            <AlertDescription>Tier 1 is disabled in sync mode — browser pipeline excluded.</AlertDescription>
+            <AlertDescription>
+              Tier 1 is disabled in sync mode — browser pipeline excluded.
+            </AlertDescription>
           </Alert>
         ) : null}
 
@@ -150,7 +150,7 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
             <legend className="px-1 text-sm font-medium">Tiers</legend>
             <div className="grid gap-3 sm:grid-cols-2">
               {ALL_TIERS.map((tier) => {
-                const disabled = mode === 'sync' && tier === 'tier1';
+                const disabled = mode === "sync" && tier === "tier1";
                 const checked = requestedTiers.includes(tier);
                 const id = `tier-${tier}`;
 
@@ -159,7 +159,7 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
                     key={tier}
                     htmlFor={id}
                     className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${
-                      disabled ? 'cursor-not-allowed opacity-50' : ''
+                      disabled ? "cursor-not-allowed opacity-50" : ""
                     }`}
                   >
                     <Checkbox
@@ -171,7 +171,9 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
                     />
                     <div>
                       <span className="block text-sm font-medium">{getTierLabel(tier)}</span>
-                      <span className="block text-xs text-muted-foreground">{tierDescriptions[tier]}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {tierDescriptions[tier]}
+                      </span>
                     </div>
                   </label>
                 );
@@ -181,7 +183,9 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="linkedinUrl">LinkedIn URL {fieldSuffix(requirements.linkedinUrl)}</Label>
+              <Label htmlFor="linkedinUrl">
+                LinkedIn URL {fieldSuffix(requirements.linkedinUrl)}
+              </Label>
               <Input
                 id="linkedinUrl"
                 value={linkedinUrl}
@@ -240,7 +244,9 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
           </div>
 
           {tier3Unsatisfied ? (
-            <p className="text-sm text-muted-foreground">Tier 3 needs username, email, or company.</p>
+            <p className="text-sm text-muted-foreground">
+              Tier 3 needs username, email, or company.
+            </p>
           ) : null}
           {tier4Unsatisfied ? (
             <p className="text-sm text-muted-foreground">Tier 4 needs business or job search.</p>
@@ -254,9 +260,11 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
 
           <div className="flex flex-col gap-2">
             <Button type="submit" disabled={!canSubmit}>
-              {loading ? 'Looking up…' : 'Look up'}
+              {loading ? "Looking up…" : "Look up"}
             </Button>
-            {!online ? <p className="text-sm text-destructive">Backend unreachable — submit disabled.</p> : null}
+            {!online ? (
+              <p className="text-sm text-destructive">Backend unreachable — submit disabled.</p>
+            ) : null}
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </div>
         </form>

@@ -1,6 +1,6 @@
-import Image from 'next/image';
-import { Dossier } from '@/src/lib/types';
-import { formatPercent, initialsFrom } from '@/src/lib/utils';
+import Image from "next/image";
+import { Dossier } from "@/src/lib/types";
+import { formatPercent, initialsFrom } from "@/src/lib/utils";
 
 type DossierSummaryProps = {
   dossier: Dossier;
@@ -8,7 +8,7 @@ type DossierSummaryProps = {
 };
 
 export function DossierSummary({ dossier, loading }: DossierSummaryProps) {
-  const title = dossier.metadata.identifierSummary || 'Enrichment result';
+  const title = dossier.metadata.identifierSummary || "Enrichment result";
   const topConfidence = dossier.confidence[0]?.score ?? dossier.photo?.confidence ?? 0;
 
   return (
@@ -31,8 +31,8 @@ export function DossierSummary({ dossier, loading }: DossierSummaryProps) {
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
           <p className="text-sm text-muted-foreground">
-            {dossier.handles.length} handles · {dossier.emails.length} emails · top confidence{' '}
-            {loading ? '…' : formatPercent(topConfidence)}
+            {dossier.handles.length} handles · {dossier.emails.length} emails · top confidence{" "}
+            {loading ? "…" : formatPercent(topConfidence)}
           </p>
         </div>
       </div>

@@ -71,6 +71,9 @@ jobs:
       - name: Ruff
         run: ruff check backend/app backend/tests
 
+      - name: Ruff format
+        run: ruff format --check backend/app backend/tests
+
       - name: Mypy
         run: mypy --config-file=backend/pyproject.toml backend/app
 
@@ -107,6 +110,10 @@ jobs:
       - name: Verify OpenAPI-generated types are up to date
         working-directory: frontend
         run: npm run openapi:check
+
+      - name: Frontend format check
+        working-directory: frontend
+        run: npm run format:check
 
       - name: Frontend typecheck
         working-directory: frontend

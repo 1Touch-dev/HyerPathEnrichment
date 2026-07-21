@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { createEnrichmentJob, getEnrichmentJob } from '@/src/lib/api-client';
-import { isTerminalStatus, pollEnrichmentJob } from '@/src/lib/enrich-poll';
-import { ApiError } from '@/src/lib/api-envelope';
-import { formatApiErrorMessage } from '@/src/lib/format-api-error';
-import { EnrichmentInput, EnrichmentJob, EnrichMode } from '@/src/lib/types';
+import { useCallback, useEffect, useState } from "react";
+import { createEnrichmentJob, getEnrichmentJob } from "@/src/lib/api-client";
+import { isTerminalStatus, pollEnrichmentJob } from "@/src/lib/enrich-poll";
+import { ApiError } from "@/src/lib/api-envelope";
+import { formatApiErrorMessage } from "@/src/lib/format-api-error";
+import { EnrichmentInput, EnrichmentJob, EnrichMode } from "@/src/lib/types";
 
 type UseEnrichmentJobOptions = {
   initialJob?: EnrichmentJob | null;
@@ -46,13 +46,17 @@ export function useEnrichmentJob(options: UseEnrichmentJobOptions = {}) {
 
     setPolling(false);
 
-    if (result.status === 'completed') {
+    if (result.status === "completed") {
       setJob(result.job);
-    } else if (result.status === 'timeout') {
+    } else if (result.status === "timeout") {
       setJob(result.job);
       setPollTimedOut(true);
     } else {
-      setError(result.error instanceof ApiError ? result.error.message : formatApiErrorMessage(result.error));
+      setError(
+        result.error instanceof ApiError
+          ? result.error.message
+          : formatApiErrorMessage(result.error),
+      );
     }
   }, []);
 
@@ -66,7 +70,7 @@ export function useEnrichmentJob(options: UseEnrichmentJobOptions = {}) {
         const created = await createEnrichmentJob(input, mode);
         setJob(created.data);
 
-        if (mode === 'async' && !isTerminalStatus(created.data.status)) {
+        if (mode === "async" && !isTerminalStatus(created.data.status)) {
           await startPolling(created.data.id);
         }
 
