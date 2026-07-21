@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EnrichModeToggle } from "@/components/console/EnrichModeToggle";
 import { IntakeForm } from "@/components/console/IntakeForm";
 import { EmptyState } from "@/components/console/EmptyState";
-import { useCreateEnrichment } from "@/features/enrich";
+import { useCreateEnrichment, useJobCompletionToasts } from "@/features/enrich";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { patchDraft, setEnrichMode } from "@/store/slices/intakeSlice";
 import { parseTiersFromQuery } from "@/src/lib/tier-utils";
@@ -25,6 +25,7 @@ function EnrichPageContent() {
     [searchParams],
   );
   const createMutation = useCreateEnrichment();
+  const trackJobCompletion = useJobCompletionToasts();
 
   useEffect(() => {
     if (initialTiers.length) {
@@ -37,6 +38,7 @@ function EnrichPageContent() {
     const created = await createMutation.mutateAsync({ input, mode });
     if (mode === "async") {
       toast.success("Job created", { description: created.id });
+      trackJobCompletion(created.id);
       return;
     }
     router.push(`/app/jobs/${created.id}`);

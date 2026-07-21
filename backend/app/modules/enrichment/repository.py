@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.compliance.identifiers import hashes_from_request
 from app.domain.enrichment import EnrichmentRequest
 from app.domain.enums import JobStatus
+from app.modules.enrichment.job_events import TERMINAL_STATUSES, publish_job_status
 from app.modules.enrichment.models import JobRecord
 
 
@@ -70,6 +71,8 @@ class JobRepository:
         if commit:
             await self.db.commit()
             await self.db.refresh(job)
+            if status in TERMINAL_STATUSES:
+                await publish_job_status(job.id, status)
         return job
 
     async def flush(self) -> None:

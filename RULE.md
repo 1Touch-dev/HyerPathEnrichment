@@ -33,6 +33,7 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 | Asset upload | `R2StorageClient` in `storage/r2.py` | Write files outside the storage client |
 | Domain contracts | `domain/` (`Dossier`, `EnrichmentRequest`, enums) | Recreate a global `models.py` dumping ground |
 | Redis connection | `infrastructure/redis.py` | One god-object RedisCache for queue + photos + suppression |
+| Job status push (SSE) | `modules/enrichment/job_events.py` (`publish_job_status`, `stream_job_status_events`) | A second Redis pub/sub channel or a websocket layer for job completion |
 
 ### Enrichers
 
@@ -73,6 +74,7 @@ Rules for humans and agents writing code in this repo. Read **before** implement
 | API mapping | `frontend/src/lib/api-adapter.ts` | Map snake_case ↔ camelCase in components |
 | Utilities | `frontend/src/lib/utils.ts` | Copy small helpers into components |
 | UI components | `frontend/components/` | Rebuild intake, pipeline, or dossier UI from scratch |
+| Job completion push | `frontend/src/lib/enrich-events.ts` (`subscribeJobEvents`) + `features/enrich/hooks/useJobCompletionToasts.ts` | A second `EventSource` per page or ad-hoc SSE parsing in components |
 
 ---
 

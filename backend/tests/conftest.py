@@ -18,6 +18,7 @@ import pytest  # noqa: E402
 from app.compliance import suppression  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.dependencies import rate_limit  # noqa: E402
+from app.modules.enrichment import job_events  # noqa: E402
 from app.storage import photo_cache  # noqa: E402
 from tests.migration_helpers import upgrade_head  # noqa: E402
 
@@ -64,6 +65,9 @@ class FakeRedis:
     async def delete(self, key: str) -> int:
         return 1 if self._kv.pop(key, None) is not None else 0
 
+    async def publish(self, channel: str, message: str) -> int:
+        return 0
+
     async def ping(self) -> bool:
         return True
 
@@ -75,4 +79,5 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     monkeypatch.setattr(suppression, "get_redis_client", lambda: fake)
     monkeypatch.setattr(rate_limit, "get_redis_client", lambda: fake)
     monkeypatch.setattr(photo_cache, "get_redis_client", lambda: fake)
+    monkeypatch.setattr(job_events, "_get_events_redis_client", lambda: fake)
     return fake

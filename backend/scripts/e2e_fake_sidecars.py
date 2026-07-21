@@ -66,6 +66,7 @@ class FakeSidecarProbe:
         await self.check_sidecar_health()
         await self.check_enrichers()
         await self.check_api_async_tier4()
+        await self.check_sse_job_events()
 
         report = {
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -224,6 +225,48 @@ class FakeSidecarProbe:
             )
         except httpx.HTTPError as exc:
             self.record("api_async_tier4", False, str(exc))
+
+    async def check_sse_job_events(self) -> None:
+        """Enqueue a job and confirm GET /enrich/{job_id}/events pushes the
+        terminal status over SSE instead of requiring the caller to poll."""
+        body = {
+            "business": "coffee shop San Francisco",
+            "requested_tiers": ["tier4"],
+        }
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                enqueue = await client.post(
+                    f"{self.base_url}/enrich", headers=self.headers, json=body
+                )
+            if enqueue.status_code != 202:
+                self.record("sse_job_events", False, f"enqueue status={enqueue.status_code}")
+                return
+            job_id = enqueue.json().get("id")
+
+            events: list[dict[str, Any]] = []
+            async with httpx.AsyncClient(timeout=60.0) as client, client.stream(
+                "GET", f"{self.base_url}/enrich/{job_id}/events", headers=self.headers
+            ) as response:
+                if response.status_code != 200:
+                    self.record(
+                        "sse_job_events", False, f"stream status={response.status_code}"
+                    )
+                    return
+                async for line in response.aiter_lines():
+                    if not line or not line.startswith("data:"):
+                        continue
+                    events.append(json.loads(line.removeprefix("data:").strip()))
+                    if events[-1].get("status") in {"completed", "failed", "suppressed"}:
+                        break
+
+            ok = (
+                len(events) == 1
+                and events[0].get("job_id") == job_id
+                and events[0].get("status") == "completed"
+            )
+            self.record("sse_job_events", ok, f"events={events}")
+        except httpx.HTTPError as exc:
+            self.record("sse_job_events", False, str(exc))
 
 
 def main() -> int:

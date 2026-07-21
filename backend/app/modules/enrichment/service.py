@@ -51,6 +51,13 @@ class EnrichmentService:
             raise NotFoundError("job not found", meta={"job_id": job_id})
         return self._to_response(job)
 
+    async def get_job_status(self, job_id: str) -> JobStatus:
+        """Quick status read used to seed the SSE stream before subscribing."""
+        job = await self.pipeline.get_job(job_id)
+        if job is None:
+            raise NotFoundError("job not found", meta={"job_id": job_id})
+        return JobStatus(job.status)
+
     async def list_jobs(self, limit: int, offset: int) -> EnrichmentJobListResponse:
         jobs, total = await self.pipeline.list_jobs(limit, offset)
         return EnrichmentJobListResponse(

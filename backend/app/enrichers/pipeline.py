@@ -32,6 +32,7 @@ from app.enrichers.registry import (
     tier4_enrichers,
 )
 from app.clients.llm import LiteLLMDisambiguator
+from app.modules.enrichment.job_events import publish_job_status
 from app.modules.enrichment.models import JobRecord
 from app.modules.enrichment.repository import JobRepository
 
@@ -95,6 +96,7 @@ class Pipeline:
 
         await self.jobs.commit()
         await self.jobs.refresh(job)
+        await publish_job_status(job.id, JobStatus.suppressed)
         return job
 
     async def execute_job(self, job_id: str) -> JobRecord | None:

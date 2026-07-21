@@ -9,9 +9,14 @@ export function getBackendConfig(): { baseUrl: string; token: string } {
   };
 }
 
-export async function backendFetch(path: string, init?: RequestInit): Promise<Response> {
+export async function backendFetch(
+  path: string,
+  init?: RequestInit,
+  timeoutOverrideMs?: number,
+): Promise<Response> {
   const { baseUrl, token } = getBackendConfig();
-  const timeoutMs = Number(process.env.BACKEND_FETCH_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
+  const timeoutMs =
+    timeoutOverrideMs ?? Number(process.env.BACKEND_FETCH_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 

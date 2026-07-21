@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from app.core.logging import configure_logging
 from app.infrastructure.redis import close_redis, get_redis_client
+from app.modules.enrichment.job_events import close_events_redis
 from app.observability.error_tracking import init_error_tracking
 
 
@@ -16,3 +17,4 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     get_redis_client()
     yield
     await close_redis()
+    await close_events_redis()

@@ -11,6 +11,9 @@ test.describe("Enrichment flow", () => {
 
     await expect(page).toHaveURL(/\/app\/enrich/, { timeout: 15_000 });
     await expect(page.getByText("Job created")).toBeVisible({ timeout: 15_000 });
+    // SSE push from /api/enrich/[id]/events — mock job store flips to
+    // "completed" ~2.4s after creation (see mock-jobs.ts createMockJobWithLifecycle).
+    await expect(page.getByText("Job completed")).toBeVisible({ timeout: 15_000 });
   });
 
   test("history page lists jobs after enrichment", async ({ page }) => {
