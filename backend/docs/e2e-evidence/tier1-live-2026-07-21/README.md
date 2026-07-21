@@ -103,19 +103,75 @@ Multilogin/Selenium layer itself is healthy).
    charges a view up front; added `refund_view()` calls in `LinkedInBrowserClient._scrape_with_profile`'s
    `MultiloginError`/`Exception` handlers so a failed launch doesn't cost a real view.
 
+## Session 2 (same day, 2026-07-21): pipeline deadlock fix + accidental budget exhaustion
+
+`MULTILOGIN_DAILY_VIEW_LIMIT` was raised from 22 to 40 to allow a second attempt, scoped to only the first
+10 canary profiles (operator would manually verify profiles 11–20). Before re-running, a **third real bug**
+was diagnosed and fixed:
+
+### Bug found and fixed: pipeline-level SQLite write-lock held for the entire scrape
+
+`Pipeline.execute_job()` (`app/enrichers/pipeline.py`) set `job.status = JobStatus.running.value` on the
+in-memory ORM object but never committed it — SQLAlchemy's autoflush opened an uncommitted write transaction
+on that session that stayed open for the **entire** browser scrape (30–90s per profile). The LinkedIn-photo
+enricher's `PhotoCache` uses a *separate* `SessionLocal()` and tried to write to `photo_cache` mid-scrape,
+colliding with the pipeline's long-held, uncommitted lock — this was the real mechanism behind the
+`"database is locked"` errors from session 1, and WAL/`busy_timeout` alone couldn't fully mask it under load.
+**Fix:** commit the `running` status transition immediately via `self.jobs.mark_status(job, JobStatus.running)`
+before starting the scrape, so the pipeline's session holds no open write transaction while the enricher runs.
+This fix is on this branch but **has not yet been re-verified against a live API+worker run** (see below).
+
+### Operator error: `--pool-status` does not skip the canary run, and it burned the entire raised budget
+
+Before restarting the API+worker, the plan was to first check remaining view budget with:
+
+```
+python scripts/probe_tier1_canary.py --file docs/tier1_canary_set.json --pool-status --json
+```
+
+This was a mistake: `--pool-status` only controls whether pool counters are *printed alongside* the report —
+the script unconditionally runs `run_canary()` first, which does a **live isolation-mode scrape of every
+profile in the file** (all 20, not 10). Because `probe_tier1_canary.py` buffers all output until the loop
+finishes, no progress was visible in the terminal. By the time this was recognized (~4.5 minutes in) and the
+process was force-killed, the entire newly-raised budget was already gone:
+
+```json
+[
+  {"profile_id": "<redacted-mlx-profile-uuid-1>", "views_today": 40, "daily_limit": 40, "in_cooldown": false, "eligible": false},
+  {"profile_id": "<redacted-mlx-profile-uuid-2>", "views_today": 40, "daily_limit": 40, "in_cooldown": false, "eligible": false}
+]
+```
+
+(Confirmed via a direct, read-only `ProfilePool().pool_status()` call against Redis — no new scrape was run
+to check this.) Both profiles show `eligible: false`, `in_cooldown: false` — this is normal daily exhaustion,
+not a lockout; the Redis counters are keyed by date and will reset automatically at local midnight.
+
+**Consequence: the planned 10-profile API + RQ worker re-run never executed.** No job was enqueued through
+the API for this session, so there is **no PASS/FAIL breakdown to report for profiles 1–10** from this
+attempt — the isolation-mode script that accidentally ran instead was killed mid-loop before it printed or
+persisted any per-profile results, so there is no reliable partial-completion count either. Per the task's
+explicit instruction, this is reported honestly rather than forced or faked: **no new live-verification
+evidence was produced in session 2**, only the pipeline deadlock fix (code-only, unverified live) and this
+budget-exhaustion record.
+
 ## Outstanding work (not done in this session)
 
-- Re-run `python scripts/e2e_tier1_canary.py --file docs/tier1_canary_set.json --json` and
-  `python scripts/run_canary_score.py --tier tier1 --json` /
-  `python scripts/verify_tier1_live.py --json` against the **full 20-profile** set once the daily Multilogin
-  view budget resets, to confirm `summary.fail == 0` end-to-end through the real API + worker path with the
-  fixes in this branch applied.
-- Until that re-run happens and passes, Task 90's live Tier 1 gate should remain **not signed off** — see
-  the updated `backend/docs/evidence/tier1-multilogin-canary-skip.md`.
+- Re-run `python scripts/e2e_tier1_canary.py --file docs/tier1_canary_set.json --limit 10 --json` and
+  `python scripts/run_canary_score.py --tier tier1 --json` against the **first 10 profiles** once the daily
+  Multilogin view budget resets, to confirm `summary.fail == 0` end-to-end through the real API + worker path
+  with all three fixes in this branch applied (envelope unwrap, SQLite WAL/busy_timeout +
+  commit-running-immediately, events-Redis close-per-job).
+- **Do not** run `probe_tier1_canary.py` again without first trimming the input file to the intended profile
+  count — it has no `--limit` flag and always scrapes every row in `--file`.
+- Profiles 11–20 remain **pending manual verification by the operator** — not automated, out of scope for
+  this branch.
+- Until the 10-profile API+worker re-run happens and passes, Task 90's live Tier 1 gate should remain **not
+  signed off** — see the updated `backend/docs/evidence/tier1-multilogin-canary-skip.md`.
 
 ## Files in this folder
 
-- `isolation-retry-4profiles-PASS.json` — real live PASS, isolation mode, 4 corrected profiles.
-- `api-canary-prefix-FAIL.json` — real live run that surfaced the SQLite-lock / event-loop bugs (pre-fix).
-- No credentials, tokens, or `.env` values appear in either file (profile IDs are Multilogin profile UUIDs,
-  not secrets).
+- `isolation-retry-4profiles-PASS.json` — real live PASS, isolation mode, 4 corrected profiles (session 1).
+- `api-canary-prefix-FAIL.json` — real live run that surfaced the SQLite-lock / event-loop bugs (session 1,
+  pre-fix).
+- No credentials, tokens, or `.env` values appear in any file in this folder (profile IDs are Multilogin
+  profile UUIDs, not secrets).

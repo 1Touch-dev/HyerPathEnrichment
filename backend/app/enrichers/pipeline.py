@@ -106,7 +106,15 @@ class Pipeline:
             logger.warning("execute_job called for unknown job")
             return None
         request = EnrichmentRequest.model_validate(job.request_payload)
-        job.status = JobStatus.running.value
+        # Commit the running transition immediately rather than leaving it as a
+        # dirty attribute: autoflush would otherwise open an uncommitted write
+        # transaction on this session that isn't closed until mark_status runs
+        # at the very end of _execute. Tier 1 enrichers (LinkedIn photo) take
+        # 30-90s per profile and write to photo_cache on their own session —
+        # seen live during the Tier 1 canary: that second writer hit "database
+        # is locked" on every successful scrape because this session's
+        # long-held, uncommitted lock outlasted SQLite's busy_timeout.
+        job = await self.jobs.mark_status(job, JobStatus.running)
         try:
             return await self._execute(job, request, sync_mode=False)
         except Exception:
