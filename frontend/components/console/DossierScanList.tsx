@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import type { ReactNode } from 'react';
-import type { Dossier } from '@/src/lib/types';
-import { ResultRow } from './ResultRow';
-import type { DossierEntity } from './dossier-entity';
+import type { ReactNode } from "react";
+import type { Dossier } from "@/src/lib/types";
+import { ResultRow } from "./ResultRow";
+import type { DossierEntity } from "./dossier-entity";
 
 type DossierScanListProps = {
   dossier: Dossier;
@@ -14,7 +14,9 @@ type DossierScanListProps = {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{title}</p>
+      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        {title}
+      </p>
       {children}
     </div>
   );
@@ -28,7 +30,7 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
           <div className="flex flex-col gap-2">
             {dossier.handles.map((handle) => {
               const entity: DossierEntity = {
-                kind: 'handle',
+                kind: "handle",
                 id: `${handle.platform}-${handle.username}`,
                 title: `${handle.platform} · ${handle.username}`,
                 subtitle: handle.profileUrl,
@@ -55,7 +57,7 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
           <div className="flex flex-col gap-2">
             {dossier.emails.map((email) => {
               const entity: DossierEntity = {
-                kind: 'email',
+                kind: "email",
                 id: email,
                 title: email,
                 entity: email,
@@ -79,7 +81,7 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
           <div className="flex flex-col gap-2">
             {dossier.verifiedEmails.map((email) => {
               const entity: DossierEntity = {
-                kind: 'verifiedEmail',
+                kind: "verifiedEmail",
                 id: email.value,
                 title: email.value,
                 subtitle: `${email.status} · ${email.source}`,
@@ -105,10 +107,10 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
         <Section title="Jobs">
           <div className="flex flex-col gap-2">
             {dossier.jobs.map((job) => {
-              const remoteLabel = job.remote ? 'Remote' : 'On-site';
-              const id = `${job.title}-${job.company}-${job.location}-${job.remote ? 'r' : 'o'}`;
+              const remoteLabel = job.remote ? "Remote" : "On-site";
+              const id = `${job.title}-${job.company}-${job.location}-${job.remote ? "r" : "o"}`;
               const entity: DossierEntity = {
-                kind: 'job',
+                kind: "job",
                 id,
                 title: `${job.title} · ${job.company}`,
                 subtitle: `${job.location} · ${remoteLabel} · ${job.source}`,
@@ -133,10 +135,10 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
           <div className="flex flex-col gap-2">
             {dossier.confidence.map((c) => {
               const entity: DossierEntity = {
-                kind: 'confidence',
+                kind: "confidence",
                 id: c.label,
                 title: c.label,
-                subtitle: c.evidence.join(' · '),
+                subtitle: c.evidence.join(" · "),
                 confidence: c.score,
                 entity: c,
               };
@@ -160,7 +162,7 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
           <div className="flex flex-col gap-2">
             {dossier.sources.map((source) => {
               const entity: DossierEntity = {
-                kind: 'source',
+                kind: "source",
                 id: source,
                 title: source,
                 entity: source,

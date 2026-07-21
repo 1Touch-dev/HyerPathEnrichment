@@ -14,11 +14,22 @@ Short notes that capture why we chose one approach over another — so onboardin
 
 ## When to add an ADR
 
-- Picking or reversing storage, queue, auth, or layer-ownership patterns
-- Choosing between two viable architectures with real tradeoffs
-- Anything you expect someone to ask *"why not the other way?"* about in six months
+**Do not skip this.** Architectural PRs without an ADR (or a link to an existing one) are incomplete.
 
-Copy [`template.md`](template.md), assign the next number, open a PR, and link from [`backend/docs/ARCHITECTURE.md`](../../backend/docs/ARCHITECTURE.md) if implementation status changes.
+Add or update an ADR when you:
+
+- Introduce or reverse **storage**, **queue**, **auth**, or **layer-ownership** patterns
+- Choose between two viable architectures with real tradeoffs
+- Expect someone to ask *"why not the other way?"* in six months
+
+**How:**
+
+1. Copy [`template.md`](template.md), assign the next number, fill Decision (X over Y) + Tradeoffs
+2. Index the file in this README
+3. Open a PR and check the ADR box in [`.github/pull_request_template.md`](../../.github/pull_request_template.md) — link the ADR (or mark N/A only when the change is not architectural)
+4. Link from [`backend/docs/ARCHITECTURE.md`](../../backend/docs/ARCHITECTURE.md) if implementation status changes
+
+**Verify:** `python backend/scripts/verify_adrs.py` (structure, Accepted set, cross-links, PR template present).
 
 ## Index
 
@@ -30,3 +41,4 @@ Copy [`template.md`](template.md), assign the next number, open a PR, and link f
 | [0004](0004-public-compliance-apis.md) | Public opt-out and DSAR APIs | Accepted | 2026-07-20 |
 | [0005](0005-suppression-sql-redis-dual-store.md) | SQL durable suppression with Redis cache | Accepted | 2026-07-20 |
 | [0006](0006-llm-heuristic-default.md) | Heuristic LLM stub default with opt-in LiteLLM | Accepted | 2026-07-20 |
+| [0007](0007-stdlib-json-logging.md) | Stdlib JSON logging over structlog | Accepted | 2026-07-21 |

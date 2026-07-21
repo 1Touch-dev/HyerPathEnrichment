@@ -12,7 +12,7 @@ import {
   DsarResponse,
   SignalListItem,
   SignalListResponse,
-} from '@/src/lib/types';
+} from "@/src/lib/types";
 import type {
   BackendDossier,
   BackendDsarResponse,
@@ -22,7 +22,7 @@ import type {
   BackendJobResponse,
   BackendSignalListItem,
   BackendSignalListResponse,
-} from '@/src/lib/generated/api-schemas';
+} from "@/src/lib/generated/api-schemas";
 
 export type {
   BackendDsarResponse,
@@ -30,24 +30,28 @@ export type {
   BackendJobListResponse,
   BackendJobResponse,
   BackendSignalListResponse,
-} from '@/src/lib/generated/api-schemas';
+} from "@/src/lib/generated/api-schemas";
 
 function normalizeJobStatus(status: string): JobStatus {
   if (
-    status === 'queued' ||
-    status === 'running' ||
-    status === 'completed' ||
-    status === 'failed' ||
-    status === 'suppressed'
+    status === "queued" ||
+    status === "running" ||
+    status === "completed" ||
+    status === "failed" ||
+    status === "suppressed"
   ) {
     return status;
   }
-  return 'failed';
+  return "failed";
 }
 
-function readMetadataString(metadata: Record<string, unknown>, snakeKey: string, camelKey: string): string {
+function readMetadataString(
+  metadata: Record<string, unknown>,
+  snakeKey: string,
+  camelKey: string,
+): string {
   const value = metadata[snakeKey] ?? metadata[camelKey];
-  return typeof value === 'string' ? value : '';
+  return typeof value === "string" ? value : "";
 }
 
 function readMetadataTiers(metadata: Record<string, unknown>): RequestedTier[] {
@@ -57,12 +61,12 @@ function readMetadataTiers(metadata: Record<string, unknown>): RequestedTier[] {
   }
   return value.filter(
     (tier): tier is RequestedTier =>
-      tier === 'tier1' || tier === 'tier2' || tier === 'tier3' || tier === 'tier4',
+      tier === "tier1" || tier === "tier2" || tier === "tier3" || tier === "tier4",
   );
 }
 
-function mapGithub(github: BackendDossier['github']): Dossier['github'] | undefined {
-  if (!github || typeof github !== 'object') {
+function mapGithub(github: BackendDossier["github"]): Dossier["github"] | undefined {
+  if (!github || typeof github !== "object") {
     return undefined;
   }
 
@@ -71,11 +75,11 @@ function mapGithub(github: BackendDossier['github']): Dossier['github'] | undefi
   const publicCommits = raw.public_commits ?? raw.publicCommits;
 
   return {
-    profile: typeof raw.profile === 'string' ? raw.profile : undefined,
+    profile: typeof raw.profile === "string" ? raw.profile : undefined,
     organizations: Array.isArray(organizations)
-      ? organizations.filter((org): org is string => typeof org === 'string')
+      ? organizations.filter((org): org is string => typeof org === "string")
       : [],
-    publicCommits: typeof publicCommits === 'number' ? publicCommits : 0,
+    publicCommits: typeof publicCommits === "number" ? publicCommits : 0,
   };
 }
 
@@ -87,7 +91,7 @@ function normalizeHandleMetadata(
   }
   const normalized: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(metadata)) {
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
       normalized[key] = value;
     }
   }
@@ -103,9 +107,9 @@ function mapDossier(dossier: BackendDossier): Dossier {
           source: dossier.photo.source,
           assetUrl: dossier.photo.asset_url,
           capturedAt:
-            typeof dossier.photo.captured_at === 'string'
+            typeof dossier.photo.captured_at === "string"
               ? dossier.photo.captured_at
-              : String(dossier.photo.captured_at ?? ''),
+              : String(dossier.photo.captured_at ?? ""),
           confidence: dossier.photo.confidence,
         }
       : undefined,
@@ -119,7 +123,7 @@ function mapDossier(dossier: BackendDossier): Dossier {
     emails: dossier.emails ?? [],
     verifiedEmails: (dossier.verified_emails ?? []).map((email) => ({
       value: email.value,
-      status: email.status as 'verified' | 'risky' | 'unknown' | 'disposable',
+      status: email.status as "verified" | "risky" | "unknown" | "disposable",
       confidence: email.confidence,
       source: email.source,
     })),
@@ -130,17 +134,17 @@ function mapDossier(dossier: BackendDossier): Dossier {
     confidence: dossier.confidence ?? [],
     sources: dossier.sources ?? [],
     metadata: {
-      generatedAt: readMetadataString(metadata, 'generated_at', 'generatedAt'),
-      pipelineId: readMetadataString(metadata, 'pipeline_id', 'pipelineId'),
+      generatedAt: readMetadataString(metadata, "generated_at", "generatedAt"),
+      pipelineId: readMetadataString(metadata, "pipeline_id", "pipelineId"),
       requestedTiers: readMetadataTiers(metadata),
-      identifierSummary: readMetadataString(metadata, 'identifier_summary', 'identifierSummary'),
+      identifierSummary: readMetadataString(metadata, "identifier_summary", "identifierSummary"),
     },
   };
 }
 
 function identifierSummaryFromPayload(payload: Record<string, unknown> | undefined): string {
   if (!payload) {
-    return '';
+    return "";
   }
   const values = [
     payload.email,
@@ -151,8 +155,8 @@ function identifierSummaryFromPayload(payload: Record<string, unknown> | undefin
     payload.business,
     payload.job_search,
     payload.jobSearch,
-  ].filter((v): v is string => typeof v === 'string' && v.length > 0);
-  return values.join(' • ');
+  ].filter((v): v is string => typeof v === "string" && v.length > 0);
+  return values.join(" • ");
 }
 
 function tiersFromPayload(payload: Record<string, unknown> | undefined): RequestedTier[] {
@@ -165,7 +169,7 @@ function tiersFromPayload(payload: Record<string, unknown> | undefined): Request
   }
   return value.filter(
     (tier): tier is RequestedTier =>
-      tier === 'tier1' || tier === 'tier2' || tier === 'tier3' || tier === 'tier4',
+      tier === "tier1" || tier === "tier2" || tier === "tier3" || tier === "tier4",
   );
 }
 
@@ -215,7 +219,9 @@ export function mapBackendSignalListItem(item: BackendSignalListItem): SignalLis
   };
 }
 
-export function mapBackendSignalListToFrontend(response: BackendSignalListResponse): SignalListResponse {
+export function mapBackendSignalListToFrontend(
+  response: BackendSignalListResponse,
+): SignalListResponse {
   return {
     signals: response.signals.map(mapBackendSignalListItem),
     total: response.total,
@@ -255,7 +261,7 @@ export function mapBackendDsarResponse(response: BackendDsarResponse): DsarRespo
   return {
     id: response.id,
     status: response.status,
-    requestType: response.request_type as DsarInput['requestType'],
+    requestType: response.request_type as DsarInput["requestType"],
     createdAt: response.created_at,
     completedAt: response.completed_at,
     summary: response.summary ?? {},
@@ -265,24 +271,31 @@ export function mapBackendDsarResponse(response: BackendDsarResponse): DsarRespo
 export function mapBackendHealth(response: BackendHealthResponse): HealthStatus {
   return {
     status: response.status,
-    service: response.service ?? 'hyrepath-enrichment',
+    service: response.service ?? "hyrepath-enrichment",
   };
 }
 
 export function parseEnrichmentInput(body: Partial<EnrichmentInput>): EnrichmentInput {
   return {
-    email: body.email?.trim() || '',
-    linkedinUrl: body.linkedinUrl?.trim() || '',
-    username: body.username?.trim() || '',
-    company: body.company?.trim() || '',
-    business: body.business?.trim() || '',
-    jobSearch: body.jobSearch?.trim() || '',
-    requestedTiers: body.requestedTiers?.length ? body.requestedTiers : ['tier1', 'tier2', 'tier3', 'tier4'],
+    email: body.email?.trim() || "",
+    linkedinUrl: body.linkedinUrl?.trim() || "",
+    username: body.username?.trim() || "",
+    company: body.company?.trim() || "",
+    business: body.business?.trim() || "",
+    jobSearch: body.jobSearch?.trim() || "",
+    requestedTiers: body.requestedTiers?.length
+      ? body.requestedTiers
+      : ["tier1", "tier2", "tier3", "tier4"],
   };
 }
 
 export function hasIdentifier(input: EnrichmentInput): boolean {
   return Boolean(
-    input.email || input.linkedinUrl || input.username || input.company || input.business || input.jobSearch,
+    input.email ||
+    input.linkedinUrl ||
+    input.username ||
+    input.company ||
+    input.business ||
+    input.jobSearch,
   );
 }

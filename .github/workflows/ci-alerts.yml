@@ -1,0 +1,65 @@
+name: CI Alerts
+
+# Offline alert artifact checks + optional failure webhook.
+# ALERT_WEBHOOK_URL secret: POST on failure; no-op when unset.
+# Does not claim a live production pager.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  alert-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install backend + PyYAML
+        run: |
+          pip install -e "backend[dev]"
+          pip install "pyyaml>=6,<7"
+
+      - name: Validate Prometheus rules YAML
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+          path = Path("backend/observability/alerts/hyrepath.rules.yml")
+          data = yaml.safe_load(path.read_text(encoding="utf-8"))
+          assert data and data.get("groups"), data
+          alerts = [r["alert"] for g in data["groups"] for r in g["rules"]]
+          print("alerts:", ", ".join(alerts))
+          PY
+
+      - name: Pytest alert notify path
+        run: >
+          pytest backend/tests/test_health_alerts.py
+          backend/tests/test_prometheus_alert_rules.py -q
+
+      - name: Dry-run health alert CLI (unreachable host)
+        env:
+          DRY_RUN: "1"
+          BASE_URL: "http://127.0.0.1:9"
+        run: python backend/scripts/health_alert_notify.py
+        continue-on-error: true
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+        run: |
+          if [ -z "${ALERT_WEBHOOK_URL}" ]; then
+            echo "ALERT_WEBHOOK_URL unset; skip notify (no-op)"
+            exit 0
+          fi
+          curl -fsS -X POST "$ALERT_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"source\":\"github-actions\",\"alert\":\"ci-alerts-failed\",\"severity\":\"warning\",\"repo\":\"${GITHUB_REPOSITORY}\",\"workflow\":\"${GITHUB_WORKFLOW}\",\"run_id\":\"${GITHUB_RUN_ID}\",\"sha\":\"${GITHUB_SHA}\"}"

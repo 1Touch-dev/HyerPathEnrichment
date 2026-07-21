@@ -132,6 +132,10 @@ Before implementing anything in this repo:
 1. Read `RULE.md` — reuse existing code, avoid redundancy, follow architecture and safety rules
 2. Keep changes minimal and scoped to the task
 
+### When to add an ADR
+
+New or changed **storage**, **queue**, **auth**, or **layer ownership** → add/update an ADR under [`docs/adr/`](docs/adr/) and link it in the PR (see [`.github/pull_request_template.md`](.github/pull_request_template.md)). Full criteria: [`docs/adr/README.md`](docs/adr/README.md) § When to add an ADR. Do not invent product architecture without recording the why.
+
 ## Backend work
 
 For enrichment API, orchestrator, enricher, tier, opt-out, or storage tasks:
@@ -140,6 +144,7 @@ For enrichment API, orchestrator, enricher, tier, opt-out, or storage tasks:
 2. Read [`docs/adr/README.md`](docs/adr/README.md) for settled architectural decisions (the why)
 3. Check **Implementation status** — scaffold vs target
 4. Verify behavior in `backend/app/` before implementing
+5. If the change is architectural (storage/queue/auth/layer ownership), follow **When to add an ADR** above before opening the PR
 
 Do not assume Redis queue, real enricher integrations, Postgres, or LiteLLM exist yet.
 

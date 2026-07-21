@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import type { ReactNode } from 'react';
-import type { Dossier } from '@/src/lib/types';
-import { RawJsonPanel } from '@/components/console/RawJsonPanel';
-import { formatPercent } from '@/src/lib/utils';
-import type { DossierEntity } from './dossier-entity';
+import type { ReactNode } from "react";
+import type { Dossier } from "@/src/lib/types";
+import { RawJsonPanel } from "@/components/console/RawJsonPanel";
+import { formatPercent } from "@/src/lib/utils";
+import type { DossierEntity } from "./dossier-entity";
 
 type EntityDetailPanelProps = {
   dossier: Dossier;
@@ -14,7 +14,9 @@ type EntityDetailPanelProps = {
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="shrink-0 text-xs font-medium uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="shrink-0 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+        {label}
+      </div>
       <div className="text-sm text-foreground">{value}</div>
     </div>
   );
@@ -23,7 +25,7 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
 export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
   return (
     <div className="rounded-lg border bg-card p-5">
-      {entity.kind === 'handle' ? (
+      {entity.kind === "handle" ? (
         <>
           <Field label="Type" value="Handle" />
           <Field label="Platform" value={entity.entity.platform} />
@@ -31,19 +33,29 @@ export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
           <Field
             label="Profile"
             value={
-              <a href={entity.entity.profileUrl} target="_blank" rel="noreferrer" className="text-primary underline">
+              <a
+                href={entity.entity.profileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline"
+              >
                 {entity.entity.profileUrl}
               </a>
             }
           />
           <Field label="Confidence" value={formatPercent(entity.entity.confidence)} />
           {entity.entity.metadata ? (
-            <Field label="Metadata" value={<span className="font-mono text-xs">{JSON.stringify(entity.entity.metadata)}</span>} />
+            <Field
+              label="Metadata"
+              value={
+                <span className="font-mono text-xs">{JSON.stringify(entity.entity.metadata)}</span>
+              }
+            />
           ) : null}
         </>
       ) : null}
 
-      {entity.kind === 'verifiedEmail' ? (
+      {entity.kind === "verifiedEmail" ? (
         <>
           <Field label="Type" value="Verified email" />
           <Field label="Email" value={entity.entity.value} />
@@ -53,7 +65,7 @@ export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
         </>
       ) : null}
 
-      {entity.kind === 'email' ? (
+      {entity.kind === "email" ? (
         <>
           <Field label="Type" value="Email" />
           <Field label="Email" value={entity.entity} />
@@ -61,29 +73,32 @@ export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
         </>
       ) : null}
 
-      {entity.kind === 'job' ? (
+      {entity.kind === "job" ? (
         <>
           <Field label="Type" value="Job & business" />
           <Field label="Title" value={entity.entity.title} />
           <Field label="Company" value={entity.entity.company} />
           <Field
             label="Location"
-            value={`${entity.entity.location} · ${entity.entity.remote ? 'Remote' : 'On-site'}`}
+            value={`${entity.entity.location} · ${entity.entity.remote ? "Remote" : "On-site"}`}
           />
           <Field label="Source" value={entity.entity.source} />
         </>
       ) : null}
 
-      {entity.kind === 'confidence' ? (
+      {entity.kind === "confidence" ? (
         <>
           <Field label="Type" value="Confidence rule" />
           <Field label="Label" value={entity.entity.label} />
           <Field label="Score" value={formatPercent(entity.entity.score)} />
-          <Field label="Evidence" value={<span className="font-mono text-xs">{entity.entity.evidence.join(' · ')}</span>} />
+          <Field
+            label="Evidence"
+            value={<span className="font-mono text-xs">{entity.entity.evidence.join(" · ")}</span>}
+          />
         </>
       ) : null}
 
-      {entity.kind === 'source' ? (
+      {entity.kind === "source" ? (
         <>
           <Field label="Type" value="Source" />
           <Field label="Name" value={<span className="font-mono text-xs">{entity.entity}</span>} />
@@ -95,7 +110,10 @@ export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
         {dossier.sources.length ? (
           <div className="flex flex-wrap gap-2">
             {dossier.sources.map((s) => (
-              <span key={s} className="rounded-md border border-border bg-muted/30 px-2 py-1 text-xs font-mono text-muted-foreground">
+              <span
+                key={s}
+                className="rounded-md border border-border bg-muted/30 px-2 py-1 text-xs font-mono text-muted-foreground"
+              >
                 {s}
               </span>
             ))}

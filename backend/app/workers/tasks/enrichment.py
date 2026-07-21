@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from app.core.logging import set_job_id
 from app.database.session import SessionLocal, engine
 from app.enrichers.pipeline import Pipeline
 from app.infrastructure.redis import close_redis
@@ -24,6 +25,7 @@ def run_enrichment_job(job_id: str) -> None:
 
 async def _run_enrichment_job(job_id: str) -> None:
     set_job_context(job_id)
+    set_job_id(job_id)
     try:
         async with SessionLocal() as session:
             pipeline = Pipeline(session)
@@ -32,6 +34,7 @@ async def _run_enrichment_job(job_id: str) -> None:
         capture_exception(exc, tags={"job_id": job_id})
         raise
     finally:
+        set_job_id(None)
         # Each job runs under asyncio.run with a fresh event loop, but the
         # Redis client and DB engine pool are module-global. Connections
         # created here are bound to this loop and break the next job with

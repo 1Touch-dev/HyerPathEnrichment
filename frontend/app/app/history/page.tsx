@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { JobHistoryTable } from '@/components/console/JobHistoryTable';
-import { evictStaleJobDetails } from '@/features/enrich';
-import { useJobListQuery } from '@/features/history';
-import { formatApiErrorMessage } from '@/src/lib/format-api-error';
+import { useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { JobHistoryTable } from "@/components/console/JobHistoryTable";
+import { evictStaleJobDetails } from "@/features/enrich";
+import { useJobListQuery } from "@/features/history";
+import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 
 const PAGE_SIZE = 50;
 
@@ -26,7 +26,9 @@ export default function HistoryPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">History</h1>
-        <p className="text-sm text-muted-foreground">Recent enrichment runs with shareable job links.</p>
+        <p className="text-sm text-muted-foreground">
+          Recent enrichment runs with shareable job links.
+        </p>
       </div>
 
       {error ? (

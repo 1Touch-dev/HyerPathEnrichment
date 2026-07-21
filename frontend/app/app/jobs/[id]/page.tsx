@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useParams } from 'next/navigation';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { DossierView } from '@/components/console/DossierView';
-import { JobProgress } from '@/components/console/JobProgress';
-import { EmptyState } from '@/components/console/EmptyState';
-import { isJobPendingError, useJobQuery } from '@/features/enrich';
-import { EnrichmentJob } from '@/src/lib/types';
-import { formatApiErrorMessage } from '@/src/lib/format-api-error';
+import { useParams } from "next/navigation";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DossierView } from "@/components/console/DossierView";
+import { JobProgress } from "@/components/console/JobProgress";
+import { EmptyState } from "@/components/console/EmptyState";
+import { isJobPendingError, useJobQuery } from "@/features/enrich";
+import { EnrichmentJob } from "@/src/lib/types";
+import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 
 function pendingJobStub(jobId: string): EnrichmentJob {
   return {
     id: jobId,
-    status: 'queued',
+    status: "queued",
     input: { requestedTiers: [] },
     dossier: {
       handles: [],
@@ -23,10 +23,10 @@ function pendingJobStub(jobId: string): EnrichmentJob {
       confidence: [],
       sources: [],
       metadata: {
-        generatedAt: '',
-        pipelineId: '',
+        generatedAt: "",
+        pipelineId: "",
         requestedTiers: [],
-        identifierSummary: '',
+        identifierSummary: "",
       },
     },
   };
@@ -37,7 +37,10 @@ export default function JobDetailPage() {
   const jobId = params.id;
   const { data: job, isLoading, error, isFetching, isPending, failureReason } = useJobQuery(jobId);
 
-  const pending = Boolean(jobId) && !job && (isJobPendingError(error) || isJobPendingError(failureReason) || isPending || isFetching);
+  const pending =
+    Boolean(jobId) &&
+    !job &&
+    (isJobPendingError(error) || isJobPendingError(failureReason) || isPending || isFetching);
 
   if (pending && jobId) {
     const stub = pendingJobStub(jobId);

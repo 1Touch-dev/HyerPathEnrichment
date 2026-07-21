@@ -1,15 +1,17 @@
-'use client';
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export function SettingsView() {
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Defaults for lookups and operational integrations.</p>
+        <p className="text-sm text-muted-foreground">
+          Defaults for lookups and operational integrations.
+        </p>
       </div>
 
       <Card>
@@ -24,7 +26,12 @@ export function SettingsView() {
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="api-base">API base</Label>
-            <Input id="api-base" disabled value="BFF /api/* (configured server-side)" className="font-mono text-xs" />
+            <Input
+              id="api-base"
+              disabled
+              value="BFF /api/* (configured server-side)"
+              className="font-mono text-xs"
+            />
           </div>
         </CardContent>
       </Card>

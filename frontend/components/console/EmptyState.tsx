@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { ReactNode } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 
 type EmptyStateProps = {
   title: string;

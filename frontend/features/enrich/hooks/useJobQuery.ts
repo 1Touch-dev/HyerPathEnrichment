@@ -1,14 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
-import { getEnrichmentJob } from '@/src/lib/api-client';
-import { isTerminalStatus } from '@/src/lib/enrich-poll';
-import { JobPendingError, isJobPendingError } from '../api/job-pending-error';
-import { enrichKeys } from '../api/keys';
+import { useQuery } from "@tanstack/react-query";
+import { getEnrichmentJob } from "@/src/lib/api-client";
+import { isTerminalStatus } from "@/src/lib/enrich-poll";
+import { JobPendingError, isJobPendingError } from "../api/job-pending-error";
+import { enrichKeys } from "../api/keys";
 
 const POLL_INTERVAL_MS = 2000;
 
 export function useJobQuery(jobId: string | undefined) {
   return useQuery({
-    queryKey: enrichKeys.job(jobId ?? ''),
+    queryKey: enrichKeys.job(jobId ?? ""),
     queryFn: async () => {
       const job = (await getEnrichmentJob(jobId!)).data;
       if (!isTerminalStatus(job.status)) {
@@ -18,7 +18,7 @@ export function useJobQuery(jobId: string | undefined) {
     },
     enabled: Boolean(jobId),
     staleTime: 0,
-    refetchOnMount: 'always',
+    refetchOnMount: "always",
     retry: (failureCount, error) => {
       if (isJobPendingError(error)) {
         return true;

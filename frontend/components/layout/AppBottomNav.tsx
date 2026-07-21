@@ -1,16 +1,11 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { MoreHorizontal } from 'lucide-react';
-import { cn } from '@/src/lib/utils';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
-import { mainNav, systemNav } from './nav-config';
+import { useState } from "react";
+import Link from "next/link";
+import { MoreHorizontal } from "lucide-react";
+import { cn } from "@/src/lib/utils";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { mainNav, systemNav } from "./nav-config";
 
 type AppBottomNavProps = {
   pathname: string;
@@ -36,8 +31,8 @@ export function AppBottomNav({ pathname }: AppBottomNavProps) {
                 <Link
                   href={item.href}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-md px-2 py-2 text-xs',
-                    active ? 'bg-secondary text-primary' : 'text-muted-foreground',
+                    "flex flex-col items-center gap-1 rounded-md px-2 py-2 text-xs",
+                    active ? "bg-secondary text-primary" : "text-muted-foreground",
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -51,8 +46,8 @@ export function AppBottomNav({ pathname }: AppBottomNavProps) {
               type="button"
               onClick={() => setMoreOpen(true)}
               className={cn(
-                'flex w-full flex-col items-center gap-1 rounded-md px-2 py-2 text-xs',
-                moreActive ? 'bg-secondary text-primary' : 'text-muted-foreground',
+                "flex w-full flex-col items-center gap-1 rounded-md px-2 py-2 text-xs",
+                moreActive ? "bg-secondary text-primary" : "text-muted-foreground",
               )}
               aria-expanded={moreOpen}
               aria-haspopup="dialog"
@@ -79,10 +74,10 @@ export function AppBottomNav({ pathname }: AppBottomNavProps) {
                     href={item.href}
                     onClick={() => setMoreOpen(false)}
                     className={cn(
-                      'flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors',
+                      "flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors",
                       active
-                        ? 'bg-secondary text-primary'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                        ? "bg-secondary text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" />

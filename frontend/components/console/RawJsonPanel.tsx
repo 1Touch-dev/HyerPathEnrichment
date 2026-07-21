@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Copy, ChevronDown, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { EnrichmentJob } from '@/src/lib/types';
-import { copyToClipboard } from '@/src/lib/utils';
+import { useState } from "react";
+import { Copy, ChevronDown, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { EnrichmentJob } from "@/src/lib/types";
+import { copyToClipboard } from "@/src/lib/utils";
 
 type RawJsonPanelProps = {
   job?: EnrichmentJob;
@@ -18,13 +18,13 @@ type RawJsonPanelProps = {
 export function RawJsonPanel({
   job,
   data,
-  triggerLabel = 'Raw JSON',
+  triggerLabel = "Raw JSON",
   defaultOpen = false,
   showCopy = true,
 }: RawJsonPanelProps) {
   // Back-compat: older callsites passed `job`. New callsites can pass `data`.
   const jsonTarget = data ?? job;
-  const json = jsonTarget ? JSON.stringify(jsonTarget, null, 2) : '';
+  const json = jsonTarget ? JSON.stringify(jsonTarget, null, 2) : "";
 
   const [open, setOpen] = useState(defaultOpen);
 

@@ -2,9 +2,11 @@
 
 Operator procedures for Hyrepath Enrichment production and staging.
 
-See also: [deployment.md](deployment.md), [PROD_SMOKE.md](PROD_SMOKE.md), [PROD_ACCEPTANCE.md](PROD_ACCEPTANCE.md), [backend/docs/LEGAL.md](../backend/docs/LEGAL.md).
+See also: [ALERTING.md](ALERTING.md) (Prometheus rules, health-alert notify, Sentry checklist), [deployment.md](deployment.md), [PROD_SMOKE.md](PROD_SMOKE.md), [PROD_ACCEPTANCE.md](PROD_ACCEPTANCE.md), [backend/docs/LEGAL.md](../backend/docs/LEGAL.md).
 
 ## Rollback
+
+Prefer the CD rollback in [deployment.md](deployment.md) (pin previous GHCR SHA via `docker-compose.cd-images.yml`). Manual fallback:
 
 1. **Identify last known-good image tag** (or git SHA used for the build).
 2. On the host:
@@ -53,6 +55,14 @@ Documented in [backend/docs/LEGAL.md](../backend/docs/LEGAL.md):
 - No bulk scraping; customer-supplied URLs only.
 - Email SMTP verification ~10/min per job (`EMAIL_VERIFY_MAX_PER_JOB`, `EMAIL_VERIFY_SMTP_DELAY_SECONDS`).
 - GitHub API: prefer `GITHUB_TOKEN`; gitrecon throttle handles 403/429.
+
+## Alerting
+
+Production alert signals, silence/ack, Prometheus rules, and the health-check notify cron are documented in [ALERTING.md](ALERTING.md). Quick probe:
+
+```bash
+DRY_RUN=1 BASE_URL="$BASE_URL" python backend/scripts/health_alert_notify.py
+```
 
 ## Change signals
 

@@ -4,12 +4,30 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+async def _post_webhook(payload: dict[str, Any]) -> bool:
+    """POST JSON to NOTIFY_WEBHOOK_URL. No-op when unset. Never raises."""
+    settings = get_settings()
+    webhook_url = settings.notify_webhook_url.strip()
+    if not webhook_url:
+        return False
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(webhook_url, json=payload)
+            response.raise_for_status()
+        return True
+    except httpx.HTTPError:
+        logger.warning("notify webhook POST failed", exc_info=True)
+        return False
 
 
 async def notify_change_signal(
@@ -20,23 +38,36 @@ async def notify_change_signal(
     timestamp: str | None = None,
 ) -> bool:
     """POST non-PII change metadata to NOTIFY_WEBHOOK_URL. No-op when unset."""
-    settings = get_settings()
-    webhook_url = settings.notify_webhook_url.strip()
-    if not webhook_url:
-        return False
+    return await _post_webhook(
+        {
+            "source": "changedetection",
+            "watch_id": watch_id,
+            "title": title,
+            "url": url,
+            "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
+        }
+    )
 
-    payload = {
-        "source": "changedetection",
-        "watch_id": watch_id,
-        "title": title,
-        "url": url,
-        "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
+
+async def notify_ops_alert(
+    *,
+    alert: str,
+    summary: str,
+    severity: str = "critical",
+    details: dict[str, str] | None = None,
+) -> bool:
+    """POST a non-PII ops alert to NOTIFY_WEBHOOK_URL. No-op when unset.
+
+    Payload never includes identifiers, emails, dossier fields, or request bodies.
+    """
+    payload: dict[str, Any] = {
+        "source": "hyrepath-ops",
+        "alert": alert,
+        "severity": severity,
+        "summary": summary,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(webhook_url, json=payload)
-            response.raise_for_status()
-        return True
-    except httpx.HTTPError:
-        logger.warning("notify webhook POST failed", exc_info=True)
-        return False
+    if details:
+        # Only string scalars; callers must not pass PII.
+        payload["details"] = {str(k): str(v) for k, v in details.items()}
+    return await _post_webhook(payload)

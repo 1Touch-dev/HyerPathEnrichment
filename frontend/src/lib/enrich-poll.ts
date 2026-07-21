@@ -1,7 +1,7 @@
-import { EnrichmentJob, JobStatus } from '@/src/lib/types';
-import { getEnrichmentJob } from '@/src/lib/api-client';
+import { EnrichmentJob, JobStatus } from "@/src/lib/types";
+import { getEnrichmentJob } from "@/src/lib/api-client";
 
-const TERMINAL_STATUSES: JobStatus[] = ['completed', 'failed', 'suppressed'];
+const TERMINAL_STATUSES: JobStatus[] = ["completed", "failed", "suppressed"];
 
 export type PollOptions = {
   initialIntervalMs?: number;
@@ -11,9 +11,9 @@ export type PollOptions = {
 };
 
 export type PollResult =
-  | { status: 'completed'; job: EnrichmentJob }
-  | { status: 'timeout'; job: EnrichmentJob }
-  | { status: 'error'; error: Error };
+  | { status: "completed"; job: EnrichmentJob }
+  | { status: "timeout"; job: EnrichmentJob }
+  | { status: "error"; error: Error };
 
 export function isTerminalStatus(status: JobStatus): boolean {
   return TERMINAL_STATUSES.includes(status);
@@ -39,22 +39,22 @@ export async function pollEnrichmentJob(
       options.onUpdate?.(latestJob);
 
       if (isTerminalStatus(latestJob.status)) {
-        return { status: 'completed', job: latestJob };
+        return { status: "completed", job: latestJob };
       }
     } catch (error) {
-      return { status: 'error', error: error instanceof Error ? error : new Error('Poll failed') };
+      return { status: "error", error: error instanceof Error ? error : new Error("Poll failed") };
     }
 
     intervalMs = Math.min(Math.round(intervalMs * 1.25), maxIntervalMs);
   }
 
   if (latestJob) {
-    return { status: 'timeout', job: latestJob };
+    return { status: "timeout", job: latestJob };
   }
 
   return {
-    status: 'error',
-    error: new Error('Polling timed out before receiving a job response'),
+    status: "error",
+    error: new Error("Polling timed out before receiving a job response"),
   };
 }
 

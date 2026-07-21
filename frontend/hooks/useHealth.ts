@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { getHealth } from '@/src/lib/api-client';
-import { HealthStatus } from '@/src/lib/types';
+import { useCallback, useEffect, useState } from "react";
+import { getHealth } from "@/src/lib/api-client";
+import { HealthStatus } from "@/src/lib/types";
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -15,9 +15,9 @@ export function useHealth() {
     try {
       const status = await getHealth();
       setHealth(status.data);
-      setOnline(status.data.status === 'ok' || status.data.status === 'ready');
+      setOnline(status.data.status === "ok" || status.data.status === "ready");
     } catch {
-      setHealth({ status: 'error', service: 'hyrepath-enrichment' });
+      setHealth({ status: "error", service: "hyrepath-enrichment" });
       setOnline(false);
     } finally {
       setLoading(false);

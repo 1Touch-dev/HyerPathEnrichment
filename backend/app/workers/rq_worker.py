@@ -4,6 +4,7 @@ from rq import Queue, SimpleWorker, Worker
 from rq.timeouts import BaseDeathPenalty
 
 from app.core.config import get_settings, validate_tier1_settings
+from app.core.logging import configure_logging
 from app.observability.error_tracking import init_error_tracking
 from app.workers.queue import QUEUE_NAME, get_redis_connection
 
@@ -21,6 +22,8 @@ class _NoOpDeathPenalty(BaseDeathPenalty):
 def main() -> None:
     # Fail closed when Tier 1 is enabled without Multilogin/bot (and prod R2).
     validate_tier1_settings(get_settings())
+    # Logging before Sentry so LoggingIntegration can attach to the root logger.
+    configure_logging()
     init_error_tracking()
     connection = get_redis_connection()
     queue = Queue(QUEUE_NAME, connection=connection)

@@ -1,0 +1,105 @@
+# Prometheus alerting rules for Hyrepath Enrichment.
+# Metrics source: GET /metrics (see backend/app/observability/tier1_metrics.py,
+# backend/app/modules/health/router.py). Scrape job name should match `job` matchers.
+#
+# Load with Prometheus rule_files / Grafana Alloy / mimirtool. Offline-validated in CI.
+# These rules do not page a live production system by themselves.
+
+groups:
+  - name: hyrepath.api
+    rules:
+      # Prometheus sets up=0 when the /metrics scrape target is unreachable.
+      - alert: HyrepathApiDown
+        expr: up{job=~"hyrepath.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: hyrepath-enrichment
+        annotations:
+          summary: "Hyrepath API metrics target down"
+          description: >-
+            Prometheus cannot scrape {{ $labels.job }} (instance {{ $labels.instance }}).
+            Check API process, /health, and network. See docs/ALERTING.md.
+
+      # Optional blackbox exporter probe of GET /health (configure separately).
+      - alert: HyrepathHealthProbeFailed
+        expr: probe_success{job=~"hyrepath.*health.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: hyrepath-enrichment
+        annotations:
+          summary: "Hyrepath /health probe failing"
+          description: >-
+            Blackbox probe {{ $labels.instance }} reports failure.
+            Run backend/scripts/health_alert_notify.py and check docs/ALERTING.md.
+
+  - name: hyrepath.tier1
+    rules:
+      # Error-ish scrape outcomes vs success over 15m (labels from tier1_scrape_total).
+      - alert: HyrepathTier1ScrapeErrorRate
+        expr: |
+          (
+            sum(rate(tier1_scrape_total{outcome!~"success|not_found|invalid_url"}[15m]))
+            /
+            clamp_min(sum(rate(tier1_scrape_total[15m])), 1e-9)
+          ) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+          service: hyrepath-enrichment
+        annotations:
+          summary: "Tier 1 LinkedIn scrape error rate high"
+          description: >-
+            More than 50% of tier1_scrape_total outcomes are failures over 15m.
+            Check Multilogin pool, captcha, and rate limits.
+
+      - alert: HyrepathTier1UploadErrors
+        expr: sum(rate(tier1_upload_total{result="error"}[15m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: hyrepath-enrichment
+        annotations:
+          summary: "Tier 1 photo upload errors elevated"
+          description: >-
+            tier1_upload_total{result="error"} rate is elevated. Check R2/local asset storage.
+
+      - alert: HyrepathTier1ProfilePoolExhausted
+        expr: increase(tier1_profile_pool_exhausted_total[30m]) >= 3
+        for: 5m
+        labels:
+          severity: warning
+          service: hyrepath-enrichment
+        annotations:
+          summary: "Multilogin profile pool exhausted repeatedly"
+          description: >-
+            tier1_profile_pool_exhausted_total increased at least 3 times in 30m.
+            Raise MULTILOGIN_DAILY_VIEW_LIMIT or add profiles.
+
+  - name: hyrepath.queue
+    rules:
+      # Populated when operators export RQ gauges (optional) or via recording rules.
+      # Until then, use health_alert_notify.py cron for queue depth/failures.
+      - alert: HyrepathQueueDepthHigh
+        expr: hyrepath_rq_queue_depth > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: hyrepath-enrichment
+        annotations:
+          summary: "Enrichment RQ queue depth high"
+          description: >-
+            hyrepath_rq_queue_depth is above 100 for 10m. Check worker capacity.
+            If this metric is absent, rely on health_alert_notify.py.
+
+      - alert: HyrepathQueueFailuresHigh
+        expr: hyrepath_rq_failed_jobs > 5
+        for: 5m
+        labels:
+          severity: critical
+          service: hyrepath-enrichment
+        annotations:
+          summary: "Enrichment RQ failed job count high"
+          description: >-
+            hyrepath_rq_failed_jobs exceeds 5. Inspect RQ failed registry and worker logs.

@@ -113,6 +113,99 @@ BASE_URL=https://enrich.hyrepath.io API_TOKEN='…' bash backend/scripts/prod_ac
 
 See [PROD_SMOKE.md](PROD_SMOKE.md) and [PROD_ACCEPTANCE.md](PROD_ACCEPTANCE.md).
 
+## Continuous deployment (GitHub Actions)
+
+Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml).
+
+| Trigger | Build → GHCR | Staging | Production |
+|---------|--------------|---------|------------|
+| Push to `main` | Yes | Auto (`environment: staging`) | — |
+| `workflow_dispatch` + `target=staging` | Yes | Auto | — |
+| `workflow_dispatch` + `target=production` | Yes | — | Manual approval (`environment: production`) |
+| `workflow_dispatch` + `dry_run=true` | Plan only (verify Dockerfiles; no build/push) | Skipped | Skipped |
+
+Images (per commit SHA + `latest`):
+
+- `ghcr.io/<owner>/<repo>/api:<sha>`
+- `ghcr.io/<owner>/<repo>/worker:<sha>`
+
+Dockerfiles: [`backend/docker/Dockerfile.api`](../backend/docker/Dockerfile.api), [`backend/docker/Dockerfile.worker`](../backend/docker/Dockerfile.worker).
+
+Remote compose overlays (from `backend/docker` on the host):
+
+- **Staging:** `docker-compose.yml` + `docker-compose.staging.yml` + generated `docker-compose.cd-images.yml`
+- **Production:** `docker-compose.yml` + `docker-compose.prod.yml` + generated `docker-compose.cd-images.yml`
+
+### GitHub Environments and secrets
+
+Create Environments **`staging`** and **`production`**. On **production**, enable **Required reviewers** so deploys wait for approval.
+
+Set these secrets on each Environment (values may differ per env; never commit them):
+
+| Secret | Required | Purpose |
+|--------|----------|---------|
+| `SSH_HOST` | Yes | Deploy host hostname or IP |
+| `SSH_USER` | Yes | SSH username |
+| `SSH_KEY` | Yes | Private key (PEM) for `SSH_USER` |
+| `SSH_PORT` | No | SSH port (appleboy default `22` if unset) |
+| `GHCR_USERNAME` | Yes | GitHub user/bot that can pull packages |
+| `GHCR_TOKEN` | Yes | PAT or fine-grained token with `read:packages` (host `docker login`) |
+| `DEPLOY_PATH` | No | Host path to `backend/docker` (default `/opt/hyrepath/HyerPathEnrichment/backend/docker`) |
+| `COMPOSE_ENV_FILE` | No | Env file on host (default `../.env.staging` or `../.env.production`) |
+
+Registry **push** from Actions uses `GITHUB_TOKEN` with `packages: write` (workflow permission). Host **pull** uses `GHCR_TOKEN` — do not rely on job `GITHUB_TOKEN` on the VPS.
+
+App secrets (`API_TOKEN`, `DATABASE_URL`, R2, Multilogin, etc.) stay on the host env files — not in GitHub Actions secrets unless you deliberately migrate them later.
+
+### Dry-run
+
+1. Actions → **Deploy** → **Run workflow**
+2. Set `dry_run=true` (optional: pick `target` for the plan summary)
+3. Job verifies Dockerfiles/compose overlays exist and prints planned image tags; **does not** build, push to GHCR, or SSH
+
+### Validate the workflow (actionlint)
+
+```bash
+# Install: https://github.com/rhysd/actionlint
+#   go install github.com/rhysd/actionlint/cmd/actionlint@latest
+#   # or download a release binary
+actionlint .github/workflows/deploy.yml
+```
+
+If `actionlint` is unavailable, use the UI dry-run above as the proof path.
+
+### CD rollback
+
+1. Find the last known-good commit SHA (previous green Deploy run or GHCR tag).
+2. On the host (`backend/docker`), pin images and recreate:
+
+```bash
+API=ghcr.io/<owner>/<repo>/api
+WORKER=ghcr.io/<owner>/<repo>/worker
+GOOD_SHA=<previous-sha>
+
+{
+  echo "services:"
+  echo "  migrate:"
+  echo "    image: ${API}:${GOOD_SHA}"
+  echo "  api:"
+  echo "    image: ${API}:${GOOD_SHA}"
+  echo "  worker:"
+  echo "    image: ${WORKER}:${GOOD_SHA}"
+} > docker-compose.cd-images.yml
+
+# staging:
+docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.cd-images.yml \
+  --env-file ../.env.staging pull api worker migrate
+docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.cd-images.yml \
+  --env-file ../.env.staging up -d --no-build
+
+# production: swap staging overlay for docker-compose.prod.yml and ../.env.production
+```
+
+3. Or re-run **Deploy** via `workflow_dispatch` on the good commit (production still needs approval).
+4. Database: Alembic is forward-only — restore Postgres from backup if a migration was the failure (see [OPS.md](OPS.md)).
+
 ## Related docs
 
 - [backend/docs/ARCHITECTURE.md](../backend/docs/ARCHITECTURE.md) — env table, request flow

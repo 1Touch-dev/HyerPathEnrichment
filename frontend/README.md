@@ -10,14 +10,14 @@ Next.js 14 console and marketing UI with a thin BFF layer (Option D).
 
 ## Routes
 
-| Route | Purpose |
-|-------|---------|
-| `/` | Marketing hub |
-| `/recruiters`, `/candidates`, … | Audience landings |
-| `/app` | Enrichment console |
-| `/app/history` | Job list |
-| `/app/jobs/[id]` | Job detail + poll |
-| `/opt-out` | Public opt-out form |
+| Route                           | Purpose             |
+| ------------------------------- | ------------------- |
+| `/`                             | Marketing hub       |
+| `/recruiters`, `/candidates`, … | Audience landings   |
+| `/app`                          | Enrichment console  |
+| `/app/history`                  | Job list            |
+| `/app/jobs/[id]`                | Job detail + poll   |
+| `/opt-out`                      | Public opt-out form |
 
 ## Local dev
 
@@ -27,8 +27,8 @@ npm install
 npm run dev
 ```
 
-| Service | URL |
-|---------|-----|
+| Service | URL                   |
+| ------- | --------------------- |
 | Next.js | http://localhost:3000 |
 | FastAPI | http://localhost:8000 |
 

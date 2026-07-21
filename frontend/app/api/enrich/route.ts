@@ -1,22 +1,27 @@
-import { NextRequest } from 'next/server';
+import { NextRequest } from "next/server";
 import {
   BackendJobResponse,
   hasIdentifier,
   mapBackendJobToFrontend,
   parseEnrichmentInput,
   toBackendEnrichmentRequest,
-} from '@/src/lib/api-adapter';
-import { backendFetch } from '@/src/lib/backend-client';
-import { bffServiceUnavailable, bffSuccess, bffValidationError, handleBackendJson } from '@/src/lib/bff-response';
-import { isMockMode } from '@/src/lib/mocks/enabled';
-import { createMockJobWithLifecycle } from '@/src/lib/mocks/mock-jobs';
+} from "@/src/lib/api-adapter";
+import { backendFetch } from "@/src/lib/backend-client";
+import {
+  bffServiceUnavailable,
+  bffSuccess,
+  bffValidationError,
+  handleBackendJson,
+} from "@/src/lib/bff-response";
+import { isMockMode } from "@/src/lib/mocks/enabled";
+import { createMockJobWithLifecycle } from "@/src/lib/mocks/mock-jobs";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as Parameters<typeof parseEnrichmentInput>[0];
   const input = parseEnrichmentInput(body);
 
   if (!hasIdentifier(input)) {
-    return bffValidationError('At least one identifier is required.');
+    return bffValidationError("At least one identifier is required.");
   }
 
   if (isMockMode()) {
@@ -26,9 +31,9 @@ export async function POST(request: NextRequest) {
 
   let backendResponse: Response;
   try {
-    backendResponse = await backendFetch('/enrich', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    backendResponse = await backendFetch("/enrich", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(toBackendEnrichmentRequest(input)),
     });
   } catch {

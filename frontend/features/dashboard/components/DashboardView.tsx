@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { JobHistoryTable } from '@/components/console/JobHistoryTable';
-import { JobStatusBadge } from '@/components/console/JobStatusBadge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { evictStaleJobDetails } from '@/features/enrich';
-import { useJobMetricsQuery } from '@/features/history';
-import { formatApiErrorMessage } from '@/src/lib/format-api-error';
+import Link from "next/link";
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { JobHistoryTable } from "@/components/console/JobHistoryTable";
+import { JobStatusBadge } from "@/components/console/JobStatusBadge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { evictStaleJobDetails } from "@/features/enrich";
+import { useJobMetricsQuery } from "@/features/history";
+import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 
 export function DashboardView() {
   const queryClient = useQueryClient();
@@ -23,16 +23,18 @@ export function DashboardView() {
   }, [queryClient, data?.recent]);
 
   const kpis = [
-    { label: 'Total jobs', value: data?.total ?? 0 },
-    { label: 'Success rate', value: data ? `${data.successRate}%` : '—' },
-    { label: 'In progress', value: data?.running ?? 0 },
+    { label: "Total jobs", value: data?.total ?? 0 },
+    { label: "Success rate", value: data ? `${data.successRate}%` : "—" },
+    { label: "In progress", value: data?.running ?? 0 },
   ];
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Pipeline overview and recent enrichment activity.</p>
+        <p className="text-sm text-muted-foreground">
+          Pipeline overview and recent enrichment activity.
+        </p>
       </div>
 
       {error ? <p className="text-sm text-destructive">{formatApiErrorMessage(error)}</p> : null}
@@ -71,7 +73,10 @@ export function DashboardView() {
           ) : data?.recent.length ? (
             <ul className="flex flex-col gap-2">
               {data.recent.map((job) => (
-                <li key={job.id} className="flex min-w-0 flex-col gap-1 rounded-md border px-3 py-2 text-sm">
+                <li
+                  key={job.id}
+                  className="flex min-w-0 flex-col gap-1 rounded-md border px-3 py-2 text-sm"
+                >
                   <div className="flex min-w-0 items-center gap-2">
                     <Link
                       href={`/app/jobs/${job.id}`}

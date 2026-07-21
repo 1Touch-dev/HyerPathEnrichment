@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { Dossier } from '@/src/lib/types';
-import { DossierSummary } from '@/components/console/DossierSummary';
-import { RawJsonPanel } from '@/components/console/RawJsonPanel';
-import { EmptyState } from '@/components/console/EmptyState';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
-import { DossierScanList } from './DossierScanList';
-import { EntityDetailPanel } from './EntityDetailPanel';
-import type { DossierEntity } from './dossier-entity';
-import { formatPercent, initialsFrom } from '@/src/lib/utils';
-import { EnrichmentJob } from '@/src/lib/types';
+import { useEffect, useMemo, useState } from "react";
+import { Dossier } from "@/src/lib/types";
+import { DossierSummary } from "@/components/console/DossierSummary";
+import { RawJsonPanel } from "@/components/console/RawJsonPanel";
+import { EmptyState } from "@/components/console/EmptyState";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { DossierScanList } from "./DossierScanList";
+import { EntityDetailPanel } from "./EntityDetailPanel";
+import type { DossierEntity } from "./dossier-entity";
+import { formatPercent, initialsFrom } from "@/src/lib/utils";
+import { EnrichmentJob } from "@/src/lib/types";
 
 type DossierViewProps = {
   job: EnrichmentJob;
@@ -33,8 +33,8 @@ function EmptyMessage({ message }: { message: string }) {
 
 export function DossierView({ job }: DossierViewProps) {
   const { dossier, status } = job;
-  const loading = status === 'running' || status === 'queued';
-  const suppressed = status === 'suppressed';
+  const loading = status === "running" || status === "queued";
+  const suppressed = status === "suppressed";
 
   // Legacy helpers below are kept temporarily during the refactor.
   // Referencing them prevents TS noUnusedLocals errors while the codebase migrates.
@@ -51,16 +51,16 @@ export function DossierView({ job }: DossierViewProps) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const mql = window.matchMedia('(max-width: 767px)');
+    const mql = window.matchMedia("(max-width: 767px)");
 
     const apply = () => setIsMobile(mql.matches);
     apply();
 
     const onChange = () => apply();
 
-    if (typeof mql.addEventListener === 'function') {
-      mql.addEventListener('change', onChange);
-      return () => mql.removeEventListener('change', onChange);
+    if (typeof mql.addEventListener === "function") {
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
     }
 
     // Safari fallback for older MediaQueryList implementations.
@@ -122,9 +122,13 @@ export function DossierView({ job }: DossierViewProps) {
             <div className="min-w-0">
               {loading && !hasFindings ? <SectionSkeleton /> : null}
               {hasFindings ? (
-                <DossierScanList dossier={dossier} selectedId={selectedId} onSelect={handleSelect} />
+                <DossierScanList
+                  dossier={dossier}
+                  selectedId={selectedId}
+                  onSelect={handleSelect}
+                />
               ) : (
-                <EmptyMessage message={loading ? 'Building findings…' : 'No findings returned.'} />
+                <EmptyMessage message={loading ? "Building findings…" : "No findings returned."} />
               )}
             </div>
 
@@ -159,7 +163,7 @@ export function DossierView({ job }: DossierViewProps) {
 }
 
 function IdentitySection({ dossier }: { dossier: Dossier }) {
-  const title = dossier.metadata.identifierSummary || 'Subject';
+  const title = dossier.metadata.identifierSummary || "Subject";
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
@@ -172,7 +176,12 @@ function IdentitySection({ dossier }: { dossier: Dossier }) {
               <div className="flex size-16 items-center justify-center rounded-full bg-muted text-lg font-semibold">
                 {initialsFrom(title)}
               </div>
-              <a href={dossier.photo.assetUrl} target="_blank" rel="noreferrer" className="text-primary break-all">
+              <a
+                href={dossier.photo.assetUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary break-all"
+              >
                 {dossier.photo.assetUrl}
               </a>
               <p className="text-muted-foreground">
@@ -215,7 +224,12 @@ function HandlesSection({ dossier }: { dossier: Dossier }) {
           <div className="font-medium">
             {handle.platform} · {handle.username}
           </div>
-          <a href={handle.profileUrl} target="_blank" rel="noreferrer" className="text-primary break-all">
+          <a
+            href={handle.profileUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary break-all"
+          >
             {handle.profileUrl}
           </a>
           <div className="text-muted-foreground">{formatPercent(handle.confidence)}</div>
@@ -252,13 +266,20 @@ function GithubSection({ dossier }: { dossier: Dossier }) {
         </CardHeader>
         <CardContent className="text-sm">
           {dossier.github?.profile ? (
-            <a href={dossier.github.profile} target="_blank" rel="noreferrer" className="text-primary">
+            <a
+              href={dossier.github.profile}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary"
+            >
               {dossier.github.profile}
             </a>
           ) : (
             <EmptyMessage message="No GitHub profile." />
           )}
-          <p className="mt-2 text-muted-foreground">Public commits: {dossier.github?.publicCommits ?? 0}</p>
+          <p className="mt-2 text-muted-foreground">
+            Public commits: {dossier.github?.publicCommits ?? 0}
+          </p>
           {dossier.github?.organizations.length ? (
             <ul className="mt-2 flex flex-col gap-1">
               {dossier.github.organizations.map((org) => (
@@ -302,7 +323,8 @@ function JobsBusinessSection({ dossier }: { dossier: Dossier }) {
                 <li key={`${job.title}-${job.company}`} className="rounded border p-2">
                   <div className="font-medium">{job.title}</div>
                   <div className="text-muted-foreground">
-                    {job.company} · {job.location} · {job.remote ? 'Remote' : 'On-site'} · {job.source}
+                    {job.company} · {job.location} · {job.remote ? "Remote" : "On-site"} ·{" "}
+                    {job.source}
                   </div>
                 </li>
               ))}
@@ -322,7 +344,12 @@ function JobsBusinessSection({ dossier }: { dossier: Dossier }) {
               <li>{dossier.business.name}</li>
               <li>{dossier.business.address}</li>
               <li>
-                <a href={dossier.business.website} target="_blank" rel="noreferrer" className="text-primary">
+                <a
+                  href={dossier.business.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary"
+                >
                   {dossier.business.website}
                 </a>
               </li>
@@ -345,10 +372,13 @@ function ConfidenceSection({ dossier }: { dossier: Dossier }) {
   return (
     <div className="flex flex-col gap-2">
       {dossier.confidence.map((item) => (
-        <div key={item.label} className="flex items-start justify-between rounded-lg border p-3 text-sm">
+        <div
+          key={item.label}
+          className="flex items-start justify-between rounded-lg border p-3 text-sm"
+        >
           <div>
             <div className="font-medium">{item.label}</div>
-            <p className="text-muted-foreground">{item.evidence.join(' · ')}</p>
+            <p className="text-muted-foreground">{item.evidence.join(" · ")}</p>
           </div>
           <span>{formatPercent(item.score)}</span>
         </div>

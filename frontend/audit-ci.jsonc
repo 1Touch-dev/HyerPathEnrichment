@@ -15,7 +15,7 @@
     "GHSA-h64f-5h5j-jqjh",
     "GHSA-c4j6-fc7j-m34r",
     "GHSA-wfc6-r584-vfw7",
-    "GHSA-36qx-fr4f-26g5"
+    "GHSA-36qx-fr4f-26g5",
   ],
-  "report-type": "important"
+  "report-type": "important",
 }

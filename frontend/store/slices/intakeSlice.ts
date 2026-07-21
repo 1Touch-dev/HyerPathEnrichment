@@ -1,15 +1,15 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { EnrichMode, EnrichmentInput } from '@/src/lib/types';
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { EnrichMode, EnrichmentInput } from "@/src/lib/types";
 
 const emptyDraft = (): EnrichmentInput => ({
-  email: '',
-  linkedinUrl: '',
-  username: '',
-  company: '',
-  business: '',
-  jobSearch: '',
+  email: "",
+  linkedinUrl: "",
+  username: "",
+  company: "",
+  business: "",
+  jobSearch: "",
   // Default matches the former Standard mix (username + OSINT).
-  requestedTiers: ['tier2', 'tier3'],
+  requestedTiers: ["tier2", "tier3"],
 });
 
 type IntakeState = {
@@ -19,11 +19,11 @@ type IntakeState = {
 
 const initialState: IntakeState = {
   draft: emptyDraft(),
-  enrichMode: 'async',
+  enrichMode: "async",
 };
 
 const intakeSlice = createSlice({
-  name: 'intake',
+  name: "intake",
   initialState,
   reducers: {
     setDraft(state, action: PayloadAction<EnrichmentInput>) {

@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { Activity, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useHealthQuery } from '../hooks/useHealthQuery';
-import { formatApiErrorMessage } from '@/src/lib/format-api-error';
-import { cn } from '@/src/lib/utils';
+import { Activity, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useHealthQuery } from "../hooks/useHealthQuery";
+import { formatApiErrorMessage } from "@/src/lib/format-api-error";
+import { cn } from "@/src/lib/utils";
 
 export function HealthView() {
   const { data, isLoading, error, refetch, isFetching } = useHealthQuery();
-  const online = data?.status === 'ok' || data?.status === 'ready';
+  const online = data?.status === "ok" || data?.status === "ready";
 
   return (
     <div className="flex flex-col gap-6">
@@ -20,7 +20,7 @@ export function HealthView() {
           <p className="text-sm text-muted-foreground">BFF and backend connectivity status.</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
-          <RefreshCw className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')} />
+          <RefreshCw className={cn("mr-2 h-4 w-4", isFetching && "animate-spin")} />
           Refresh
         </Button>
       </div>
@@ -41,8 +41,10 @@ export function HealthView() {
               <p className="text-sm text-destructive">{formatApiErrorMessage(error)}</p>
             ) : (
               <div className="flex items-center gap-3">
-                <span className={cn('h-3 w-3 rounded-full', online ? 'bg-success' : 'bg-destructive')} />
-                <span className="font-mono text-sm">{data?.status ?? 'unknown'}</span>
+                <span
+                  className={cn("h-3 w-3 rounded-full", online ? "bg-success" : "bg-destructive")}
+                />
+                <span className="font-mono text-sm">{data?.status ?? "unknown"}</span>
               </div>
             )}
           </CardContent>
@@ -57,7 +59,7 @@ export function HealthView() {
             {isLoading ? (
               <Skeleton className="h-6 w-48" />
             ) : (
-              <p className="font-mono text-sm text-muted-foreground">{data?.service ?? '—'}</p>
+              <p className="font-mono text-sm text-muted-foreground">{data?.service ?? "—"}</p>
             )}
           </CardContent>
         </Card>

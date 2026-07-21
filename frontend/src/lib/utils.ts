@@ -1,5 +1,5 @@
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -8,10 +8,10 @@ export function cn(...inputs: ClassValue[]) {
 export const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
 
 export const tierLabels: Record<string, string> = {
-  tier1: 'LinkedIn Photo',
-  tier2: 'Username Discovery',
-  tier3: 'Deep OSINT',
-  tier4: 'Job & Business Intelligence',
+  tier1: "LinkedIn Photo",
+  tier2: "Username Discovery",
+  tier3: "Deep OSINT",
+  tier4: "Job & Business Intelligence",
 };
 
 export const initialsFrom = (value: string) =>
@@ -19,8 +19,8 @@ export const initialsFrom = (value: string) =>
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() || '')
-    .join('');
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("");
 
 export function copyToClipboard(text: string) {
   return navigator.clipboard.writeText(text);

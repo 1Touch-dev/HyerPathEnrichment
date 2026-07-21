@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
-import { AppBottomNav } from './AppBottomNav';
-import { AppNavRail } from './AppNavRail';
-import { AppSidebar } from './AppSidebar';
-import { AppTopbar } from './AppTopbar';
+import { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { AppBottomNav } from "./AppBottomNav";
+import { AppNavRail } from "./AppNavRail";
+import { AppSidebar } from "./AppSidebar";
+import { AppTopbar } from "./AppTopbar";
 
 type AppShellProps = {
   children: ReactNode;

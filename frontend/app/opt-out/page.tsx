@@ -1,21 +1,21 @@
-import { MarketingShell } from '@/components/layout/MarketingShell';
-import { OptOutForm } from '@/components/opt-out/OptOutForm';
+import { MarketingShell } from "@/components/layout/MarketingShell";
+import { OptOutForm } from "@/components/opt-out/OptOutForm";
 
 const HOW_IT_WORKS = [
   {
-    step: '01',
-    title: 'Submit an identifier',
-    body: 'Email, LinkedIn URL, or username — the same forms used for enrichment.',
+    step: "01",
+    title: "Submit an identifier",
+    body: "Email, LinkedIn URL, or username — the same forms used for enrichment.",
   },
   {
-    step: '02',
-    title: 'Hashed and suppressed',
-    body: 'We store a SHA-256 hash on the suppression list. Raw identifiers are not retained for marketing.',
+    step: "02",
+    title: "Hashed and suppressed",
+    body: "We store a SHA-256 hash on the suppression list. Raw identifiers are not retained for marketing.",
   },
   {
-    step: '03',
-    title: 'Data purged',
-    body: 'Matching jobs, photo cache, and stored assets are erased. Future enrichment returns an empty dossier.',
+    step: "03",
+    title: "Data purged",
+    body: "Matching jobs, photo cache, and stored assets are erased. Future enrichment returns an empty dossier.",
   },
 ] as const;
 
@@ -25,10 +25,12 @@ export default function OptOutPage() {
       <div className="mx-auto flex max-w-xl flex-col gap-10 px-4 py-12">
         <section className="flex flex-col gap-3 text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-primary">Privacy</p>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Opt out of enrichment</h1>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            Opt out of enrichment
+          </h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Public data-subject request form. No console login required. We process opt-out, access, and deletion
-            requests under LGPD / GDPR / CCPA.
+            Public data-subject request form. No console login required. We process opt-out, access,
+            and deletion requests under LGPD / GDPR / CCPA.
           </p>
         </section>
 
