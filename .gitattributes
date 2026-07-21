@@ -1,2 +1,20 @@
 * text=auto
 *.sh text eol=lf
+
+# Force LF for Prettier-formatted sources so Windows checkouts
+# (core.autocrlf=true) don't fight Prettier's default endOfLine: lf.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.jsonc text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.md text eol=lf
+*.mdx text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.html text eol=lf
