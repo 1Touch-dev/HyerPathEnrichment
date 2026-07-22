@@ -1,7 +1,8 @@
 import os
+from typing import cast
 
 from rq import Queue, SimpleWorker, Worker
-from rq.timeouts import BaseDeathPenalty
+from rq.timeouts import BaseDeathPenalty, UnixSignalDeathPenalty
 from rq.worker import BaseWorker
 
 from app.core.config import get_settings, validate_tier1_settings
@@ -36,10 +37,10 @@ def main() -> None:
         worker = Worker([queue], connection=connection)
     else:
         worker = SimpleWorker([queue], connection=connection)
-        # RQ's stubs type this as UnixSignalDeathPenalty specifically; the
-        # Windows-safe no-op subclass below satisfies BaseDeathPenalty at
-        # runtime but not that narrower stub type.
-        worker.death_penalty_class = _NoOpDeathPenalty  # type: ignore[assignment]
+        # RQ's stubs type death_penalty_class as type[UnixSignalDeathPenalty];
+        # cast satisfies both older mypy (which flags the assignment) and newer
+        # mypy 2.3+ (which flags unused type: ignore comments).
+        worker.death_penalty_class = cast(type[UnixSignalDeathPenalty], _NoOpDeathPenalty)
     worker.work(with_scheduler=True)
 
 
