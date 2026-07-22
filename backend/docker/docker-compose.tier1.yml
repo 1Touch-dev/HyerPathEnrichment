@@ -1,11 +1,37 @@
 # Optional override: enable Tier 1 on the worker (Multilogin + Selenium).
 #
-# Usage:
-#   cd backend/docker
-#   docker compose -f docker-compose.yml -f docker-compose.tier1.yml up -d worker
+# ── Choose the right overlay for your environment ────────────────────────────
 #
-# Secrets (MULTILOGIN_*, LINKEDIN_BOT_*, R2_*) are injected via env_file — not
-# listed under environment: (empty ${VAR} interpolation would wipe them).
+# PATH A — WSL2 + Docker Engine on Windows (local dev only)
+# ──────────────────────────────────────────────────────────
+# Multilogin desktop app runs on the Windows host. Use this file alone.
+# MULTILOGIN_SELENIUM_HOST is set to http://launcher.mlx.yt (mapped below
+# via extra_hosts to the Windows host IP).
+# The per-profile Selenium debug port is bound to Windows 127.0.0.1, which
+# is unreachable from WSL2 — this means Tier 1 will fail here. Use for
+# launcher API smoke-testing only, not for real scraping.
+#
+# PATH B — Bare Linux / cloud server (production)
+# ────────────────────────────────────────────────
+# Also add -f docker-compose.multilogin.yml as the final overlay.
+# That file adds a containerised Multilogin service and overrides the worker
+# with network_mode: host + MULTILOGIN_SELENIUM_HOST=http://127.0.0.1.
+# Both containers share the Linux host's 127.0.0.1 loopback — the Selenium
+# debug port is reachable directly. See ADR 0008
+# (docs/adr/0008-tier1-linux-host-network.md).
+#
+# Usage (Linux production):
+#   cd backend/docker
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.tier1.yml \
+#                  -f docker-compose.multilogin.yml \
+#                  --env-file ../.env.production up -d
+#
+# Or: bash backend/scripts/start_production.sh --with-tier1 --with-linux-mlx
+#
+# ── WSL2 / Windows path notes ─────────────────────────────────────────────
+# Secrets (MULTILOGIN_*, LINKEDIN_BOT_*, R2_*) are injected via env_file —
+# not listed under environment: (empty ${VAR} interpolation would wipe them).
 # Local default: backend/.env. Production: WORKER_ENV_FILE=/etc/hyrepath/worker.env
 #
 # Multilogin launcher must run on the Docker host (port 45001), not inside a
@@ -13,12 +39,10 @@
 # PowerShell. On Windows Desktop, prefer a host-native RQ worker
 # (MULTILOGIN_SELENIUM_HOST=http://127.0.0.1) if Selenium Host-header checks fail.
 #
-# Host reachability:
-#   - Docker Desktop / Linux: default host-gateway is correct.
-#   - WSL2 + Docker Engine: host-gateway is the WSL VM, not Windows. Set
-#     MULTILOGIN_HOST_IP to the Windows host (WSL default gateway), e.g.
-#       export MULTILOGIN_HOST_IP=$(ip route show default | awk '{print $3}')
-#     then recreate the worker. Selenium and launcher both use this mapping.
+# WSL2 + Docker Engine: host-gateway is the WSL VM, not Windows. Set
+# MULTILOGIN_HOST_IP to the Windows host (WSL default gateway), e.g.
+#   export MULTILOGIN_HOST_IP=$(ip route show default | awk '{print $3}')
+# then recreate the worker. Selenium and launcher both use this mapping.
 
 services:
   worker:

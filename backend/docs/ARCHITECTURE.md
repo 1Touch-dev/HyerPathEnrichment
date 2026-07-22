@@ -241,6 +241,8 @@ Each tier maps to enricher modules in `app/enrichers/`. The orchestrator registe
 
 - One browser session per profile lookup — no bulk scraping
 - Multilogin runs on the host; launcher API is hostname-locked to `launcher.mlx.yt:45001` (Docker maps that name via `extra_hosts`). Host-native Windows Tier 1 uses Selenium at `127.0.0.1`; Docker Tier 1 uses `MULTILOGIN_SELENIUM_HOST=http://launcher.mlx.yt`
+- **Linux production** (`--with-linux-mlx`): Multilogin runs in a container with `network_mode: host`; the worker container also uses `network_mode: host`. Both share the Linux loopback, so the per-profile Selenium debug port (`127.0.0.1:PORT`) is reachable directly. `MULTILOGIN_SELENIUM_HOST=http://127.0.0.1` (the `config.py` default). See [ADR 0008](../docs/adr/0008-tier1-linux-host-network.md).
+- **WSL2 / Windows**: Multilogin's per-profile Selenium debug port is bound to Windows `127.0.0.1`, which is unreachable from any WSL2 container namespace regardless of host-IP routing. Use the Linux production path for real Tier 1 scraping.
 - Launcher HTTPS skips TLS verify (self-signed local cert); cloud API (`api.multilogin.com`) does not
 - Only the profile picture is captured, not full profile export
 

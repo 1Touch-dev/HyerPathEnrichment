@@ -1,0 +1,184 @@
+# ============================================================================
+# Multilogin container — Linux bare-metal / cloud server
+# ============================================================================
+# Runs with network_mode: host so the per-profile Selenium debug port
+# (bound to 127.0.0.1 by Multilogin) is reachable from the RQ worker
+# container, which also runs with network_mode: host.
+#
+# Used by docker-compose.multilogin.yml.
+# ============================================================================
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    DISPLAY=:99 \
+    VNC_PORT=5900 \
+    MLX_API_PORT=45001
+
+# ── Block 1: base packages ───────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    wget \
+    unzip \
+    lsof \
+    net-tools \
+    procps \
+    xvfb \
+    x11vnc \
+    xauth \
+    x11-utils \
+    libgtk-3-0 \
+    libgtk-3-dev \
+    libayatana-appindicator3-1 \
+    libgbm1 \
+    libnspr4 \
+    libnss3 \
+    libxss1 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libgdk-pixbuf-2.0-0 \
+    chromium \
+    chromium-driver \
+    fonts-liberation \
+    fonts-noto-color-emoji \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Block 2: AWS CLI (needed to pull mlxapp .deb from S3) ───────────────────
+RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip \
+    && unzip /tmp/awscliv2.zip -d /tmp/awscliv2 \
+    && /tmp/awscliv2/aws/install \
+    && rm -rf /tmp/awscliv2.zip /tmp/awscliv2
+
+# ── Block 3: download mlxapp .deb from S3 ───────────────────────────────────
+# Build-time AWS credentials — only used here to pull the binary; no runtime
+# access to AWS is required by the container after build.
+ARG AWS_ACCESS_KEY_ID
+ARG AWS_SECRET_ACCESS_KEY
+ARG AWS_DEFAULT_REGION=us-east-1
+
+RUN mkdir -p /opt/mlx && \
+    if [ -n "$AWS_ACCESS_KEY_ID" ]; then \
+        AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+        AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+        AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+        aws s3 cp \
+            "s3://onetouch-sm-automation-logs/multilogin_agents/Prod_Working_Multilogin_Ubuntu_24.04_amd64.deb" \
+            /opt/mlx/mlxdeb.deb; \
+    else \
+        echo "WARNING: AWS_ACCESS_KEY_ID not set — mlxapp .deb not downloaded. Build will fail at install step."; \
+        exit 1; \
+    fi
+
+# ── Block 4: install mlxapp + resolve any missing deps ──────────────────────
+RUN dpkg -i /opt/mlx/mlxdeb.deb || true \
+    && apt-get update \
+    && apt-get install -y -f \
+    && rm /opt/mlx/mlxdeb.deb
+
+# ── Block 5: symlink mlxapp to PATH ─────────────────────────────────────────
+RUN MLXAPP_PATH="$(find /opt /usr -name mlxapp -type f -executable 2>/dev/null | head -1)" \
+    && echo "Found mlxapp at: $MLXAPP_PATH" \
+    && ln -sf "$MLXAPP_PATH" /usr/local/bin/mlxapp \
+    && chmod +x "$MLXAPP_PATH"
+
+# ── Block 6: Python Selenium + requests (used by diagnostic scripts) ─────────
+RUN pip3 install --break-system-packages selenium requests urllib3
+
+# ── Block 7: non-root user ───────────────────────────────────────────────────
+# Chrome refuses to run without --no-sandbox when running as root, and
+# Multilogin strips that flag for security. Run everything as mlxuser.
+# UID/GID 1001 avoids collision with the ubuntu default user (1000).
+RUN groupadd -g 1001 mlxuser \
+    && useradd -u 1001 -g 1001 -m -s /bin/bash mlxuser \
+    && mkdir -p /home/mlxuser/mlx /home/mlxuser/.config /home/mlxuser/.local \
+    && chown -R 1001:1001 /home/mlxuser \
+    && chown -R 1001:1001 /opt/mlx \
+    && (chown -R 1001:1001 /opt/mlxapp 2>/dev/null || true)
+
+ENV MLX_DATA_DIR=/home/mlxuser/mlx \
+    HOME=/home/mlxuser
+
+# ── Block 8: startup script ──────────────────────────────────────────────────
+RUN cat > /usr/local/bin/start-mlx.sh << 'EOF'
+#!/bin/bash
+set -e
+
+echo "========================================="
+echo "Starting Multilogin Services"
+echo "========================================="
+echo "User: $(whoami) ($(id -u):$(id -g))"
+echo "All services bind to 127.0.0.1 (shared with host via network_mode: host)"
+
+mkdir -p /home/mlxuser/mlx/{configs,deps,desktop,logs,profiles,custom_extensions/mimic}
+
+echo "[1/4] Starting Xvfb..."
+export DISPLAY=:99
+export HOME=/home/mlxuser
+Xvfb :99 -screen 0 1920x1080x24 &
+sleep 2
+
+echo "[2/4] Starting VNC on 0.0.0.0:5900..."
+x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -forever &
+
+echo "[3/4] Verifying X server..."
+xdpyinfo -display :99 2>/dev/null | head -5 || echo "  (xdpyinfo output suppressed)"
+
+echo "[4/4] Starting mlxapp..."
+cd /home/mlxuser
+mlxapp &
+sleep 8
+
+echo "Running processes:"
+ps aux | grep -E "mlxapp|Xvfb|x11vnc" | grep -v grep || true
+echo ""
+echo "Listening on 45001:"
+lsof -i:45001 2>/dev/null || netstat -tlnp 2>/dev/null | grep 45001 || echo "  (not yet bound — mlxapp still starting)"
+
+echo "========================================="
+echo "All services started."
+echo "MLX API: 127.0.0.1:45001"
+echo "VNC:     0.0.0.0:5900"
+echo "========================================="
+
+sleep 2
+curl -s -k --connect-timeout 5 "https://127.0.0.1:45001/api/v1/version" \
+    && echo "API OK" \
+    || echo "API not ready yet (will be ready within 60s)"
+
+# Watchdog: restart any service that dies
+while true; do
+    if ! pgrep -f "Xvfb :99" > /dev/null; then
+        echo "WARNING: Xvfb died — restarting..."
+        Xvfb :99 -screen 0 1920x1080x24 &
+        sleep 2
+    fi
+    if ! pgrep -f mlxapp > /dev/null; then
+        echo "WARNING: mlxapp died — restarting..."
+        cd /home/mlxuser && mlxapp &
+        sleep 5
+    fi
+    if ! pgrep -f x11vnc > /dev/null; then
+        echo "WARNING: x11vnc died — restarting..."
+        x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -forever &
+        sleep 2
+    fi
+    sleep 10
+done
+EOF
+RUN chmod +x /usr/local/bin/start-mlx.sh
+
+EXPOSE 5900 45001
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD pgrep Xvfb > /dev/null \
+    && pgrep mlxapp > /dev/null \
+    && (curl -sk --connect-timeout 5 https://127.0.0.1:45001/api/v1/version > /dev/null \
+        || netstat -tlnp 2>/dev/null | grep -q 45001) \
+    || exit 1
+
+USER 1001
+WORKDIR /home/mlxuser
+
+CMD ["/usr/local/bin/start-mlx.sh"]

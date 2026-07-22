@@ -1,0 +1,80 @@
+# Linux bare-metal / cloud server overlay — containerised Multilogin
+# ============================================================================
+# Use this overlay on a bare Linux host (EC2, VPS, dedicated server).
+# DO NOT use on Windows / WSL2 / Docker Desktop — host networking behaves
+# differently there and the loopback trick only works on Linux.
+#
+# Usage (all three files together):
+#   cd backend/docker
+#   docker compose \
+#       -f docker-compose.yml \
+#       -f docker-compose.prod.yml \
+#       -f docker-compose.tier1.yml \
+#       -f docker-compose.multilogin.yml \
+#       --env-file ../.env.production \
+#       up -d
+#
+# Or via start_production.sh:
+#   bash backend/scripts/start_production.sh --with-tier1 --with-linux-mlx
+#
+# How it works
+# ─────────────
+# Multilogin binds its per-profile Selenium debug port to 127.0.0.1 only.
+# With network_mode: host, both the multilogin container and the RQ worker
+# container share the Linux host's network namespace — they see the same
+# 127.0.0.1 loopback, so the Selenium port is reachable without any hostname
+# mapping or TCP proxy.  See ADR 0008 (docs/adr/0008-tier1-linux-host-network.md).
+#
+# Prerequisites
+# ─────────────
+# 1. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY in the env file (build-time only,
+#    used to pull mlxapp.deb from S3 at image build time).
+# 2. MULTILOGIN_EMAIL / MULTILOGIN_PASSWORD / MULTILOGIN_FOLDER_ID /
+#    MULTILOGIN_WORKSPACE_ID set in the env file.
+# 3. LINKEDIN_BOT_EMAIL / LINKEDIN_BOT_PASSWORD set in the env file.
+# ============================================================================
+
+services:
+  multilogin:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.multilogin
+      args:
+        - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+        - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+        - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+    container_name: hyrepath-multilogin
+    # Shares the Linux host's 127.0.0.1 with the worker container.
+    network_mode: host
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    volumes:
+      - multilogin_data:/home/mlxuser/mlx
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sk --connect-timeout 5 https://127.0.0.1:45001/api/v1/version > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  # Override the worker to use host networking and point Selenium at 127.0.0.1.
+  # This supersedes the MULTILOGIN_SELENIUM_HOST set in docker-compose.tier1.yml
+  # (which uses launcher.mlx.yt for the WSL2/Windows path).
+  worker:
+    # Must match multilogin's network_mode so both containers share the loopback.
+    network_mode: host
+    environment:
+      ENABLE_TIER1: "true"
+      BROWSER_MODE: multilogin
+      # Direct loopback — no hostname mapping needed on bare Linux.
+      MULTILOGIN_SELENIUM_HOST: "http://127.0.0.1"
+      # Point launcher calls at 127.0.0.1 instead of launcher.mlx.yt; the
+      # self-signed cert is already handled by verify=False in the client.
+      MULTILOGIN_LAUNCHER_URL: "https://127.0.0.1:45001/api/v2"
+
+volumes:
+  multilogin_data:
