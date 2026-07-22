@@ -9,6 +9,7 @@ from typing import Any
 from selenium.webdriver.common.by import By
 
 from app.integrations.linkedin.constants import (
+    ARIA_FIGURE_PHOTO_SELECTOR,
     ARTIFACTS_DIR,
     DOM_PHOTO_ATTRS,
     DOM_PHOTO_SELECTORS,
@@ -132,12 +133,12 @@ def wait_for_profile_photo_ready(driver: Any, wait: Any) -> None:
         if _d.find_elements(css, FIGURE_PHOTO_SELECTOR):
             return True
 
-        # The stable topcard avatar container indicates the browser has rendered
-        # the profile photo section even when the inner <img> isn't directly matched
-        # by our selectors (unit tests cover this path).
-        for container_sel in TOPCARD_PHOTO_CONTAINER_SELECTORS:
-            if _d.find_elements(css, container_sel):
-                return True
+        # Wait for the inner figure>img to be present, not just the container
+        # shell. The container appears before React renders the <img> inside it,
+        # so checking only the container causes a race where extraction runs too
+        # early and finds nothing.
+        if _d.find_elements(css, ARIA_FIGURE_PHOTO_SELECTOR):
+            return True
 
         for selector in DOM_PHOTO_SELECTORS:
             if _d.find_elements(css, selector):

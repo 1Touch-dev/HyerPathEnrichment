@@ -51,9 +51,12 @@ TOPCARD_PHOTO_CONTAINER_SELECTORS = (
     'div[aria-label="Profile photo"]',
 )
 FIGURE_PHOTO_SELECTOR = 'div[componentkey="topcard-logo-image-referencekey"] figure img'
+# Confirmed via browser console: always unique on a profile page
+ARIA_FIGURE_PHOTO_SELECTOR = 'div[aria-label="Profile photo"] figure img'
 
 DOM_PHOTO_SELECTORS = (
     FIGURE_PHOTO_SELECTOR,
+    ARIA_FIGURE_PHOTO_SELECTOR,
     # Fallback DOM selectors (used in unit tests; also covers common LinkedIn variants).
     "img.pv-top-card-profile-picture__image",
     'img[src*="profile-displayphoto"]',
