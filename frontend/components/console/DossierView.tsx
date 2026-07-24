@@ -48,30 +48,6 @@ export function DossierView({ job }: DossierViewProps) {
 
   const [selectedEntity, setSelectedEntity] = useState<DossierEntity | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const mql = window.matchMedia("(max-width: 767px)");
-
-    const apply = () => setIsMobile(mql.matches);
-    apply();
-
-    const onChange = () => apply();
-
-    if (typeof mql.addEventListener === "function") {
-      mql.addEventListener("change", onChange);
-      return () => mql.removeEventListener("change", onChange);
-    }
-
-    // Safari fallback for older MediaQueryList implementations.
-    const legacy = mql as unknown as {
-      addListener: (cb: () => void) => void;
-      removeListener: (cb: () => void) => void;
-    };
-
-    legacy.addListener(onChange);
-    return () => legacy.removeListener(onChange);
-  }, []);
 
   useEffect(() => {
     setSelectedEntity(null);
@@ -89,14 +65,11 @@ export function DossierView({ job }: DossierViewProps) {
     [dossier],
   );
 
-  const isClientReady = isMobile !== null;
   const selectedId = selectedEntity?.id ?? null;
 
   const handleSelect = (entity: DossierEntity) => {
     setSelectedEntity(entity);
-    if (isMobile === true) {
-      setSheetOpen(true);
-    }
+    setSheetOpen(true);
   };
 
   if (suppressed) {
@@ -142,22 +115,20 @@ export function DossierView({ job }: DossierViewProps) {
             </div>
           </div>
 
-          {isClientReady && (
-            <div className="mt-4 lg:hidden">
-              <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-                <SheetContent side="right">
-                  {selectedEntity ? (
-                    <EntityDetailPanel dossier={dossier} entity={selectedEntity} />
-                  ) : (
-                    <EmptyState
-                      title="Select a finding"
-                      description="Pick a row from the scan list to view details."
-                    />
-                  )}
-                </SheetContent>
-              </Sheet>
-            </div>
-          )}
+          <div className="mt-4 lg:hidden">
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+              <SheetContent side="right">
+                {selectedEntity ? (
+                  <EntityDetailPanel dossier={dossier} entity={selectedEntity} />
+                ) : (
+                  <EmptyState
+                    title="Select a finding"
+                    description="Pick a row from the scan list to view details."
+                  />
+                )}
+              </SheetContent>
+            </Sheet>
+          </div>
         </CardContent>
       </Card>
       <RawJsonPanel job={job} />
