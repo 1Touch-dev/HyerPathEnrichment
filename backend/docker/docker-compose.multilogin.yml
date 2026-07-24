@@ -75,15 +75,21 @@ services:
       # Point launcher calls at 127.0.0.1 instead of launcher.mlx.yt; the
       # self-signed cert is already handled by verify=False in the client.
       MULTILOGIN_LAUNCHER_URL: "https://127.0.0.1:45001/api/v2"
+      MULTILOGIN_EMAIL: ${MULTILOGIN_EMAIL}
+      MULTILOGIN_PASSWORD: ${MULTILOGIN_PASSWORD}
+      MULTILOGIN_FOLDER_ID: ${MULTILOGIN_FOLDER_ID}
+      MULTILOGIN_WORKSPACE_ID: ${MULTILOGIN_WORKSPACE_ID}
+      LINKEDIN_BOT_EMAIL: ${LINKEDIN_BOT_EMAIL}
+      LINKEDIN_BOT_PASSWORD: ${LINKEDIN_BOT_PASSWORD}
 
   email-verifier:
     ports:
       - "127.0.0.1:8090:8080"
-    
+
   social-analyzer:
     ports:
       - "127.0.0.1:9005:9005"
-    
+
   google-maps-scraper:
     ports:
       - "127.0.0.1:8091:8080"

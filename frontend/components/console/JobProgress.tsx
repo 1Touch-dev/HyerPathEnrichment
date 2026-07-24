@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Copy, ShieldAlert, Clock, CheckCircle2 } from "lucide-react";
+import { Copy, ShieldAlert, Clock, CheckCircle2, RefreshCw } from "lucide-react";
 import { JobStatusBadge } from "@/components/console/JobStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,7 @@ type JobProgressProps = {
   polling?: boolean;
   pollTimedOut?: boolean;
   onRetry?: () => void;
+  onRefresh?: () => void;
 };
 
 // Estimated time per tier in seconds
@@ -109,7 +110,7 @@ function estimateRemainingTime(job: EnrichmentJob): number | null {
   return pendingTiers.reduce((sum, tier) => sum + TIER_ESTIMATES[tier], 0);
 }
 
-export function JobProgress({ job, polling, pollTimedOut, onRetry }: JobProgressProps) {
+export function JobProgress({ job, polling, pollTimedOut, onRetry, onRefresh }: JobProgressProps) {
   const jobStartTime = useMemo(() => {
     if (!job.createdAt) return Date.now();
     const time = new Date(job.createdAt).getTime();
@@ -119,6 +120,7 @@ export function JobProgress({ job, polling, pollTimedOut, onRetry }: JobProgress
     const elapsed = Math.floor((Date.now() - jobStartTime) / 1000);
     return isNaN(elapsed) ? 0 : Math.max(0, elapsed);
   });
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (
@@ -141,6 +143,17 @@ export function JobProgress({ job, polling, pollTimedOut, onRetry }: JobProgress
 
   const copyId = async () => {
     await copyToClipboard(job.id);
+  };
+
+  const handleRefresh = async () => {
+    if (!onRefresh || refreshing) return;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      // Keep spinner for a moment to show feedback
+      setTimeout(() => setRefreshing(false), 500);
+    }
   };
 
   return (
@@ -178,6 +191,20 @@ export function JobProgress({ job, polling, pollTimedOut, onRetry }: JobProgress
         {job.status === "failed" && onRetry ? (
           <Button variant="outline" onClick={onRetry} aria-label="Retry failed job">
             Retry
+          </Button>
+        ) : onRefresh ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            aria-label="Refresh job status"
+          >
+            <RefreshCw
+              className={cn("mr-1 size-3", refreshing && "animate-spin")}
+              aria-hidden="true"
+            />
+            Refresh
           </Button>
         ) : null}
       </CardHeader>
