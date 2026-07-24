@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-07-17T08:00:58Z",
+  "mode": "live",
+  "steps": [
+    {
+      "name": "unit_tests",
+      "command": "/home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/.venv/bin/python -m pytest tests/test_pipeline_shape.py tests/test_tier2_merge.py tests/test_tier3_merge.py tests/test_enrichers.py -v --tb=no -q",
+      "exit_code": 4,
+      "status": "fail",
+      "detail": "ImportError while loading conftest '/home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/tests/conftest.py'. | E   ModuleNotFoundError: No module named 'selenium'"
+    },
+    {
+      "name": "probe_sidecars",
+      "command": "/usr/bin/bash /home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/scripts/probe_sidecars.sh",
+      "exit_code": 0,
+      "status": "pass",
+      "detail": "Step 4/6 : RUN apk update &&   apk add --no-cache firefox-esr &&   npm ci &&   npm install lodash &&   npm install --loglevel=error | {\"username\":\"torvalds\",\"uuid\":\"e2e-probe-001\",\"info\":{\"items\":[],\"original\":\"\",\"corrected\":\"\",\"total\":0,\"checking\":\"Using torvalds with no lookups\"},\"ages\":[],\"table\":{\"prefix\":[],\"name\":[],\"number\":[],\"symbol\":[],\"unknown\":[],\"maybe\":[]},\"common\":[],\"words_info\":[],\"user_info_normal\":{\"data\":[{\"found\":2,\"username\":\"torvalds\",\"image\":\"\",\"link\":\"https://facebook.co"
+    },
+    {
+      "name": "tier2_e2e",
+      "command": "/usr/bin/bash /home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/scripts/e2e_tier2.sh",
+      "exit_code": 0,
+      "status": "pass",
+      "detail": "PASS  social_analyzer_contract_settings: GET /get_settings returned websites list | PASS  social_analyzer_contract_analyze: POST /analyze_string detected=9 | PASS  enricher_sherlock: handles=85 confidences=[0.75, 0.75, 0.75, 0.75, 0.75] | PASS  enricher_maigret: handles=92 confidences=[0.85, 0.85, 0.85, 0.85, 0.85] | PASS  enricher_social_analyzer: handles=7 | PASS  api_sync_tier2: status=completed sources=['Maigret', 'Sherlock', 'Social Analyzer'] handles=124 sherlock_band=True maigret_band=Tru"
+    },
+    {
+      "name": "tier3_e2e",
+      "command": "/usr/bin/bash /home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/scripts/e2e_tier3.sh",
+      "exit_code": 1,
+      "status": "fail",
+      "detail": "PASS  email_verifier_contract: GET /v1/{email}/verification returned JSON | FAIL  enricher_gitrecon: profile=satyanadella/Microsoft failures: enricher_crosslinked: keys=EMPTY | FAIL  enricher_theharvester: profile=satyanadella/Microsoft failures: enricher_crosslinked: keys=EMPTY | FAIL  enricher_email_discover: profile=satyanadella/Microsoft failures: enricher_crosslinked: keys=EMPTY | FAIL  enricher_email_verify: profile=satyanadella/Microsoft failures: enricher_crosslinked: keys=EMPTY | FAIL  "
+    },
+    {
+      "name": "strict_e2e",
+      "command": "/usr/bin/bash /home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/scripts/e2e_realworld_strict.sh",
+      "exit_code": 0,
+      "status": "pass",
+      "detail": "PASS  enricher_email_verify: verified=1 | PASS  enricher_gitrecon: handles=1 github_orgs=0 | PASS  enricher_social_analyzer: handles=7 | PASS  enricher_local_business: business_name=Scullery | PASS  api_sync_completed: status=completed | PASS  api_sync_has_handles_or_emails: handles=126 emails=2 | PASS  api_sync_business_optional: business=yes | PASS  strict real-world E2E probe"
+    },
+    {
+      "name": "canary_score",
+      "command": "/usr/bin/bash /home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/scripts/e2e_canary_tier234.sh",
+      "exit_code": 1,
+      "status": "fail",
+      "detail": "  FAIL  tier3  crosslinked      probe=EMPTY keys=[-] - install crosslinked CLI on PATH |   PASS  tier4  jobspy           probe=OK keys=[jobs] |   PASS  tier4  local_business   probe=OK keys=[business] | 2026-07-17 07:51:19,033 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with response: {\"status_code\":403,\"error_code\":\"forbidden cf-waf\",\"error_message\":\"Forbidden\"} | 2026-07-17 07:53:58,876 - ERROR - JobSpy:ZipRecruiter - ZipRecruiter response status code 403 with respons"
+    },
+    {
+      "name": "strict_report_gate",
+      "command": "strict-report.json failed==0",
+      "exit_code": 0,
+      "status": "pass",
+      "detail": "failed=0"
+    }
+  ],
+  "exit_code": 1
+}

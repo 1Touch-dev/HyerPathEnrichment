@@ -1,0 +1,285 @@
+# ============================================================================
+# Docker Compose for Windows Development
+# ============================================================================
+# This is a Windows-specific compose file that uses bridge networking instead
+# of host networking (which doesn't work on Windows).
+#
+# ⚠️  IMPORTANT: ChromeDriver Host Header Security Issue
+# ============================================================================
+# ChromeDriver (inside Multilogin) rejects ALL connections where the Host
+# header doesn't match 'localhost'. Docker containers use host.docker.internal
+# which gets blocked. WORKERS MUST RUN ON HOST MACHINE, not in Docker.
+#
+# RECOMMENDED SETUP:
+#   1. Run infrastructure in Docker (Redis, Backend, Nginx, APScheduler)
+#   2. Run Multilogin on host (Windows app)
+#   3. Run Celery workers on host (connects via localhost)
+#
+# ============================================================================
+# QUICK START COMMANDS:
+# ============================================================================
+#
+# STEP 1: Start Docker infrastructure (Redis, Backend, Nginx, APScheduler)
+#   docker compose -f docker-compose.windows.yml up -d
+#
+# STEP 2: Run workers on HOST machine (in separate terminals):
+#   poetry run celery -A core.celery_app.celery_app worker -Q campaign_queue --loglevel=info
+#   poetry run celery -A core.celery_app.celery_app worker -Q instagram_queue --loglevel=info
+#   poetry run celery -A core.ocr_celery_app.ocr_celery_app worker -Q ocr_queue --pool=solo --loglevel=info
+#
+# Or use the helper script:
+#   .\scripts\start_workers.ps1
+#
+# ============================================================================
+
+networks:
+  sma-network:
+    driver: bridge
+
+services:
+  # ==========================================================================
+  # Multilogin (Browser Automation) - PRODUCTION ONLY
+  # ==========================================================================
+  multilogin:
+    profiles: ["prod"]
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.multilogin
+      platforms:
+        - linux/amd64
+      args:
+        - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+        - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+        - AWS_DEFAULT_REGION=${AWS_REGION:-us-east-1}
+    container_name: sma-multilogin
+    networks:
+      - sma-network
+    ports:
+      - "45001:45001"
+      - "5900:5900"
+    environment:
+      - DISPLAY=:99
+      - VNC_PORT=5900
+      - MLX_API_PORT=45001
+    volumes:
+      - multilogin-data:/home/mlxuser/mlx
+      - ./logs:/app/logs
+    restart: unless-stopped
+    shm_size: '2gb'
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+    security_opt:
+      - seccomp:unconfined
+
+  # ==========================================================================
+  # Redis (Local dev only — skip with --profile local-redis for ElastiCache)
+  # ==========================================================================
+  redis:
+    profiles: ["local-redis"]
+    image: redis:7-alpine
+    container_name: sma-redis
+    networks:
+      - sma-network
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru --bind 0.0.0.0 --port 6379
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ==========================================================================
+  # FastAPI Backend
+  # ==========================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile
+    container_name: sma-backend
+    networks:
+      - sma-network
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Redis — sourced from .env (redis:// for local, rediss:// for ElastiCache)
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_SSL=${REDIS_SSL:-false}
+      - REDIS_WORKER_MANAGER_DB=${REDIS_WORKER_MANAGER_DB:-3}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/1}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      - MONGODB_URL=${MONGODB_URL}
+      - SELENIUM_HOST=selenium
+      - MULTILOGIN_API_URL=https://host.docker.internal:45001
+    volumes:
+      - ./logs:/app/logs
+      - ./temp:/app/temp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==========================================================================
+  # Celery Workers (Campaign Execution) - DISABLED BY DEFAULT
+  # ==========================================================================
+  # ⚠️  IMPORTANT: Workers CANNOT connect to Multilogin from Docker due to
+  #     ChromeDriver's Host header security. Run workers on HOST instead:
+  #
+  #     poetry run celery -A core.celery_app.celery_app worker -Q campaign_queue --loglevel=info
+  #
+  # To enable Docker workers (only for non-Multilogin tasks):
+  #     docker compose -f docker-compose.windows.yml --profile workers up -d
+  # ==========================================================================
+  worker:
+    profiles: ["workers"]  # Disabled by default - run on host for Multilogin
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.worker
+    env_file:
+      - .env
+    networks:
+      - sma-network
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_SSL=${REDIS_SSL:-false}
+      - REDIS_WORKER_MANAGER_DB=${REDIS_WORKER_MANAGER_DB:-3}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/1}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      - MONGODB_URL=${MONGODB_URL}
+      - CELERY_QUEUES=campaign_queue,instagram_queue,s3_upload_queue,persona_queue
+      - CELERY_CONCURRENCY=4
+      - CELERY_MAX_TASKS_PER_CHILD=1000
+      - MULTILOGIN_API_URL=https://host.docker.internal:45001
+      - SELENIUM_HOST=selenium
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    # Scale with: docker compose -f docker-compose.windows.yml up -d --scale worker=2
+
+  # ==========================================================================
+  # OCR Worker (Screenshot Analysis) - DISABLED BY DEFAULT
+  # ==========================================================================
+  # ⚠️  Same ChromeDriver limitation. Run on HOST instead:
+  #     poetry run celery -A core.ocr_celery_app.ocr_celery_app worker -Q ocr_queue --pool=solo --loglevel=info
+  # ==========================================================================
+  ocr-worker:
+    profiles: ["workers"]  # Disabled by default - run on host for Multilogin
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.ocr
+    container_name: sma-ocr-worker
+    networks:
+      - sma-network
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_SSL=${REDIS_SSL:-false}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/1}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      - MONGODB_URL=${MONGODB_URL}
+      - MULTILOGIN_API_URL=https://host.docker.internal:45001
+      - SELENIUM_HOST=selenium
+    volumes:
+      - ./logs:/app/logs
+      - ocr-models:/app/.EasyOCR
+    restart: unless-stopped
+
+  # ==========================================================================
+  # APScheduler Worker (Scheduled Tasks)
+  # ==========================================================================
+  apscheduler:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.apscheduler
+    container_name: sma-apscheduler
+    networks:
+      - sma-network
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_SSL=${REDIS_SSL:-false}
+      - MONGODB_URL=${MONGODB_URL}
+      - MULTILOGIN_API_URL=https://host.docker.internal:45001
+      - SELENIUM_HOST=selenium
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Flower (Celery Monitoring Dashboard)
+  # ==========================================================================
+  # Flower provides a web UI to monitor Celery workers and tasks
+  # Access at: http://localhost:5555
+  # ==========================================================================
+  flower:
+    image: mher/flower:0.9.7
+    container_name: sma-flower
+    networks:
+      - sma-network
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/1}
+      - FLOWER_PORT=5555
+    restart: unless-stopped
+    command: celery flower --broker=${CELERY_BROKER_URL:-redis://redis:6379/1} --port=5555
+
+  # ==========================================================================
+  # Nginx Reverse Proxy
+  # ==========================================================================
+  nginx:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.nginx
+    container_name: sma-nginx
+    networks:
+      - sma-network
+    ports:
+      - "80:80"
+    volumes:
+      # Use Windows-specific nginx config with service name resolution
+      - ./deployment/docker/nginx/nginx.mac.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  redis-data:
+    driver: local
+  multilogin-data:
+    driver: local
+  ocr-models:
+    driver: local

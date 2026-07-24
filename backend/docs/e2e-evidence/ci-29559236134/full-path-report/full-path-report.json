@@ -1,0 +1,29 @@
+{
+  "generated_at": "2026-07-17T06:14:54Z",
+  "mode": "ci",
+  "stages": [
+    {
+      "name": "compose_test",
+      "script": "e2e_compose_test.sh",
+      "ok": true,
+      "exit_code": 0,
+      "duration_seconds": 187.24,
+      "skipped": false,
+      "skip_reason": null,
+      "child_report": null
+    },
+    {
+      "name": "fake_sidecars",
+      "script": "e2e_fake_sidecars.sh",
+      "ok": true,
+      "exit_code": 0,
+      "duration_seconds": 123.36,
+      "skipped": false,
+      "skip_reason": null,
+      "child_report": "fake-sidecars-report.json"
+    }
+  ],
+  "passed": 2,
+  "failed": 0,
+  "skipped": 0
+}

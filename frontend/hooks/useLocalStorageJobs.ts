@@ -7,7 +7,7 @@ const MAX_COMPLETED_AGE_MS = 5 * 60 * 1000; // 5 minutes
 
 export type TrackedJob = {
   id: string;
-  status: "queued" | "running" | "completed" | "failed" | "suppressed";
+  status: "queued" | "running" | "completed" | "completed_no_data" | "failed" | "suppressed";
   createdAt: number;
   completedAt?: number;
 };
@@ -72,7 +72,10 @@ export function useLocalStorageJobs() {
               ...job,
               status,
               completedAt:
-                status === "completed" || status === "failed" || status === "suppressed"
+                status === "completed" ||
+                status === "completed_no_data" ||
+                status === "failed" ||
+                status === "suppressed"
                   ? Date.now()
                   : job.completedAt,
             }

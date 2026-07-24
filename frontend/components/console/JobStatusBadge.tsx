@@ -10,6 +10,7 @@ const variantMap: Record<
   queued: "secondary",
   running: "warning",
   completed: "success",
+  completed_no_data: "outline",
   failed: "destructive",
   suppressed: "outline",
 };

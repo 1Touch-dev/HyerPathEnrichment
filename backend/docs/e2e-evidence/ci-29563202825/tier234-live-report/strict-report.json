@@ -1,0 +1,166 @@
+{
+  "generated_at": "2026-07-17T07:50:52Z",
+  "checks": [
+    {
+      "name": "api_health",
+      "ok": true,
+      "detail": "status=200",
+      "data": {}
+    },
+    {
+      "name": "gmaps_contract_create",
+      "ok": true,
+      "detail": "POST /api/v1/jobs returned id",
+      "data": {
+        "payload": {
+          "id": "7fbfa0b3-5492-4602-9388-2b3b69de1c2e"
+        }
+      }
+    },
+    {
+      "name": "gmaps_contract_poll",
+      "ok": true,
+      "detail": "terminal status=ok",
+      "data": {
+        "job_id": "7fbfa0b3-5492-4602-9388-2b3b69de1c2e"
+      }
+    },
+    {
+      "name": "gmaps_contract_download",
+      "ok": true,
+      "detail": "csv_bytes=433853",
+      "data": {}
+    },
+    {
+      "name": "gmaps_legacy_search_unused",
+      "ok": true,
+      "detail": "GET /search status=200 (legacy; enricher uses POST /api/v1/jobs)",
+      "data": {}
+    },
+    {
+      "name": "social_analyzer_contract_settings",
+      "ok": true,
+      "detail": "GET /get_settings returned websites list",
+      "data": {}
+    },
+    {
+      "name": "social_analyzer_contract_analyze",
+      "ok": true,
+      "detail": "POST /analyze_string detected=9",
+      "data": {
+        "sample": [
+          {
+            "found": 2,
+            "username": "torvalds",
+            "image": "",
+            "link": "https://facebook.com/torvalds",
+            "rate": "%100.00",
+            "status": "good",
+            "title": "Error",
+            "language": "English",
+            "country": "United States",
+            "rank": 6,
+            "text": "SORRY, SOMETHING WENT WRONG.We're working on getting this fixed as soon as we can.Go backMeta \u00a9 2026 \u00b7 Help",
+            "type": "Computers Electronics and Technology > Social Networks and Online Communities",
+            "metadata": "unavailable",
+            "extracted": "unavailable",
+            "good": "true",
+            "method": "find"
+          },
+          {
+            "found": 3,
+            "username": "torvalds",
+            "image": "",
+            "link": "https://pinterest.com/torvalds",
+            "rate": "%100.00",
+            "status": "good",
+            "title": "Marco Migozzi (torvalds) - Profile | Pinterest",
+            "language": "English",
+            "country": "United States",
+            "rank": 111,
+            "text": "Marco Migozzi (torvalds) - Profile | PinterestSkip to contentWhen autocomplete results are available use up and down arrows to review and enter to select. Touch device users, explore by touch or with swipe gestures.Log inSign upMARCO MIGOZZItorvaldsFollowCreatedSavedSTREAMFLIX DESIGN,35 Pins\u00b7,3yTHINGS I LOVE,8 Pins\u00b7,4yPROGETTAZIONE DI APP,29 Pins\u00b7,7yDOMOTICA,9 Pins\u00b7,7yMAPS,0 Pins\u00b7,7yTECHNOLOGY THAT I LOVE,10 Pins\u00b7,10yINSPIRING IDEAS,2 Pins\u00b7,13y",
+            "type": "Computers Electronics and Technology > Social Networks and Online Communities",
+            "metadata": "unavailable",
+            "extracted": "unavailable",
+            "good": "true",
+            "method": "find"
+          },
+          {
+            "found": 3,
+            "username": "torvalds",
+            "image": "",
+            "link": "https://t.me/torvalds",
+            "rate": "%100.00",
+            "status": "good",
+            "title": "Telegram: Contact @torvalds",
+            "language": "English (Maybe)",
+            "country": "United States",
+            "rank": 138,
+            "text": "DownloadToRvaLDs@torvaldsSend MessageIf you have Telegram, you can contactToRvaLDs right away.",
+            "type": "Computers Electronics and Technology > Computers Electronics and Technology",
+            "metadata": "unavailable",
+            "extracted": "unavailable",
+            "good": "true",
+            "method": "find"
+          }
+        ]
+      }
+    },
+    {
+      "name": "social_analyzer_legacy_search_unused",
+      "ok": true,
+      "detail": "GET /search status=404 (legacy; enricher uses POST /analyze_string)",
+      "data": {}
+    },
+    {
+      "name": "enricher_email_discover",
+      "ok": true,
+      "detail": "emails=['jane@examplecorp.com']",
+      "data": {}
+    },
+    {
+      "name": "enricher_email_verify",
+      "ok": true,
+      "detail": "verified=1",
+      "data": {}
+    },
+    {
+      "name": "enricher_gitrecon",
+      "ok": true,
+      "detail": "handles=1 github_orgs=0",
+      "data": {}
+    },
+    {
+      "name": "enricher_social_analyzer",
+      "ok": true,
+      "detail": "handles=7",
+      "data": {}
+    },
+    {
+      "name": "enricher_local_business",
+      "ok": true,
+      "detail": "business_name=Scullery",
+      "data": {}
+    },
+    {
+      "name": "api_sync_completed",
+      "ok": true,
+      "detail": "status=completed",
+      "data": {}
+    },
+    {
+      "name": "api_sync_has_handles_or_emails",
+      "ok": true,
+      "detail": "handles=127 emails=15",
+      "data": {}
+    },
+    {
+      "name": "api_sync_business_optional",
+      "ok": true,
+      "detail": "business=yes",
+      "data": {}
+    }
+  ],
+  "passed": 16,
+  "failed": 0
+}

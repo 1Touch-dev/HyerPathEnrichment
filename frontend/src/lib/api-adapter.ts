@@ -37,6 +37,7 @@ function normalizeJobStatus(status: string): JobStatus {
     status === "queued" ||
     status === "running" ||
     status === "completed" ||
+    status === "completed_no_data" ||
     status === "failed" ||
     status === "suppressed"
   ) {

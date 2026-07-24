@@ -1,0 +1,801 @@
+{
+  "generated_at": "2026-07-17T09:09:04Z",
+  "profiles": [
+    {
+      "id": "torvalds-core",
+      "category": "technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "torvalds-core",
+          "category": "technical",
+          "enricher": "sherlock",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "torvalds-core",
+          "category": "technical",
+          "enricher": "maigret",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "torvalds-core",
+          "category": "technical",
+          "enricher": "social_analyzer",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "torvalds-core",
+          "category": "technical",
+          "enricher": "gitrecon",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "github",
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "torvalds-core",
+          "category": "technical",
+          "enricher": "theharvester",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "torvalds-core",
+          "category": "technical",
+          "enricher": "email_discover",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "torvalds-core",
+          "category": "technical",
+          "enricher": "email_verify",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "verified_emails"
+          ]
+        },
+        {
+          "profile_id": "torvalds-core",
+          "category": "technical",
+          "enricher": "crosslinked",
+          "tier": "3",
+          "status": "SKIP",
+          "probe_status": "EMPTY",
+          "note": "install crosslinked CLI on PATH",
+          "keys": []
+        },
+        {
+          "profile_id": "torvalds-core",
+          "category": "technical",
+          "enricher": "jobspy",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "jobs"
+          ]
+        },
+        {
+          "profile_id": "torvalds-core",
+          "category": "technical",
+          "enricher": "local_business",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "business"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "torvalds-t2",
+      "category": "technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "torvalds-t2",
+          "category": "technical",
+          "enricher": "sherlock",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "torvalds-t2",
+          "category": "technical",
+          "enricher": "maigret",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "torvalds-t2",
+          "category": "technical",
+          "enricher": "social_analyzer",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "satyanadella-t2",
+      "category": "technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "satyanadella-t2",
+          "category": "technical",
+          "enricher": "sherlock",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "satyanadella-t2",
+          "category": "technical",
+          "enricher": "maigret",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "torvalds-t3",
+      "category": "technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "torvalds-t3",
+          "category": "technical",
+          "enricher": "gitrecon",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "github",
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "torvalds-t3",
+          "category": "technical",
+          "enricher": "theharvester",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "torvalds-t3",
+          "category": "technical",
+          "enricher": "email_discover",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "torvalds-t3",
+          "category": "technical",
+          "enricher": "email_verify",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "verified_emails"
+          ]
+        },
+        {
+          "profile_id": "torvalds-t3",
+          "category": "technical",
+          "enricher": "crosslinked",
+          "tier": "3",
+          "status": "SKIP",
+          "probe_status": "EMPTY",
+          "note": "install crosslinked CLI on PATH",
+          "keys": []
+        }
+      ]
+    },
+    {
+      "id": "microsoft-corp",
+      "category": "technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "microsoft-corp",
+          "category": "technical",
+          "enricher": "theharvester",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "microsoft-corp",
+          "category": "technical",
+          "enricher": "email_discover",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "microsoft-corp",
+          "category": "technical",
+          "enricher": "crosslinked",
+          "tier": "3",
+          "status": "SKIP",
+          "probe_status": "EMPTY",
+          "note": "install crosslinked CLI on PATH",
+          "keys": []
+        }
+      ]
+    },
+    {
+      "id": "github-email",
+      "category": "technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "github-email",
+          "category": "technical",
+          "enricher": "gitrecon",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "github",
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "github-email",
+          "category": "technical",
+          "enricher": "email_verify",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "verified_emails"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "torvalds-jobs",
+      "category": "technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "torvalds-jobs",
+          "category": "technical",
+          "enricher": "jobspy",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "jobs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sf-coffee",
+      "category": "technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "sf-coffee",
+          "category": "technical",
+          "enricher": "local_business",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "business"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "satyanadella-ms",
+      "category": "non-technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "satyanadella-ms",
+          "category": "non-technical",
+          "enricher": "theharvester",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "satyanadella-ms",
+          "category": "non-technical",
+          "enricher": "crosslinked",
+          "tier": "3",
+          "status": "SKIP",
+          "probe_status": "EMPTY",
+          "note": "install crosslinked CLI on PATH",
+          "keys": []
+        }
+      ]
+    },
+    {
+      "id": "account-exec-jobs",
+      "category": "non-technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "account-exec-jobs",
+          "category": "non-technical",
+          "enricher": "crosslinked",
+          "tier": "3",
+          "status": "SKIP",
+          "probe_status": "EMPTY",
+          "note": "install crosslinked CLI on PATH",
+          "keys": []
+        },
+        {
+          "profile_id": "account-exec-jobs",
+          "category": "non-technical",
+          "enricher": "jobspy",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "jobs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "austin-warehouse",
+      "category": "non-technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "austin-warehouse",
+          "category": "non-technical",
+          "enricher": "theharvester",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "austin-warehouse",
+          "category": "non-technical",
+          "enricher": "local_business",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "business"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seattle-grocery",
+      "category": "non-technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "seattle-grocery",
+          "category": "non-technical",
+          "enricher": "local_business",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "business"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "noreply-verify",
+      "category": "non-technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "noreply-verify",
+          "category": "non-technical",
+          "enricher": "email_discover",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "noreply-verify",
+          "category": "non-technical",
+          "enricher": "email_verify",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "verified_emails"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ms-sales",
+      "category": "non-technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "ms-sales",
+          "category": "non-technical",
+          "enricher": "email_discover",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "ms-sales",
+          "category": "non-technical",
+          "enricher": "crosslinked",
+          "tier": "3",
+          "status": "SKIP",
+          "probe_status": "EMPTY",
+          "note": "install crosslinked CLI on PATH",
+          "keys": []
+        }
+      ]
+    },
+    {
+      "id": "torvalds-sparse",
+      "category": "sparse",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "torvalds-sparse",
+          "category": "sparse",
+          "enricher": "sherlock",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "torvalds-sparse",
+          "category": "sparse",
+          "enricher": "maigret",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "email-sparse",
+      "category": "sparse",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "email-sparse",
+          "category": "sparse",
+          "enricher": "email_verify",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "verified_emails"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "company-sparse",
+      "category": "sparse",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "company-sparse",
+          "category": "sparse",
+          "enricher": "theharvester",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "company-sparse",
+          "category": "sparse",
+          "enricher": "crosslinked",
+          "tier": "3",
+          "status": "SKIP",
+          "probe_status": "EMPTY",
+          "note": "install crosslinked CLI on PATH",
+          "keys": []
+        }
+      ]
+    },
+    {
+      "id": "job-sparse",
+      "category": "sparse",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "job-sparse",
+          "category": "sparse",
+          "enricher": "jobspy",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "jobs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "business-sparse",
+      "category": "sparse",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "business-sparse",
+          "category": "sparse",
+          "enricher": "local_business",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "business"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "satyanadella-mixed",
+      "category": "technical",
+      "status": "PASS",
+      "cells": [
+        {
+          "profile_id": "satyanadella-mixed",
+          "category": "technical",
+          "enricher": "sherlock",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "satyanadella-mixed",
+          "category": "technical",
+          "enricher": "maigret",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "satyanadella-mixed",
+          "category": "technical",
+          "enricher": "social_analyzer",
+          "tier": "2",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "satyanadella-mixed",
+          "category": "technical",
+          "enricher": "gitrecon",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "github",
+            "handles"
+          ]
+        },
+        {
+          "profile_id": "satyanadella-mixed",
+          "category": "technical",
+          "enricher": "theharvester",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "satyanadella-mixed",
+          "category": "technical",
+          "enricher": "email_discover",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "emails"
+          ]
+        },
+        {
+          "profile_id": "satyanadella-mixed",
+          "category": "technical",
+          "enricher": "email_verify",
+          "tier": "3",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "verified_emails"
+          ]
+        },
+        {
+          "profile_id": "satyanadella-mixed",
+          "category": "technical",
+          "enricher": "crosslinked",
+          "tier": "3",
+          "status": "SKIP",
+          "probe_status": "EMPTY",
+          "note": "install crosslinked CLI on PATH",
+          "keys": []
+        },
+        {
+          "profile_id": "satyanadella-mixed",
+          "category": "technical",
+          "enricher": "jobspy",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "jobs"
+          ]
+        },
+        {
+          "profile_id": "satyanadella-mixed",
+          "category": "technical",
+          "enricher": "local_business",
+          "tier": "4",
+          "status": "PASS",
+          "probe_status": "OK",
+          "note": "",
+          "keys": [
+            "business"
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "profiles_pass": 20,
+    "profiles_fail": 0,
+    "profiles_skip": 0,
+    "cells_pass": 47,
+    "cells_fail": 0,
+    "cells_skip": 8
+  }
+}

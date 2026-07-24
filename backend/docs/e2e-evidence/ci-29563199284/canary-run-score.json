@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-07-17T08:00:58Z",
+  "dry_run": false,
+  "tier": "tier234",
+  "limit": null,
+  "actions": {
+    "tier234": {
+      "canary_file": {
+        "local": "/home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/docs/tier234_canary_set.json",
+        "action": "in-container"
+      },
+      "probe": {
+        "status": "RAN",
+        "exit_code": 1
+      }
+    },
+    "tier1": {}
+  },
+  "results": {
+    "tier234": {
+      "status": "FAIL",
+      "summary": {
+        "profiles_pass": 17,
+        "profiles_fail": 3,
+        "profiles_skip": 0,
+        "cells_pass": 52,
+        "cells_fail": 3,
+        "cells_skip": 0
+      },
+      "report_path": "/home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/.e2e-results/tier234-canary.json"
+    },
+    "tier1": {
+      "status": "NOT_RUN"
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "generated_at": "2026-07-17T07:48:58Z",
+  "profile_used": "torvalds@Microsoft",
+  "test_profiles": [
+    {
+      "username": "torvalds",
+      "company": "Microsoft"
+    },
+    {
+      "username": "satyanadella",
+      "company": "Microsoft"
+    }
+  ],
+  "email_verify_level": "basic",
+  "checks": [
+    {
+      "name": "api_health",
+      "ok": true,
+      "detail": "status=200",
+      "data": {}
+    },
+    {
+      "name": "cli_theharvester",
+      "ok": true,
+      "detail": "/usr/local/bin/theHarvester",
+      "data": {}
+    },
+    {
+      "name": "cli_crosslinked",
+      "ok": true,
+      "detail": "/usr/local/bin/crosslinked",
+      "data": {}
+    },
+    {
+      "name": "cli_email_sleuth",
+      "ok": true,
+      "detail": "/usr/local/bin/email-sleuth",
+      "data": {}
+    },
+    {
+      "name": "cli_gitrecon",
+      "ok": true,
+      "detail": "/opt/gitrecon/gitrecon.py",
+      "data": {}
+    },
+    {
+      "name": "mailchecker_import",
+      "ok": true,
+      "detail": "mailchecker OK",
+      "data": {}
+    },
+    {
+      "name": "email_verifier_contract",
+      "ok": true,
+      "detail": "GET /v1/{email}/verification returned JSON",
+      "data": {}
+    },
+    {
+      "name": "enricher_gitrecon",
+      "ok": true,
+      "detail": "profile=torvalds/Microsoft keys=['github', 'handles', 'sources']",
+      "data": {}
+    },
+    {
+      "name": "enricher_theharvester",
+      "ok": true,
+      "detail": "profile=torvalds/Microsoft keys=['emails', 'sources']",
+      "data": {}
+    },
+    {
+      "name": "enricher_email_discover",
+      "ok": true,
+      "detail": "profile=torvalds/Microsoft keys=['emails', 'sources']",
+      "data": {}
+    },
+    {
+      "name": "enricher_email_verify",
+      "ok": true,
+      "detail": "profile=torvalds/Microsoft keys=['sources', 'verified_emails']",
+      "data": {}
+    },
+    {
+      "name": "enricher_crosslinked",
+      "ok": true,
+      "detail": "profile=torvalds/Microsoft keys=['coworkers', 'emails', 'sources']",
+      "data": {}
+    },
+    {
+      "name": "api_sync_tier3",
+      "ok": true,
+      "detail": "profile=torvalds/Microsoft sources=['CrossLinked', 'Email Sleuth', 'Email Verify', 'GitRecon', 'theHarvester'] handles=1 coworkers=14 emails=16 verified=10",
+      "data": {
+        "github": true
+      }
+    },
+    {
+      "name": "api_async_tier3",
+      "ok": true,
+      "detail": "profile=torvalds/Microsoft status=completed ok sources=['CrossLinked', 'Email Sleuth', 'Email Verify', 'GitRecon', 'theHarvester']",
+      "data": {}
+    }
+  ],
+  "passed": 14,
+  "failed": 0
+}

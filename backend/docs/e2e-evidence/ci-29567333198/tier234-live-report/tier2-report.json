@@ -1,0 +1,132 @@
+{
+  "generated_at": "2026-07-17T08:57:41Z",
+  "username": "torvalds",
+  "checks": [
+    {
+      "name": "api_health",
+      "ok": true,
+      "detail": "status=200",
+      "data": {}
+    },
+    {
+      "name": "cli_sherlock",
+      "ok": true,
+      "detail": "/usr/local/bin/sherlock",
+      "data": {}
+    },
+    {
+      "name": "cli_maigret",
+      "ok": true,
+      "detail": "/usr/local/bin/maigret",
+      "data": {}
+    },
+    {
+      "name": "social_analyzer_contract_settings",
+      "ok": true,
+      "detail": "GET /get_settings returned websites list",
+      "data": {}
+    },
+    {
+      "name": "social_analyzer_contract_analyze",
+      "ok": true,
+      "detail": "POST /analyze_string detected=9",
+      "data": {
+        "sample": [
+          {
+            "found": 2,
+            "username": "torvalds",
+            "image": "",
+            "link": "https://facebook.com/torvalds",
+            "rate": "%100.00",
+            "status": "good",
+            "title": "Error",
+            "language": "English",
+            "country": "United States",
+            "rank": 6,
+            "text": "SORRY, SOMETHING WENT WRONG.We're working on getting this fixed as soon as we can.Go backMeta \u00a9 2026 \u00b7 Help",
+            "type": "Computers Electronics and Technology > Social Networks and Online Communities",
+            "metadata": "unavailable",
+            "extracted": "unavailable",
+            "good": "true",
+            "method": "find"
+          },
+          {
+            "found": 3,
+            "username": "torvalds",
+            "image": "",
+            "link": "https://pinterest.com/torvalds",
+            "rate": "%100.00",
+            "status": "good",
+            "title": "Marco Migozzi (torvalds) - Profile | Pinterest",
+            "language": "English",
+            "country": "United States",
+            "rank": 111,
+            "text": "Marco Migozzi (torvalds) - Profile | PinterestSkip to contentWhen autocomplete results are available use up and down arrows to review and enter to select. Touch device users, explore by touch or with swipe gestures.Log inSign upMARCO MIGOZZItorvaldsFollowCreatedSavedSTREAMFLIX DESIGN,35 Pins\u00b7,3yTHINGS I LOVE,8 Pins\u00b7,4yPROGETTAZIONE DI APP,29 Pins\u00b7,7yDOMOTICA,9 Pins\u00b7,7yMAPS,0 Pins\u00b7,7yTECHNOLOGY THAT I LOVE,10 Pins\u00b7,10yINSPIRING IDEAS,2 Pins\u00b7,13y",
+            "type": "Computers Electronics and Technology > Social Networks and Online Communities",
+            "metadata": "unavailable",
+            "extracted": "unavailable",
+            "good": "true",
+            "method": "find"
+          },
+          {
+            "found": 3,
+            "username": "torvalds",
+            "image": "",
+            "link": "https://t.me/torvalds",
+            "rate": "%100.00",
+            "status": "good",
+            "title": "Telegram: Contact @torvalds",
+            "language": "English (Maybe)",
+            "country": "United States",
+            "rank": 138,
+            "text": "DownloadToRvaLDs@torvaldsSend MessageIf you have Telegram, you can contactToRvaLDs right away.",
+            "type": "Computers Electronics and Technology > Computers Electronics and Technology",
+            "metadata": "unavailable",
+            "extracted": "unavailable",
+            "good": "true",
+            "method": "find"
+          }
+        ]
+      }
+    },
+    {
+      "name": "enricher_sherlock",
+      "ok": true,
+      "detail": "handles=86 confidences=[0.75, 0.75, 0.75, 0.75, 0.75]",
+      "data": {}
+    },
+    {
+      "name": "enricher_maigret",
+      "ok": true,
+      "detail": "handles=88 confidences=[0.85, 0.85, 0.85, 0.85, 0.85]",
+      "data": {}
+    },
+    {
+      "name": "enricher_social_analyzer",
+      "ok": true,
+      "detail": "handles=7",
+      "data": {}
+    },
+    {
+      "name": "api_sync_tier2",
+      "ok": true,
+      "detail": "status=completed sources=['Maigret', 'Sherlock', 'Social Analyzer'] handles=123 sherlock_band=True maigret_band=True",
+      "data": {
+        "sources": [
+          "Maigret",
+          "Sherlock",
+          "Social Analyzer"
+        ],
+        "handle_count": 123
+      }
+    },
+    {
+      "name": "api_async_tier2",
+      "ok": true,
+      "detail": "status=completed handles=124 sources=['Maigret', 'Sherlock', 'Social Analyzer']",
+      "data": {}
+    }
+  ],
+  "passed": 10,
+  "failed": 0
+}

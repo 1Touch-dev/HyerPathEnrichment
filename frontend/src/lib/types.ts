@@ -1,6 +1,7 @@
 export type RequestedTier = "tier1" | "tier2" | "tier3" | "tier4";
 
-export type JobStatus = "queued" | "running" | "completed" | "failed" | "suppressed";
+export type JobStatus =
+  "queued" | "running" | "completed" | "completed_no_data" | "failed" | "suppressed";
 
 export type EnrichMode = "async" | "sync";
 

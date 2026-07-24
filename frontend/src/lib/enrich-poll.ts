@@ -1,7 +1,7 @@
 import { EnrichmentJob, JobStatus } from "@/src/lib/types";
 import { getEnrichmentJob } from "@/src/lib/api-client";
 
-const TERMINAL_STATUSES: JobStatus[] = ["completed", "failed", "suppressed"];
+const TERMINAL_STATUSES: JobStatus[] = ["completed", "completed_no_data", "failed", "suppressed"];
 
 export type PollOptions = {
   initialIntervalMs?: number;

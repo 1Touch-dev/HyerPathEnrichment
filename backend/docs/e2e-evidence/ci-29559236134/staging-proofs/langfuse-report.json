@@ -1,0 +1,7 @@
+{
+  "generated_at": "2026-07-17T06:21:55Z",
+  "langfuse_url": "http://localhost:3000",
+  "http_status": "200",
+  "database": "postgresql://hyrepath:hyrepath@postgres:5432/langfuse",
+  "exit_code": 0
+}

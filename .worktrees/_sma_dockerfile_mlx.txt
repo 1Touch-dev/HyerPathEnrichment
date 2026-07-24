@@ -1,0 +1,200 @@
+# ============================================================================
+# Multilogin Container - HOST NETWORK MODE
+# ============================================================================
+# With network_mode: host, this container shares the host's network stack.
+# All services bind to 127.0.0.1 and are accessible from all other containers.
+# ============================================================================
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    DISPLAY=:99 \
+    VNC_PORT=5900 \
+    MLX_API_PORT=45001
+
+# ============================================================================
+# BLOCK 1: Install Base Dependencies
+# ============================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    wget \
+    unzip \
+    lsof \
+    net-tools \
+    procps \
+    xvfb \
+    x11vnc \
+    xauth \
+    x11-utils \
+    libgtk-3-0 \
+    libgtk-3-dev \
+    libayatana-appindicator3-1 \
+    libgbm1 \
+    libnspr4 \
+    libnss3 \
+    libxss1 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libgdk-pixbuf-2.0-0 \
+    chromium \
+    chromium-driver \
+    fonts-liberation \
+    fonts-noto-color-emoji \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ============================================================================
+# BLOCK 2: Install AWS CLI
+# ============================================================================
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
+    && unzip awscliv2.zip \
+    && ./aws/install \
+    && rm -rf awscliv2.zip aws
+
+# ============================================================================
+# BLOCK 3: Configure AWS & Download Multilogin
+# ============================================================================
+ARG AWS_ACCESS_KEY_ID
+ARG AWS_SECRET_ACCESS_KEY
+ARG AWS_DEFAULT_REGION=us-east-1
+
+RUN mkdir -p /opt/mlx
+WORKDIR /opt/mlx
+
+RUN if [ -n "$AWS_ACCESS_KEY_ID" ]; then \
+        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID && \
+        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY && \
+        export AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION; \
+    fi \
+    && aws s3 cp "s3://onetouch-sm-automation-logs/multilogin_agents/Prod_Working_Multilogin_Ubuntu_24.04_amd64.deb" mlxdeb.deb
+
+# ============================================================================
+# BLOCK 4: Install Multilogin + Dependencies (combined for efficiency)
+# ============================================================================
+RUN dpkg -i mlxdeb.deb || true \
+    && apt-get update \
+    && apt-get install -y -f \
+    && rm mlxdeb.deb
+
+# ============================================================================
+# BLOCK 5: Create Symlink
+# ============================================================================
+RUN MLXAPP_PATH=$(find /opt /usr -name "mlxapp" -type f -executable 2>/dev/null | head -1) \
+    && echo "Found mlxapp at: $MLXAPP_PATH" \
+    && ln -s "$MLXAPP_PATH" /usr/local/bin/mlxapp \
+    && chmod +x "$MLXAPP_PATH"
+
+# ============================================================================
+# BLOCK 6: Install Python Libraries
+# ============================================================================
+RUN pip3 install --break-system-packages selenium requests urllib3
+
+# ============================================================================
+# BLOCK 6.5: Create Non-Root User (CRITICAL for Chrome to work)
+# ============================================================================
+# Chrome refuses to run as root without --no-sandbox, and Multilogin filters
+# out the --no-sandbox flag for security. Solution: run as non-root user.
+# Use UID/GID 1001 to avoid conflicts with existing ubuntu user (1000)
+RUN groupadd -g 1001 mlxuser \
+    && useradd -u 1001 -g 1001 -m -s /bin/bash mlxuser \
+    && mkdir -p /home/mlxuser/mlx /home/mlxuser/.config /home/mlxuser/.local \
+    && chown -R 1001:1001 /home/mlxuser \
+    && chown -R 1001:1001 /opt/mlx \
+    && (chown -R 1001:1001 /opt/mlxapp 2>/dev/null || true)
+
+# Set MLX data directory to user's home
+ENV MLX_DATA_DIR=/home/mlxuser/mlx
+ENV HOME=/home/mlxuser
+
+# ============================================================================
+# BLOCK 7: Create startup script (runs as non-root user)
+# ============================================================================
+RUN { \
+    echo '#!/bin/bash'; \
+    echo 'set -e'; \
+    echo ''; \
+    echo 'echo "========================================="'; \
+    echo 'echo "Starting Multilogin Services (Non-Root User)"'; \
+    echo 'echo "========================================="'; \
+    echo 'echo "Running as user: $(whoami) ($(id -u):$(id -g))"'; \
+    echo 'echo "All services will bind to 127.0.0.1 (shared with host)"'; \
+    echo ''; \
+    echo '# Ensure mlx data directory exists and has correct permissions'; \
+    echo 'mkdir -p /home/mlxuser/mlx/{configs,deps,desktop,logs,profiles,custom_extensions/mimic}'; \
+    echo ''; \
+    echo 'echo "[1/4] Starting Xvfb..."'; \
+    echo 'export DISPLAY=:99'; \
+    echo 'export HOME=/home/mlxuser'; \
+    echo 'Xvfb :99 -screen 0 1920x1080x24 &'; \
+    echo 'sleep 2'; \
+    echo ''; \
+    echo 'echo "[2/4] Starting VNC on 0.0.0.0:5900..."'; \
+    echo 'x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -forever &'; \
+    echo ''; \
+    echo 'echo "[3/4] Verifying X server..."'; \
+    echo 'xdpyinfo -display :99 | head -10'; \
+    echo ''; \
+    echo 'echo "[4/4] Starting mlxapp..."'; \
+    echo 'cd /home/mlxuser'; \
+    echo 'mlxapp &'; \
+    echo 'sleep 8'; \
+    echo ''; \
+    echo 'echo "Checking services..."'; \
+    echo 'ps aux | grep -E "mlxapp|Xvfb|x11vnc" | grep -v grep'; \
+    echo 'echo ""'; \
+    echo 'echo "Listening ports:"'; \
+    echo 'lsof -i:45001 2>/dev/null || netstat -tlnp 2>/dev/null | grep 45001 || echo "  Port 45001: waiting..."'; \
+    echo 'lsof -i:5900 2>/dev/null || netstat -tlnp 2>/dev/null | grep 5900 || echo "  Port 5900: waiting..."'; \
+    echo ''; \
+    echo 'echo "========================================="'; \
+    echo 'echo "✓ All services started!"'; \
+    echo 'echo "========================================="'; \
+    echo 'echo ""'; \
+    echo 'echo "Ports (accessible via 127.0.0.1 from all containers):"'; \
+    echo 'echo "  - MLX API: 127.0.0.1:45001"'; \
+    echo 'echo "  - VNC:     0.0.0.0:5900"'; \
+    echo 'echo ""'; \
+    echo 'echo "Testing API on localhost..."'; \
+    echo 'sleep 2'; \
+    echo 'curl -s -k --connect-timeout 5 "https://127.0.0.1:45001/api/v1/version" && echo " ✓ API working!" || echo " ✗ API not ready yet (may need more time)"'; \
+    echo 'echo ""'; \
+    echo 'echo "========================================="'; \
+    echo ''; \
+    echo '# Keep container running and monitor services'; \
+    echo 'while true; do'; \
+    echo '    if ! pgrep -f "Xvfb :99" > /dev/null; then'; \
+    echo '        echo "ERROR: Xvfb died, restarting..."'; \
+    echo '        Xvfb :99 -screen 0 1920x1080x24 &'; \
+    echo '        sleep 2'; \
+    echo '    fi'; \
+    echo ''; \
+    echo '    if ! pgrep -f mlxapp > /dev/null; then'; \
+    echo '        echo "ERROR: mlxapp died, restarting..."'; \
+    echo '        cd /home/mlxuser && mlxapp &'; \
+    echo '        sleep 5'; \
+    echo '    fi'; \
+    echo ''; \
+    echo '    if ! pgrep -f x11vnc > /dev/null; then'; \
+    echo '        echo "ERROR: x11vnc died, restarting..."'; \
+    echo '        x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -forever &'; \
+    echo '        sleep 2'; \
+    echo '    fi'; \
+    echo ''; \
+    echo '    sleep 10'; \
+    echo 'done'; \
+    } > /usr/local/bin/start-mlx.sh && chmod +x /usr/local/bin/start-mlx.sh
+
+# Expose ports (documentation only with host network mode)
+EXPOSE 5900 45001
+
+# Health check - uses localhost since we're in host network mode
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD pgrep Xvfb && pgrep mlxapp && (curl -sk https://127.0.0.1:45001/api/v1/version || netstat -tlnp | grep 45001) || exit 1
+
+# Switch to non-root user for Chrome compatibility (use UID for reliability)
+USER 1001
+WORKDIR /home/mlxuser
+
+# Start services as non-root user
+CMD ["/usr/local/bin/start-mlx.sh"]

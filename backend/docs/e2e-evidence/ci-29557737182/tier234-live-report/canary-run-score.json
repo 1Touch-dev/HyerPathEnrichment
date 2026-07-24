@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-07-17T05:57:56Z",
+  "dry_run": false,
+  "tier": "tier234",
+  "limit": null,
+  "actions": {
+    "tier234": {
+      "canary_file": {
+        "example": "/home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/docs/tier234_canary_set.example.json",
+        "local": "/home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/docs/tier234_canary_set.json",
+        "action": "copied"
+      },
+      "probe": {
+        "status": "RAN",
+        "command": "/home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/.venv/bin/python /home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/scripts/probe_enrichers.py --canary /home/runner/work/HyerPathEnrichment/HyerPathEnrichment/backend/docs/tier234_canary_set.json --json",
+        "exit_code": 1
+      }
+    },
+    "tier1": {}
+  },
+  "results": {
+    "tier234": {
+      "status": "MISSING",
+      "summary": {}
+    },
+    "tier1": {
+      "status": "NOT_RUN",
+      "reason": null
+    }
+  }
+}
