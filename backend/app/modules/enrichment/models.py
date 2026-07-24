@@ -21,6 +21,9 @@ class JobRecord(Base):
     request_payload: Mapped[dict[str, Any]] = mapped_column(JsonDoc, default=dict, nullable=False)
     dossier_payload: Mapped[dict[str, Any]] = mapped_column(JsonDoc, default=dict, nullable=False)
     identifier_hashes: Mapped[list[str]] = mapped_column(JsonDoc, default=list, nullable=False)
+    progress_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+        JsonDoc, default=None, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

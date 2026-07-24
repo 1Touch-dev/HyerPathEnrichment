@@ -76,5 +76,16 @@ services:
       # self-signed cert is already handled by verify=False in the client.
       MULTILOGIN_LAUNCHER_URL: "https://127.0.0.1:45001/api/v2"
 
+  email-verifier:
+    ports:
+      - "127.0.0.1:8090:8080"
+    
+  social-analyzer:
+    ports:
+      - "127.0.0.1:9005:9005"
+    
+  google-maps-scraper:
+    ports:
+      - "127.0.0.1:8091:8080"
 volumes:
   multilogin_data:

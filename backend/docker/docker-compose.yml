@@ -13,6 +13,7 @@ services:
         condition: service_healthy
     restart: "no"
   api:
+    network_mode: host
     build:
       context: ..
       dockerfile: docker/Dockerfile.api
@@ -151,7 +152,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: hyrepath
-      POSTGRES_PASSWORD: hyrepath
+      POSTGRES_PASSWORD: psjjssjsjndj479987ffhudfui
       POSTGRES_DB: hyrepath
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -275,7 +276,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "3002:3000"
     restart: unless-stopped
   changedetection:
     image: ghcr.io/dgtlmoon/changedetection.io:latest

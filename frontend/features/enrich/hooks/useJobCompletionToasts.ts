@@ -19,7 +19,17 @@ const TERMINAL_TOAST: Record<
 function showTerminalToast(status: JobStatus, jobId: string): void {
   const meta = TERMINAL_TOAST[status as keyof typeof TERMINAL_TOAST];
   if (!meta) return;
-  toast[meta.kind](meta.title, { description: jobId });
+  
+  toast[meta.kind](meta.title, {
+    description: jobId,
+    action: {
+      label: "View Results",
+      onClick: () => {
+        window.location.href = `/app/jobs/${jobId}`;
+      },
+    },
+    duration: 5000,
+  });
 }
 
 /**

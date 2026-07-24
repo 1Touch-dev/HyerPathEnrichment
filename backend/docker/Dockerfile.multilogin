@@ -101,73 +101,72 @@ ENV MLX_DATA_DIR=/home/mlxuser/mlx \
     HOME=/home/mlxuser
 
 # ── Block 8: startup script ──────────────────────────────────────────────────
-RUN cat > /usr/local/bin/start-mlx.sh << 'EOF'
-#!/bin/bash
-set -e
-
-echo "========================================="
-echo "Starting Multilogin Services"
-echo "========================================="
-echo "User: $(whoami) ($(id -u):$(id -g))"
-echo "All services bind to 127.0.0.1 (shared with host via network_mode: host)"
-
-mkdir -p /home/mlxuser/mlx/{configs,deps,desktop,logs,profiles,custom_extensions/mimic}
-
-echo "[1/4] Starting Xvfb..."
-export DISPLAY=:99
-export HOME=/home/mlxuser
-Xvfb :99 -screen 0 1920x1080x24 &
-sleep 2
-
-echo "[2/4] Starting VNC on 0.0.0.0:5900..."
-x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -forever &
-
-echo "[3/4] Verifying X server..."
-xdpyinfo -display :99 2>/dev/null | head -5 || echo "  (xdpyinfo output suppressed)"
-
-echo "[4/4] Starting mlxapp..."
-cd /home/mlxuser
-mlxapp &
-sleep 8
-
-echo "Running processes:"
-ps aux | grep -E "mlxapp|Xvfb|x11vnc" | grep -v grep || true
-echo ""
-echo "Listening on 45001:"
-lsof -i:45001 2>/dev/null || netstat -tlnp 2>/dev/null | grep 45001 || echo "  (not yet bound — mlxapp still starting)"
-
-echo "========================================="
-echo "All services started."
-echo "MLX API: 127.0.0.1:45001"
-echo "VNC:     0.0.0.0:5900"
-echo "========================================="
-
-sleep 2
-curl -s -k --connect-timeout 5 "https://127.0.0.1:45001/api/v1/version" \
-    && echo "API OK" \
-    || echo "API not ready yet (will be ready within 60s)"
-
-# Watchdog: restart any service that dies
-while true; do
-    if ! pgrep -f "Xvfb :99" > /dev/null; then
-        echo "WARNING: Xvfb died — restarting..."
-        Xvfb :99 -screen 0 1920x1080x24 &
-        sleep 2
-    fi
-    if ! pgrep -f mlxapp > /dev/null; then
-        echo "WARNING: mlxapp died — restarting..."
-        cd /home/mlxuser && mlxapp &
-        sleep 5
-    fi
-    if ! pgrep -f x11vnc > /dev/null; then
-        echo "WARNING: x11vnc died — restarting..."
-        x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -forever &
-        sleep 2
-    fi
-    sleep 10
-done
-EOF
-RUN chmod +x /usr/local/bin/start-mlx.sh
+# Use printf instead of heredoc for compatibility with classic Docker builder
+RUN printf '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "========================================="\n\
+echo "Starting Multilogin Services"\n\
+echo "========================================="\n\
+echo "User: $(whoami) ($(id -u):$(id -g))"\n\
+echo "All services bind to 127.0.0.1 (shared with host via network_mode: host)"\n\
+\n\
+mkdir -p /home/mlxuser/mlx/{configs,deps,desktop,logs,profiles,custom_extensions/mimic}\n\
+\n\
+echo "[1/4] Starting Xvfb..."\n\
+export DISPLAY=:99\n\
+export HOME=/home/mlxuser\n\
+Xvfb :99 -screen 0 1920x1080x24 &\n\
+sleep 2\n\
+\n\
+echo "[2/4] Starting VNC on 0.0.0.0:5900..."\n\
+x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -forever &\n\
+\n\
+echo "[3/4] Verifying X server..."\n\
+xdpyinfo -display :99 2>/dev/null | head -5 || echo "  (xdpyinfo output suppressed)"\n\
+\n\
+echo "[4/4] Starting mlxapp..."\n\
+cd /home/mlxuser\n\
+mlxapp &\n\
+sleep 8\n\
+\n\
+echo "Running processes:"\n\
+ps aux | grep -E "mlxapp|Xvfb|x11vnc" | grep -v grep || true\n\
+echo ""\n\
+echo "Listening on 45001:"\n\
+lsof -i:45001 2>/dev/null || netstat -tlnp 2>/dev/null | grep 45001 || echo "  (not yet bound — mlxapp still starting)"\n\
+\n\
+echo "========================================="\n\
+echo "All services started."\n\
+echo "MLX API: 127.0.0.1:45001"\n\
+echo "VNC:     0.0.0.0:5900"\n\
+echo "========================================="\n\
+\n\
+sleep 2\n\
+curl -s -k --connect-timeout 5 "https://127.0.0.1:45001/api/v1/version" \\\n\
+    && echo "API OK" \\\n\
+    || echo "API not ready yet (will be ready within 60s)"\n\
+\n\
+# Watchdog: restart any service that dies\n\
+while true; do\n\
+    if ! pgrep -f "Xvfb :99" > /dev/null; then\n\
+        echo "WARNING: Xvfb died — restarting..."\n\
+        Xvfb :99 -screen 0 1920x1080x24 &\n\
+        sleep 2\n\
+    fi\n\
+    if ! pgrep -f mlxapp > /dev/null; then\n\
+        echo "WARNING: mlxapp died — restarting..."\n\
+        cd /home/mlxuser && mlxapp &\n\
+        sleep 5\n\
+    fi\n\
+    if ! pgrep -f x11vnc > /dev/null; then\n\
+        echo "WARNING: x11vnc died — restarting..."\n\
+        x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -forever &\n\
+        sleep 2\n\
+    fi\n\
+    sleep 10\n\
+done\n' > /usr/local/bin/start-mlx.sh \
+    && chmod +x /usr/local/bin/start-mlx.sh
 
 EXPOSE 5900 45001
 

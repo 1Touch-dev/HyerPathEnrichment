@@ -1,13 +1,17 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DossierView } from "@/components/console/DossierView";
 import { JobProgress } from "@/components/console/JobProgress";
 import { EmptyState } from "@/components/console/EmptyState";
 import { isJobPendingError, useJobQuery } from "@/features/enrich";
 import { EnrichmentJob } from "@/src/lib/types";
 import { formatApiErrorMessage } from "@/src/lib/format-api-error";
+import { isTerminalStatus } from "@/src/lib/enrich-poll";
 
 function pendingJobStub(jobId: string): EnrichmentJob {
   return {
@@ -32,6 +36,41 @@ function pendingJobStub(jobId: string): EnrichmentJob {
   };
 }
 
+function LoadingSkeleton() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="mt-2 h-4 w-96" />
+      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="mt-2 h-4 w-64" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-2 w-full" />
+          <div className="flex gap-2">
+            <Skeleton className="h-6 w-20" />
+            <Skeleton className="h-6 w-20" />
+            <Skeleton className="h-6 w-20" />
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-32" />
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
   const jobId = params.id;
@@ -46,9 +85,14 @@ export default function JobDetailPage() {
     const stub = pendingJobStub(jobId);
     return (
       <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Job dossier</h1>
-          <p className="font-mono text-sm text-muted-foreground">{jobId}</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Job dossier</h1>
+            <p className="font-mono text-sm text-muted-foreground">{jobId}</p>
+          </div>
+          {(isFetching || isPending) && (
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          )}
         </div>
         <JobProgress job={stub} polling={isFetching || isPending} pollTimedOut={false} />
         <DossierView job={stub} />
@@ -57,7 +101,7 @@ export default function JobDetailPage() {
   }
 
   if (isLoading && !job) {
-    return <EmptyState title="Loading job…" description={`Fetching ${jobId}`} />;
+    return <LoadingSkeleton />;
   }
 
   if (error && !job && !isJobPendingError(error)) {
@@ -72,13 +116,23 @@ export default function JobDetailPage() {
     return <EmptyState title="Job not found" description={`No job with id ${jobId}`} />;
   }
 
+  const isPolling = isFetching && !isTerminalStatus(job.status);
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Job dossier</h1>
-        <p className="font-mono text-sm text-muted-foreground">{job.id}</p>
+      <div className="flex items-center gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Job dossier</h1>
+          <p className="font-mono text-sm text-muted-foreground">{job.id}</p>
+        </div>
+        {isPolling && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            <span>Checking for updates...</span>
+          </div>
+        )}
       </div>
-      <JobProgress job={job} polling={false} pollTimedOut={false} />
+      <JobProgress job={job} polling={isPolling} pollTimedOut={false} />
       <DossierView job={job} />
     </div>
   );

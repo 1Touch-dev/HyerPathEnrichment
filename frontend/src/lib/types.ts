@@ -81,6 +81,19 @@ export type EnrichmentJob = {
   input: EnrichmentInput;
   dossier: Dossier;
   error?: string;
+  progressMetadata?: {
+    currentTier?: RequestedTier;
+    completedTiers?: RequestedTier[];
+    pendingTiers?: RequestedTier[];
+    estimatedSecondsRemaining?: number;
+    tierTiming?: Record<
+      string,
+      {
+        startedAt?: string;
+        completedAt?: string;
+      }
+    >;
+  };
 };
 
 export type JobListItem = {
