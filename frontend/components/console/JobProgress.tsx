@@ -28,6 +28,7 @@ const TIER_ESTIMATES: Record<RequestedTier, number> = {
 };
 
 function formatTime(seconds: number): string {
+  if (isNaN(seconds) || seconds < 0) return "0s";
   if (seconds < 60) return `${seconds}s`;
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -44,6 +45,7 @@ function statusMessage(status: JobStatus, elapsedSec: number, estimatedRemaining
       }
       return "Pipeline executing…";
     case "completed":
+    case "completed_no_data":
       return `Finished in ${formatTime(elapsedSec)}`;
     case "failed":
       return "Job failed";
@@ -55,7 +57,7 @@ function statusMessage(status: JobStatus, elapsedSec: number, estimatedRemaining
 }
 
 function tierState(tier: RequestedTier, job: EnrichmentJob): "pending" | "active" | "done" {
-  if (job.status === "completed") {
+  if (job.status === "completed" || job.status === "completed_no_data") {
     return "done";
   }
   if (job.status === "queued") {
@@ -72,7 +74,12 @@ function tierState(tier: RequestedTier, job: EnrichmentJob): "pending" | "active
 }
 
 function calculateProgress(job: EnrichmentJob): number {
-  if (job.status === "completed" || job.status === "failed" || job.status === "suppressed") {
+  if (
+    job.status === "completed" ||
+    job.status === "completed_no_data" ||
+    job.status === "failed" ||
+    job.status === "suppressed"
+  ) {
     return 100;
   }
   if (job.status === "queued") {
@@ -103,15 +110,28 @@ function estimateRemainingTime(job: EnrichmentJob): number | null {
 }
 
 export function JobProgress({ job, polling, pollTimedOut, onRetry }: JobProgressProps) {
-  const jobStartTime = new Date(job.createdAt).getTime();
-  const [elapsedSec, setElapsedSec] = useState(Math.floor((Date.now() - jobStartTime) / 1000));
+  const jobStartTime = useMemo(() => {
+    if (!job.createdAt) return Date.now();
+    const time = new Date(job.createdAt).getTime();
+    return isNaN(time) ? Date.now() : time;
+  }, [job.createdAt]);
+  const [elapsedSec, setElapsedSec] = useState(() => {
+    const elapsed = Math.floor((Date.now() - jobStartTime) / 1000);
+    return isNaN(elapsed) ? 0 : Math.max(0, elapsed);
+  });
 
   useEffect(() => {
-    if (job.status === "completed" || job.status === "failed" || job.status === "suppressed") {
+    if (
+      job.status === "completed" ||
+      job.status === "completed_no_data" ||
+      job.status === "failed" ||
+      job.status === "suppressed"
+    ) {
       return;
     }
     const interval = setInterval(() => {
-      setElapsedSec(Math.floor((Date.now() - jobStartTime) / 1000));
+      const elapsed = Math.floor((Date.now() - jobStartTime) / 1000);
+      setElapsedSec(isNaN(elapsed) ? 0 : Math.max(0, elapsed));
     }, 1000);
     return () => clearInterval(interval);
   }, [job.status, jobStartTime]);
