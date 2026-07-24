@@ -48,7 +48,7 @@ export function DossierView({ job }: DossierViewProps) {
 
   const [selectedEntity, setSelectedEntity] = useState<DossierEntity | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 767px)");
@@ -89,11 +89,12 @@ export function DossierView({ job }: DossierViewProps) {
     [dossier],
   );
 
+  const isClientReady = isMobile !== null;
   const selectedId = selectedEntity?.id ?? null;
 
   const handleSelect = (entity: DossierEntity) => {
     setSelectedEntity(entity);
-    if (isMobile) {
+    if (isMobile === true) {
       setSheetOpen(true);
     }
   };
@@ -141,20 +142,22 @@ export function DossierView({ job }: DossierViewProps) {
             </div>
           </div>
 
-          <div className="mt-4 lg:hidden">
-            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-              <SheetContent side="right">
-                {selectedEntity ? (
-                  <EntityDetailPanel dossier={dossier} entity={selectedEntity} />
-                ) : (
-                  <EmptyState
-                    title="Select a finding"
-                    description="Pick a row from the scan list to view details."
-                  />
-                )}
-              </SheetContent>
-            </Sheet>
-          </div>
+          {isClientReady && (
+            <div className="mt-4 lg:hidden">
+              <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                <SheetContent side="right">
+                  {selectedEntity ? (
+                    <EntityDetailPanel dossier={dossier} entity={selectedEntity} />
+                  ) : (
+                    <EmptyState
+                      title="Select a finding"
+                      description="Pick a row from the scan list to view details."
+                    />
+                  )}
+                </SheetContent>
+              </Sheet>
+            </div>
+          )}
         </CardContent>
       </Card>
       <RawJsonPanel job={job} />
