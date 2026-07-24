@@ -9,6 +9,7 @@ type DossierScanListProps = {
   dossier: Dossier;
   selectedId?: string | null;
   onSelect: (entity: DossierEntity) => void;
+  categories?: Array<"handles" | "emails" | "verifiedEmails" | "jobs" | "confidence" | "sources">;
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -22,10 +23,19 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanListProps) {
+export function DossierScanList({
+  dossier,
+  selectedId,
+  onSelect,
+  categories,
+}: DossierScanListProps) {
+  const shouldShowCategory = (category: string) => {
+    return !categories || categories.includes(category as any);
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      {dossier.handles.length ? (
+      {shouldShowCategory("handles") && dossier.handles.length ? (
         <Section title="Handles">
           <div className="flex flex-col gap-2">
             {dossier.handles.map((handle) => {
@@ -52,7 +62,7 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
         </Section>
       ) : null}
 
-      {dossier.emails.length ? (
+      {shouldShowCategory("emails") && dossier.emails.length ? (
         <Section title="Emails">
           <div className="flex flex-col gap-2">
             {dossier.emails.map((email) => {
@@ -76,7 +86,7 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
         </Section>
       ) : null}
 
-      {dossier.verifiedEmails.length ? (
+      {shouldShowCategory("verifiedEmails") && dossier.verifiedEmails.length ? (
         <Section title="Verified emails">
           <div className="flex flex-col gap-2">
             {dossier.verifiedEmails.map((email) => {
@@ -103,7 +113,7 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
         </Section>
       ) : null}
 
-      {dossier.jobs.length ? (
+      {shouldShowCategory("jobs") && dossier.jobs.length ? (
         <Section title="Jobs">
           <div className="flex flex-col gap-2">
             {dossier.jobs.map((job) => {
@@ -130,7 +140,7 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
         </Section>
       ) : null}
 
-      {dossier.confidence.length ? (
+      {shouldShowCategory("confidence") && dossier.confidence.length ? (
         <Section title="Confidence">
           <div className="flex flex-col gap-2">
             {dossier.confidence.map((c) => {
@@ -157,7 +167,7 @@ export function DossierScanList({ dossier, selectedId, onSelect }: DossierScanLi
         </Section>
       ) : null}
 
-      {dossier.sources.length ? (
+      {shouldShowCategory("sources") && dossier.sources.length ? (
         <Section title="Sources">
           <div className="flex flex-col gap-2">
             {dossier.sources.map((source) => {

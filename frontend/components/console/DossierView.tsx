@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Dossier } from "@/src/lib/types";
 import { DossierSummary } from "@/components/console/DossierSummary";
 import { RawJsonPanel } from "@/components/console/RawJsonPanel";
@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/console/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { DossierScanList } from "./DossierScanList";
+import { DossierTabView } from "./DossierTabView";
 import { EntityDetailPanel } from "./EntityDetailPanel";
 import type { DossierEntity } from "./dossier-entity";
 import { formatPercent, initialsFrom } from "@/src/lib/utils";
@@ -54,17 +54,6 @@ export function DossierView({ job }: DossierViewProps) {
     setSheetOpen(false);
   }, [job.id]);
 
-  const hasFindings = useMemo(
-    () =>
-      dossier.handles.length ||
-      dossier.emails.length ||
-      dossier.verifiedEmails.length ||
-      dossier.jobs.length ||
-      dossier.confidence.length ||
-      dossier.sources.length,
-    [dossier],
-  );
-
   const selectedId = selectedEntity?.id ?? null;
 
   const handleSelect = (entity: DossierEntity) => {
@@ -94,16 +83,12 @@ export function DossierView({ job }: DossierViewProps) {
         <CardContent>
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
             <div className="min-w-0">
-              {loading && !hasFindings ? <SectionSkeleton /> : null}
-              {hasFindings ? (
-                <DossierScanList
-                  dossier={dossier}
-                  selectedId={selectedId}
-                  onSelect={handleSelect}
-                />
-              ) : (
-                <EmptyMessage message={loading ? "Building findings…" : "No findings returned."} />
-              )}
+              <DossierTabView
+                dossier={dossier}
+                selectedId={selectedId}
+                onSelect={handleSelect}
+                loading={loading}
+              />
             </div>
 
             <div className="hidden lg:block">
