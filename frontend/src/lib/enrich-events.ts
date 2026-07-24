@@ -25,7 +25,7 @@ export type JobEventHandlers = {
  * Opens an EventSource against the BFF's `/api/enrich/[id]/events` proxy and
  * reports parsed job status updates. Returns an unsubscribe function that
  * closes the connection; safe to call multiple times.
- * 
+ *
  * Implements automatic reconnection with exponential backoff on connection errors.
  */
 export function subscribeJobEvents(jobId: string, handlers: JobEventHandlers): () => void {
@@ -54,17 +54,17 @@ export function subscribeJobEvents(jobId: string, handlers: JobEventHandlers): (
 
     source.onerror = (event) => {
       handlers.onError?.(event);
-      
+
       // Close the failed connection
       source?.close();
-      
+
       if (isClosed) return;
 
       // Attempt reconnection with exponential backoff
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         const delay = RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts);
         reconnectAttempts++;
-        
+
         reconnectTimer = setTimeout(() => {
           if (!isClosed) {
             handlers.onReconnect?.();

@@ -16,7 +16,8 @@ const POLL_INTERVAL_MS = 5000; // 5 seconds
 
 export default function HistoryPage() {
   const queryClient = useQueryClient();
-  const { data, isLoading, error, isFetching, fetchNextPage, hasNextPage, refetch } = useJobListQuery();
+  const { data, isLoading, error, isFetching, fetchNextPage, hasNextPage, refetch } =
+    useJobListQuery();
 
   const jobs = useMemo(() => data?.pages.flatMap((page) => page.jobs) ?? [], [data]);
   const total = data?.pages[0]?.total ?? 0;
@@ -25,7 +26,7 @@ export default function HistoryPage() {
   // Check if any jobs are in progress
   const hasActiveJobs = useMemo(
     () => jobs.some((job) => job.status === "queued" || job.status === "running"),
-    [jobs]
+    [jobs],
   );
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export default function HistoryPage() {
     () => {
       void refetch();
     },
-    hasActiveJobs && !isLoading ? POLL_INTERVAL_MS : null
+    hasActiveJobs && !isLoading ? POLL_INTERVAL_MS : null,
   );
 
   return (

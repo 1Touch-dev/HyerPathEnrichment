@@ -81,11 +81,9 @@ function calculateProgress(job: EnrichmentJob): number {
   if (job.status === "running") {
     const requestedTiers = job.input.requestedTiers;
     if (requestedTiers.length === 0) return 50;
-    
-    const completedCount = requestedTiers.filter(
-      (tier) => tierState(tier, job) === "done"
-    ).length;
-    
+
+    const completedCount = requestedTiers.filter((tier) => tierState(tier, job) === "done").length;
+
     // Progress from 15% (started) to 95% (almost done)
     const tierProgress = (completedCount / requestedTiers.length) * 80;
     return Math.min(95, 15 + tierProgress);
@@ -95,28 +93,28 @@ function calculateProgress(job: EnrichmentJob): number {
 
 function estimateRemainingTime(job: EnrichmentJob): number | null {
   if (job.status !== "running") return null;
-  
+
   const requestedTiers = job.input.requestedTiers;
   const pendingTiers = requestedTiers.filter((tier) => tierState(tier, job) !== "done");
-  
+
   if (pendingTiers.length === 0) return 0;
-  
+
   return pendingTiers.reduce((sum, tier) => sum + TIER_ESTIMATES[tier], 0);
 }
 
 export function JobProgress({ job, polling, pollTimedOut, onRetry }: JobProgressProps) {
-  const [startedAt] = useState(() => Date.now());
-  const [elapsedSec, setElapsedSec] = useState(0);
+  const jobStartTime = new Date(job.createdAt).getTime();
+  const [elapsedSec, setElapsedSec] = useState(Math.floor((Date.now() - jobStartTime) / 1000));
 
   useEffect(() => {
     if (job.status === "completed" || job.status === "failed" || job.status === "suppressed") {
       return;
     }
     const interval = setInterval(() => {
-      setElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+      setElapsedSec(Math.floor((Date.now() - jobStartTime) / 1000));
     }, 1000);
     return () => clearInterval(interval);
-  }, [job.status, startedAt]);
+  }, [job.status, jobStartTime]);
 
   const progressValue = useMemo(() => calculateProgress(job), [job]);
   const estimatedRemaining = useMemo(() => estimateRemainingTime(job), [job]);

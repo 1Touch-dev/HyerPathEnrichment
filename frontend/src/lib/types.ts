@@ -78,6 +78,8 @@ export type Dossier = {
 export type EnrichmentJob = {
   id: string;
   status: JobStatus;
+  createdAt: string;
+  updatedAt: string;
   input: EnrichmentInput;
   dossier: Dossier;
   error?: string;

@@ -21,7 +21,7 @@ export function JobQueuePanel({ onJobStatusUpdate }: JobQueuePanelProps) {
   // Notify parent of status changes for completed jobs
   useEffect(() => {
     if (!onJobStatusUpdate) return;
-    
+
     jobs.forEach((job) => {
       if (job.status === "completed" || job.status === "failed" || job.status === "suppressed") {
         if (job.completedAt && Date.now() - job.completedAt < 1000) {
@@ -36,7 +36,7 @@ export function JobQueuePanel({ onJobStatusUpdate }: JobQueuePanelProps) {
   }
 
   const completedJobs = jobs.filter(
-    (job) => job.status === "completed" || job.status === "failed" || job.status === "suppressed"
+    (job) => job.status === "completed" || job.status === "failed" || job.status === "suppressed",
   );
 
   return (
@@ -56,22 +56,13 @@ export function JobQueuePanel({ onJobStatusUpdate }: JobQueuePanelProps) {
             </div>
             <div className="flex items-center gap-2">
               {completedJobs.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearCompleted}
-                  className="text-xs"
-                >
+                <Button variant="ghost" size="sm" onClick={clearCompleted} className="text-xs">
                   Clear completed
                 </Button>
               )}
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="sm">
-                  {isOpen ? (
-                    <ChevronUp className="size-4" />
-                  ) : (
-                    <ChevronDown className="size-4" />
-                  )}
+                  {isOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
                 </Button>
               </CollapsibleTrigger>
             </div>
@@ -95,11 +86,7 @@ export function JobQueuePanel({ onJobStatusUpdate }: JobQueuePanelProps) {
                         <ExternalLink className="size-3" />
                       </Link>
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeJob(job.id)}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => removeJob(job.id)}>
                       <X className="size-3" />
                     </Button>
                   </div>

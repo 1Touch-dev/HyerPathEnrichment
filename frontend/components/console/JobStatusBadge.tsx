@@ -16,12 +16,9 @@ const variantMap: Record<
 
 export function JobStatusBadge({ status }: { status: JobStatus }) {
   const isAnimated = status === "running" || status === "queued";
-  
+
   return (
-    <Badge
-      variant={variantMap[status]}
-      className={cn(isAnimated && "animate-pulse")}
-    >
+    <Badge variant={variantMap[status]} className={cn(isAnimated && "animate-pulse")}>
       {status === "queued" && <Clock className="mr-1 size-3" />}
       {status === "running" && <Loader2 className="mr-1 size-3 animate-spin" />}
       {status}

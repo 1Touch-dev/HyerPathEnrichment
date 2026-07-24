@@ -180,6 +180,8 @@ export function mapBackendJobToFrontend(
   return {
     id: backendJob.id,
     status: normalizeJobStatus(backendJob.status),
+    createdAt: backendJob.created_at,
+    updatedAt: backendJob.updated_at,
     input,
     dossier: mapDossier(backendJob.dossier),
     error: backendJob.error,

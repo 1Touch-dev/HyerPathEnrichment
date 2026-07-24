@@ -84,6 +84,8 @@ class EnrichmentService:
         return EnrichmentJobResponse(
             id=job.id,
             status=JobStatus(job.status),
+            created_at=job.created_at,
+            updated_at=job.updated_at,
             dossier=Dossier.model_validate(job.dossier_payload or {}),
         )
 

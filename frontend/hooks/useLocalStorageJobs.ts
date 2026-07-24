@@ -14,7 +14,7 @@ export type TrackedJob = {
 
 function getStoredJobs(): TrackedJob[] {
   if (typeof window === "undefined") return [];
-  
+
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];
@@ -26,7 +26,7 @@ function getStoredJobs(): TrackedJob[] {
 
 function setStoredJobs(jobs: TrackedJob[]): void {
   if (typeof window === "undefined") return;
-  
+
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs));
   } catch {
@@ -58,7 +58,7 @@ export function useLocalStorageJobs() {
     setJobs((prev) => {
       const exists = prev.find((j) => j.id === id);
       if (exists) return prev;
-      
+
       const cleaned = cleanupOldJobs(prev);
       return [...cleaned, { id, status, createdAt: Date.now() }];
     });
@@ -76,8 +76,8 @@ export function useLocalStorageJobs() {
                   ? Date.now()
                   : job.completedAt,
             }
-          : job
-      )
+          : job,
+      ),
     );
   };
 

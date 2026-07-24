@@ -61,8 +61,8 @@ export function listMockJobs(limit = 50, offset = 0): { jobs: JobListItem[]; tot
   const all = Array.from(mockJobStore.values()).map((job): JobListItem => ({
     id: job.id,
     status: job.status,
-    createdAt: job.dossier.metadata.generatedAt,
-    updatedAt: job.dossier.metadata.generatedAt,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
     identifierSummary: job.dossier.metadata.identifierSummary,
     requestedTiers: job.input.requestedTiers,
   }));

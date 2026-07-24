@@ -56,6 +56,8 @@ export const createMockJob = (input: EnrichmentInput, options?: MockJobOptions):
   return {
     id: jobId,
     status: "completed",
+    createdAt: generatedAt,
+    updatedAt: generatedAt,
     input: {
       ...input,
       requestedTiers,

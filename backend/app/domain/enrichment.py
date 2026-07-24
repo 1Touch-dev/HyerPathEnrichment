@@ -54,6 +54,8 @@ class EnrichmentRequest(BaseModel):
 class EnrichmentJobResponse(BaseModel):
     id: str
     status: JobStatus
+    created_at: datetime
+    updated_at: datetime
     dossier: Dossier
 
 

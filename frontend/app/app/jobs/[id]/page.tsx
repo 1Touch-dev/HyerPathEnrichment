@@ -14,9 +14,12 @@ import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 import { isTerminalStatus } from "@/src/lib/enrich-poll";
 
 function pendingJobStub(jobId: string): EnrichmentJob {
+  const now = new Date().toISOString();
   return {
     id: jobId,
     status: "queued",
+    createdAt: now,
+    updatedAt: now,
     input: { requestedTiers: [] },
     dossier: {
       handles: [],
