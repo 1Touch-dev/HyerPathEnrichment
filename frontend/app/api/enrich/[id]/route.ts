@@ -11,6 +11,8 @@ import { EnrichmentInput } from "@/src/lib/types";
 import { isMockMode } from "@/src/lib/mocks/enabled";
 import { getMockJob } from "@/src/lib/mocks/mock-jobs";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
   if (isMockMode()) {
     const job = getMockJob(params.id);
