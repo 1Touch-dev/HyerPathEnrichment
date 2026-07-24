@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -51,7 +52,36 @@ function LoadingSkeleton() {
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
   const jobId = params.id;
-  const { data: job, isLoading, error, isFetching, isPending } = useJobQuery(jobId);
+  const { data: job, isLoading, error, isFetching, isPending, refetch } = useJobQuery(jobId);
+
+  const lastStatusRef = useRef(job?.status);
+  const lastStatusChangeRef = useRef(Date.now());
+
+  // Track status changes and detect stuck state
+  useEffect(() => {
+    if (!job) return;
+
+    // Update last status change time when status changes
+    if (job.status !== lastStatusRef.current) {
+      lastStatusRef.current = job.status;
+      lastStatusChangeRef.current = Date.now();
+    }
+
+    // Don't check for stuck state if job is in terminal status
+    if (isTerminalStatus(job.status)) return;
+
+    // Check for stuck state every 10 seconds
+    const checkInterval = setInterval(() => {
+      const timeSinceChange = Date.now() - lastStatusChangeRef.current;
+      // If status hasn't changed in 30 seconds, trigger refetch
+      if (timeSinceChange > 30000) {
+        console.log("Stuck state detected, triggering refetch");
+        void refetch();
+      }
+    }, 10000);
+
+    return () => clearInterval(checkInterval);
+  }, [job, refetch]);
 
   // Show loading skeleton only on initial load with no data
   if ((isLoading || isPending) && !job) {
@@ -87,7 +117,7 @@ export default function JobDetailPage() {
           </div>
         )}
       </div>
-      <JobProgress job={job} polling={isPolling} pollTimedOut={false} />
+      <JobProgress job={job} polling={isPolling} pollTimedOut={false} onRefresh={() => refetch()} />
       <DossierView job={job} />
     </div>
   );
