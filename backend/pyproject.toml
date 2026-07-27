@@ -15,7 +15,7 @@ dependencies = [
   "asyncpg>=0.29,<1.0",
   "psycopg[binary]>=3.1,<4.0",
   "httpx>=0.27,<1.0",
-  "redis>=5.0,<6.0",
+  "redis>=5.0,<9.0",
   "rq>=1.16,<3.0",
   "prometheus-client>=0.20,<1.0",
   "mailchecker>=6.0,<7.0",
@@ -33,7 +33,7 @@ dev = [
   "selenium>=4.21,<5.0",
   "requests>=2.31,<3.0",
   "pip-audit>=2.7,<3.0",
-  "pre-commit>=3.7,<4.0",
+  "pre-commit>=3.7,<5.0",
 ]
 # Real enricher backends (Phase 1/2/3). All are lazily imported / shelled out
 # so the app degrades gracefully when a tool is absent; install for production.
@@ -69,6 +69,20 @@ markers = [
 line-length = 100
 
 'target-version' = "py312"
+
+[tool.ruff.lint]
+ignore = [
+  "BLE001",  # Blind exception catches are intentional for fail-soft behavior
+  "UP046",   # Generic class type parameters not yet adopted
+  "UP047",   # Function type parameters not yet adopted
+  "G201",    # logger.error with exc_info=True is preferred over logger.exception in some contexts
+  "SIM102",  # Nested if statements are sometimes clearer
+  "SIM103",  # Explicit if-else is sometimes clearer than returning condition directly
+  "SIM117",  # Nested with statements are sometimes clearer
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/conftest.py" = ["E402"]  # Imports must come after environment setup
 
 [tool.mypy]
 python_version = "3.12"

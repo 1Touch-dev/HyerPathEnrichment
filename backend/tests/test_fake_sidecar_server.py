@@ -10,11 +10,11 @@ from pathlib import Path
 import httpx
 import pytest
 
+from app.clients.email_verify import EmailVerifier
 from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher
-from app.domain.enrichment import EnrichmentRequest
-from app.clients.email_verify import EmailVerifier
 
 FAKE_ROOT = Path(__file__).resolve().parents[1] / "docker" / "fake-sidecars"
 if str(FAKE_ROOT) not in sys.path:

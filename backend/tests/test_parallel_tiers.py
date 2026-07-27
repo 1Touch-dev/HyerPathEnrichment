@@ -115,7 +115,7 @@ async def test_retry_logic_on_transient_failure(db_session: AsyncSession):
         nonlocal call_count
         call_count += 1
         if call_count <= 2:
-            raise asyncio.TimeoutError("Temporary timeout")
+            raise TimeoutError("Temporary timeout")
         return {"result": "success"}
 
     with patch.object(pipeline, "_invoke_enricher", side_effect=mock_invoke_enricher):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -14,10 +14,10 @@ from app.compliance.identifiers import hash_identifier, linkedin_slug_from_ident
 from app.compliance.models import DsarRecord
 from app.domain.enrichment import DsarRequest, DsarResponse
 from app.domain.enums import AuditEventType, DsarStatus, DsarType
+from app.enrichers.pipeline import Pipeline
 from app.modules.enrichment.models import JobRecord
 from app.storage.models import PhotoCacheRecord
 from app.storage.photo_cache import slug_hash
-from app.enrichers.pipeline import Pipeline
 
 
 async def process_dsar(db: AsyncSession, request: DsarRequest) -> DsarResponse:
@@ -45,7 +45,7 @@ async def process_dsar(db: AsyncSession, request: DsarRequest) -> DsarResponse:
     else:
         summary = await build_access_summary(db, identifier_hash)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record.status = DsarStatus.completed.value
     record.completed_at = now
     record.details = {**(record.details or {}), "summary": summary}

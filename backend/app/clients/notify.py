@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -44,7 +44,7 @@ async def notify_change_signal(
             "watch_id": watch_id,
             "title": title,
             "url": url,
-            "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
+            "timestamp": timestamp or datetime.now(UTC).isoformat(),
         }
     )
 
@@ -65,7 +65,7 @@ async def notify_ops_alert(
         "alert": alert,
         "severity": severity,
         "summary": summary,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     if details:
         # Only string scalars; callers must not pass PII.

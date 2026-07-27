@@ -6,6 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
+from app.clients.multilogin import MultiloginClient, MultiloginError
 from app.core.config import get_settings
 from app.integrations.linkedin.login import connect_selenium
 from app.integrations.linkedin.photo import save_failure_screenshot
@@ -21,7 +22,6 @@ from app.integrations.linkedin.types import (
     LinkedInPhotoResult,
 )
 from app.integrations.linkedin.urls import extract_linkedin_slug
-from app.clients.multilogin import MultiloginClient, MultiloginError
 from app.integrations.multilogin.profile_pool import ProfileOutcome, ProfilePool, browser_semaphore
 
 logger = logging.getLogger(__name__)

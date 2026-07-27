@@ -30,7 +30,7 @@ services:
       retries: 3
       start_period: 60s
 
-  # Tier 2-4 workers: Lightweight API enrichers (4-8 instances)
+  # Tier 2-4 workers: Lightweight API enrichers (scalable to N instances)
   # Uses host network mode to enable external proxy connectivity (Oxylabs)
   worker-tier234:
     network_mode: host
@@ -48,6 +48,8 @@ services:
       # Host network mode requires 127.0.0.1 instead of service names
       DATABASE_URL: postgresql+asyncpg://hyrepath:psjjssjsjndj479987ffhudfui@127.0.0.1:5432/hyrepath
       REDIS_URL: redis://127.0.0.1:6379
+      # Delay between each worker startup (in seconds)
+      WORKER_STARTUP_DELAY: ${WORKER_STARTUP_DELAY:-10}
     deploy:
       replicas: 6  # High concurrency for API-based enrichers
     restart: unless-stopped

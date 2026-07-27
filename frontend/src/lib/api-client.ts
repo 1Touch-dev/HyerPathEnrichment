@@ -26,7 +26,10 @@ async function parseJsonBody(response: Response): Promise<unknown> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<SuccessEnvelope<T>> {
-  const response = await fetch(path, init);
+  const response = await fetch(path, {
+    ...init,
+    cache: "no-store",
+  });
   const body = await parseJsonBody(response);
 
   if (!response.ok || isErrorEnvelope(body)) {

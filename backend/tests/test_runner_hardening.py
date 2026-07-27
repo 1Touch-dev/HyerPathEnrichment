@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Self
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 
-from app.enrichers.base import Enricher
-from app.domain.enrichment import EnrichmentRequest
 from app.clients.retry import is_transient_http_error, with_transient_retry
 from app.clients.sidecar import SidecarClient
+from app.domain.enrichment import EnrichmentRequest
+from app.enrichers.base import Enricher
 from app.enrichers.pipeline import Pipeline
 
 
@@ -163,7 +163,7 @@ async def test_sidecar_get_json_retries_transient_failure() -> None:
             return {"ok": "true"}
 
     class _FakeHttpClient:
-        async def __aenter__(self) -> "_FakeHttpClient":
+        async def __aenter__(self) -> Self:
             return self
 
         async def __aexit__(self, *_args: object) -> None:

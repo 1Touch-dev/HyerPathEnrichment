@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.compliance.audit import log_event
@@ -9,7 +11,6 @@ from app.compliance.identifiers import hash_identifier
 from app.compliance.purge import PurgeResult, purge_identifier_data
 from app.compliance.suppression import add_suppression, check_suppression
 from app.domain.enums import AuditEventType
-import logging
 
 logger = logging.getLogger(__name__)
 

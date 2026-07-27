@@ -8,6 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from app.database.session import SessionLocal, init_db
+from app.domain.enrichment import EnrichmentRequest
+from app.domain.enums import RequestedTier
 from app.enrichers import (
     JobSpyEnricher,
     MaigretEnricher,
@@ -15,12 +18,9 @@ from app.enrichers import (
     SocialAnalyzerEnricher,
 )
 from app.enrichers.base import Enricher
-from app.main import app
-from app.domain.enrichment import EnrichmentRequest
-from app.domain.enums import RequestedTier
-from app.modules.enrichment import service as enrichment_service
 from app.enrichers.pipeline import Pipeline
-from app.database.session import SessionLocal, init_db
+from app.main import app
+from app.modules.enrichment import service as enrichment_service
 
 AUTH_HEADERS = {"Authorization": "Bearer change-me"}
 

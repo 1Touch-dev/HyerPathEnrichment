@@ -8,9 +8,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app.clients.notify import notify_change_signal
 from app.core.config import get_settings
 from app.main import app
-from app.clients.notify import notify_change_signal
 
 
 @pytest.fixture

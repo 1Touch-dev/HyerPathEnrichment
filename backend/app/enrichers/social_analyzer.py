@@ -3,10 +3,10 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from app.core.config import get_settings
-from app.enrichers.base import Enricher
-from app.domain.enrichment import EnrichmentRequest
 from app.clients.sidecar import SidecarClient
+from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
+from app.enrichers.base import Enricher
 
 
 def extract_social_analyzer_candidates(data: dict[str, Any]) -> list[Any]:

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 
+from app.clients.llm import LiteLLMDisambiguator
 from app.core.config import get_settings
 from app.domain.dossier import SocialHandle
 from app.domain.enrichment import EnrichmentRequest
-from app.clients.llm import LiteLLMDisambiguator
 
 logger = logging.getLogger(__name__)
 

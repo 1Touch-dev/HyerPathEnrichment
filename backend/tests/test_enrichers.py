@@ -4,22 +4,22 @@ from typing import Any
 
 import pytest
 
+from app.clients import sidecar as sidecar_mod
+from app.clients.email_verify import EmailVerifier
+from app.clients.proxy import ProxyProvider
 from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers import gitrecon as gitrecon_mod
 from app.enrichers import sherlock as sherlock_mod
 from app.enrichers.base import Enricher
+from app.enrichers.crosslinked import CrossLinkedEnricher
 from app.enrichers.email_discover import EmailDiscoverEnricher
 from app.enrichers.email_verify import EmailVerifyEnricher
-from app.enrichers.crosslinked import CrossLinkedEnricher
 from app.enrichers.gitrecon import GitReconEnricher, fragment_from_gitrecon_data
 from app.enrichers.jobspy import JOBSPY_SITES, JobSpyEnricher
 from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.sherlock import SherlockEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
-from app.domain.enrichment import EnrichmentRequest
-from app.clients.email_verify import EmailVerifier
-from app.clients.proxy import ProxyProvider
-from app.clients import sidecar as sidecar_mod
 from tests.conftest import FakeRedis
 
 

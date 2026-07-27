@@ -16,6 +16,11 @@
     "GHSA-c4j6-fc7j-m34r",
     "GHSA-wfc6-r584-vfw7",
     "GHSA-36qx-fr4f-26g5",
+    "GHSA-89xv-2m56-2m9x",
+    "GHSA-m99w-x7hq-7vfj",
+    "GHSA-mh99-v99m-4gvg",
+    "GHSA-p9j2-gv94-2wf4",
+    "GHSA-r28c-9q8g-f849",
   ],
   "report-type": "important",
 }

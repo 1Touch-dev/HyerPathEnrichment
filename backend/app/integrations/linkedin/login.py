@@ -13,7 +13,6 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
 from app.core.config import get_settings
-
 from app.integrations.linkedin.constants import (
     LINKEDIN_FEED_URL,
     LINKEDIN_LOGIN_URL,

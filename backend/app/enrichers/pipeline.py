@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clients.llm import LiteLLMDisambiguator
 from app.compliance.audit import log_event
 from app.compliance.identifiers import hash_identifier, hashes_from_request
 from app.compliance.purge import PurgeResult, purge_identifier_data
@@ -31,7 +32,6 @@ from app.enrichers.registry import (
     tier3_discover_enrichers,
     tier4_enrichers,
 )
-from app.clients.llm import LiteLLMDisambiguator
 from app.modules.enrichment.job_events import publish_job_status
 from app.modules.enrichment.models import JobRecord
 from app.modules.enrichment.repository import JobRepository
@@ -291,8 +291,9 @@ class Pipeline:
 
     async def _run_tier1_task(self, request: EnrichmentRequest) -> dict[str, Any]:
         """Tier 1: LinkedIn photo (serial execution)"""
-        from app.observability.tier_metrics import track_tier_execution
         import time
+
+        from app.observability.tier_metrics import track_tier_execution
 
         async with track_tier_execution("tier1"):
             start = time.time()
@@ -323,8 +324,9 @@ class Pipeline:
 
     async def _run_tier2_task(self, request: EnrichmentRequest) -> dict[str, Any]:
         """Tier 2: Social handles (Sherlock, Maigret, SocialAnalyzer in parallel)"""
-        from app.observability.tier_metrics import track_tier_execution
         import time
+
+        from app.observability.tier_metrics import track_tier_execution
 
         async with track_tier_execution("tier2"):
             start = time.time()
@@ -355,8 +357,9 @@ class Pipeline:
 
     async def _run_tier3_task(self, request: EnrichmentRequest) -> dict[str, Any]:
         """Tier 3: Email discovery + verification"""
-        from app.observability.tier_metrics import track_tier_execution
         import time
+
+        from app.observability.tier_metrics import track_tier_execution
 
         async with track_tier_execution("tier3"):
             start = time.time()
@@ -397,8 +400,9 @@ class Pipeline:
 
     async def _run_tier4_task(self, request: EnrichmentRequest) -> dict[str, Any]:
         """Tier 4: Jobs + local business (JobSpy, GMaps in parallel)"""
-        from app.observability.tier_metrics import track_tier_execution
         import time
+
+        from app.observability.tier_metrics import track_tier_execution
 
         async with track_tier_execution("tier4"):
             start = time.time()
@@ -465,7 +469,7 @@ class Pipeline:
             try:
                 return await self._invoke_enricher(enricher, request)
 
-            except (asyncio.TimeoutError, ConnectionError, OSError) as e:
+            except (TimeoutError, ConnectionError, OSError) as e:
                 # Transient network errors - retry
                 if attempt < max_retries - 1:
                     wait_time = backoff**attempt

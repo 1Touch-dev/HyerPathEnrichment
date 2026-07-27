@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.config import get_settings
-from app.enrichers.base import Enricher
-from app.domain.enrichment import EnrichmentRequest
 from app.domain.dossier import PhotoAsset
+from app.domain.enrichment import EnrichmentRequest
+from app.enrichers.base import Enricher
+from app.integrations.linkedin.urls import extract_linkedin_slug
 from app.observability.tier1_metrics import (
     tier1_cache_hits_total,
     tier1_cache_misses_total,
     tier1_scrape_total,
     tier1_upload_total,
 )
-from app.integrations.linkedin.urls import extract_linkedin_slug
 from app.storage.photo_cache import PhotoCache
 from app.storage.r2 import R2StorageClient, R2StorageError, object_key_with_extension
 
@@ -74,7 +74,7 @@ class LinkedInPhotoEnricher(Enricher):
         photo = PhotoAsset(
             source=self.source_name,
             asset_url=asset_url,
-            captured_at=datetime.now(timezone.utc),
+            captured_at=datetime.now(UTC),
             confidence=result.confidence,
         )
         await self.photo_cache.put(

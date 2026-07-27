@@ -5,17 +5,17 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from redis.exceptions import RedisError
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.domain.dossier import PhotoAsset
-from app.storage.models import PhotoCacheRecord
 from app.database.session import SessionLocal
+from app.domain.dossier import PhotoAsset
 from app.infrastructure.redis import get_redis_client
+from app.storage.models import PhotoCacheRecord
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def _redis_key(slug: str) -> str:
 
 def _expires_at() -> datetime:
     settings = get_settings()
-    return datetime.now(timezone.utc) + timedelta(seconds=settings.linkedin_photo_ttl_seconds)
+    return datetime.now(UTC) + timedelta(seconds=settings.linkedin_photo_ttl_seconds)
 
 
 def _record_to_photo(record: PhotoCacheRecord) -> PhotoAsset:
@@ -67,16 +67,14 @@ def _photo_from_payload(payload: dict[str, Any]) -> PhotoAsset | None:
         return None
     expires_at = datetime.fromisoformat(str(expires_raw))
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at <= datetime.now(timezone.utc):
+        expires_at = expires_at.replace(tzinfo=UTC)
+    if expires_at <= datetime.now(UTC):
         return None
 
     uploaded_raw = payload.get("uploaded_at")
-    captured_at = (
-        datetime.fromisoformat(str(uploaded_raw)) if uploaded_raw else datetime.now(timezone.utc)
-    )
+    captured_at = datetime.fromisoformat(str(uploaded_raw)) if uploaded_raw else datetime.now(UTC)
     if captured_at.tzinfo is None:
-        captured_at = captured_at.replace(tzinfo=timezone.utc)
+        captured_at = captured_at.replace(tzinfo=UTC)
 
     return PhotoAsset(
         source=str(payload.get("source") or "linkedin-photo"),
@@ -88,8 +86,8 @@ def _photo_from_payload(payload: dict[str, Any]) -> PhotoAsset | None:
 
 def _ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 class PhotoCache:
@@ -119,7 +117,7 @@ class PhotoCache:
         if not normalized:
             return
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expires = _expires_at()
         record = PhotoCacheRecord(
             slug_hash=slug_hash(normalized),
@@ -181,7 +179,7 @@ class PhotoCache:
         if record is None:
             return None
         expires_at = _ensure_utc(record.expires_at)
-        if expires_at <= datetime.now(timezone.utc):
+        if expires_at <= datetime.now(UTC):
             return None
 
         photo = _record_to_photo(record)

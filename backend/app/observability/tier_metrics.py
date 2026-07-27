@@ -1,11 +1,11 @@
 """Metrics for parallel tier execution monitoring"""
 
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 try:
-    from prometheus_client import Counter, Histogram, Gauge
+    from prometheus_client import Counter, Gauge, Histogram
 
     PROMETHEUS_AVAILABLE = True
 except ImportError:

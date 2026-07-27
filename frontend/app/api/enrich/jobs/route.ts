@@ -5,6 +5,8 @@ import { bffServiceUnavailable, bffSuccess, handleBackendJson } from "@/src/lib/
 import { isMockMode } from "@/src/lib/mocks/enabled";
 import { listMockJobs } from "@/src/lib/mocks/mock-jobs";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const limit = Number(request.nextUrl.searchParams.get("limit") ?? "50");
   const offset = Number(request.nextUrl.searchParams.get("offset") ?? "0");
