@@ -23,6 +23,7 @@ export async function backendFetch(
   try {
     return await fetch(`${baseUrl}${path}`, {
       ...init,
+      cache: "no-store",
       signal: controller.signal,
       headers: {
         ...(init?.headers ?? {}),
