@@ -130,10 +130,6 @@ async def database_schema_at_head(session: AsyncSession) -> bool:
 async def init_db() -> None:
     """Apply Alembic migrations. Auto-stamps legacy unversioned databases."""
     # Import all ORM modules so Base.metadata is complete before migrate/reflect.
-    from app.compliance import models as _compliance_models  # noqa: F401
-    from app.modules.enrichment import models as _enrichment_models  # noqa: F401
-    from app.modules.signals import models as _signals_models  # noqa: F401
-    from app.storage import models as _storage_models  # noqa: F401
 
     run_migrations(settings.database_url, stamp_if_legacy=True)
     logger.info("database schema migrated to alembic head (dialect=%s)", engine.dialect.name)
