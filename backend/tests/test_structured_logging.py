@@ -26,11 +26,11 @@ from app.core.logging import (
 
 @pytest.fixture(autouse=True)
 def _reset_logging_state() -> None:
-    app_logging._configured = False  # noqa: SLF001
+    app_logging._configured = False
     set_request_id(None)
     set_job_id(None)
     yield
-    app_logging._configured = False  # noqa: SLF001
+    app_logging._configured = False
     set_request_id(None)
     set_job_id(None)
     logging.getLogger().handlers.clear()
@@ -126,7 +126,7 @@ def test_lifespan_configures_logging_without_error() -> None:
         with TestClient(app):
             pass
         wrapped.assert_called()
-        assert app_logging._configured is True  # noqa: SLF001
+        assert app_logging._configured is True
 
 
 def test_request_middleware_sets_request_id_header() -> None:

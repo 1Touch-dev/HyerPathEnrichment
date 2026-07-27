@@ -8,8 +8,8 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.enums import AuditEventType
 from app.compliance.models import AuditLog
+from app.domain.enums import AuditEventType
 
 logger = logging.getLogger(__name__)
 

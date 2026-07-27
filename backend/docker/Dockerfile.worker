@@ -53,4 +53,14 @@ RUN test -f "${GITRECON_SCRIPT}"
 COPY . /app/backend
 ENV PYTHONPATH=/app/backend
 
+# Copy the entrypoint script
+COPY docker/entrypoint-worker.sh /entrypoint-worker.sh
+
+# Ensure Unix line endings and make executable
+RUN sed -i 's/\r$//' /entrypoint-worker.sh && \
+    chmod +x /entrypoint-worker.sh
+
+# Set as entrypoint (CMD gets passed as arguments to entrypoint)
+ENTRYPOINT ["/entrypoint-worker.sh"]
+
 CMD ["python", "-m", "app.workers.rq_worker"]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -67,7 +67,7 @@ async def test_put_and_get_hit_redis(
 
     monkeypatch.setattr(get_settings(), "linkedin_photo_ttl_seconds", 3600)
     cache = PhotoCache()
-    captured_at = datetime.now(timezone.utc)
+    captured_at = datetime.now(UTC)
     photo = PhotoAsset(
         source="linkedin-photo",
         asset_url="https://cdn.example.com/linkedin/jane-doe.jpg",
@@ -102,7 +102,7 @@ async def test_same_slug_different_url_variants_hit_cache(
     photo = PhotoAsset(
         source="linkedin-photo",
         asset_url="https://cdn.example.com/linkedin/jane-doe.jpg",
-        captured_at=datetime.now(timezone.utc),
+        captured_at=datetime.now(UTC),
         confidence=0.84,
     )
     await cache.put(
@@ -123,7 +123,7 @@ async def test_expired_sql_record_returns_none(
     db_session: AsyncSession,
 ) -> None:
     cache = PhotoCache()
-    expired = datetime.now(timezone.utc) - timedelta(seconds=60)
+    expired = datetime.now(UTC) - timedelta(seconds=60)
     record = PhotoCacheRecord(
         slug_hash=slug_hash("jane-doe"),
         slug="jane-doe",
@@ -153,7 +153,7 @@ async def test_sql_fallback_when_redis_empty(
     photo = PhotoAsset(
         source="linkedin-photo",
         asset_url="https://cdn.example.com/linkedin/jane-doe.webp",
-        captured_at=datetime.now(timezone.utc),
+        captured_at=datetime.now(UTC),
         confidence=0.70,
     )
     await cache.put(

@@ -9,9 +9,9 @@ import pytest
 from sqlalchemy import JSON, DateTime, String, Text, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from app.modules.enrichment.models import JobRecord
-from app.database.base import JsonDoc
 from app.database import session as db_mod
+from app.database.base import JsonDoc
+from app.modules.enrichment.models import JobRecord
 from tests.migration_helpers import (
     column_udt,
     downgrade_base,

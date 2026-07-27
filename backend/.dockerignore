@@ -1,6 +1,8 @@
 # Virtualenvs (largest offenders)
 venv/
 .venv/
+.venv-wsl/
+.venv-*/
 
 # Python caches / build artifacts
 __pycache__/
@@ -21,6 +23,7 @@ dist/
 
 # Dev-only paths (not used at runtime in container)
 docker/
+!docker/entrypoint-worker.sh
 docs/
 scripts/
 tests/

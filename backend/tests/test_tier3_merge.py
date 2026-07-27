@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.config import get_settings
-from app.enrichers.email_verify import EmailVerifyEnricher
-from app.domain.enrichment import EnrichmentRequest
 from app.clients.email_verify import EmailVerifier
+from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
+from app.enrichers.email_verify import EmailVerifyEnricher
 from app.enrichers.pipeline import Pipeline
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -36,7 +36,7 @@ def base_dossier(request: EnrichmentRequest) -> Dossier:
     ]
     return Dossier(
         metadata={
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "pipeline_id": f"pipe_{uuid4().hex}",
             "requested_tiers": [
                 tier.value for tier in (request.requested_tiers or list(RequestedTier))

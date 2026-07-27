@@ -16,7 +16,7 @@ from tests.envelope_helpers import assert_error, assert_success
 
 
 def _reset_error_tracking_state() -> None:
-    error_tracking._initialized = False  # noqa: SLF001
+    error_tracking._initialized = False
 
 
 @pytest.fixture(autouse=True)

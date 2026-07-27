@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.clients.process import run_command
+from app.clients.proxy import ProxyProvider
 from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers._shared import extract_emails
 from app.enrichers.base import Enricher
-from app.domain.enrichment import EnrichmentRequest
-from app.clients.proxy import ProxyProvider
-from app.clients.process import run_command
 
 
 class TheHarvesterEnricher(Enricher):

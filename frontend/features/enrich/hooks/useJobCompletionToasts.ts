@@ -5,6 +5,7 @@ import { jobKeys } from "@/features/history";
 import { subscribeJobEvents } from "@/src/lib/enrich-events";
 import { isTerminalStatus } from "@/src/lib/enrich-poll";
 import { JobStatus } from "@/src/lib/types";
+import { useLocalStorageJobs } from "@/hooks/useLocalStorageJobs";
 import { enrichKeys } from "../api/keys";
 
 const TERMINAL_TOAST: Record<
@@ -39,6 +40,7 @@ function showTerminalToast(status: JobStatus, jobId: string): void {
  */
 export function useJobCompletionToasts(): (jobId: string) => void {
   const queryClient = useQueryClient();
+  const { updateJobStatus } = useLocalStorageJobs();
   const unsubscribersRef = useRef(new Map<string, () => void>());
 
   useEffect(() => {
@@ -61,6 +63,8 @@ export function useJobCompletionToasts(): (jobId: string) => void {
 
       const unsubscribe = subscribeJobEvents(jobId, {
         onStatus: (status) => {
+          updateJobStatus(jobId, status);
+
           if (!isTerminalStatus(status)) return;
           showTerminalToast(status, jobId);
           void queryClient.invalidateQueries({ queryKey: enrichKeys.job(jobId) });
@@ -74,6 +78,6 @@ export function useJobCompletionToasts(): (jobId: string) => void {
 
       unsubscribers.set(jobId, unsubscribe);
     },
-    [queryClient],
+    [queryClient, updateJobStatus],
   );
 }

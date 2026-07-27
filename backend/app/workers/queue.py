@@ -45,15 +45,35 @@ def get_worker_queue() -> Queue:
 
 
 def enqueue_enrichment(job_id: str, requested_tiers: list[RequestedTier] | None = None) -> None:
-    """Enqueue an enrichment job to the appropriate tier-based queue."""
+    """Enqueue an enrichment job to the appropriate tier-based queue(s).
+
+    In per_tier mode, this will enqueue to multiple queues if multiple tier groups are requested:
+    - tier1 queue: for Tier 1 (browser-based enrichment)
+    - tier234 queue: for Tiers 2, 3, 4 (API-based enrichment)
+
+    This enables parallel execution across different tier groups.
+    """
     from app.workers.jobs import run_enrichment_job
 
     # Default to all tiers if none specified (backward compatibility)
     tiers = requested_tiers if requested_tiers is not None else list(RequestedTier)
-    queue_name = get_queue_name_for_tiers(tiers)
+    settings = get_settings()
     connection = get_redis_connection()
-    queue = Queue(queue_name, connection=connection)
+    timeout_seconds = settings.rq_job_timeout_seconds
 
-    # Set job timeout to accommodate full all-tier enrichment (20-30 min typical)
-    timeout_seconds = get_settings().rq_job_timeout_seconds
-    queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+    if settings.worker_queue_mode == "single":
+        # Single queue mode: all tiers go to one queue
+        queue = Queue("enrichment", connection=connection)
+        queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+    else:
+        # Per-tier mode: enqueue to multiple queues for parallel execution
+        # Enqueue to tier1 queue if tier1 is requested
+        if RequestedTier.tier1 in tiers:
+            tier1_queue = Queue("tier1", connection=connection)
+            tier1_queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+
+        # Enqueue to tier234 queue if any of tier2/3/4 are requested
+        tier234_tiers = {RequestedTier.tier2, RequestedTier.tier3, RequestedTier.tier4}
+        if any(tier in tier234_tiers for tier in tiers):
+            tier234_queue = Queue("tier234", connection=connection)
+            tier234_queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)

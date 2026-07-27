@@ -6,9 +6,9 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app.main import app
 from app.compliance.models import AuditLog
 from app.database.session import SessionLocal, init_db
+from app.main import app
 from app.modules.enrichment.models import JobRecord
 
 

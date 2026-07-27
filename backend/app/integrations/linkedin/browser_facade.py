@@ -29,17 +29,17 @@ from app.integrations.linkedin.photo import (
 )
 from app.integrations.linkedin.scrape import download_image, scrape_on_driver
 from app.integrations.linkedin.types import (
+    NO_RETRY_OUTCOMES,
+    ROTATE_PROFILE_OUTCOMES,
     ExtractionMethod,
     LinkedInPhotoError,
     LinkedInPhotoResult,
-    NO_RETRY_OUTCOMES,
-    ROTATE_PROFILE_OUTCOMES,
 )
 from app.integrations.linkedin.urls import (
     extract_linkedin_slug,
     is_placeholder_image_url,
-    placeholder_fragments,
     photo_url_from_srcset,
+    placeholder_fragments,
 )
 from app.integrations.multilogin.profile_pool import browser_semaphore
 

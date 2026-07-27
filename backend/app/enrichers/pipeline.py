@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clients.llm import LiteLLMDisambiguator
 from app.compliance.audit import log_event
 from app.compliance.identifiers import hash_identifier, hashes_from_request
 from app.compliance.purge import PurgeResult, purge_identifier_data
@@ -31,7 +32,6 @@ from app.enrichers.registry import (
     tier3_discover_enrichers,
     tier4_enrichers,
 )
-from app.clients.llm import LiteLLMDisambiguator
 from app.modules.enrichment.job_events import publish_job_status
 from app.modules.enrichment.models import JobRecord
 from app.modules.enrichment.repository import JobRepository
@@ -233,22 +233,203 @@ class Pipeline:
         if sync_mode:
             tiers = [tier for tier in tiers if tier != RequestedTier.tier1]
 
-        payloads: list[dict[str, Any]] = []
+        # Build tier tasks for parallel execution
+        tier_tasks = []
+        tier_metadata = []
+
         if RequestedTier.tier1 in tiers:
-            payloads.extend(await self._run_tier(self.tier1, request))
+            tier_tasks.append(self._run_tier1_task(request))
+            tier_metadata.append(("tier1", RequestedTier.tier1))
+
         if RequestedTier.tier2 in tiers:
-            payloads.extend(await self._run_tier_parallel(self.tier2, request))
+            tier_tasks.append(self._run_tier2_task(request))
+            tier_metadata.append(("tier2", RequestedTier.tier2))
+
         if RequestedTier.tier3 in tiers:
-            discover_payloads = await self._run_tier_parallel(self.tier3_discover, request)
-            payloads.extend(discover_payloads)
-            candidates = self._collect_email_candidates(request, discover_payloads)
-            if candidates:
-                verify_payload = await self._verify_email_batch(candidates)
-                if verify_payload:
-                    payloads.append(verify_payload)
+            tier_tasks.append(self._run_tier3_task(request))
+            tier_metadata.append(("tier3", RequestedTier.tier3))
+
         if RequestedTier.tier4 in tiers:
-            payloads.extend(await self._run_tier_parallel(self.tier4, request))
+            tier_tasks.append(self._run_tier4_task(request))
+            tier_metadata.append(("tier4", RequestedTier.tier4))
+
+        # Execute all tiers in parallel
+        tier_results = await asyncio.gather(*tier_tasks, return_exceptions=True)
+
+        # Process results with error handling
+        payloads = []
+        failed_tiers = []
+        tier_timings = {}
+
+        for (tier_name, tier_enum), result in zip(tier_metadata, tier_results):
+            if isinstance(result, BaseException):
+                logger.error(
+                    f"{tier_name} failed during parallel execution",
+                    exc_info=result,
+                    extra={
+                        "tier": tier_name,
+                        "error_type": type(result).__name__,
+                    },
+                )
+                failed_tiers.append(tier_name)
+            elif isinstance(result, dict):
+                # Result includes payloads and metadata
+                payloads.extend(result.get("payloads", []))
+                tier_timings[tier_name] = result.get("duration", 0)
+
+        # Add execution metadata to first payload or create metadata payload
+        if payloads:
+            if not payloads[0].get("metadata"):
+                payloads[0]["metadata"] = {}
+            payloads[0]["metadata"]["tier_execution"] = {
+                "parallel": True,
+                "timings": tier_timings,
+                "failed_tiers": failed_tiers,
+            }
+
         return payloads
+
+    async def _run_tier1_task(self, request: EnrichmentRequest) -> dict[str, Any]:
+        """Tier 1: LinkedIn photo (serial execution)"""
+        import time
+
+        from app.observability.tier_metrics import track_tier_execution
+
+        async with track_tier_execution("tier1"):
+            start = time.time()
+            logger.info(
+                "Starting tier1 execution",
+                extra={
+                    "tier": "tier1",
+                    "job_id": getattr(request, "job_id", None),
+                    "parallel_mode": True,
+                },
+            )
+            try:
+                payloads = await self._run_tier(self.tier1, request)
+                duration = time.time() - start
+                logger.info(
+                    "Completed tier1 execution",
+                    extra={
+                        "tier": "tier1",
+                        "duration_seconds": duration,
+                        "success": True,
+                        "enricher_count": len(payloads),
+                    },
+                )
+                return {"payloads": payloads, "duration": duration}
+            except Exception:
+                logger.exception("Tier 1 task failed")
+                raise
+
+    async def _run_tier2_task(self, request: EnrichmentRequest) -> dict[str, Any]:
+        """Tier 2: Social handles (Sherlock, Maigret, SocialAnalyzer in parallel)"""
+        import time
+
+        from app.observability.tier_metrics import track_tier_execution
+
+        async with track_tier_execution("tier2"):
+            start = time.time()
+            logger.info(
+                "Starting tier2 execution",
+                extra={
+                    "tier": "tier2",
+                    "job_id": getattr(request, "job_id", None),
+                    "parallel_mode": True,
+                },
+            )
+            try:
+                payloads = await self._run_tier_parallel(self.tier2, request)
+                duration = time.time() - start
+                logger.info(
+                    "Completed tier2 execution",
+                    extra={
+                        "tier": "tier2",
+                        "duration_seconds": duration,
+                        "success": True,
+                        "enricher_count": len(payloads),
+                    },
+                )
+                return {"payloads": payloads, "duration": duration}
+            except Exception:
+                logger.exception("Tier 2 task failed")
+                raise
+
+    async def _run_tier3_task(self, request: EnrichmentRequest) -> dict[str, Any]:
+        """Tier 3: Email discovery + verification"""
+        import time
+
+        from app.observability.tier_metrics import track_tier_execution
+
+        async with track_tier_execution("tier3"):
+            start = time.time()
+            logger.info(
+                "Starting tier3 execution",
+                extra={
+                    "tier": "tier3",
+                    "job_id": getattr(request, "job_id", None),
+                    "parallel_mode": True,
+                },
+            )
+            try:
+                # Discovery phase (parallel)
+                discover_payloads = await self._run_tier_parallel(self.tier3_discover, request)
+
+                # Verification phase (sequential batch)
+                candidates = self._collect_email_candidates(request, discover_payloads)
+                if candidates:
+                    verify_payload = await self._verify_email_batch(candidates)
+                    if verify_payload:
+                        discover_payloads.append(verify_payload)
+
+                duration = time.time() - start
+                logger.info(
+                    "Completed tier3 execution",
+                    extra={
+                        "tier": "tier3",
+                        "duration_seconds": duration,
+                        "success": True,
+                        "enricher_count": len(discover_payloads),
+                        "emails_verified": len(candidates) if candidates else 0,
+                    },
+                )
+                return {"payloads": discover_payloads, "duration": duration}
+            except Exception:
+                logger.exception("Tier 3 task failed")
+                raise
+
+    async def _run_tier4_task(self, request: EnrichmentRequest) -> dict[str, Any]:
+        """Tier 4: Jobs + local business (JobSpy, GMaps in parallel)"""
+        import time
+
+        from app.observability.tier_metrics import track_tier_execution
+
+        async with track_tier_execution("tier4"):
+            start = time.time()
+            logger.info(
+                "Starting tier4 execution",
+                extra={
+                    "tier": "tier4",
+                    "job_id": getattr(request, "job_id", None),
+                    "parallel_mode": True,
+                },
+            )
+            try:
+                payloads = await self._run_tier_parallel(self.tier4, request)
+                duration = time.time() - start
+                logger.info(
+                    "Completed tier4 execution",
+                    extra={
+                        "tier": "tier4",
+                        "duration_seconds": duration,
+                        "success": True,
+                        "enricher_count": len(payloads),
+                    },
+                )
+                return {"payloads": payloads, "duration": duration}
+            except Exception:
+                logger.exception("Tier 4 task failed")
+                raise
 
     async def _run_tier(
         self, enrichers: list[Enricher], request: EnrichmentRequest
@@ -264,7 +445,7 @@ class Pipeline:
         request: EnrichmentRequest,
     ) -> list[dict[str, Any]]:
         results = await asyncio.gather(
-            *(self._invoke_enricher(enricher, request) for enricher in enrichers),
+            *(self._invoke_enricher_with_retry(enricher, request) for enricher in enrichers),
             return_exceptions=True,
         )
         payloads: list[dict[str, Any]] = []
@@ -275,6 +456,44 @@ class Pipeline:
             else:
                 payloads.append(result)
         return payloads
+
+    async def _invoke_enricher_with_retry(
+        self, enricher: Enricher, request: EnrichmentRequest
+    ) -> dict[str, Any]:
+        """Invoke enricher with exponential backoff retry for transient failures"""
+        settings = get_settings()
+        max_retries = settings.enricher_max_retries
+        backoff = settings.enricher_retry_backoff
+
+        for attempt in range(max_retries):
+            try:
+                return await self._invoke_enricher(enricher, request)
+
+            except (TimeoutError, ConnectionError, OSError) as e:
+                # Transient network errors - retry
+                if attempt < max_retries - 1:
+                    wait_time = backoff**attempt
+                    logger.warning(
+                        f"Enricher {enricher.source_name} transient failure "
+                        f"(attempt {attempt + 1}/{max_retries}), "
+                        f"retrying in {wait_time}s: {e}"
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(
+                        f"Enricher {enricher.source_name} failed after {max_retries} attempts"
+                    )
+                    return {}
+
+            except Exception as e:
+                # Non-transient errors - fail immediately
+                logger.exception(
+                    f"Enricher {enricher.source_name} permanent failure: {type(e).__name__}"
+                )
+                return {}
+
+        return {}
 
     async def _invoke_enricher(
         self, worker: Enricher, request: EnrichmentRequest

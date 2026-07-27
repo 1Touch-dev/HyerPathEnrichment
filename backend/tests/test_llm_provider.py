@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from app.core.config import Settings
 from app.clients.llm import (
     LLMDecision,
     _parse_decision,
@@ -15,6 +14,7 @@ from app.clients.llm import (
     heuristic_compare,
     ollama_compare,
 )
+from app.core.config import Settings
 
 
 def test_build_disambiguation_messages_structure() -> None:

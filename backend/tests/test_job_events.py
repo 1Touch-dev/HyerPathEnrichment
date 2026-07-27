@@ -11,7 +11,7 @@ from app.modules.enrichment import job_events
 
 
 class _FakePubSub:
-    def __init__(self, redis: "_FakeEventsRedis") -> None:
+    def __init__(self, redis: _FakeEventsRedis) -> None:
         self._redis = redis
         self._channel: str | None = None
 

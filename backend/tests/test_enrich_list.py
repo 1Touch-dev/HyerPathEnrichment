@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers import (
     CrossLinkedEnricher,
     EmailDiscoverEnricher,
@@ -17,7 +18,6 @@ from app.enrichers import (
     TheHarvesterEnricher,
 )
 from app.main import app
-from app.domain.enrichment import EnrichmentRequest
 
 
 def _stub(fragment: dict[str, Any]):

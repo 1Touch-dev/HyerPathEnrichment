@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from selenium.webdriver.common.by import By
@@ -184,7 +184,7 @@ def save_failure_screenshot(driver: Any, job_id: str | None) -> None:
         return
     try:
         ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         suffix = job_id or "probe"
         path = ARTIFACTS_DIR / f"{suffix}_{stamp}.png"
         driver.save_screenshot(str(path))

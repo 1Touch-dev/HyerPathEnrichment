@@ -27,8 +27,9 @@ services:
     environment:
       APP_ENV: production
       API_TOKEN: ${API_TOKEN:?set API_TOKEN}
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-      REDIS_URL: ${REDIS_URL:?set REDIS_URL}
+      # API uses host network, so it needs 127.0.0.1
+      DATABASE_URL: postgresql+asyncpg://hyrepath:psjjssjsjndj479987ffhudfui@127.0.0.1:5432/hyrepath
+      REDIS_URL: redis://127.0.0.1:6379
     ports: !override
       - "127.0.0.1:8000:8000"
     restart: unless-stopped

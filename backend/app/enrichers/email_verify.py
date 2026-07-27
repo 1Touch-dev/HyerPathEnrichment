@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from app.clients.email_verify import EmailVerifier
 from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers._shared import common_email_patterns, slugify_domain
 from app.enrichers.base import Enricher
-from app.domain.enrichment import EnrichmentRequest
-from app.clients.email_verify import EmailVerifier
 
 
 class EmailVerifyEnricher(Enricher):

@@ -1,0 +1,8 @@
+FROM postgres:16-alpine
+
+# Copy init script and ensure LF endings
+COPY init-db.sh /docker-entrypoint-initdb.d/init-db.sh
+
+# Ensure LF endings and make executable
+RUN sed -i 's/\r$//' /docker-entrypoint-initdb.d/init-db.sh && \
+    chmod +x /docker-entrypoint-initdb.d/init-db.sh

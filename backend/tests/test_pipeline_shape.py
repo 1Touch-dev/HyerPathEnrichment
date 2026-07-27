@@ -3,6 +3,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from app.database.session import SessionLocal, init_db
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers import (
     CrossLinkedEnricher,
     EmailDiscoverEnricher,
@@ -16,11 +18,9 @@ from app.enrichers import (
     SocialAnalyzerEnricher,
     TheHarvesterEnricher,
 )
-from app.main import app
-from app.domain.enrichment import EnrichmentRequest
-from app.modules.enrichment import service as enrichment_service
 from app.enrichers.pipeline import Pipeline
-from app.database.session import SessionLocal, init_db
+from app.main import app
+from app.modules.enrichment import service as enrichment_service
 
 
 def _stub(fragment: dict[str, Any]):

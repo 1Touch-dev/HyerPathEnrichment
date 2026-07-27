@@ -16,6 +16,8 @@ import {
 import { isMockMode } from "@/src/lib/mocks/enabled";
 import { createMockJobWithLifecycle } from "@/src/lib/mocks/mock-jobs";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as Parameters<typeof parseEnrichmentInput>[0];
   const input = parseEnrichmentInput(body);
