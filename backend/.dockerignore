@@ -1,6 +1,8 @@
 # Virtualenvs (largest offenders)
 venv/
 .venv/
+.venv-wsl/
+.venv-*/
 
 # Python caches / build artifacts
 __pycache__/

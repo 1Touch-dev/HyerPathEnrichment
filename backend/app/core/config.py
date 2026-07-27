@@ -48,6 +48,15 @@ class Settings(BaseSettings):
         description="For per_tier mode: which queue this worker listens to (tier1 or tier234)",
     )
 
+    # Parallel tier execution settings
+    enricher_max_retries: int = Field(default=3, alias="ENRICHER_MAX_RETRIES")
+    enricher_retry_backoff: float = Field(default=2.0, alias="ENRICHER_RETRY_BACKOFF")
+    max_parallel_tiers: int = Field(default=4, alias="MAX_PARALLEL_TIERS")
+    tier1_max_concurrent: int = Field(default=1, alias="TIER1_MAX_CONCURRENT")
+    tier2_max_concurrent: int = Field(default=3, alias="TIER2_MAX_CONCURRENT")
+    tier3_max_concurrent: int = Field(default=4, alias="TIER3_MAX_CONCURRENT")
+    tier4_max_concurrent: int = Field(default=2, alias="TIER4_MAX_CONCURRENT")
+
     # Tier 1 — LinkedIn photo (Multilogin + Selenium)
     multilogin_api_url: str = Field(
         default="https://api.multilogin.com", alias="MULTILOGIN_API_URL"

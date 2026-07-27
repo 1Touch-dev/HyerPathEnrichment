@@ -31,7 +31,7 @@ class EnrichmentService:
 
         job = await self.pipeline.create_queued_job(request)
         try:
-            enqueue_enrichment(job.id)
+            enqueue_enrichment(job.id, request.requested_tiers)
         except RedisError:
             job.status = JobStatus.failed.value
             await self.db.commit()
