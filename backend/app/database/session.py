@@ -3,7 +3,6 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
-from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, event, inspect, text
@@ -11,6 +10,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import ConnectionPoolEntry
 
+from alembic import command
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app.database.session import SessionLocal, init_db
 from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.pipeline import Pipeline
 from app.main import app
-from fastapi.testclient import TestClient
 
 _HEADERS = {"Authorization": "Bearer change-me"}
 

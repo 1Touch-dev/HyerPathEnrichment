@@ -7,13 +7,13 @@ import logging
 from datetime import date
 from enum import StrEnum
 
+from app.clients.multilogin import MultiloginClient, MultiloginError
 from app.core.config import get_settings
+from app.infrastructure.redis import get_redis_client
 from app.observability.tier1_metrics import (
     tier1_profile_pool_exhausted_total,
     tier1_profile_views_total,
 )
-from app.clients.multilogin import MultiloginClient, MultiloginError
-from app.infrastructure.redis import get_redis_client
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,7 +47,7 @@ async def _purge_matching_jobs(db: AsyncSession, target_hash: str) -> int:
     result = await db.execute(select(JobRecord))
     jobs = result.scalars().all()
     cleared = 0
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for job in jobs:
         stored_hashes = list(job.identifier_hashes or [])

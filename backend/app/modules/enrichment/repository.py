@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -67,7 +67,7 @@ class JobRepository:
         job.status = status.value
         if dossier_payload is not None:
             job.dossier_payload = dossier_payload
-        job.updated_at = datetime.now(timezone.utc)
+        job.updated_at = datetime.now(UTC)
         if commit:
             await self.db.commit()
             await self.db.refresh(job)

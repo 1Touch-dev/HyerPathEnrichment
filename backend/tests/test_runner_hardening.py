@@ -8,10 +8,10 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from app.enrichers.base import Enricher
-from app.domain.enrichment import EnrichmentRequest
 from app.clients.retry import is_transient_http_error, with_transient_retry
 from app.clients.sidecar import SidecarClient
+from app.domain.enrichment import EnrichmentRequest
+from app.enrichers.base import Enricher
 from app.enrichers.pipeline import Pipeline
 
 

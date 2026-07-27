@@ -4,8 +4,8 @@ import asyncio
 from typing import Any
 
 from app.core.config import get_settings
-from app.enrichers.base import Enricher
 from app.domain.enrichment import EnrichmentRequest
+from app.enrichers.base import Enricher
 
 # JobSpy scrapes these concurrently (ThreadPoolExecutor). Exact site strings from python-jobspy.
 JOBSPY_SITES = ("linkedin", "indeed", "glassdoor", "google", "zip_recruiter")

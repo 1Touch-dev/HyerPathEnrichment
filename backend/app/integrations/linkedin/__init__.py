@@ -10,17 +10,17 @@ from __future__ import annotations
 from typing import Any
 
 from app.integrations.linkedin.types import (
+    NO_RETRY_OUTCOMES,
+    ROTATE_PROFILE_OUTCOMES,
     ExtractionMethod,
     LinkedInPhotoError,
     LinkedInPhotoResult,
-    NO_RETRY_OUTCOMES,
-    ROTATE_PROFILE_OUTCOMES,
 )
 from app.integrations.linkedin.urls import (
     extract_linkedin_slug,
     is_placeholder_image_url,
-    placeholder_fragments,
     photo_url_from_srcset,
+    placeholder_fragments,
 )
 
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
