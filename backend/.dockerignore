@@ -23,6 +23,7 @@ dist/
 
 # Dev-only paths (not used at runtime in container)
 docker/
+!docker/entrypoint-worker.sh
 docs/
 scripts/
 tests/
