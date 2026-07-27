@@ -75,6 +75,7 @@ ignore = [
   "BLE001",  # Blind exception catches are intentional for fail-soft behavior
   "UP047",   # Type parameter syntax not yet adopted
   "G201",    # logger.error with exc_info=True is preferred over logger.exception in some contexts
+  "SIM117",  # Nested with statements are sometimes clearer
 ]
 
 [tool.ruff.lint.per-file-ignores]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Self
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -163,7 +163,7 @@ async def test_sidecar_get_json_retries_transient_failure() -> None:
             return {"ok": "true"}
 
     class _FakeHttpClient:
-        async def __aenter__(self) -> "_FakeHttpClient":
+        async def __aenter__(self) -> Self:
             return self
 
         async def __aexit__(self, *_args: object) -> None:
