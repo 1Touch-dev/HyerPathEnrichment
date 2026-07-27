@@ -6,6 +6,7 @@ services:
   # Tier 1 workers: Heavy browser automation (1-2 instances)
   # Requires: docker-compose.tier1.yml for Multilogin configuration
   worker-tier1:
+    network_mode: host
     extends:
       file: docker-compose.yml
       service: worker
@@ -17,12 +18,17 @@ services:
       WORKER_TARGET_QUEUE: tier1
       # Enable Tier 1 LinkedIn photo scraping
       ENABLE_TIER1: "true"
-      # Use DATABASE_URL from env_file instead of docker-compose.prod.yml override
-      DATABASE_URL: ${DATABASE_URL}
-      # Inherit all tier1 settings from docker-compose.tier1.yml when stacked
+      # Proxy: NO proxy for LinkedIn/tier1
+      PROXY_MODE: none
+      # Host network mode requires 127.0.0.1 instead of service names
+      DATABASE_URL: postgresql+asyncpg://hyrepath:psjjssjsjndj479987ffhudfui@127.0.0.1:5432/hyrepath
+      REDIS_URL: redis://127.0.0.1:6379
+      # Multilogin connection (containerized, host network)
+      MULTILOGIN_SELENIUM_HOST: "http://127.0.0.1"
+      MULTILOGIN_LAUNCHER_URL: "https://127.0.0.1:45001/api/v2"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('${REDIS_URL}'); r.ping()"]
+      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:6379'); r.ping()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -43,6 +49,8 @@ services:
       WORKER_TARGET_QUEUE: tier234
       # Disable heavy tier1 dependencies
       ENABLE_TIER1: "false"
+      # Proxy: Enable Oxylabs proxy for tiers 2-4
+      PROXY_MODE: paid
       # Host network mode requires 127.0.0.1 instead of service names
       DATABASE_URL: postgresql+asyncpg://hyrepath:psjjssjsjndj479987ffhudfui@127.0.0.1:5432/hyrepath
       REDIS_URL: redis://127.0.0.1:6379
