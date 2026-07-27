@@ -31,7 +31,9 @@ services:
       start_period: 60s
 
   # Tier 2-4 workers: Lightweight API enrichers (4-8 instances)
+  # Uses host network mode to enable external proxy connectivity (Oxylabs)
   worker-tier234:
+    network_mode: host
     extends:
       file: docker-compose.yml
       service: worker
@@ -43,20 +45,14 @@ services:
       WORKER_TARGET_QUEUE: tier234
       # Disable heavy tier1 dependencies
       ENABLE_TIER1: "false"
-      # Use DATABASE_URL from env_file instead of docker-compose.prod.yml override
-      DATABASE_URL: ${DATABASE_URL}
-    # DNS configuration for reliable external proxy resolution
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-    # Route proxy traffic through host gateway (similar to Multilogin fix)
-    extra_hosts:
-      - "pr.oxylabs.io:host-gateway"
+      # Host network mode requires 127.0.0.1 instead of service names
+      DATABASE_URL: postgresql+asyncpg://hyrepath:psjjssjsjndj479987ffhudfui@127.0.0.1:5432/hyrepath
+      REDIS_URL: redis://127.0.0.1:6379
     deploy:
       replicas: 6  # High concurrency for API-based enrichers
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('${REDIS_URL}'); r.ping()"]
+      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:6379'); r.ping()"]
       interval: 30s
       timeout: 10s
       retries: 3
