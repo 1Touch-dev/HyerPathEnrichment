@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Copy, ShieldAlert, Clock, CheckCircle2, RefreshCw } from "lucide-react";
+import { Copy, ShieldAlert, Clock, CheckCircle2, RefreshCw, Check } from "lucide-react";
 import { JobStatusBadge } from "@/components/console/JobStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -121,6 +121,7 @@ export function JobProgress({ job, polling, pollTimedOut, onRetry, onRefresh }: 
     return isNaN(elapsed) ? 0 : Math.max(0, elapsed);
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (
@@ -143,6 +144,8 @@ export function JobProgress({ job, polling, pollTimedOut, onRetry, onRefresh }: 
 
   const copyId = async () => {
     await copyToClipboard(job.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleRefresh = async () => {
@@ -174,8 +177,17 @@ export function JobProgress({ job, polling, pollTimedOut, onRetry, onRefresh }: 
               onClick={() => void copyId()}
               aria-label="Copy job ID to clipboard"
             >
-              <Copy className="mr-1 size-3" aria-hidden="true" />
-              Copy ID
+              {copied ? (
+                <>
+                  <Check className="mr-1 size-3" aria-hidden="true" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="mr-1 size-3" aria-hidden="true" />
+                  Copy ID
+                </>
+              )}
             </Button>
             <JobStatusBadge status={job.status} />
             {(job.status === "queued" || job.status === "running") && (
