@@ -62,6 +62,61 @@ def job_location_specificity(location: str) -> int:
     return len(loc.split(",")) + len(loc.split())
 
 
+def _is_cdn_url(platform: str, url: str) -> bool:
+    """Filter out CDN/image URLs that aren't real social handles."""
+    cdn_indicators = [
+        "cdn",
+        "cloudfront",
+        "amazonaws",
+        "googleusercontent",
+        "fbcdn",
+        "twimg",
+        "yt3",
+        "pbs",
+        "substackcdn",
+        "simg-ssl",
+    ]
+    platform_lower = platform.lower()
+    url_lower = url.lower()
+
+    # Check if platform name looks like a CDN domain
+    if any(cdn in platform_lower for cdn in cdn_indicators):
+        return True
+
+    # Check if URL is clearly an image file
+    if any(url_lower.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]):
+        return True
+
+    return False
+
+
+def _is_valid_job(job: dict[str, Any]) -> bool:
+    """Filter out invalid job listings."""
+    company = str(job.get("company", "")).lower().strip()
+
+    # Filter out jobs with invalid company names
+    if company in {"nan", "none", "unknown", ""}:
+        return False
+
+    # Only keep jobs from known employment sources (not job boards)
+    source = str(job.get("source", "")).lower()
+    if source in {"indeed", "glassdoor", "zip_recruiter"}:
+        # These are job board listings, not work history
+        return False
+
+    return True
+
+
+EMAIL_BLACKLIST = {
+    "cmartorella@edge-security.com",  # theHarvester tool author, false positive
+}
+
+
+def _is_blacklisted_email(email: str) -> bool:
+    """Check if email is a known false positive."""
+    return email.lower() in EMAIL_BLACKLIST
+
+
 def merge_payloads(request: EnrichmentRequest, payloads: list[dict[str, Any]]) -> Dossier:
     """Fold enricher fragments into a dossier (before disambiguation)."""
     dossier = base_dossier(request)
@@ -80,10 +135,15 @@ def merge_payloads(request: EnrichmentRequest, payloads: list[dict[str, Any]]) -
             for handle in handles:
                 if not isinstance(handle, dict):
                     continue
-                key = (
-                    str(handle.get("platform", "")).lower(),
-                    str(handle.get("username", "")).lower(),
-                )
+
+                platform = str(handle.get("platform", ""))
+                profile_url = str(handle.get("profile_url", ""))
+
+                # Skip CDN/image URLs
+                if _is_cdn_url(platform, profile_url):
+                    continue
+
+                key = (platform.lower(), str(handle.get("username", "")).lower())
                 candidate = SocialHandle.model_validate(handle)
                 if key not in handles_seen:
                     handles_seen.add(key)
@@ -100,6 +160,10 @@ def merge_payloads(request: EnrichmentRequest, payloads: list[dict[str, Any]]) -
         emails = payload.get("emails")
         if isinstance(emails, list):
             for email in emails:
+                # Skip blacklisted emails
+                if _is_blacklisted_email(str(email)):
+                    continue
+
                 normalized = str(email).lower()
                 if normalized not in emails_seen:
                     emails_seen.add(normalized)
@@ -132,6 +196,11 @@ def merge_payloads(request: EnrichmentRequest, payloads: list[dict[str, Any]]) -
             for job in jobs:
                 if not isinstance(job, dict):
                     continue
+
+                # Skip invalid job listings
+                if not _is_valid_job(job):
+                    continue
+
                 job_candidate = JobListing.model_validate(job)
                 job_key = normalize_job_key(
                     job_candidate.title,
