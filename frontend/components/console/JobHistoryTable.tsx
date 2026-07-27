@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Copy } from "lucide-react";
+import { Copy, Check } from "lucide-react";
 import { JobStatusBadge } from "@/components/console/JobStatusBadge";
 import { EmptyState } from "@/components/console/EmptyState";
 import { Button } from "@/components/ui/button";
@@ -122,8 +122,17 @@ export function JobHistoryTable({
                           <Link href={`/app/jobs/${job.id}`}>View</Link>
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => void copyId(job.id)}>
-                          <Copy className="size-3" />
-                          {copiedId === job.id ? "Copied" : "Copy ID"}
+                          {copiedId === job.id ? (
+                            <>
+                              <Check className="mr-1 size-3" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="mr-1 size-3" />
+                              Copy ID
+                            </>
+                          )}
                         </Button>
                       </div>
                     </TableCell>
