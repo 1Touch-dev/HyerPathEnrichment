@@ -46,6 +46,7 @@ class LinkedInBrowserClient:
         max_profile_attempts: int = 3,
     ) -> LinkedInPhotoResult:
         """Scrape a LinkedIn profile photo with retry and profile rotation."""
+
         if not extract_linkedin_slug(linkedin_url):
             return LinkedInPhotoResult(outcome=LinkedInPhotoError.INVALID_URL)
 
@@ -62,6 +63,7 @@ class LinkedInBrowserClient:
                     same_profile_retries=2,
                 )
                 last_result = result
+
                 if result.outcome == LinkedInPhotoError.SUCCESS:
                     return result
                 if result.outcome in NO_RETRY_OUTCOMES:
