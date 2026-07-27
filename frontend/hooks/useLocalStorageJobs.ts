@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "active_jobs";
 const MAX_COMPLETED_AGE_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_OVERALL_AGE_MS = 60 * 60 * 1000; // 1 hour for ANY job
 
 export type TrackedJob = {
   id: string;
@@ -37,12 +38,21 @@ function setStoredJobs(jobs: TrackedJob[]): void {
 function cleanupOldJobs(jobs: TrackedJob[]): TrackedJob[] {
   const now = Date.now();
   return jobs.filter((job) => {
-    if (job.status === "queued" || job.status === "running") {
-      return true; // Keep active jobs
+    // Remove jobs older than 1 hour regardless of status
+    if (now - job.createdAt > MAX_OVERALL_AGE_MS) {
+      return false;
     }
+
+    // Keep active jobs
+    if (job.status === "queued" || job.status === "running") {
+      return true;
+    }
+
+    // Keep completed jobs for 5 minutes
     if (job.completedAt) {
       return now - job.completedAt < MAX_COMPLETED_AGE_MS;
     }
+
     return false;
   });
 }
