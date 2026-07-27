@@ -20,8 +20,6 @@ services:
       # Use DATABASE_URL from env_file instead of docker-compose.prod.yml override
       DATABASE_URL: ${DATABASE_URL}
       # Inherit all tier1 settings from docker-compose.tier1.yml when stacked
-    deploy:
-      replicas: 2  # Low concurrency for browser automation
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import redis; r = redis.from_url('${REDIS_URL}'); r.ping()"]
@@ -50,8 +48,6 @@ services:
       REDIS_URL: redis://127.0.0.1:6379
       # Delay between each worker startup (in seconds)
       WORKER_STARTUP_DELAY: ${WORKER_STARTUP_DELAY:-10}
-    deploy:
-      replicas: 6  # High concurrency for API-based enrichers
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:6379'); r.ping()"]
