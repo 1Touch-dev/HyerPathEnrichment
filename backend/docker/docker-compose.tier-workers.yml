@@ -45,6 +45,13 @@ services:
       ENABLE_TIER1: "false"
       # Use DATABASE_URL from env_file instead of docker-compose.prod.yml override
       DATABASE_URL: ${DATABASE_URL}
+    # DNS configuration for reliable external proxy resolution
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    # Route proxy traffic through host gateway (similar to Multilogin fix)
+    extra_hosts:
+      - "pr.oxylabs.io:host-gateway"
     deploy:
       replicas: 6  # High concurrency for API-based enrichers
     restart: unless-stopped
