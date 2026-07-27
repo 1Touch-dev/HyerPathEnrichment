@@ -48,7 +48,7 @@ jobs:
       worker_image: ${{ steps.meta.outputs.worker_image }}
       dispatch_target: ${{ steps.flags.outputs.dispatch_target }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve flags
         id: flags
