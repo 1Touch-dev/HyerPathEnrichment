@@ -73,8 +73,11 @@ line-length = 100
 [tool.ruff.lint]
 ignore = [
   "BLE001",  # Blind exception catches are intentional for fail-soft behavior
-  "UP047",   # Type parameter syntax not yet adopted
+  "UP046",   # Generic class type parameters not yet adopted
+  "UP047",   # Function type parameters not yet adopted
   "G201",    # logger.error with exc_info=True is preferred over logger.exception in some contexts
+  "SIM102",  # Nested if statements are sometimes clearer
+  "SIM103",  # Explicit if-else is sometimes clearer than returning condition directly
   "SIM117",  # Nested with statements are sometimes clearer
 ]
 

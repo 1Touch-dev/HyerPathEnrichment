@@ -2,7 +2,7 @@
 
 import time
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 try:
     from prometheus_client import Counter, Gauge, Histogram
