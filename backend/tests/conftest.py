@@ -81,3 +81,13 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     monkeypatch.setattr(photo_cache, "get_redis_client", lambda: fake)
     monkeypatch.setattr(job_events, "_get_events_redis_client", lambda: fake)
     return fake
+
+
+@pytest.fixture
+async def db():
+    """Provide async database session for tests."""
+    from app.database.session import SessionLocal
+
+    async with SessionLocal() as session:
+        yield session
+        await session.rollback()

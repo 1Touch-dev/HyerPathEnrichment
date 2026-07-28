@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -105,6 +105,11 @@ class Pipeline:
         if job is None:
             logger.warning("execute_job called for unknown job")
             return None
+
+        # If this is a child job, handle it specially
+        if job.parent_job_id:
+            return await self._execute_child_job(job)
+
         request = EnrichmentRequest.model_validate(job.request_payload)
         # Commit the running transition immediately rather than leaving it as a
         # dirty attribute: autoflush would otherwise open an uncommitted write
@@ -129,6 +134,155 @@ class Pipeline:
                 await self.jobs.mark_status(failed, JobStatus.failed)
                 await publish_job_status(job_id, JobStatus.failed)
             raise
+
+    async def create_parent_job(self, request: EnrichmentRequest) -> JobRecord:
+        """Create a parent job that orchestrates children."""
+        job = await self.jobs.create(request, JobStatus.running)
+        await self.jobs.flush()
+        return job
+
+    async def create_child_job(
+        self, parent: JobRecord, request: EnrichmentRequest, tier_assignment: list[str]
+    ) -> JobRecord:
+        """Create a child job assigned to specific tiers."""
+        child = await self.jobs.create_child_job(parent, request, tier_assignment)
+        await self.jobs.flush()
+        return child
+
+    async def _execute_child_job(self, child_job: JobRecord) -> JobRecord:
+        """Execute child job with assigned tiers only."""
+        request = EnrichmentRequest.model_validate(child_job.request_payload)
+
+        # Override requested_tiers with child's assignment
+        tier_assignment = [RequestedTier(t) for t in (child_job.tier_assignment or [])]
+        request.requested_tiers = tier_assignment
+
+        child_job = await self.jobs.mark_status(child_job, JobStatus.running)
+
+        try:
+            result = await self._execute(child_job, request, sync_mode=False)
+
+            # After completion, check if we can merge into parent
+            await self._try_merge_into_parent(child_job)
+
+            return result
+        except Exception:
+            # Mark child as failed, but don't fail parent yet
+            await self.jobs.mark_status(child_job, JobStatus.failed)
+            await self._check_parent_completion(child_job.parent_job_id)
+            raise
+
+    async def _try_merge_into_parent(self, completed_child: JobRecord) -> None:
+        """Attempt to merge child results into parent if all children complete."""
+        if not completed_child.parent_job_id:
+            return
+
+        # Check if all siblings are done
+        if not await self.jobs.all_children_complete(completed_child.parent_job_id):
+            return
+
+        # All children complete - merge results
+        parent = await self.jobs.get(completed_child.parent_job_id)
+        if not parent:
+            return
+
+        children: List[JobRecord] = await self.jobs.get_children(parent.id)
+
+        # Merge all child dossiers
+        merged_dossier = self._merge_child_dossiers(
+            [Dossier.model_validate(child.dossier_payload) for child in children]
+        )
+
+        # Determine parent status (completed if any child succeeded, failed if all failed)
+        any_completed = any(child.status == JobStatus.completed.value for child in children)
+        parent_status = JobStatus.completed if any_completed else JobStatus.failed
+
+        await self.jobs.mark_status(
+            parent,
+            parent_status,
+            dossier_payload=merged_dossier.model_dump(mode="json"),
+        )
+
+    async def _check_parent_completion(self, parent_job_id: str | None) -> None:
+        """Check if parent should be marked as complete/failed after child fails."""
+        if not parent_job_id:
+            return
+
+        if await self.jobs.all_children_complete(parent_job_id):
+            await self._try_merge_into_parent_by_id(parent_job_id)
+
+    async def _try_merge_into_parent_by_id(self, parent_job_id: str) -> None:
+        """Helper to merge when we only have parent ID."""
+        parent = await self.jobs.get(parent_job_id)
+        if not parent:
+            return
+
+        children: List[JobRecord] = await self.jobs.get_children(parent.id)
+        if not children:
+            return
+
+        # Use the first child to trigger merge logic
+        await self._try_merge_into_parent(children[0])
+
+    def _merge_child_dossiers(self, child_dossiers: list[Dossier]) -> Dossier:
+        """Merge multiple child dossiers into one parent dossier."""
+        merged = Dossier()
+
+        for child_dossier in child_dossiers:
+            # Merge photo (take first non-null)
+            if child_dossier.photo and not merged.photo:
+                merged.photo = child_dossier.photo
+
+            # Merge handles (deduplicate)
+            for handle in child_dossier.handles:
+                key = (handle.platform.lower(), handle.username.lower())
+                if not any((h.platform.lower(), h.username.lower()) == key for h in merged.handles):
+                    merged.handles.append(handle)
+
+            # Merge emails (deduplicate)
+            for email in child_dossier.emails:
+                if email not in merged.emails:
+                    merged.emails.append(email)
+
+            # Merge verified_emails (deduplicate by value)
+            for verified in child_dossier.verified_emails:
+                if not any(
+                    v.value.lower() == verified.value.lower() for v in merged.verified_emails
+                ):
+                    merged.verified_emails.append(verified)
+
+            # Merge github
+            if child_dossier.github and not merged.github:
+                merged.github = child_dossier.github
+
+            # Merge coworkers (deduplicate)
+            for coworker in child_dossier.coworkers:
+                if coworker not in merged.coworkers:
+                    merged.coworkers.append(coworker)
+
+            # Merge jobs (deduplicate by normalize key)
+            for job in child_dossier.jobs:
+                # Simple deduplication - could use normalize_job_key from merge.py
+                if job not in merged.jobs:
+                    merged.jobs.append(job)
+
+            # Merge business (take first non-null)
+            if child_dossier.business and not merged.business:
+                merged.business = child_dossier.business
+
+            # Merge sources (deduplicate)
+            for source in child_dossier.sources:
+                if source not in merged.sources:
+                    merged.sources.append(source)
+
+            # Merge confidence (take from first child or recalculate)
+            if child_dossier.confidence and not merged.confidence:
+                merged.confidence = child_dossier.confidence
+
+            # Merge metadata
+            merged.metadata.update(child_dossier.metadata)
+
+        return merged
 
     async def _execute(
         self,
