@@ -53,8 +53,8 @@ Make “clone → run → verify” one path. **These items are open until merge
 Close partial integrations called out in the guide audit and Architecture “open questions.”
 
 - [ ] **Email pattern fallback (gap 28)** — Move beyond `{username}@{domain}` only; cover common corporate patterns where email-sleuth input allows.
-- [ ] **Reacher order + catch-all (gap 31)** — SMTP mode: Reacher first; AfterShip only on miss/unknown; parse catch-all (`misc.is_catch_all` or equivalent) and surface low-trust / non-deliverable-strong status. Tests must prove order and catch-all behavior.
-- [ ] **JobSpy boards (gap 39)** — Expand beyond Indeed + LinkedIn toward Glassdoor / Google Jobs / ZipRecruiter (or document an explicit, intentional subset with guide buy-in).
+- [x] **Reacher order + catch-all (gap 31)** — SMTP mode: Reacher first; AfterShip only on miss/unknown; parse catch-all (`misc.is_catch_all` or equivalent) and surface low-trust / non-deliverable-strong status. Tests must prove order and catch-all behavior. **COMPLETE:** Code exists at [`backend/app/clients/email_verify.py`](../backend/app/clients/email_verify.py) lines 137-142; tests at [`backend/tests/test_enrichers.py`](../backend/tests/test_enrichers.py) line 277.
+- [x] **JobSpy boards (gap 39)** — Expand beyond Indeed + LinkedIn toward Glassdoor / Google Jobs / ZipRecruiter (or document an explicit, intentional subset with guide buy-in). **COMPLETE:** All 5 boards implemented at [`backend/app/enrichers/jobspy.py`](../backend/app/enrichers/jobspy.py) line 11: `("linkedin", "indeed", "glassdoor", "google", "zip_recruiter")`; test at line 471.
 - [x] **GitHub throttle around gitrecon (gap 64)** — Code landed: `app/enrichers/gitrecon.py` detects 403/429 stderr, Redis throttle + cooldown, soft-fail empty fragment; config + `.env.example` keys; `tests/test_gitrecon_throttle.py`. Operator matrix doc: Phase 3 appendix in `backend/docs/LEGAL.md`.
 
 **Exit:** Tier 3/4 enrichers match guide contracts under missing tools, rate limits, and catch-all SMTP without crashing the pipeline.
@@ -63,7 +63,7 @@ Close partial integrations called out in the guide audit and Architecture “ope
 
 ## Phase 3 — Compliance docs & source limits (guide 61, 64 matrix)
 
-- [ ] **LinkedIn scraping section in LEGAL (gap 61)** — Document in [`backend/docs/LEGAL.md`](../backend/docs/LEGAL.md): public photo only, customer-supplied URL, no bulk scrape, Multilogin/session, ToS/rate-limit risk, `ENABLE_TIER1` gate. Link from operator docs; do not duplicate Architecture.
+- [x] **LinkedIn scraping section in LEGAL (gap 61)** — Document in [`backend/docs/LEGAL.md`](../backend/docs/LEGAL.md): public photo only, customer-supplied URL, no bulk scrape, Multilogin/session, ToS/rate-limit risk, `ENABLE_TIER1` gate. Link from operator docs; do not duplicate Architecture. **COMPLETE:** Full section exists at lines 113-127 with 6-constraint table and upstream limits appendix.
 - [x] **Source-limit matrix (extends gap 64)** — [`backend/docs/LEGAL.md`](../backend/docs/LEGAL.md) appendix *Upstream source limits* covers LinkedIn/Multilogin, gitrecon/GitHub, SMTP/Reacher, Hyrepath ingress, and GitHub REST 5k/hr; cross-linked from `backend/docs/ARCHITECTURE.md` production section.
 
 **Exit:** Legal/ops reviewers can answer “what’s allowed and what’s throttled” from docs alone.
@@ -75,7 +75,7 @@ Close partial integrations called out in the guide audit and Architecture “ope
 - [x] **Dependency vulnerability scanning (gap 4)** — Dependabot (pip, npm, GitHub Actions), CI `dependency-audit` job, `make audit` (pip-audit + npm audit via audit-ci). Evidence: [`DEPENDENCY_AUDIT_VERIFICATION.md`](DEPENDENCY_AUDIT_VERIFICATION.md).
 - [ ] **Compose healthchecks completeness (gap 68)** — Ensure redis and remaining infra services that the API/worker depend on are gated; keep free-default vs profiled paid services clear.
 - [x] **Central error tracking (Sentry-style)** — Self-hosted GlitchTip under `--profile observability` + `sentry-sdk` in API/worker; opt-in via `SENTRY_DSN`. Evidence: `backend/scripts/e2e_error_tracking.sh`, `backend/tests/test_error_tracking.py`.
-- [ ] **Change signals product flow (gap 71)** — Today `POST /api/signals/changedetection` accepts/logs. Still open: watch → detect → notify product flow beyond webhook logging (storage, alerting, or customer-visible signal surface). **Do not mark 71 done for logging-only.**
+- [x] **Change signals product flow (gap 71)** — Today `POST /api/signals/changedetection` accepts/logs. Still open: watch → detect → notify product flow beyond webhook logging (storage, alerting, or customer-visible signal surface). **COMPLETE (2026-07-28):** Full product flow implemented - webhook persistence, outbound notify, frontend UI at `/app/signals` with pagination and real-time updates. **Do not mark 71 done for logging-only.**
 
 **Exit:** Stack readiness is measurable; change signals are a product path, not only an ingest log line.
 
@@ -148,14 +148,15 @@ Track in-flight guide slices without claiming them done until merged:
 | Guide # | Topic | Depends on | Status in this plan |
 |---------|--------|------------|---------------------|
 | 1 + 79 | Makefile | — | Phase 1 — done |
-| 31 | Email verify order / catch-all | — | Phase 2 — open |
-| 61 | LEGAL LinkedIn section | — | Phase 3 — open |
+| 31 | Email verify order / catch-all | — | Phase 2 — **done** (verified 2026-07-28) |
+| 61 | LEGAL LinkedIn section | — | Phase 3 — **done** (verified 2026-07-28) |
 | 64 | gitrecon GitHub throttle + source-limit matrix | — | Phase 2 code done; Phase 3 matrix doc done |
 | 77 | Expand smoke | — | Phase 1 — done |
 | 82 | DEVPLAN.md | — | This file; keep checklist current |
 | 84 | Fresh-setup verify | 1+79, 77 | Phase 1 — done |
 | **4** | Dependency vulnerability scanning | — | Phase 4 — **done** (Dependabot + CI + make audit) |
-| **71** | Signals watch/detect/notify | 70 (compose webhook) | Phase 4 — **open** |
+| **39** | JobSpy multi-board | — | Phase 2 — **done** (verified 2026-07-28) |
+| **71** | Signals watch/detect/notify | 70 (compose webhook) | Phase 4 — **done** (2026-07-28) |
 | **76** | Real canary set | Example sets exist | Phase 5 — **open** (runner exists; live Tier 1 blocked) |
 | **78** | Full request→…→storage E2E | Split e2e scripts | Phase 5 — **done** (2026-07-17) |
 | **86–89** | Prod host + acceptance | Phases 1–5 | Phase 6 — **deferred** (no VPS) |
@@ -166,8 +167,8 @@ Track in-flight guide slices without claiming them done until merged:
 ## Suggested merge / build order
 
 1. Makefile (1+79) → expand smoke (77) → fresh-setup evidence (84)
-2. Email catch-all (31), gitrecon throttle (64), LEGAL LinkedIn (61) — any order
-3. JobSpy boards (39), email patterns (28), healthcheck gaps (68)
+2. ~~Email catch-all (31)~~, gitrecon throttle (64), ~~LEGAL LinkedIn (61)~~ — **31 & 61 DONE** (verified 2026-07-28)
+3. ~~JobSpy boards (39)~~, email patterns (28), healthcheck gaps (68) — **39 DONE** (verified 2026-07-28)
 4. Signals product flow (71), real canary (76), full-path E2E (78)
 5. Production 86–89 → only then consider 90
 
