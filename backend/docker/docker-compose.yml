@@ -5,21 +5,22 @@
       dockerfile: docker/Dockerfile.api
     working_dir: /app/backend
     environment:
-      DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-psjjssjsjndj479987ffhudfui}@postgres:5432/hyrepath
     command: ["alembic", "upgrade", "head"]
     depends_on:
       postgres:
         condition: service_healthy
     restart: "no"
   api:
-    network_mode: host
     build:
       context: ..
       dockerfile: docker/Dockerfile.api
     environment:
-      API_TOKEN: change-me
-      DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
+      API_TOKEN: ${API_TOKEN:-change-me}
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-psjjssjsjndj479987ffhudfui}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
+      # Worker queue routing - must match tier-workers configuration
+      WORKER_QUEUE_MODE: ${WORKER_QUEUE_MODE:-per_tier}
       # Free-mode sidecars (default-on). Enrichers degrade to empty fragments
       # if these are unreachable, so this stays safe if a sidecar is skipped.
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
@@ -81,8 +82,8 @@
     extra_hosts:
       - "host.docker.internal:${MULTILOGIN_HOST_IP:-host-gateway}"
     environment:
-      API_TOKEN: change-me
-      DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
+      API_TOKEN: ${API_TOKEN:-}
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-psjjssjsjndj479987ffhudfui}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
