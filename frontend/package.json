@@ -36,7 +36,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.27.0",
-    "next": "^14.2.35",
+    "next": "^16.0.0",
     "next-themes": "^0.4.6",
     "postcss": "^8.5.23",
     "react": "^18.3.1",
@@ -49,9 +49,6 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "overrides": {
-    "next": {
-      "postcss": "8.5.16"
-    },
     "undici": "^6.27.0",
     "js-yaml": "^4.3.0"
   },
