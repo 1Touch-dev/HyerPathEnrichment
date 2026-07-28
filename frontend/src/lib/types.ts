@@ -11,6 +11,8 @@ export type EnrichmentInput = {
   username?: string;
   company?: string;
   business?: string;
+  jobTitle?: string;
+  jobLocation?: string;
   jobSearch?: string;
   requestedTiers: RequestedTier[];
 };
