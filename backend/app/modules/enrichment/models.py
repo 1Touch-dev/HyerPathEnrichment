@@ -24,6 +24,9 @@ class JobRecord(Base):
     progress_metadata: Mapped[dict[str, Any] | None] = mapped_column(
         JsonDoc, default=None, nullable=True
     )
+    parent_job_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    child_job_ids: Mapped[list[str]] = mapped_column(JsonDoc, default=list, nullable=False)
+    tier_assignment: Mapped[list[str] | None] = mapped_column(JsonDoc, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
