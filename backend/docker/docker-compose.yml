@@ -156,6 +156,8 @@
       POSTGRES_USER: hyrepath
       POSTGRES_PASSWORD: psjjssjsjndj479987ffhudfui
       POSTGRES_DB: hyrepath
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
