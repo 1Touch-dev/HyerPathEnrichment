@@ -85,6 +85,13 @@ class EnrichmentService:
         job = await self.pipeline.get_job(job_id)
         if job is None:
             raise NotFoundError("job not found", meta={"job_id": job_id})
+
+        # Auto-redirect to parent if this is a child job
+        if job.parent_job_id:
+            parent = await self.pipeline.get_job(job.parent_job_id)
+            if parent:
+                job = parent
+
         return self._to_response(job)
 
     async def get_job_status(self, job_id: str) -> JobStatus:
