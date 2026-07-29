@@ -40,16 +40,26 @@ class JobRepository:
     async def get(self, job_id: str) -> JobRecord | None:
         return await self.db.get(JobRecord, job_id)
 
-    async def list(self, limit: int, offset: int) -> tuple[list[JobRecord], int]:
+    async def list(
+        self, limit: int, offset: int, include_internal: bool = False
+    ) -> tuple[list[JobRecord], int]:
         clamped_limit = max(1, min(limit, 100))
         clamped_offset = max(0, offset)
 
-        total_result = await self.db.execute(select(func.count()).select_from(JobRecord))
+        # Build base query with internal filter
+        base_query = select(JobRecord)
+        if not include_internal:
+            base_query = base_query.where(JobRecord.is_internal.is_(False))
+
+        # Count with filter
+        total_result = await self.db.execute(
+            select(func.count()).select_from(base_query.subquery())
+        )
         total = int(total_result.scalar_one())
 
+        # List with filter
         statement = (
-            select(JobRecord)
-            .order_by(JobRecord.created_at.desc())
+            base_query.order_by(JobRecord.created_at.desc())
             .limit(clamped_limit)
             .offset(clamped_offset)
         )
@@ -104,6 +114,7 @@ class JobRepository:
             parent_job_id=parent_job.id,
             child_job_ids=[],
             tier_assignment=tier_assignment,
+            is_internal=True,
         )
         self.db.add(child)
 

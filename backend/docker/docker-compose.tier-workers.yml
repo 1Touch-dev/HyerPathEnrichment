@@ -18,6 +18,8 @@ services:
       WORKER_TARGET_QUEUE: tier1
       # Enable Tier 1 LinkedIn photo scraping
       ENABLE_TIER1: "true"
+      # Browser mode for LinkedIn scraping
+      BROWSER_MODE: ${BROWSER_MODE:-multilogin}
       # Proxy: NO proxy for LinkedIn/tier1
       PROXY_MODE: none
       # Host network mode requires 127.0.0.1 instead of service names
@@ -26,6 +28,8 @@ services:
       # Multilogin connection (containerized, host network)
       MULTILOGIN_SELENIUM_HOST: "http://127.0.0.1"
       MULTILOGIN_LAUNCHER_URL: "https://127.0.0.1:45001/api/v2"
+      # No staggered startup delay for single tier1 worker
+      WORKER_STARTUP_DELAY: "0"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:6379'); r.ping()"]
@@ -54,8 +58,12 @@ services:
       # Host network mode requires 127.0.0.1 instead of service names
       DATABASE_URL: postgresql+asyncpg://hyrepath:psjjssjsjndj479987ffhudfui@127.0.0.1:5432/hyrepath
       REDIS_URL: redis://127.0.0.1:6379
-      # Delay between each worker startup (in seconds)
-      WORKER_STARTUP_DELAY: ${WORKER_STARTUP_DELAY:-10}
+      # Sidecar services - use host ports since network_mode: host
+      EMAIL_VERIFIER_URL: http://127.0.0.1:8081
+      GOOGLE_MAPS_SCRAPER_URL: http://127.0.0.1:8080
+      SOCIAL_ANALYZER_URL: http://127.0.0.1:9005
+      # No staggered startup delay for single tier234 worker (host network uses hostname index)
+      WORKER_STARTUP_DELAY: "0"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:6379'); r.ping()"]
