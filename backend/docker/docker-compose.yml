@@ -5,7 +5,7 @@ services:
       dockerfile: docker/Dockerfile.api
     working_dir: /app/backend
     environment:
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-psjjssjsjndj479987ffhudfui}@postgres:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
     command: ["alembic", "upgrade", "head"]
     depends_on:
       postgres:
@@ -17,7 +17,7 @@ services:
       dockerfile: docker/Dockerfile.api
     environment:
       API_TOKEN: ${API_TOKEN:-change-me}
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-psjjssjsjndj479987ffhudfui}@postgres:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       # Worker queue routing - must match tier-workers configuration
       WORKER_QUEUE_MODE: ${WORKER_QUEUE_MODE:-per_tier}
@@ -83,7 +83,7 @@ services:
       - "host.docker.internal:${MULTILOGIN_HOST_IP:-host-gateway}"
     environment:
       API_TOKEN: ${API_TOKEN:-}
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-psjjssjsjndj479987ffhudfui}@postgres:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
@@ -154,7 +154,7 @@ services:
       dockerfile: Dockerfile.postgres
     environment:
       POSTGRES_USER: hyrepath
-      POSTGRES_PASSWORD: psjjssjsjndj479987ffhudfui
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: hyrepath
     ports:
       - "5432:5432"

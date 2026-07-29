@@ -1,10 +1,20 @@
 # Tier-specific worker pools with dedicated concurrency levels
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.tier-workers.yml up -d
-# Scale: docker compose -f ... scale worker-tier1=2 worker-tier234=8
+# Scale: docker compose -f ... scale worker-tier234=8
+#
+# NETWORK ARCHITECTURE:
+# - Tier 1: Host network (REQUIRED for containerized Multilogin on Linux)
+# - Tier 2-4: Bridge network (scalable, uses service discovery)
+#
+# See backend/docker/NETWORKING.md for detailed architecture documentation.
 
 services:
-  # Tier 1 workers: Heavy browser automation (1-2 instances)
-  # Requires: docker-compose.tier1.yml for Multilogin configuration
+  # ══════════════════════════════════════════════════════════════════════════
+  # Tier 1 Worker: Heavy browser automation (1-2 instances)
+  # ══════════════════════════════════════════════════════════════════════════
+  # REQUIRES: Host network mode to share 127.0.0.1 namespace with Multilogin
+  # Multilogin binds Selenium ports to 127.0.0.1 only (not 0.0.0.0)
+  # Both containers must share the same loopback interface to communicate
   worker-tier1:
     network_mode: host
     extends:
@@ -16,32 +26,52 @@ services:
       # Queue routing configuration
       WORKER_QUEUE_MODE: per_tier
       WORKER_TARGET_QUEUE: tier1
+
       # Enable Tier 1 LinkedIn photo scraping
       ENABLE_TIER1: "true"
+
       # Browser mode for LinkedIn scraping
       BROWSER_MODE: ${BROWSER_MODE:-multilogin}
-      # Proxy: NO proxy for LinkedIn/tier1
+
+      # Proxy: NO proxy for LinkedIn/tier1 (to avoid detection)
       PROXY_MODE: none
-      # Host network mode requires 127.0.0.1 instead of service names
-      DATABASE_URL: postgresql+asyncpg://hyrepath:psjjssjsjndj479987ffhudfui@127.0.0.1:5432/hyrepath
-      REDIS_URL: redis://127.0.0.1:6379
-      # Multilogin connection (containerized, host network)
+
+      # ────────────────────────────────────────────────────────────────────
+      # HOST NETWORK MODE: All services must use 127.0.0.1
+      # ────────────────────────────────────────────────────────────────────
+      # Core services (postgres, redis bind to 0.0.0.0 but accessed via 127.0.0.1)
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@127.0.0.1:5432/hyrepath
+      REDIS_URL: redis://127.0.0.1:6379/0
+
+      # Multilogin connection (containerized, host network, same loopback)
       MULTILOGIN_SELENIUM_HOST: "http://127.0.0.1"
       MULTILOGIN_LAUNCHER_URL: "https://127.0.0.1:45001/api/v2"
+
+      # Sidecar services - use host-exposed ports (see docker-compose.yml)
+      EMAIL_VERIFIER_URL: http://127.0.0.1:8081
+      SOCIAL_ANALYZER_URL: http://127.0.0.1:9005
+      GMAPS_SCRAPER_URL: http://127.0.0.1:8080
+      REACHER_URL: http://127.0.0.1:8082
+
       # No staggered startup delay for single tier1 worker
       WORKER_STARTUP_DELAY: "0"
+
     restart: unless-stopped
+
     healthcheck:
-      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:6379'); r.ping()"]
+      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:6379/0'); r.ping()"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
 
-  # Tier 2-4 workers: Lightweight API enrichers (scalable to N instances)
-  # Uses host network mode to enable external proxy connectivity (Oxylabs)
+  # ══════════════════════════════════════════════════════════════════════════
+  # Tier 2-4 Workers: Lightweight API enrichers (scalable to N instances)
+  # ══════════════════════════════════════════════════════════════════════════
+  # Uses BRIDGE network for proper service discovery and horizontal scaling
+  # Can scale: docker compose up -d --scale worker-tier234=5
   worker-tier234:
-    network_mode: host
+    # NO network_mode (uses default bridge network)
     extends:
       file: docker-compose.yml
       service: worker
@@ -51,25 +81,60 @@ services:
       # Queue routing configuration
       WORKER_QUEUE_MODE: per_tier
       WORKER_TARGET_QUEUE: tier234
+
       # Disable heavy tier1 dependencies
       ENABLE_TIER1: "false"
+
       # Proxy: Enable Oxylabs proxy for tiers 2-4
-      PROXY_MODE: paid
-      # Host network mode requires 127.0.0.1 instead of service names
-      DATABASE_URL: postgresql+asyncpg://hyrepath:psjjssjsjndj479987ffhudfui@127.0.0.1:5432/hyrepath
-      REDIS_URL: redis://127.0.0.1:6379
-      # Sidecar services - use host ports since network_mode: host
-      EMAIL_VERIFIER_URL: http://127.0.0.1:8081
-      GOOGLE_MAPS_SCRAPER_URL: http://127.0.0.1:8080
-      SOCIAL_ANALYZER_URL: http://127.0.0.1:9005
-      REACHER_URL: http://127.0.0.1:8082
-      REACHER_FROM_EMAIL: Higherpath12@gmail.com
-      # No staggered startup delay for single tier234 worker (host network uses hostname index)
+      PROXY_MODE: ${PROXY_MODE:-paid}
+
+      # ────────────────────────────────────────────────────────────────────
+      # BRIDGE NETWORK MODE: All services use Docker service names
+      # ────────────────────────────────────────────────────────────────────
+      # Core services (automatic service discovery via Docker DNS)
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      REDIS_URL: redis://redis:6379/0
+
+      # Sidecar services - use service names (bridge network)
+      EMAIL_VERIFIER_URL: http://email-verifier:8080
+      GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
+      SOCIAL_ANALYZER_URL: http://social-analyzer:9005
+      REACHER_URL: http://reacher:8082
+
+      # External proxy (Oxylabs) - internet-accessible from bridge network
+      SCRAPOXY_URL: ${SCRAPOXY_URL:-http://pr.oxylabs.io:7777}
+
+      # No staggered startup delay
       WORKER_STARTUP_DELAY: "0"
+
+    # Explicit dependencies for bridge network orchestration
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      email-verifier:
+        condition: service_healthy
+      social-analyzer:
+        condition: service_healthy
+      google-maps-scraper:
+        condition: service_healthy
+
     restart: unless-stopped
+
     healthcheck:
-      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:6379'); r.ping()"]
+      test: ["CMD", "python", "-c", "from app.workers.queue import get_redis_connection; get_redis_connection().ping()"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
+
+# ══════════════════════════════════════════════════════════════════════════
+# NOTES
+# ══════════════════════════════════════════════════════════════════════════
+# 1. Tier 1 MUST use host network to reach Multilogin's 127.0.0.1 ports
+# 2. Tier 2-4 use bridge network for scalability and isolation
+# 3. Both workers share the same Redis queue but process different tiers
+# 4. Scale tier 2-4 workers: docker compose up -d --scale worker-tier234=N
+# 5. Cannot scale tier 1 workers with host network (port conflicts)
+# ══════════════════════════════════════════════════════════════════════════
