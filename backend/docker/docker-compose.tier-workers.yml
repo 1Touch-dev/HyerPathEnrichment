@@ -11,7 +11,7 @@ services:
       file: docker-compose.yml
       service: worker
     env_file:
-      - ${WORKER_ENV_FILE:-../.env}
+      - ${WORKER_ENV_FILE:-../.env.production}
     environment:
       # Queue routing configuration
       WORKER_QUEUE_MODE: per_tier
@@ -46,7 +46,7 @@ services:
       file: docker-compose.yml
       service: worker
     env_file:
-      - ${WORKER_ENV_FILE:-../.env}
+      - ${WORKER_ENV_FILE:-../.env.production}
     environment:
       # Queue routing configuration
       WORKER_QUEUE_MODE: per_tier
@@ -62,6 +62,8 @@ services:
       EMAIL_VERIFIER_URL: http://127.0.0.1:8081
       GOOGLE_MAPS_SCRAPER_URL: http://127.0.0.1:8080
       SOCIAL_ANALYZER_URL: http://127.0.0.1:9005
+      REACHER_URL: http://127.0.0.1:8082
+      REACHER_FROM_EMAIL: Higherpath12@gmail.com
       # No staggered startup delay for single tier234 worker (host network uses hostname index)
       WORKER_STARTUP_DELAY: "0"
     restart: unless-stopped
