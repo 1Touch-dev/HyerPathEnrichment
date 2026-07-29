@@ -1,4 +1,4 @@
-﻿services:
+services:
   migrate:
     build:
       context: ..
@@ -256,7 +256,7 @@
     restart: unless-stopped
   ollama:
     image: ollama/ollama:latest
-    profiles: ["llm"]
+    profiles: ["ollama"]
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
