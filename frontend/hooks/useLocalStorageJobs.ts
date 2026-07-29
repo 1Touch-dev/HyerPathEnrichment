@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 
 const STORAGE_KEY = "active_jobs";
 const MAX_COMPLETED_AGE_MS = 5 * 60 * 1000; // 5 minutes
@@ -64,7 +64,9 @@ export function useLocalStorageJobs() {
     setStoredJobs(jobs);
   }, [jobs]);
 
-  const addJob = (id: string, status: TrackedJob["status"] = "queued") => {
+  const cleanedJobs = useMemo(() => cleanupOldJobs(jobs), [jobs]);
+
+  const addJob = useCallback((id: string, status: TrackedJob["status"] = "queued") => {
     setJobs((prev) => {
       const exists = prev.find((j) => j.id === id);
       if (exists) return prev;
@@ -72,9 +74,9 @@ export function useLocalStorageJobs() {
       const cleaned = cleanupOldJobs(prev);
       return [...cleaned, { id, status, createdAt: Date.now() }];
     });
-  };
+  }, []);
 
-  const updateJobStatus = (id: string, status: TrackedJob["status"]) => {
+  const updateJobStatus = useCallback((id: string, status: TrackedJob["status"]) => {
     setJobs((prev) =>
       prev.map((job) =>
         job.id === id
@@ -92,20 +94,23 @@ export function useLocalStorageJobs() {
           : job,
       ),
     );
-  };
+  }, []);
 
-  const removeJob = (id: string) => {
+  const removeJob = useCallback((id: string) => {
     setJobs((prev) => prev.filter((job) => job.id !== id));
-  };
+  }, []);
 
-  const clearCompleted = () => {
+  const clearCompleted = useCallback(() => {
     setJobs((prev) => prev.filter((job) => job.status === "queued" || job.status === "running"));
-  };
+  }, []);
 
-  const activeJobs = jobs.filter((job) => job.status === "queued" || job.status === "running");
+  const activeJobs = useMemo(
+    () => cleanedJobs.filter((job) => job.status === "queued" || job.status === "running"),
+    [cleanedJobs],
+  );
 
   return {
-    jobs: cleanupOldJobs(jobs),
+    jobs: cleanedJobs,
     activeJobs,
     addJob,
     updateJobStatus,
