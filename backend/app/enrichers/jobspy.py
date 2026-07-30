@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from app.core.config import get_settings
 from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.base import Enricher
+
+logger = logging.getLogger(__name__)
 
 # JobSpy scrapes these concurrently (ThreadPoolExecutor). Exact site strings from python-jobspy.
 JOBSPY_SITES = ("linkedin", "indeed", "glassdoor", "google", "zip_recruiter")
@@ -27,6 +30,11 @@ class JobSpyEnricher(Enricher):
         location = request.job_location
         country = request.job_country
 
+        # Log the search parameters for debugging
+        logger.info(
+            f"JobSpy search: term={search_term!r}, location={location!r}, country={country!r}"
+        )
+
         rows = await asyncio.to_thread(
             self._scrape,
             search_term,
@@ -45,6 +53,10 @@ class JobSpyEnricher(Enricher):
             }
             for row in rows
         ]
+
+        logger.info(
+            f"JobSpy returned {len(jobs)} jobs from {len(set(j['source'] for j in jobs))} sources"
+        )
         return {"jobs": jobs} if jobs else {}
 
     def _scrape(
@@ -58,8 +70,14 @@ class JobSpyEnricher(Enricher):
         try:
             from jobspy import scrape_jobs
         except ImportError:
+            logger.warning("JobSpy library not installed")
             return []
+
         try:
+            # Normalize location format for better compatibility
+            # Glassdoor/Indeed prefer "City, State" or "City, Country" format
+            formatted_location = self._format_location(location, country)
+
             # Build scrape_jobs parameters
             kwargs: dict[str, Any] = {
                 "site_name": list(JOBSPY_SITES),
@@ -67,21 +85,74 @@ class JobSpyEnricher(Enricher):
                 "results_wanted": limit,
             }
 
-            # Add location if provided
-            if location:
-                kwargs["location"] = location
+            # Add location if provided (used by LinkedIn, Indeed, Glassdoor, ZipRecruiter)
+            if formatted_location:
+                kwargs["location"] = formatted_location
 
-            # Add country_indeed if provided (used by Indeed and Glassdoor)
-            # Defaults to None which lets JobSpy use its default behavior
+            # Add country_indeed if provided (used by Indeed and Glassdoor for regional sites)
+            # Must be lowercase country name from JobSpy's supported list
             if country:
                 kwargs["country_indeed"] = country.lower()
 
+            # Google Jobs uses google_search_term instead of search_term + location
+            # Build a natural language query for Google
+            if location and search_term:
+                kwargs["google_search_term"] = f"{search_term} jobs in {formatted_location}"
+
+            logger.debug(f"JobSpy kwargs: {kwargs}")
+
             frame = scrape_jobs(**kwargs)
-        except Exception:
+        except Exception as e:
+            logger.error(f"JobSpy scraping failed: {e}", exc_info=True)
             return []
+
         if frame is None or getattr(frame, "empty", True):
+            logger.warning("JobSpy returned empty results")
             return []
-        records = frame.to_dict(orient="records")
+
+        try:
+            records = frame.to_dict(orient="records")
+        except Exception as e:
+            logger.error(f"Failed to convert JobSpy results to dict: {e}")
+            return []
+
         if not isinstance(records, list):
+            logger.warning(f"JobSpy returned non-list records: {type(records)}")
             return []
-        return [row for row in records if isinstance(row, dict)]
+
+        # Filter valid job records
+        valid_jobs = [row for row in records if isinstance(row, dict)]
+        logger.info(
+            f"JobSpy scraped {len(valid_jobs)} valid jobs from {len(records)} total records"
+        )
+
+        return valid_jobs
+
+    def _format_location(self, location: str | None, country: str | None) -> str:
+        """Format location for better job board compatibility.
+
+        Glassdoor and Indeed work better with:
+        - "City, State" (US)
+        - "City, Country" (International)
+        - Just "State" or "Country" also works
+        """
+        if not location:
+            return ""
+
+        location = location.strip()
+
+        # If location already has a comma, use as-is
+        if "," in location:
+            return location
+
+        # For US locations, try to add state/country context
+        if country:
+            country_name = country.upper()
+            # If it's USA and location is just a city, it's ambiguous but JobSpy will try
+            # For other countries, append country name for clarity
+            if country_name not in ("USA", "US", "UNITED STATES"):
+                # Only append if location doesn't already end with country
+                if not location.lower().endswith(country.lower()):
+                    return f"{location}, {country}"
+
+        return location

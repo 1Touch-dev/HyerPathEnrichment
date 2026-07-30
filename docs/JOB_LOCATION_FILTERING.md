@@ -30,7 +30,8 @@ class EnrichmentRequest(BaseModel):
 ### 2. JobSpy Enricher
 **File: `backend/app/enrichers/jobspy.py`**
 
-Updated the enricher to use location parameters:
+Updated the enricher to use location parameters with enhanced compatibility:
+
 ```python
 def _scrape(self, search_term, location, country, company, limit):
     kwargs = {
@@ -39,23 +40,39 @@ def _scrape(self, search_term, location, country, company, limit):
         "results_wanted": limit,
     }
 
-    if location:
-        kwargs["location"] = location  # Used by all job boards
+    # Format location for better Glassdoor/Indeed compatibility
+    formatted_location = self._format_location(location, country)
+
+    if formatted_location:
+        kwargs["location"] = formatted_location  # Used by all job boards
 
     if country:
         kwargs["country_indeed"] = country.lower()  # Used by Indeed & Glassdoor
 
+    # Google Jobs uses natural language queries
+    if location and search_term:
+        kwargs["google_search_term"] = f"{search_term} jobs in {formatted_location}"
+
     frame = scrape_jobs(**kwargs)
 ```
 
+**Key improvements:**
+- **Location formatting**: Automatically formats locations as "City, Country" for better parsing
+- **Google Jobs support**: Uses `google_search_term` parameter with natural language query
+- **Enhanced logging**: Tracks which job boards succeed/fail and result counts
+- **Better error handling**: Catches and logs specific failures per job board
+
 **How it works:**
-- `location`: City, state, or region (e.g., "Berlin", "San Francisco, CA", "London, UK")
+- `location`: City, state, or region (e.g., "Berlin", "San Francisco, CA")
   - Used by: LinkedIn, Indeed, Glassdoor, ZipRecruiter
+  - Automatically formatted for compatibility
 - `country_indeed`: Country name for regional Indeed/Glassdoor sites
   - Used by: Indeed, Glassdoor
-  - Must match exact country names from JobSpy's supported list (e.g., "germany", "usa", "canada")
+  - Must match exact country names from JobSpy's supported list
   - LinkedIn searches globally, ignores this parameter
-- Defaults to `None` for both, which lets JobSpy use its default behavior (previously "usa")
+- `google_search_term`: Natural language query for Google Jobs
+  - Format: "{job_title} jobs in {location}"
+  - Example: "Software Engineer jobs in Berlin, Germany"
 
 ### 3. Frontend Integration
 **Files: `frontend/src/lib/types.ts`, `frontend/src/lib/api-adapter.ts`, `frontend/components/console/IntakeForm.tsx`**
@@ -254,6 +271,59 @@ No database migrations required. The new fields are:
 - Supported Countries: https://mintlify.wiki/speedyapply/JobSpy/guides/supported-countries
 - Filtering Guide: https://mintlify.wiki/speedyapply/JobSpy/guides/filtering-results
 - Indeed Parameters: https://mintlify.wiki/speedyapply/JobSpy/job-boards/indeed
+
+## 🔧 Troubleshooting
+
+### Job Board Issues
+
+**Glassdoor: "location not parsed" error**
+- **Cause**: Glassdoor requires precise location matching
+- **Fix**: Use "City, State" format (e.g., "San Francisco, CA" not "San Fransico")
+- **Also works**: Just state name ("California") or country ("Germany")
+
+**ZipRecruiter: 403 Forbidden error**
+- **Cause**: Bot detection / rate limiting
+- **Fix**: Use proxy rotation (`PROXY_MODE=paid` with Oxylabs or similar)
+- **Note**: ZipRecruiter is US/Canada only
+
+**Indeed: Silent failures**
+- **Cause**: Missing or incorrect `country_indeed` parameter
+- **Fix**: Ensure `job_country` field is set correctly
+- **Example**: "USA", "Germany", "UK" (case-insensitive)
+
+**Google Jobs: No results**
+- **Cause**: Uses different search mechanism
+- **How it works**: Uses natural language `google_search_term`
+- **Automatically generated**: "{job_title} jobs in {location}"
+
+### Check Worker Logs
+
+View real-time job board errors:
+```bash
+docker logs docker-worker-tier234-1 --follow | grep -i "jobspy\|indeed\|glassdoor"
+```
+
+Common error patterns:
+- `ERROR - JobSpy:Glassdoor - location not parsed` → Location format issue
+- `ERROR - JobSpy:ZipRecruiter - response status code 403` → Bot detection
+- `INFO - JobSpy:Linkedin - finished scraping` → Success
+
+### Verify Request Data
+
+Check what was actually sent to the enricher:
+```bash
+docker exec docker-postgres-1 psql -U hyrepath -d hyrepath \
+  -c "SELECT request_payload FROM jobs WHERE id='JOB_ID' \G"
+```
+
+Ensure it includes:
+```json
+{
+  "job_title": "Backend Developer",
+  "job_location": "Berlin",
+  "job_country": "Germany"
+}
+```
 
 ## Support
 
