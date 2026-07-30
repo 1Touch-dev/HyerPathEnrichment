@@ -275,6 +275,30 @@ Runs in parallel when `tier2` is requested:
 | `jobspy.py` | `speedyapply/JobSpy` | Multi-board job pull (LinkedIn, Indeed, Glassdoor, Google Jobs, ZipRecruiter) |
 | `local_business.py` | `gosom/google-maps-scraper` | Address, phone, website, rating via sidecar |
 
+**Concurrency:** Fully async, no enrichment worker delay.
+
+**Purpose:** Discover job openings matching criteria (JobSpy) and local business information (Google Maps Scraper).
+
+**Input:** `job_search` (or `job_title`/`job_location`/`job_country`) and/or `business`
+
+**LLM Job Query Optimization:**
+
+When `LLM_MODE=litellm`, the system uses an LLM (Gemini 2.5 Flash via LiteLLM proxy) to generate board-specific optimized queries for each job board:
+
+- **LinkedIn**: Contextual location format
+- **Indeed**: Correct `country_indeed` parameter + formatted location
+- **Glassdoor**: "City, State" or "City, Country" format (strict requirement)
+- **Google Jobs**: Natural language query ("Software Engineer jobs in Mumbai, India")
+- **ZipRecruiter**: Board-specific keywords
+
+The LLM optimization normalizes locations (e.g., "Bengaluru" → "Bengaluru, Karnataka"), handles ambiguous cities (adds state/country context), and generates board-specific parameters from few-shot examples. Falls back gracefully to manual logic if LLM unavailable.
+
+**Key Implementation:** `backend/app/enrichers/jobspy.py` → `backend/app/clients/llm.py::litellm_optimize_job_query()`
+
+**Cost:** ~$0.001-0.01 per job search (Gemini 2.5 Flash). See [LLM_JOB_OPTIMIZATION.md](../../docs/LLM_JOB_OPTIMIZATION.md) for details.
+
+**JobSpy** scrapes 5 boards concurrently (LinkedIn, Indeed, Glassdoor, Google, ZipRecruiter) via `python-jobspy`. ZipRecruiter often returns 403 (bot detection). Paid proxy (`PROXY_MODE=paid`) helps but doesn't guarantee success. Google Maps Scraper is a containerized sidecar (`docker/Dockerfile.google-maps-scraper`) built from `gosom/google-maps-scraper`.
+
 ### LLM post-pass — disambiguation
 
 `app/clients/llm.py` (`LiteLLMDisambiguator`) resolves ambiguous handles:
