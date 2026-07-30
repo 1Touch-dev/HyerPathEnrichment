@@ -40,6 +40,7 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
   const [business, setBusiness] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [jobLocation, setJobLocation] = useState("");
+  const [jobCountry, setJobCountry] = useState("");
 
   const [requestedTiers, setRequestedTiers] = useState<RequestedTier[]>(() =>
     normalizeTiersForMode(initialTiers ?? ["tier2", "tier3"], mode),
@@ -65,8 +66,18 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
 
   const fields = useMemo(() => {
     const jobSearch = `${jobTitle.trim()} ${jobLocation.trim()}`.trim();
-    return { email, linkedinUrl, username, company, business, jobSearch };
-  }, [email, linkedinUrl, username, company, business, jobTitle, jobLocation]);
+    return {
+      email,
+      linkedinUrl,
+      username,
+      company,
+      business,
+      jobSearch,
+      jobTitle,
+      jobLocation,
+      jobCountry,
+    };
+  }, [email, linkedinUrl, username, company, business, jobTitle, jobLocation, jobCountry]);
 
   const fieldsValid = isEnrichmentInputValidForTiers(fields, normalizedTiers);
   const canSubmit =
@@ -120,6 +131,10 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
 
       const trimmedJobTitle = jobTitle.trim();
       const trimmedJobLocation = jobLocation.trim();
+      const trimmedJobCountry = jobCountry.trim();
+      if (trimmedJobTitle) base.jobTitle = trimmedJobTitle;
+      if (trimmedJobLocation) base.jobLocation = trimmedJobLocation;
+      if (trimmedJobCountry) base.jobCountry = trimmedJobCountry;
       if (trimmedJobTitle || trimmedJobLocation) {
         base.jobSearch = `${trimmedJobTitle} ${trimmedJobLocation}`.trim();
       }
@@ -251,7 +266,16 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
                 id="jobLocation"
                 value={jobLocation}
                 onChange={(e) => setJobLocation(e.target.value)}
-                placeholder="e.g., Remote, San Francisco"
+                placeholder="e.g., Remote, San Francisco, Berlin"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="jobCountry">Job country {fieldSuffix(false)}</Label>
+              <Input
+                id="jobCountry"
+                value={jobCountry}
+                onChange={(e) => setJobCountry(e.target.value)}
+                placeholder="e.g., USA, Germany, Canada"
               />
             </div>
           </div>

@@ -34,16 +34,24 @@ def base_dossier(request: EnrichmentRequest) -> Dossier:
         request.business,
         request.job_search,
     ]
-    return Dossier(
-        metadata={
-            "generated_at": datetime.now(UTC).isoformat(),
-            "pipeline_id": f"pipe_{uuid4().hex}",
-            "requested_tiers": [
-                tier.value for tier in (request.requested_tiers or list(RequestedTier))
-            ],
-            "identifier_summary": " • ".join([value for value in values if value]),
-        }
-    )
+    metadata: dict[str, Any] = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "pipeline_id": f"pipe_{uuid4().hex}",
+        "requested_tiers": [
+            tier.value for tier in (request.requested_tiers or list(RequestedTier))
+        ],
+        "identifier_summary": " • ".join([value for value in values if value]),
+    }
+
+    # Add job search context to metadata when present
+    if request.job_title:
+        metadata["job_title"] = request.job_title
+    if request.job_location:
+        metadata["job_location"] = request.job_location
+    if request.job_country:
+        metadata["job_country"] = request.job_country
+
+    return Dossier(metadata=metadata)
 
 
 def normalize_job_key(title: str, company: str, location: str) -> str:

@@ -13,6 +13,7 @@ export type EnrichmentInput = {
   business?: string;
   jobTitle?: string;
   jobLocation?: string;
+  jobCountry?: string;
   jobSearch?: string;
   requestedTiers: RequestedTier[];
 };

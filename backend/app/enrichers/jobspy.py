@@ -19,17 +19,27 @@ class JobSpyEnricher(Enricher):
 
     async def _fetch(self, request: EnrichmentRequest) -> dict[str, Any]:
         settings = get_settings()
+
+        # Build search term from job_title and job_search
+        search_term = request.job_title or request.job_search or ""
+
+        # Extract location and country for filtering
+        location = request.job_location
+        country = request.job_country
+
         rows = await asyncio.to_thread(
             self._scrape,
-            request.job_search or "",
+            search_term,
+            location,
+            country,
             request.company,
             settings.jobspy_results_per_board,
         )
         jobs = [
             {
-                "title": str(row.get("title") or request.job_search or "Unknown role"),
+                "title": str(row.get("title") or search_term or "Unknown role"),
                 "company": str(row.get("company") or request.company or "Unknown"),
-                "location": str(row.get("location") or "Unknown"),
+                "location": str(row.get("location") or location or "Unknown"),
                 "remote": bool(row.get("is_remote") or row.get("remote") or False),
                 "source": str(row.get("site") or self.source_name),
             }
@@ -37,17 +47,36 @@ class JobSpyEnricher(Enricher):
         ]
         return {"jobs": jobs} if jobs else {}
 
-    def _scrape(self, search_term: str, company: str | None, limit: int) -> list[dict[str, Any]]:
+    def _scrape(
+        self,
+        search_term: str,
+        location: str | None,
+        country: str | None,
+        company: str | None,
+        limit: int,
+    ) -> list[dict[str, Any]]:
         try:
             from jobspy import scrape_jobs
         except ImportError:
             return []
         try:
-            frame = scrape_jobs(
-                site_name=list(JOBSPY_SITES),
-                search_term=search_term,
-                results_wanted=limit,
-            )
+            # Build scrape_jobs parameters
+            kwargs: dict[str, Any] = {
+                "site_name": list(JOBSPY_SITES),
+                "search_term": search_term,
+                "results_wanted": limit,
+            }
+
+            # Add location if provided
+            if location:
+                kwargs["location"] = location
+
+            # Add country_indeed if provided (used by Indeed and Glassdoor)
+            # Defaults to None which lets JobSpy use its default behavior
+            if country:
+                kwargs["country_indeed"] = country.lower()
+
+            frame = scrape_jobs(**kwargs)
         except Exception:
             return []
         if frame is None or getattr(frame, "empty", True):
