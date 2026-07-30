@@ -236,7 +236,9 @@ echo ""
 info "Checking network configuration consistency..."
 
 # Check if any URLs use 127.0.0.1 (should be rare, only for tier1 overrides)
-localhost_urls=$(grep -E "^[A-Z_]+_URL=.*127\.0\.0\.1" "$ENV_FILE" | wc -l)
+# Fixed: Use simpler grep without greedy .* to avoid backtracking hang
+localhost_urls=$(grep -c "127\.0\.0\.1" "$ENV_FILE" 2>/dev/null || echo "0")
+
 if [ "$localhost_urls" -gt 0 ]; then
   warn "Found $localhost_urls URL(s) using 127.0.0.1 - ensure this is intentional"
   warn "Bridge network services should use service names (postgres, redis, etc.)"
