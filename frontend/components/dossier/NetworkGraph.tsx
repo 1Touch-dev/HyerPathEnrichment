@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import ForceGraph2D from "react-force-graph-2d";
+import dynamic from "next/dynamic";
 import type { Dossier } from "@/src/lib/types";
+
+const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
+  ssr: false,
+});
 
 interface NetworkGraphProps {
   dossier: Dossier;

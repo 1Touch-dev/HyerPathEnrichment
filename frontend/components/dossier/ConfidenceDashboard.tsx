@@ -106,11 +106,10 @@ export function ConfidenceDashboard({ confidence, className }: ConfidenceDashboa
               </div>
 
               {/* Progress bar */}
-              <div className="relative">
-                <Progress value={item.score * 100} className="h-2" />
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
                 <div
                   className={cn(
-                    "absolute top-0 left-0 h-2 rounded-full transition-all",
+                    "absolute top-0 left-0 h-full rounded-full transition-all",
                     getConfidenceProgressColor(item.score),
                   )}
                   style={{ width: `${item.score * 100}%` }}

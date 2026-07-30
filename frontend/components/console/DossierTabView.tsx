@@ -64,9 +64,10 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
         <TabsTrigger value="sources" disabled={counts.sources === 0}>
           Sources {counts.sources > 0 && `(${counts.sources})`}
         </TabsTrigger>
-        <TabsTrigger value="network" disabled={!hasConnections}>
+        {/* Network tab temporarily hidden */}
+        {/* <TabsTrigger value="network" disabled={!hasConnections}>
           Network
-        </TabsTrigger>
+        </TabsTrigger> */}
       </TabsList>
 
       <TabsContent value="overview" className="mt-4">
@@ -184,7 +185,8 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
         )}
       </TabsContent>
 
-      <TabsContent value="network" className="mt-4">
+      {/* Network tab content temporarily hidden */}
+      {/* <TabsContent value="network" className="mt-4">
         {hasConnections ? (
           <div className="rounded-lg border bg-card p-4">
             <h3 className="text-sm font-semibold mb-4">Connection Network</h3>
@@ -200,7 +202,7 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
             description="No handles, jobs, or coworkers to visualize."
           />
         )}
-      </TabsContent>
+      </TabsContent> */}
     </Tabs>
   );
 }
