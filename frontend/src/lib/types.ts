@@ -160,3 +160,8 @@ export type SignalListResponse = {
   limit: number;
   offset: number;
 };
+
+// Type aliases for easier component imports
+export type PhotoAsset = NonNullable<Dossier["photo"]>;
+export type JobListing = Dossier["jobs"][number];
+export type BusinessProfile = NonNullable<Dossier["business"]>;
