@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import io
+import json
 import time
 from typing import Any
 
@@ -31,7 +32,7 @@ class LocalBusinessEnricher(Enricher):
                 "keywords": [request.business],
                 "depth": 1,
                 "lang": "en",
-                "max_time": 180_000_000_000,
+                "max_time": 180000,  # milliseconds: 180 seconds = 3 minutes
             },
         )
         if not isinstance(created, dict) or "id" not in created:
@@ -60,16 +61,7 @@ class LocalBusinessEnricher(Enricher):
         if record is None:
             return {}
 
-        return {
-            "business": {
-                "name": str(record.get("title") or record.get("name") or request.business),
-                "address": str(record.get("address") or record.get("complete_address") or ""),
-                "website": str(record.get("website") or record.get("link") or ""),
-                "rating": float(record.get("review_rating") or record.get("rating") or 0.0),
-                "phone": str(record.get("phone") or record.get("phone_number") or ""),
-                "metadata": {"provider": self.source_name, "job_id": job_id},
-            }
-        }
+        return self._parse_business_record(record, request, job_id)
 
     def _first_csv_row(self, csv_text: str | None) -> dict[str, str] | None:
         if not csv_text or not csv_text.strip():
@@ -79,3 +71,93 @@ class LocalBusinessEnricher(Enricher):
             if row:
                 return {str(key): str(value) for key, value in row.items() if key}
         return None
+
+    def _parse_business_record(
+        self, record: dict[str, str], request: EnrichmentRequest, job_id: str
+    ) -> dict[str, Any]:
+        """Parse CSV record into enriched BusinessProfile."""
+
+        # Helper to safely parse int
+        def parse_int(value: str | None) -> int | None:
+            if not value or value == "":
+                return None
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return None
+
+        # Helper to safely parse float
+        def parse_float(value: str | None) -> float | None:
+            if not value or value == "":
+                return None
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return None
+
+        # Helper to parse JSON-like fields
+        def parse_json(value: str | None) -> Any:
+            if not value or value == "":
+                return None
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                return value  # Return as string if not valid JSON
+
+        # Helper to parse comma-separated lists
+        def parse_list(value: str | None) -> list[str] | None:
+            if not value or value == "":
+                return None
+            return [item.strip() for item in value.split(",") if item.strip()]
+
+        return {
+            "business": {
+                # Core fields
+                "name": str(record.get("title") or record.get("name") or request.business),
+                "address": str(record.get("address") or ""),
+                "website": str(record.get("website") or ""),
+                "rating": parse_float(record.get("review_rating")) or 0.0,
+                "phone": str(record.get("phone") or ""),
+                # Location & identification
+                "category": record.get("category"),
+                "latitude": parse_float(record.get("latitude")),
+                "longitude": parse_float(record.get("longitude")),
+                "place_id": record.get("place_id"),
+                "cid": record.get("cid"),
+                "plus_code": record.get("plus_code"),
+                "complete_address": record.get("complete_address"),
+                # Operations
+                "open_hours": record.get("open_hours"),
+                "popular_times": record.get("popular_times"),
+                "timezone": record.get("timezone"),
+                "status": record.get("status"),
+                # Reviews & ratings
+                "review_count": parse_int(record.get("review_count")),
+                "reviews_per_rating": parse_json(record.get("reviews_per_rating")),
+                "reviews_link": record.get("reviews_link"),
+                "user_reviews": parse_json(record.get("user_reviews")),
+                # Media
+                "thumbnail": record.get("thumbnail"),
+                "images": parse_list(record.get("images")),
+                "street_view_url": record.get("street_view_url"),
+                # Commerce
+                "price_range": record.get("price_range"),
+                "reservations": record.get("reservations"),
+                "order_online": record.get("order_online"),
+                "menu": record.get("menu"),
+                "credit_cards_accepted": record.get("credit_cards_accepted"),
+                # Additional info
+                "description": record.get("descriptions"),  # Note: "descriptions" in CSV
+                "about": record.get("about"),
+                "owner": record.get("owner"),
+                "emails": parse_list(record.get("emails")),
+                # Google Maps references
+                "link": record.get("link"),
+                "data_id": record.get("data_id"),
+                "metadata": {
+                    "provider": self.source_name,
+                    "job_id": job_id,
+                    "input_id": record.get("input_id"),
+                },
+            }
+        }

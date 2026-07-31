@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/console/EmptyState";
 import { ConfidenceDashboard } from "@/components/dossier/ConfidenceDashboard";
 import { SourceBadges } from "@/components/dossier/SourceBadges";
 import { NetworkGraph } from "@/components/dossier/NetworkGraph";
+import { BusinessProfileCard } from "@/components/dossier/BusinessProfileCard";
 import type { Dossier } from "@/src/lib/types";
 import type { DossierEntity } from "./dossier-entity";
 
@@ -24,6 +25,7 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
       handles: dossier.handles.length,
       emails: dossier.emails.length + dossier.verifiedEmails.length,
       jobs: dossier.jobs.length,
+      business: dossier.business ? 1 : 0,
       confidence: dossier.confidence.length,
       sources: dossier.sources.length,
     }),
@@ -35,6 +37,7 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
       counts.handles > 0 ||
       counts.emails > 0 ||
       counts.jobs > 0 ||
+      counts.business > 0 ||
       counts.confidence > 0 ||
       counts.sources > 0,
     [counts],
@@ -57,6 +60,9 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
         </TabsTrigger>
         <TabsTrigger value="professional" disabled={counts.jobs === 0}>
           Professional {counts.jobs > 0 && `(${counts.jobs})`}
+        </TabsTrigger>
+        <TabsTrigger value="business" disabled={counts.business === 0}>
+          Business
         </TabsTrigger>
         <TabsTrigger value="confidence" disabled={counts.confidence === 0}>
           Confidence {counts.confidence > 0 && `(${counts.confidence})`}
@@ -93,6 +99,12 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Job Listings:</span>
                     <span className="font-medium">{counts.jobs}</span>
+                  </div>
+                )}
+                {counts.business > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Business Profile:</span>
+                    <span className="font-medium">✓</span>
                   </div>
                 )}
                 {counts.confidence > 0 && (
@@ -162,6 +174,17 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
           <EmptyState
             title="No professional information"
             description="No job listings or business information found."
+          />
+        )}
+      </TabsContent>
+
+      <TabsContent value="business" className="mt-4">
+        {dossier.business ? (
+          <BusinessProfileCard business={dossier.business} />
+        ) : (
+          <EmptyState
+            title="No business information"
+            description="No business profile found in this enrichment."
           />
         )}
       </TabsContent>

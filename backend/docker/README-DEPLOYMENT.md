@@ -48,7 +48,7 @@ After all workers have started, test from one container:
 
 ```bash
 docker exec docker-worker-tier234-1 curl -x pr.oxylabs.io:7777 \
-  -U axiz666_1NwOV:Oxylab+axiz6040 https://httpbin.org/ip
+  -U YOUR_USERNAME:YOUR_PASSWORD https://httpbin.org/ip
 ```
 
 Expected: Should return proxy IP, not "503 Service Temporarily Unavailable".

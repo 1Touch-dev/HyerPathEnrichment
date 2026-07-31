@@ -16,6 +16,7 @@ import { formatPercent, initialsFrom } from "@/src/lib/utils";
 import { EnrichmentJob } from "@/src/lib/types";
 import { useJobEvents } from "@/hooks/useJobEvents";
 import { Clock, Loader2, CheckCircle } from "lucide-react";
+import { BusinessProfileCard } from "@/components/dossier/BusinessProfileCard";
 
 type DossierViewProps = {
   job: EnrichmentJob;
@@ -334,33 +335,18 @@ function JobsBusinessSection({ dossier }: { dossier: Dossier }) {
           )}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Business</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm">
-          {dossier.business ? (
-            <ul className="flex flex-col gap-1">
-              <li>{dossier.business.name}</li>
-              <li>{dossier.business.address}</li>
-              <li>
-                <a
-                  href={dossier.business.website}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary"
-                >
-                  {dossier.business.website}
-                </a>
-              </li>
-              <li>{dossier.business.phone}</li>
-              <li>Rating: {dossier.business.rating}</li>
-            </ul>
-          ) : (
+      {dossier.business ? (
+        <BusinessProfileCard business={dossier.business} />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Business</CardTitle>
+          </CardHeader>
+          <CardContent>
             <EmptyMessage message="No business profile returned." />
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

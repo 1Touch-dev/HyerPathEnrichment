@@ -36,11 +36,56 @@ class JobListing(BaseModel):
 
 
 class BusinessProfile(BaseModel):
+    # Core fields (existing)
     name: str
     address: str
     website: str
     rating: float
     phone: str
+
+    # Location & identification
+    category: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    place_id: str | None = None
+    cid: str | None = None
+    plus_code: str | None = None
+    complete_address: str | None = None
+
+    # Operations
+    open_hours: str | None = None
+    popular_times: str | None = None
+    timezone: str | None = None
+    status: str | None = None  # open/closed/temporary
+
+    # Reviews & ratings
+    review_count: int | None = None
+    reviews_per_rating: dict[str, int] | None = None  # {"5": 120, "4": 45, ...}
+    reviews_link: str | None = None
+    user_reviews: list[dict[str, Any]] | None = None  # [{text, rating, timestamp}]
+
+    # Media
+    thumbnail: str | None = None
+    images: list[str] | None = None
+    street_view_url: str | None = None
+
+    # Commerce
+    price_range: str | None = None  # $, $$, $$$, $$$$
+    reservations: str | None = None
+    order_online: str | None = None
+    menu: str | None = None
+    credit_cards_accepted: str | None = None
+
+    # Additional info
+    description: str | None = None
+    about: str | None = None
+    owner: str | None = None
+    emails: list[str] | None = None
+
+    # Google Maps references
+    link: str | None = None
+    data_id: str | None = None
+
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
