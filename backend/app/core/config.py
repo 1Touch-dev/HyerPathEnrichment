@@ -160,6 +160,14 @@ class Settings(BaseSettings):
     # Compliance
     audit_log_retention_years: int = Field(default=5, alias="AUDIT_LOG_RETENTION_YEARS")
 
+    # Email Service (SendGrid)
+    sendgrid_api_key: SecretStr = Field(default=SecretStr(""), alias="SENDGRID_API_KEY")
+    sendgrid_from_email: str = Field(default="noreply@hyrepath.com", alias="SENDGRID_FROM_EMAIL")
+    sendgrid_from_name: str = Field(default="Hyrepath Enrichment", alias="SENDGRID_FROM_NAME")
+    sendgrid_reply_to: str = Field(default="support@hyrepath.com", alias="SENDGRID_REPLY_TO")
+    email_enabled: bool = Field(default=False, alias="EMAIL_ENABLED")
+    email_test_mode: bool = Field(default=True, alias="EMAIL_TEST_MODE")
+
     # RQ job timeout (seconds) — must accommodate full all-tier enrichment (20-30 min)
     rq_job_timeout_seconds: int = Field(default=3000, alias="RQ_JOB_TIMEOUT_SECONDS")
 

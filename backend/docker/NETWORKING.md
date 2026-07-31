@@ -333,6 +333,7 @@ For more context on why these networking decisions were made:
 |-----------|-------------|-------------------|-----------|
 | API | Bridge | `postgres:5432` | ✅ Yes |
 | Tier 2-4 Workers | Bridge | `postgres:5432` | ✅ Yes |
+| Email Worker | Bridge | `redis:6379` | ✅ Yes |
 | Tier 1 Worker | Host | `127.0.0.1:5432` | ❌ No |
 | PostgreSQL | Bridge | N/A | ❌ No (stateful) |
 | Redis | Bridge | N/A | ❌ No (stateful) |
@@ -342,7 +343,7 @@ For more context on why these networking decisions were made:
 ## Summary
 
 The hybrid networking approach:
-- ✅ Maximizes scalability for Tier 2-4 workers
+- ✅ Maximizes scalability for Tier 2-4 workers and email workers
 - ✅ Maintains proper isolation with bridge networking
 - ✅ Enables Tier 1 to reach Multilogin's localhost-only ports
 - ✅ Uses Docker's built-in service discovery where possible

@@ -34,6 +34,45 @@ async def _run_enrichment_job(job_id: str) -> None:
         async with SessionLocal() as session:
             pipeline = Pipeline(session)
             await pipeline.execute_job(job_id)
+
+            # Send job completion email
+            try:
+                jobs_repo = JobRepository(session)
+                job = await jobs_repo.get(job_id)
+                if job and job.status == JobStatus.completed.value:
+                    # Extract business name from request payload
+                    business_name = "N/A"
+                    if job.request_payload:
+                        business_name = (
+                            job.request_payload.get("business_name")
+                            or job.request_payload.get("full_name")
+                            or job.request_payload.get("username")
+                            or "Unknown"
+                        )
+
+                    # TODO: Extract user email from job metadata when user system is implemented
+                    # For now, skip email sending in production until we have user emails
+                    # enqueue_email(
+                    #     template=EmailTemplate.JOB_COMPLETION,
+                    #     recipient="user@example.com",  # Replace with actual user email
+                    #     context={
+                    #         "job_id": job_id,
+                    #         "business_name": business_name,
+                    #         "enriched_fields": job.dossier_payload or {},
+                    #     },
+                    # )
+                    logger.info(
+                        "Job completed successfully (email notification skipped - no user system yet)",
+                        extra={"job_id": job_id, "business_name": business_name},
+                    )
+            except Exception as email_exc:
+                # Don't fail the job if email sending fails
+                logger.warning(
+                    "Failed to send job completion email",
+                    exc_info=True,
+                    extra={"job_id": job_id, "error": str(email_exc)},
+                )
+
     except Exception as exc:
         # Catch all exceptions including RQ JobTimeoutException
         logger.error(
@@ -59,6 +98,38 @@ async def _run_enrichment_job(job_id: str) -> None:
                         "marked timed-out job as failed",
                         extra={"job_id": job_id},
                     )
+
+                    # Send job failure email
+                    try:
+                        business_name = "N/A"
+                        if failed_job.request_payload:
+                            business_name = (
+                                failed_job.request_payload.get("business_name")
+                                or failed_job.request_payload.get("full_name")
+                                or failed_job.request_payload.get("username")
+                                or "Unknown"
+                            )
+
+                        # TODO: Extract user email from job metadata when user system is implemented
+                        # enqueue_email(
+                        #     template=EmailTemplate.JOB_FAILED,
+                        #     recipient="user@example.com",  # Replace with actual user email
+                        #     context={
+                        #         "job_id": job_id,
+                        #         "business_name": business_name,
+                        #         "error": str(exc),
+                        #     },
+                        # )
+                        logger.info(
+                            "Job failed (failure email notification skipped - no user system yet)",
+                            extra={"job_id": job_id, "error": str(exc)},
+                        )
+                    except Exception as email_exc:
+                        logger.warning(
+                            "Failed to send job failure email",
+                            exc_info=True,
+                            extra={"job_id": job_id, "error": str(email_exc)},
+                        )
         except Exception:
             logger.error(
                 "failed to mark job as failed during error recovery",

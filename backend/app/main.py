@@ -8,6 +8,7 @@ from app.core.lifespan import lifespan
 from app.core.logging import RequestContextMiddleware
 from app.dependencies.rate_limit import enforce_compliance_rate_limit
 from app.modules.dsar.router import router as dsar_router
+from app.modules.email.router import router as email_router
 from app.modules.enrichment.router import router as enrich_router
 from app.modules.health.router import router as health_router
 from app.modules.opt_out.router import router as opt_out_router
@@ -34,6 +35,7 @@ app.add_middleware(RequestContextMiddleware)
 register_exception_handlers(app)
 app.include_router(health_router)
 app.include_router(enrich_router, dependencies=[Depends(verify_token)])
+app.include_router(email_router, dependencies=[Depends(verify_token)])
 _compliance_deps = [Depends(enforce_compliance_rate_limit)]
 app.include_router(opt_out_router, dependencies=_compliance_deps)
 app.include_router(dsar_router, dependencies=_compliance_deps)
