@@ -62,6 +62,13 @@ services:
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       SENTRY_SEND_DEFAULT_PII: ${SENTRY_SEND_DEFAULT_PII:-false}
       ENABLE_ERROR_TRACKING_PROBE: ${ENABLE_ERROR_TRACKING_PROBE:-false}
+      # Email service (SendGrid)
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-true}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
+      SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -240,6 +247,7 @@ services:
       SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
       SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
       SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
+      WORKER_STARTUP_DELAY: "0"
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
     command: ["rq", "worker", "email", "--url", "redis://redis:6379/0"]
