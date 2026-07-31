@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Building,
   MapPin,
@@ -13,10 +14,12 @@ import {
   Mail,
   Calendar,
   Info,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/src/lib/utils";
 import type { BusinessProfile } from "@/src/lib/types";
 
@@ -26,6 +29,7 @@ interface BusinessProfileCardProps {
 }
 
 export function BusinessProfileCard({ business, className }: BusinessProfileCardProps) {
+  const [showAllPhotos, setShowAllPhotos] = useState(false);
   // Generate array of stars for rating
   const stars = Array.from({ length: 5 }, (_, i) => i < Math.floor(business.rating));
 
@@ -177,127 +181,189 @@ export function BusinessProfileCard({ business, className }: BusinessProfileCard
           </TabsContent>
 
           {/* Details Tab */}
-          <TabsContent value="details" className="space-y-3">
-            {/* Operating Hours */}
+          <TabsContent value="details" className="space-y-4">
+            {/* Operating Hours - Featured */}
             {business.openHours && (
-              <div className="flex items-start gap-2">
-                <Clock className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Hours</p>
-                  <p className="text-sm whitespace-pre-line">{business.openHours}</p>
+              <div className="rounded-lg bg-muted/50 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-5 h-5 text-primary" />
+                  <h4 className="font-semibold text-sm">Business Hours</h4>
+                </div>
+                <div className="text-sm leading-relaxed whitespace-pre-line">
+                  {business.openHours}
                 </div>
               </div>
             )}
 
-            {/* Popular Times */}
-            {business.popularTimes && (
-              <div className="flex items-start gap-2">
-                <Calendar className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Popular Times</p>
-                  <p className="text-sm">{business.popularTimes}</p>
+            {/* Quick Info Grid */}
+            <div className="grid gap-3">
+              {/* Price Range */}
+              {business.priceRange && (
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Price Range</span>
+                  </div>
+                  <Badge variant="secondary">{business.priceRange}</Badge>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Price Range */}
-            {business.priceRange && (
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-muted-foreground shrink-0" />
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{business.priceRange}</span>
-                  <Badge variant="outline" className="text-xs">
-                    Price
-                  </Badge>
+              {/* Timezone */}
+              {business.timezone && (
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Timezone</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">{business.timezone}</span>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Timezone */}
-            {business.timezone && (
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="text-sm text-muted-foreground">{business.timezone}</span>
-              </div>
-            )}
-
-            {/* Description */}
-            {business.description && (
-              <div className="flex items-start gap-2 pt-2 border-t">
-                <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
-                  <p className="text-sm">{business.description}</p>
-                </div>
-              </div>
-            )}
-
-            {/* About */}
-            {business.about && (
-              <div className="flex items-start gap-2">
-                <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">About</p>
-                  <p className="text-sm">{business.about}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Commerce Links */}
-            {(business.reservations || business.orderOnline || business.menu) && (
-              <div className="flex flex-wrap gap-2 pt-2 border-t">
-                {business.reservations && (
-                  <a
-                    href={business.reservations}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Make Reservation
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-                {business.orderOnline && (
-                  <a
-                    href={business.orderOnline}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Order Online
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-                {business.menu && (
-                  <a
-                    href={business.menu}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/90 flex items-center gap-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    View Menu
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-              </div>
-            )}
-
-            {/* Location Coordinates */}
-            {business.latitude && business.longitude && (
-              <div className="flex items-start gap-2 pt-2 border-t">
-                <MapPinned className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Coordinates</p>
-                  <p className="text-sm font-mono">
+              {/* Location Coordinates */}
+              {business.latitude && business.longitude && (
+                <div className="p-3 rounded-lg border bg-card">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MapPinned className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Location</span>
+                  </div>
+                  <p className="text-sm font-mono text-muted-foreground">
                     {business.latitude.toFixed(6)}, {business.longitude.toFixed(6)}
                   </p>
                   {business.placeId && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Place ID: {business.placeId}
                     </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Description */}
+            {business.description && (
+              <div className="rounded-lg border bg-card p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Info className="w-4 h-4 text-muted-foreground" />
+                  <h4 className="font-semibold text-sm">Description</h4>
+                </div>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {business.description}
+                </p>
+              </div>
+            )}
+
+            {/* About - Parse JSON and display nicely */}
+            {business.about &&
+              (() => {
+                try {
+                  const aboutData =
+                    typeof business.about === "string"
+                      ? JSON.parse(business.about)
+                      : business.about;
+
+                  if (Array.isArray(aboutData) && aboutData.length > 0) {
+                    return (
+                      <div className="rounded-lg border bg-card p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Info className="w-4 h-4 text-muted-foreground" />
+                          <h4 className="font-semibold text-sm">Amenities & Features</h4>
+                        </div>
+                        <div className="space-y-3">
+                          {aboutData.map((section: any, idx: number) => (
+                            <div key={idx}>
+                              <p className="text-xs font-semibold text-primary mb-1.5">
+                                {section.name || section.id}
+                              </p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {section.options?.map((option: any, optIdx: number) => (
+                                  <div key={optIdx} className="flex items-start gap-1.5 text-xs">
+                                    <span
+                                      className={
+                                        option.enabled ? "text-green-600" : "text-muted-foreground"
+                                      }
+                                    >
+                                      {option.enabled ? "✓" : "○"}
+                                    </span>
+                                    <span className={option.enabled ? "" : "text-muted-foreground"}>
+                                      {option.name}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                } catch (e) {
+                  // Fallback to plain text if JSON parsing fails
+                  return (
+                    <div className="rounded-lg border bg-card p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Info className="w-4 h-4 text-muted-foreground" />
+                        <h4 className="font-semibold text-sm">About</h4>
+                      </div>
+                      <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                        {business.about}
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+            {/* Popular Times */}
+            {business.popularTimes && (
+              <div className="rounded-lg border bg-card p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <h4 className="font-semibold text-sm">Popular Times</h4>
+                </div>
+                <p className="text-sm text-muted-foreground">{business.popularTimes}</p>
+              </div>
+            )}
+
+            {/* Commerce Links */}
+            {(business.reservations || business.orderOnline || business.menu) && (
+              <div className="rounded-lg border bg-card p-4">
+                <h4 className="font-semibold text-sm mb-3">Quick Actions</h4>
+                <div className="flex flex-wrap gap-2">
+                  {business.reservations && (
+                    <a
+                      href={business.reservations}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Calendar className="w-4 h-4" />
+                      Make Reservation
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  {business.orderOnline && (
+                    <a
+                      href={business.orderOnline}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Order Online
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  {business.menu && (
+                    <a
+                      href={business.menu}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border bg-secondary text-secondary-foreground hover:bg-secondary/90 transition-colors text-sm font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      View Menu
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
                   )}
                 </div>
               </div>
@@ -401,45 +467,152 @@ export function BusinessProfileCard({ business, className }: BusinessProfileCard
                   src={business.thumbnail}
                   alt={business.name}
                   className="w-full h-48 object-cover rounded-lg"
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
+                  onError={(e) => {
+                    console.error("Thumbnail failed to load:", business.thumbnail);
+                    e.currentTarget.style.display = "none";
+                  }}
                 />
               </div>
             )}
 
             {/* Image Gallery */}
-            {business.images && business.images.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                  <ImageIcon className="w-3 h-3" />
-                  Photos ({business.images.length})
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {business.images.slice(0, 4).map((image, i) => (
-                    <a
-                      key={i}
-                      href={image}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="relative aspect-video rounded-lg overflow-hidden group"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <img
-                        src={image}
-                        alt={`${business.name} photo ${i + 1}`}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <ExternalLink className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            {(() => {
+              // Parse images - handle various formats
+              let imageArray: string[] = [];
+
+              if (business.images && Array.isArray(business.images)) {
+                imageArray = business.images
+                  .map((item: any) => {
+                    if (typeof item === "string") {
+                      // Try multiple parsing strategies
+
+                      // Strategy 1: Direct URL
+                      if (item.startsWith("http://") || item.startsWith("https://")) {
+                        return item;
+                      }
+
+                      // Strategy 2: Try to extract URL using regex (in case JSON is malformed)
+                      const urlMatch = item.match(/https?:\/\/[^\s"]+/);
+                      if (urlMatch) {
+                        return urlMatch[0];
+                      }
+
+                      // Strategy 3: Try JSON parsing with error handling
+                      try {
+                        const parsed = JSON.parse(item);
+                        if (typeof parsed === "object" && parsed !== null) {
+                          const url = parsed.image || parsed.url;
+                          if (
+                            url &&
+                            typeof url === "string" &&
+                            (url.startsWith("http://") || url.startsWith("https://"))
+                          ) {
+                            return url;
+                          }
+                        }
+                      } catch (e) {
+                        // JSON parse failed, already tried regex
+                      }
+
+                      return null;
+                    } else if (item && typeof item === "object") {
+                      const url = item.image || item.url;
+                      if (
+                        url &&
+                        typeof url === "string" &&
+                        (url.startsWith("http://") || url.startsWith("https://"))
+                      ) {
+                        return url;
+                      }
+                    }
+                    return null;
+                  })
+                  .filter((url): url is string => url !== null);
+              }
+
+              if (imageArray.length > 0) {
+                return (
+                  <>
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                        <ImageIcon className="w-3 h-3" />
+                        Photos ({imageArray.length})
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {imageArray.slice(0, 4).map((image, i) => (
+                          <a
+                            key={i}
+                            href={image}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="relative aspect-video rounded-lg overflow-hidden group border bg-muted"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <img
+                              src={image}
+                              alt={`${business.name} photo ${i + 1}`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              referrerPolicy="no-referrer"
+                              crossOrigin="anonymous"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                              <ExternalLink className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </a>
+                        ))}
                       </div>
-                    </a>
-                  ))}
-                </div>
-                {business.images.length > 4 && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    +{business.images.length - 4} more photos
-                  </p>
-                )}
-              </div>
-            )}
+                      {imageArray.length > 4 && (
+                        <button
+                          onClick={() => setShowAllPhotos(true)}
+                          className="text-xs text-primary hover:underline text-center w-full cursor-pointer"
+                        >
+                          +{imageArray.length - 4} more photos
+                        </button>
+                      )}
+                    </div>
+
+                    {/* All Photos Dialog */}
+                    <Dialog open={showAllPhotos} onOpenChange={setShowAllPhotos}>
+                      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <ImageIcon className="w-5 h-5" />
+                            All Photos ({imageArray.length})
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+                          {imageArray.map((image, i) => (
+                            <a
+                              key={i}
+                              href={image}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative aspect-video rounded-lg overflow-hidden group border bg-muted"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <img
+                                src={image}
+                                alt={`${business.name} photo ${i + 1}`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                referrerPolicy="no-referrer"
+                                crossOrigin="anonymous"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                <ExternalLink className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </>
+                );
+              }
+
+              return null;
+            })()}
 
             {/* Street View */}
             {business.streetViewUrl && (
