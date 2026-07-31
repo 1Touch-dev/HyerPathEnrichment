@@ -19,7 +19,8 @@ dependencies = [
   "rq>=1.16,<3.0",
   "prometheus-client>=0.20,<1.0",
   "mailchecker>=6.0,<7.0",
-  "sentry-sdk[fastapi]>=2.0,<3.0"
+  "sentry-sdk[fastapi]>=2.0,<3.0",
+  "sendgrid>=6.11,<7.0",
 ]
 
 [project.optional-dependencies]
@@ -102,6 +103,8 @@ module = [
   "playwright.*",
   "langfuse",
   "MailChecker",
+  "sendgrid",
+  "sendgrid.*",
 ]
 ignore_missing_imports = true
 
