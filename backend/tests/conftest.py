@@ -12,12 +12,12 @@ _TEST_DB = Path(__file__).resolve().parent / "_pytest_hyrepath.db"
 if _TEST_DB.exists():
     _TEST_DB.unlink()
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_TEST_DB.as_posix()}"
+os.environ["API_TOKEN"] = "change-me"
 
 import pytest
 
 from app.compliance import suppression
 from app.core.config import get_settings
-from app.dependencies import rate_limit
 from app.modules.enrichment import job_events
 from app.storage import photo_cache
 from tests.migration_helpers import upgrade_head
@@ -77,7 +77,17 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     """No live Redis in CI — in-memory stand-in for suppression, rate limits, photo cache."""
     fake = FakeRedis()
     monkeypatch.setattr(suppression, "get_redis_client", lambda: fake)
-    monkeypatch.setattr(rate_limit, "get_redis_client", lambda: fake)
+    monkeypatch.setattr("app.dependencies.rate_limit.get_redis_client", lambda: fake)
     monkeypatch.setattr(photo_cache, "get_redis_client", lambda: fake)
     monkeypatch.setattr(job_events, "_get_events_redis_client", lambda: fake)
     return fake
+
+
+@pytest.fixture
+async def db():
+    """Provide async database session for tests."""
+    from app.database.session import SessionLocal
+
+    async with SessionLocal() as session:
+        yield session
+        await session.rollback()

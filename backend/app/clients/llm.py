@@ -49,6 +49,73 @@ B: Reddit | smith42 | https://reddit.com/u/smith42
 → {"same_identity": false, "confidence": 0.45, "reason": "common surname only; insufficient evidence"}
 """
 
+_JOB_QUERY_SYSTEM = """\
+You are a job search query optimizer for multiple job boards.
+
+Given a job title, location, and country, generate optimized search parameters for each job board.
+
+Job board requirements:
+- LinkedIn: Separate search_term and location fields. Location can be "City" or "City, State/Country"
+- Indeed: Needs country_indeed (lowercase country name like "india", "usa") and location. Works best with "City, State" or "City, Country"
+- Glassdoor: Requires "City, State" or "City, Country" format. Single-word locations often fail
+- Google Jobs: Uses natural language google_search_term. MUST use "near" keyword (not "in") and job board syntax like "software engineer jobs near Mumbai, India" or "backend developer jobs near San Francisco, CA"
+- ZipRecruiter: Similar to LinkedIn, separate search_term and location
+
+Location normalization rules:
+- Bengaluru → "Bengaluru, Karnataka" (add state)
+- Mumbai → "Mumbai, Maharashtra" (add state)
+- San Francisco → "San Francisco, CA" (add state abbreviation)
+- London → "London, England" or "London, UK" (add country/region)
+- Ambiguous cities: Add state/province/country for clarity
+
+Google Jobs specific rules:
+- ALWAYS use "jobs near" format, never "jobs in"
+- Example: "software engineer jobs near Mumbai, India" (correct)
+- Example: "software engineer jobs in Mumbai" (incorrect)
+- Keep it simple: "[job title] jobs near [location]"
+- Do NOT add time filters unless specifically requested
+
+Respond ONLY with compact JSON (no markdown):
+{
+  "linkedin": {"search_term": str, "location": str},
+  "indeed": {"search_term": str, "location": str, "country_indeed": str},
+  "glassdoor": {"search_term": str, "location": str},
+  "google": {"google_search_term": str},
+  "zip_recruiter": {"search_term": str, "location": str}
+}
+"""
+
+_JOB_QUERY_FEW_SHOTS = """\
+Examples:
+
+Input: job_title="Software Engineer", location="Bengaluru", country="India"
+→ {
+  "linkedin": {"search_term": "Software Engineer", "location": "Bengaluru, Karnataka, India"},
+  "indeed": {"search_term": "Software Engineer", "location": "Bengaluru, Karnataka", "country_indeed": "india"},
+  "glassdoor": {"search_term": "Software Engineer", "location": "Bengaluru, Karnataka"},
+  "google": {"google_search_term": "Software Engineer jobs near Bengaluru, Karnataka, India"},
+  "zip_recruiter": {"search_term": "Software Engineer", "location": "Bengaluru, India"}
+}
+
+Input: job_title="Backend Developer", location="San Francisco", country="USA"
+→ {
+  "linkedin": {"search_term": "Backend Developer", "location": "San Francisco, CA"},
+  "indeed": {"search_term": "Backend Developer", "location": "San Francisco, CA", "country_indeed": "usa"},
+  "glassdoor": {"search_term": "Backend Developer", "location": "San Francisco, CA"},
+  "google": {"google_search_term": "Backend Developer jobs near San Francisco, CA"},
+  "zip_recruiter": {"search_term": "Backend Developer", "location": "San Francisco, CA"}
+}
+
+Input: job_title="Data Scientist", location="London", country=None
+→ {
+  "linkedin": {"search_term": "Data Scientist", "location": "London, UK"},
+  "indeed": {"search_term": "Data Scientist", "location": "London", "country_indeed": "uk"},
+  "glassdoor": {"search_term": "Data Scientist", "location": "London, England"},
+  "google": {"google_search_term": "Data Scientist jobs near London, UK"},
+  "zip_recruiter": {"search_term": "Data Scientist", "location": "London, UK"}
+}
+"""
+
 
 @dataclass(slots=True)
 class LLMDecision:
@@ -67,6 +134,24 @@ def build_disambiguation_messages(left: str, right: str) -> list[dict[str, str]]
     )
     return [
         {"role": "system", "content": _DISAMBIGUATION_SYSTEM},
+        {"role": "user", "content": user_content},
+    ]
+
+
+def build_job_query_messages(
+    job_title: str, location: str | None, country: str | None
+) -> list[dict[str, str]]:
+    """Build system + user chat messages for job query optimization."""
+    location_str = f'"{location}"' if location else "None"
+    country_str = f'"{country}"' if country else "None"
+
+    user_content = (
+        f"{_JOB_QUERY_FEW_SHOTS}\n"
+        "Now optimize:\n"
+        f'Input: job_title="{job_title}", location={location_str}, country={country_str}'
+    )
+    return [
+        {"role": "system", "content": _JOB_QUERY_SYSTEM},
         {"role": "user", "content": user_content},
     ]
 
@@ -125,6 +210,40 @@ def _parse_decision(content: str, fallback: LLMDecision) -> LLMDecision:
         return fallback
 
 
+def _parse_job_queries(content: str) -> dict[str, dict[str, str]] | None:
+    """Parse LLM response containing job board query optimizations.
+
+    Returns None if parsing fails (triggers fallback to manual logic).
+    """
+    try:
+        start = content.index("{")
+        end = content.rindex("}") + 1
+        data: dict[str, dict[str, str]] = json.loads(content[start:end])
+
+        # Validate structure - must have all 5 boards
+        required_boards = {"linkedin", "indeed", "glassdoor", "google", "zip_recruiter"}
+        if not all(board in data for board in required_boards):
+            logger.warning("LLM job query response missing required boards")
+            return None
+
+        # Validate each board has required fields
+        if not isinstance(data.get("linkedin"), dict):
+            return None
+        if not isinstance(data.get("indeed"), dict):
+            return None
+        if not isinstance(data.get("glassdoor"), dict):
+            return None
+        if not isinstance(data.get("google"), dict):
+            return None
+        if not isinstance(data.get("zip_recruiter"), dict):
+            return None
+
+        return data
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+        logger.warning("Failed to parse LLM job query response", exc_info=True)
+        return None
+
+
 async def ollama_compare(left: str, right: str, settings: Settings) -> LLMDecision:
     """Free/local backend: a self-hosted Ollama model."""
     fallback = heuristic_compare(left, right)
@@ -179,6 +298,91 @@ async def litellm_compare(left: str, right: str, settings: Settings) -> LLMDecis
                 logger.warning("litellm model %s failed; trying next", model, exc_info=True)
                 continue
     return fallback
+
+
+async def litellm_optimize_job_query(
+    job_title: str,
+    location: str | None,
+    country: str | None,
+    settings: Settings,
+) -> dict[str, dict[str, str]] | None:
+    """Use LiteLLM to optimize job search queries for multiple job boards.
+
+    Args:
+        job_title: Job title to search for
+        location: Location string (city, state, etc.)
+        country: Country name
+        settings: App settings with LiteLLM configuration
+
+    Returns:
+        Dictionary mapping board names to their optimized query parameters,
+        or None if LLM optimization fails (triggers fallback to manual logic).
+
+    Example return:
+        {
+            "linkedin": {"search_term": "Software Engineer", "location": "Mumbai, India"},
+            "indeed": {"search_term": "Software Engineer", "location": "Mumbai, Maharashtra", "country_indeed": "india"},
+            "glassdoor": {"search_term": "Software Engineer", "location": "Mumbai, Maharashtra"},
+            "google": {"google_search_term": "Software Engineer jobs in Mumbai, Maharashtra, India"},
+            "zip_recruiter": {"search_term": "Software Engineer", "location": "Mumbai, India"}
+        }
+    """
+    base = settings.litellm_api_base.strip()
+    if not base:
+        logger.info("LiteLLM not configured, using manual job query logic")
+        return None
+
+    models = [settings.litellm_model] + [
+        item.strip() for item in settings.litellm_fallbacks.split(",") if item.strip()
+    ]
+    headers = {"Content-Type": "application/json"}
+    if settings.litellm_api_key.strip():
+        headers["Authorization"] = f"Bearer {settings.litellm_api_key.strip()}"
+
+    messages = build_job_query_messages(job_title, location, country)
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        for model in models:
+            try:
+                logger.debug(f"Calling LiteLLM for job query optimization with model {model}")
+                response = await client.post(
+                    f"{base.rstrip('/')}/v1/chat/completions",
+                    headers=headers,
+                    json={"model": model, "messages": messages},
+                )
+                response.raise_for_status()
+                content = response.json()["choices"][0]["message"]["content"]
+
+                queries = _parse_job_queries(content)
+                if queries:
+                    logger.info(
+                        f"LLM optimized job queries for {len(queries)} boards",
+                        extra={"job_title": job_title, "location": location, "country": country},
+                    )
+                    trace(
+                        "job-query-optimization",
+                        {
+                            "job_title": job_title,
+                            "location": location,
+                            "country": country,
+                            "model": model,
+                            "boards": list(queries.keys()),
+                        },
+                    )
+                    return queries
+                else:
+                    logger.warning(f"LiteLLM model {model} returned invalid job query format")
+                    continue
+
+            except (httpx.HTTPError, ValueError, KeyError, IndexError, json.JSONDecodeError):
+                logger.warning(
+                    f"LiteLLM job query optimization failed with model {model}; trying next",
+                    exc_info=True,
+                )
+                continue
+
+    logger.warning("All LiteLLM models failed for job query optimization, using manual logic")
+    return None
 
 
 def trace(name: str, metadata: dict[str, object]) -> None:

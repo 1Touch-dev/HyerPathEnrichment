@@ -116,7 +116,22 @@ export function JobProgress({ job, polling, pollTimedOut, onRetry, onRefresh }: 
     const time = new Date(job.createdAt).getTime();
     return isNaN(time) ? Date.now() : time;
   }, [job.createdAt]);
+
   const [elapsedSec, setElapsedSec] = useState(() => {
+    // If job is completed, calculate actual duration
+    if (
+      (job.status === "completed" ||
+        job.status === "completed_no_data" ||
+        job.status === "failed" ||
+        job.status === "suppressed") &&
+      job.updatedAt
+    ) {
+      const startTime = new Date(job.createdAt).getTime();
+      const endTime = new Date(job.updatedAt).getTime();
+      const elapsed = Math.floor((endTime - startTime) / 1000);
+      return isNaN(elapsed) ? 0 : Math.max(0, elapsed);
+    }
+    // Otherwise use current time
     const elapsed = Math.floor((Date.now() - jobStartTime) / 1000);
     return isNaN(elapsed) ? 0 : Math.max(0, elapsed);
   });

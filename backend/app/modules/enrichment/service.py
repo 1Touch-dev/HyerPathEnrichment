@@ -13,10 +13,10 @@ from app.domain.enrichment import (
     EnrichmentJobResponse,
     EnrichmentRequest,
 )
-from app.domain.enums import JobStatus
+from app.domain.enums import JobStatus, RequestedTier
 from app.enrichers.pipeline import Pipeline
 from app.modules.enrichment.models import JobRecord
-from app.workers.queue import enqueue_enrichment
+from app.workers.queue import enqueue_enrichment, should_split_into_children
 
 
 class EnrichmentService:
@@ -29,17 +29,53 @@ class EnrichmentService:
             job = await self.pipeline.create_suppressed_job(request)
             return self._to_response(job)
 
-        job = await self.pipeline.create_queued_job(request)
-        try:
-            enqueue_enrichment(job.id, request.requested_tiers)
-        except RedisError:
-            job.status = JobStatus.failed.value
-            await self.db.commit()
-            raise ServiceUnavailableError(
-                "job queue unavailable",
-                meta={"job_id": job.id},
-            )
-        return self._to_response(job)
+        # Check if we need to split into parent-child jobs
+        tiers = request.requested_tiers or []
+        if should_split_into_children(tiers):
+            # Create parent job
+            parent_job = await self.pipeline.create_parent_job(request)
+
+            try:
+                # Create and enqueue tier1 child
+                tier1_child = await self.pipeline.create_child_job(
+                    parent_job, request, [RequestedTier.tier1.value]
+                )
+                enqueue_enrichment(tier1_child.id, [RequestedTier.tier1], is_child_job=True)
+
+                # Create and enqueue tier234 child
+                tier234_tiers = [
+                    t
+                    for t in tiers
+                    if t in {RequestedTier.tier2, RequestedTier.tier3, RequestedTier.tier4}
+                ]
+                tier234_child = await self.pipeline.create_child_job(
+                    parent_job, request, [t.value for t in tier234_tiers]
+                )
+                enqueue_enrichment(tier234_child.id, tier234_tiers, is_child_job=True)
+
+                await self.db.commit()
+            except RedisError:
+                parent_job.status = JobStatus.failed.value
+                await self.db.commit()
+                raise ServiceUnavailableError(
+                    "job queue unavailable",
+                    meta={"job_id": parent_job.id},
+                )
+
+            return self._to_response(parent_job)
+        else:
+            # Single worker path (backward compat)
+            job = await self.pipeline.create_queued_job(request)
+            try:
+                enqueue_enrichment(job.id, request.requested_tiers)
+            except RedisError:
+                job.status = JobStatus.failed.value
+                await self.db.commit()
+                raise ServiceUnavailableError(
+                    "job queue unavailable",
+                    meta={"job_id": job.id},
+                )
+            return self._to_response(job)
 
     async def enrich_sync(self, request: EnrichmentRequest) -> EnrichmentJobResponse:
         job = await self.pipeline.run(request)
@@ -49,6 +85,13 @@ class EnrichmentService:
         job = await self.pipeline.get_job(job_id)
         if job is None:
             raise NotFoundError("job not found", meta={"job_id": job_id})
+
+        # Auto-redirect to parent if this is a child job
+        if job.parent_job_id:
+            parent = await self.pipeline.get_job(job.parent_job_id)
+            if parent:
+                job = parent
+
         return self._to_response(job)
 
     async def get_job_status(self, job_id: str) -> JobStatus:

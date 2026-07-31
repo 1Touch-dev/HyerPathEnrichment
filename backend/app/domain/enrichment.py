@@ -16,6 +16,9 @@ class EnrichmentRequest(BaseModel):
     company: str | None = None
     business: str | None = None
     job_search: str | None = None
+    job_title: str | None = None
+    job_location: str | None = None
+    job_country: str | None = None
     requested_tiers: list[RequestedTier] = Field(default_factory=lambda: list(RequestedTier))
 
     @model_validator(mode="after")

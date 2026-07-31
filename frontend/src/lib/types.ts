@@ -11,6 +11,9 @@ export type EnrichmentInput = {
   username?: string;
   company?: string;
   business?: string;
+  jobTitle?: string;
+  jobLocation?: string;
+  jobCountry?: string;
   jobSearch?: string;
   requestedTiers: RequestedTier[];
 };
@@ -60,11 +63,61 @@ export type Dossier = {
     source: string;
   }>;
   business?: {
+    // Core fields
     name: string;
     address: string;
     website: string;
     rating: number;
     phone: string;
+
+    // Location & identification
+    category?: string;
+    latitude?: number;
+    longitude?: number;
+    placeId?: string;
+    cid?: string;
+    plusCode?: string;
+    completeAddress?: string;
+
+    // Operations
+    openHours?: string;
+    popularTimes?: string;
+    timezone?: string;
+    status?: string;
+
+    // Reviews & ratings
+    reviewCount?: number;
+    reviewsPerRating?: Record<string, number>;
+    reviewsLink?: string;
+    userReviews?: Array<{
+      text?: string;
+      rating?: number;
+      timestamp?: string;
+    }>;
+
+    // Media
+    thumbnail?: string;
+    images?: string[];
+    streetViewUrl?: string;
+
+    // Commerce
+    priceRange?: string;
+    reservations?: string;
+    orderOnline?: string;
+    menu?: string;
+    creditCardsAccepted?: string;
+
+    // Additional info
+    description?: string;
+    about?: string;
+    owner?: string;
+    emails?: string[];
+
+    // Google Maps references
+    link?: string;
+    dataId?: string;
+
+    metadata?: Record<string, unknown>;
   };
   confidence: ConfidenceBreakdown[];
   sources: string[];
@@ -158,3 +211,8 @@ export type SignalListResponse = {
   limit: number;
   offset: number;
 };
+
+// Type aliases for easier component imports
+export type PhotoAsset = NonNullable<Dossier["photo"]>;
+export type JobListing = Dossier["jobs"][number];
+export type BusinessProfile = NonNullable<Dossier["business"]>;

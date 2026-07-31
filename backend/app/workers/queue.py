@@ -25,6 +25,21 @@ def get_queue_name_for_tiers(requested_tiers: list[RequestedTier]) -> str:
     return "tier234"
 
 
+def should_split_into_children(requested_tiers: list[RequestedTier]) -> bool:
+    """Check if job should be split into tier1 + tier234 children."""
+    settings = get_settings()
+    if settings.worker_queue_mode != "per_tier":
+        return False
+
+    has_tier1 = RequestedTier.tier1 in requested_tiers
+    has_tier234 = any(
+        t in {RequestedTier.tier2, RequestedTier.tier3, RequestedTier.tier4}
+        for t in requested_tiers
+    )
+
+    return has_tier1 and has_tier234
+
+
 def get_queue() -> Queue:
     return Queue(QUEUE_NAME, connection=get_redis_connection())
 
@@ -44,12 +59,17 @@ def get_worker_queue() -> Queue:
     return Queue(queue_name, connection=get_redis_connection())
 
 
-def enqueue_enrichment(job_id: str, requested_tiers: list[RequestedTier] | None = None) -> None:
+def enqueue_enrichment(
+    job_id: str,
+    requested_tiers: list[RequestedTier] | None = None,
+    *,
+    is_child_job: bool = False,
+) -> None:
     """Enqueue an enrichment job to the appropriate tier-based queue(s).
 
-    In per_tier mode, this will enqueue to multiple queues if multiple tier groups are requested:
-    - tier1 queue: for Tier 1 (browser-based enrichment)
-    - tier234 queue: for Tiers 2, 3, 4 (API-based enrichment)
+    In per_tier mode with multiple tier groups:
+    - If is_child_job=True: enqueue directly to assigned queue (child jobs)
+    - If is_child_job=False: parent job, don't enqueue (children are enqueued separately)
 
     This enables parallel execution across different tier groups.
     """
@@ -66,14 +86,18 @@ def enqueue_enrichment(job_id: str, requested_tiers: list[RequestedTier] | None 
         queue = Queue("enrichment", connection=connection)
         queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
     else:
-        # Per-tier mode: enqueue to multiple queues for parallel execution
-        # Enqueue to tier1 queue if tier1 is requested
-        if RequestedTier.tier1 in tiers:
-            tier1_queue = Queue("tier1", connection=connection)
-            tier1_queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
-
-        # Enqueue to tier234 queue if any of tier2/3/4 are requested
-        tier234_tiers = {RequestedTier.tier2, RequestedTier.tier3, RequestedTier.tier4}
-        if any(tier in tier234_tiers for tier in tiers):
-            tier234_queue = Queue("tier234", connection=connection)
-            tier234_queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+        # Per-tier mode
+        if is_child_job:
+            # Child job: enqueue to its assigned tier queue
+            queue_name = get_queue_name_for_tiers(tiers)
+            queue = Queue(queue_name, connection=connection)
+            queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+        else:
+            # Parent job or simple job
+            # If this would be split into children, don't enqueue here
+            # (children are enqueued separately in service layer)
+            if not should_split_into_children(tiers):
+                # Simple job with single tier group - enqueue normally
+                queue_name = get_queue_name_for_tiers(tiers)
+                queue = Queue(queue_name, connection=connection)
+                queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)

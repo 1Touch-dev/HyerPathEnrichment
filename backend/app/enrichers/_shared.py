@@ -17,6 +17,12 @@ def extract_urls(text: str) -> list[str]:
     seen: list[str] = []
     for url in _URL_RE.findall(text or ""):
         cleaned = url.rstrip(").,")
+        # Skip proxy URLs that may contain credentials
+        if "@" in cleaned and any(
+            proxy_host in cleaned.lower()
+            for proxy_host in ["oxylabs.io", "scrapoxy", "localhost:888"]
+        ):
+            continue
         if cleaned not in seen:
             seen.append(cleaned)
     return seen

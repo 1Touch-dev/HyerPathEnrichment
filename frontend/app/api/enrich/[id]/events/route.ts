@@ -44,8 +44,8 @@ function mockEventStream(jobId: string): ReadableStream<Uint8Array> {
   });
 }
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
-  const jobId = params.id;
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: jobId } = await params;
 
   if (isMockMode()) {
     const job = getMockJob(jobId);

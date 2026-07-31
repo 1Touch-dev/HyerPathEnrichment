@@ -1,5 +1,5 @@
 # google-maps-scraper with a pre-assembled Playwright driver matching upstream
-# playwright-go (currently 1.60.0). Hub :latest still tries the retired azureedge
+# playwright-go (currently 1.61.1). Hub :latest still tries the retired azureedge
 # CDN for the driver zip → 404. We bake the driver from npm + nodejs.org
 # (same layout the CDN zip used): /opt/node + /opt/package/cli.js.
 #
@@ -24,7 +24,7 @@ RUN apt-get update \
  && tar -xJf /tmp/node.tar.xz -C /tmp \
  && cp "/tmp/node-v20.18.1-linux-${NODE_ARCH}/bin/node" /opt/node \
  && chmod +x /opt/node \
- && curl -fsSL "https://registry.npmjs.org/playwright-core/-/playwright-core-1.60.0.tgz" \
+ && curl -fsSL "https://registry.npmjs.org/playwright-core/-/playwright-core-1.61.1.tgz" \
       -o /tmp/pw.tgz \
  && mkdir -p /tmp/pw /opt/package \
  && tar -xzf /tmp/pw.tgz -C /tmp/pw \

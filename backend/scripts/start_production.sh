@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Start the backend the way it runs in production: base compose + the
 # production overlay (docker-compose.prod.yml), optionally + the Tier 1
-# overlay (docker-compose.tier1.yml) when ENABLE_TIER1=true, and optionally
-# + the Linux Multilogin overlay (docker-compose.multilogin.yml) when
-# --with-linux-mlx is passed.
+# overlay (docker-compose.tier1.yml) when ENABLE_TIER1=true, optionally
+# + the tier-workers overlay (docker-compose.tier-workers.yml) for
+# dedicated tier-specific worker pools, and optionally + the Linux
+# Multilogin overlay (docker-compose.multilogin.yml) when --with-linux-mlx
+# is passed.
 #
 # This is the reusable "run the backend for production" entrypoint — use it
 # for any production-shaped start, not just one-off test runs.
@@ -12,6 +14,8 @@
 #   bash backend/scripts/start_production.sh
 #   bash backend/scripts/start_production.sh --with-tier1
 #   bash backend/scripts/start_production.sh --with-tier1 --with-linux-mlx
+#   bash backend/scripts/start_production.sh --with-tier-workers
+#   bash backend/scripts/start_production.sh --with-tier1 --with-tier-workers --with-linux-mlx
 #   bash backend/scripts/start_production.sh --down          # tear the stack down
 #
 # Env:
@@ -33,6 +37,9 @@
 #     --with-linux-mlx       containerised Multilogin service (network_mode: host).
 #                            Both containers share the Linux 127.0.0.1 loopback;
 #                            Tier 1 works end-to-end. See ADR 0008.
+#   --with-tier-workers      Use dedicated tier-specific worker pools (tier1, tier234)
+#                            with hybrid networking (host for tier1, bridge for tier234).
+#                            Enables horizontal scaling of tier 2-4 workers.
 #
 # docker-compose.prod.yml pins ports to 127.0.0.1 only and expects TLS to
 # terminate at a reverse proxy in front of this host (see docs/deployment.md).
@@ -50,19 +57,35 @@ fail() { echo "FAIL  $1" >&2; exit 1; }
 warn() { echo "WARN  $1"; }
 
 WITH_TIER1=0
+WITH_TIER_WORKERS=0
 WITH_LINUX_MLX=0
 DOWN=0
+SKIP_VALIDATION=0
+
 for arg in "$@"; do
   case "$arg" in
-    --with-tier1)     WITH_TIER1=1 ;;
-    --with-linux-mlx) WITH_LINUX_MLX=1 ;;
-    --down)           DOWN=1 ;;
+    --with-tier1)        WITH_TIER1=1 ;;
+    --with-tier-workers) WITH_TIER_WORKERS=1 ;;
+    --with-linux-mlx)    WITH_LINUX_MLX=1 ;;
+    --down)              DOWN=1 ;;
+    --skip-validation)   SKIP_VALIDATION=1 ;;
     *) fail "unknown argument: $arg" ;;
   esac
 done
 
 if [ ! -f "$ENV_FILE" ]; then
   fail "$ENV_FILE not found - create it (see backend/docker/docker-compose.prod.yml header) before a production start"
+fi
+
+# ============================================================================
+# Run environment validation
+# ============================================================================
+if [ "$DOWN" -eq 0 ] && [ "$SKIP_VALIDATION" -eq 0 ]; then
+  echo "== validating environment configuration =="
+  if ! bash "$SCRIPT_DIR/validate_env.sh" "$ENV_FILE"; then
+    fail "environment validation failed - fix errors above before starting"
+  fi
+  echo ""
 fi
 
 require_var() {
@@ -72,8 +95,6 @@ require_var() {
   fi
 }
 require_var API_TOKEN
-require_var DATABASE_URL
-require_var REDIS_URL
 require_var POSTGRES_USER
 require_var POSTGRES_PASSWORD
 
@@ -91,11 +112,24 @@ if [ "$WITH_LINUX_MLX" -eq 1 ] && [ "$WITH_TIER1" -eq 0 ]; then
   warn "--with-linux-mlx implies --with-tier1 (enabling)"
 fi
 
+# --with-tier-workers implies --with-tier1 if tier1 is enabled in env
+if [ "$WITH_TIER_WORKERS" -eq 1 ] && [ "$WITH_TIER1" -eq 1 ]; then
+  warn "--with-tier-workers: using dedicated tier-specific worker pools"
+fi
+
 COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.prod.yml)
-if [ "$WITH_TIER1" -eq 1 ]; then
+
+# Choose between single worker or tier-workers
+if [ "$WITH_TIER_WORKERS" -eq 1 ]; then
+  # Use dedicated tier-specific workers (hybrid networking)
+  COMPOSE_FILES+=(-f docker-compose.tier-workers.yml)
+  export WORKER_ENV_FILE="${WORKER_ENV_FILE:-$ENV_FILE}"
+elif [ "$WITH_TIER1" -eq 1 ]; then
+  # Use single worker with tier1 enabled (legacy path)
   COMPOSE_FILES+=(-f docker-compose.tier1.yml)
   export WORKER_ENV_FILE="${WORKER_ENV_FILE:-$ENV_FILE}"
 fi
+
 if [ "$WITH_LINUX_MLX" -eq 1 ]; then
   COMPOSE_FILES+=(-f docker-compose.multilogin.yml)
 fi
@@ -134,10 +168,31 @@ if [ "$WITH_TIER1" -eq 1 ]; then
   fi
 fi
 
-echo "== starting production stack (env=$ENV_FILE, tier1=$tier1_label) =="
-docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" up --build -d \
-  migrate api worker redis postgres social-analyzer google-maps-scraper email-verifier \
-  $([ "$WITH_LINUX_MLX" -eq 1 ] && echo "multilogin" || true)
+workers_label="single"
+if [ "$WITH_TIER_WORKERS" -eq 1 ]; then
+  workers_label="tier-specific (tier1 + tier234)"
+fi
+
+echo "== starting production stack =="
+echo "   env: $ENV_FILE"
+echo "   tier1: $tier1_label"
+echo "   workers: $workers_label"
+echo ""
+
+# Start services based on configuration
+if [ "$WITH_TIER_WORKERS" -eq 1 ]; then
+  # Start with tier-specific workers
+  docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" up --build -d \
+    migrate api redis postgres social-analyzer google-maps-scraper email-verifier \
+    worker-tier234 \
+    $([ "$WITH_TIER1" -eq 1 ] && echo "worker-tier1" || true) \
+    $([ "$WITH_LINUX_MLX" -eq 1 ] && echo "multilogin" || true)
+else
+  # Start with single worker
+  docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" up --build -d \
+    migrate api worker redis postgres social-analyzer google-maps-scraper email-verifier \
+    $([ "$WITH_LINUX_MLX" -eq 1 ] && echo "multilogin" || true)
+fi
 
 echo "== wait for API health =="
 for i in $(seq 1 90); do
@@ -159,11 +214,43 @@ if [ "$WITH_LINUX_MLX" -eq 1 ]; then
   [ "${mlx_status:-}" = "healthy" ] && pass "multilogin healthy" || warn "multilogin not yet healthy"
 fi
 
+# Check worker health
+if [ "$WITH_TIER_WORKERS" -eq 1 ]; then
+  echo "== checking tier-specific workers =="
+
+  # Check tier234 worker
+  tier234_status="$(docker inspect --format='{{.State.Health.Status}}' docker-worker-tier234-1 2>/dev/null || echo "not found")"
+  if [ "$tier234_status" = "healthy" ]; then
+    pass "worker-tier234 healthy"
+  else
+    warn "worker-tier234 status: $tier234_status"
+  fi
+
+  # Check tier1 worker if enabled
+  if [ "$WITH_TIER1" -eq 1 ]; then
+    tier1_status="$(docker inspect --format='{{.State.Health.Status}}' docker-worker-tier1-1 2>/dev/null || echo "not found")"
+    if [ "$tier1_status" = "healthy" ]; then
+      pass "worker-tier1 healthy"
+    else
+      warn "worker-tier1 status: $tier1_status"
+    fi
+  fi
+fi
+
 echo ""
 docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" ps
 echo ""
 echo "Production stack is up. Stop it with:"
 down_flags="--down"
 [ "$WITH_TIER1" -eq 1 ] && down_flags="$down_flags --with-tier1"
+[ "$WITH_TIER_WORKERS" -eq 1 ] && down_flags="$down_flags --with-tier-workers"
 [ "$WITH_LINUX_MLX" -eq 1 ] && down_flags="$down_flags --with-linux-mlx"
 echo "  bash $SCRIPT_DIR/start_production.sh $down_flags"
+echo ""
+
+if [ "$WITH_TIER_WORKERS" -eq 1 ]; then
+  echo "Scale tier 2-4 workers with:"
+  echo "  cd backend/docker"
+  echo "  docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.tier-workers.yml up -d --scale worker-tier234=N"
+  echo ""
+fi

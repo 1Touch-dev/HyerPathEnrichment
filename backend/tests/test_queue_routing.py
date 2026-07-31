@@ -126,8 +126,56 @@ def test_get_worker_queue_per_tier_mode_missing_target_raises(
         get_worker_queue()
 
 
-def test_default_queue_mode_is_single() -> None:
+def test_default_queue_mode_is_single(monkeypatch: pytest.MonkeyPatch) -> None:
     """Default WORKER_QUEUE_MODE should be 'single' for backward compatibility."""
+    # Clear any environment override
+    monkeypatch.delenv("WORKER_QUEUE_MODE", raising=False)
     get_settings.cache_clear()
     settings = get_settings()
     assert settings.worker_queue_mode == "single"
+
+
+def test_should_split_into_children_per_tier_mode_mixed_tiers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mixed tier1+234 in per_tier mode should split into children."""
+    from app.workers.queue import should_split_into_children
+
+    monkeypatch.setenv("WORKER_QUEUE_MODE", "per_tier")
+    get_settings.cache_clear()
+
+    # Mixed tiers should split
+    assert should_split_into_children([RequestedTier.tier1, RequestedTier.tier2])
+    assert should_split_into_children(
+        [RequestedTier.tier1, RequestedTier.tier2, RequestedTier.tier3, RequestedTier.tier4]
+    )
+
+
+def test_should_split_into_children_single_mode_never_splits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Single queue mode never splits into children."""
+    from app.workers.queue import should_split_into_children
+
+    monkeypatch.setenv("WORKER_QUEUE_MODE", "single")
+    get_settings.cache_clear()
+
+    # Even mixed tiers don't split in single mode
+    assert not should_split_into_children([RequestedTier.tier1, RequestedTier.tier2])
+
+
+def test_should_split_into_children_per_tier_mode_single_tier_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Single tier group in per_tier mode should NOT split."""
+    from app.workers.queue import should_split_into_children
+
+    monkeypatch.setenv("WORKER_QUEUE_MODE", "per_tier")
+    get_settings.cache_clear()
+
+    # Only tier1
+    assert not should_split_into_children([RequestedTier.tier1])
+
+    # Only tier234
+    assert not should_split_into_children([RequestedTier.tier2, RequestedTier.tier3])
+    assert not should_split_into_children([RequestedTier.tier4])

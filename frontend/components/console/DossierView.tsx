@@ -6,6 +6,7 @@ import { DossierSummary } from "@/components/console/DossierSummary";
 import { RawJsonPanel } from "@/components/console/RawJsonPanel";
 import { EmptyState } from "@/components/console/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { DossierTabView } from "./DossierTabView";
@@ -13,6 +14,9 @@ import { EntityDetailPanel } from "./EntityDetailPanel";
 import type { DossierEntity } from "./dossier-entity";
 import { formatPercent, initialsFrom } from "@/src/lib/utils";
 import { EnrichmentJob } from "@/src/lib/types";
+import { useJobEvents } from "@/hooks/useJobEvents";
+import { Clock, Loader2, CheckCircle } from "lucide-react";
+import { BusinessProfileCard } from "@/components/dossier/BusinessProfileCard";
 
 type DossierViewProps = {
   job: EnrichmentJob;
@@ -49,6 +53,15 @@ export function DossierView({ job }: DossierViewProps) {
   const [selectedEntity, setSelectedEntity] = useState<DossierEntity | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  // SSE for real-time updates
+  useJobEvents({
+    jobId: job.id,
+    enabled: loading,
+    onStatusChange: (newStatus) => {
+      console.log("Job status changed:", newStatus);
+    },
+  });
+
   useEffect(() => {
     setSelectedEntity(null);
     setSheetOpen(false);
@@ -75,6 +88,35 @@ export function DossierView({ job }: DossierViewProps) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Status Alert */}
+      {status === "queued" && (
+        <Alert>
+          <Clock className="h-4 w-4" />
+          <AlertTitle>Job Queued</AlertTitle>
+          <AlertDescription>Your enrichment is queued and will start shortly...</AlertDescription>
+        </Alert>
+      )}
+
+      {status === "running" && (
+        <Alert>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <AlertTitle>Enriching...</AlertTitle>
+          <AlertDescription>
+            Scanning {dossier.sources.length || "multiple"} sources. This may take 1-2 minutes.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {status === "completed" && (
+        <Alert className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20">
+          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+          <AlertTitle className="text-green-900 dark:text-green-100">Complete</AlertTitle>
+          <AlertDescription className="text-green-800 dark:text-green-200">
+            Enrichment completed at {new Date(job.updatedAt).toLocaleTimeString()}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Merged dossier</p>
@@ -293,33 +335,18 @@ function JobsBusinessSection({ dossier }: { dossier: Dossier }) {
           )}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Business</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm">
-          {dossier.business ? (
-            <ul className="flex flex-col gap-1">
-              <li>{dossier.business.name}</li>
-              <li>{dossier.business.address}</li>
-              <li>
-                <a
-                  href={dossier.business.website}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary"
-                >
-                  {dossier.business.website}
-                </a>
-              </li>
-              <li>{dossier.business.phone}</li>
-              <li>Rating: {dossier.business.rating}</li>
-            </ul>
-          ) : (
+      {dossier.business ? (
+        <BusinessProfileCard business={dossier.business} />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Business</CardTitle>
+          </CardHeader>
+          <CardContent>
             <EmptyMessage message="No business profile returned." />
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

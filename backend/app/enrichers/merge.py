@@ -34,16 +34,24 @@ def base_dossier(request: EnrichmentRequest) -> Dossier:
         request.business,
         request.job_search,
     ]
-    return Dossier(
-        metadata={
-            "generated_at": datetime.now(UTC).isoformat(),
-            "pipeline_id": f"pipe_{uuid4().hex}",
-            "requested_tiers": [
-                tier.value for tier in (request.requested_tiers or list(RequestedTier))
-            ],
-            "identifier_summary": " • ".join([value for value in values if value]),
-        }
-    )
+    metadata: dict[str, Any] = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "pipeline_id": f"pipe_{uuid4().hex}",
+        "requested_tiers": [
+            tier.value for tier in (request.requested_tiers or list(RequestedTier))
+        ],
+        "identifier_summary": " • ".join([value for value in values if value]),
+    }
+
+    # Add job search context to metadata when present
+    if request.job_title:
+        metadata["job_title"] = request.job_title
+    if request.job_location:
+        metadata["job_location"] = request.job_location
+    if request.job_country:
+        metadata["job_country"] = request.job_country
+
+    return Dossier(metadata=metadata)
 
 
 def normalize_job_key(title: str, company: str, location: str) -> str:
@@ -90,19 +98,27 @@ def _is_cdn_url(platform: str, url: str) -> bool:
     return False
 
 
-def _is_valid_job(job: dict[str, Any]) -> bool:
-    """Filter out invalid job listings."""
+def _is_valid_job(job: dict[str, Any], is_job_search: bool = False) -> bool:
+    """Filter out invalid job listings.
+
+    Args:
+        job: Job listing dictionary
+        is_job_search: True if this is a tier4 job search (keep job boards),
+                      False if this is work history (filter job boards)
+    """
     company = str(job.get("company", "")).lower().strip()
 
     # Filter out jobs with invalid company names
     if company in {"nan", "none", "unknown", ""}:
         return False
 
-    # Only keep jobs from known employment sources (not job boards)
-    source = str(job.get("source", "")).lower()
-    if source in {"indeed", "glassdoor", "zip_recruiter"}:
-        # These are job board listings, not work history
-        return False
+    # For job searches (tier4), keep all job board listings
+    # For work history (LinkedIn profiles), filter out job boards
+    if not is_job_search:
+        source = str(job.get("source", "")).lower()
+        if source in {"indeed", "glassdoor", "zip_recruiter"}:
+            # These are job board listings, not work history
+            return False
 
     return True
 
@@ -124,6 +140,9 @@ def merge_payloads(request: EnrichmentRequest, payloads: list[dict[str, Any]]) -
     emails_seen: set[str] = set()
     jobs_seen: dict[str, int] = {}
     sources: set[str] = set()
+
+    # Determine if this is a job search (tier4) vs work history
+    is_job_search = bool(request.job_search)
 
     for payload in payloads:
         photo = payload.get("photo")
@@ -197,8 +216,8 @@ def merge_payloads(request: EnrichmentRequest, payloads: list[dict[str, Any]]) -
                 if not isinstance(job, dict):
                     continue
 
-                # Skip invalid job listings
-                if not _is_valid_job(job):
+                # Skip invalid job listings (context-aware filtering)
+                if not _is_valid_job(job, is_job_search=is_job_search):
                     continue
 
                 job_candidate = JobListing.model_validate(job)

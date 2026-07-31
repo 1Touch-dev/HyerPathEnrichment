@@ -38,7 +38,9 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
   const [username, setUsername] = useState("");
   const [company, setCompany] = useState("");
   const [business, setBusiness] = useState("");
-  const [jobSearch, setJobSearch] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [jobLocation, setJobLocation] = useState("");
+  const [jobCountry, setJobCountry] = useState("");
 
   const [requestedTiers, setRequestedTiers] = useState<RequestedTier[]>(() =>
     normalizeTiersForMode(initialTiers ?? ["tier2", "tier3"], mode),
@@ -62,10 +64,20 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
 
   const requirements = useMemo(() => tierFieldRequirements(normalizedTiers), [normalizedTiers]);
 
-  const fields = useMemo(
-    () => ({ email, linkedinUrl, username, company, business, jobSearch }),
-    [email, linkedinUrl, username, company, business, jobSearch],
-  );
+  const fields = useMemo(() => {
+    const jobSearch = `${jobTitle.trim()} ${jobLocation.trim()}`.trim();
+    return {
+      email,
+      linkedinUrl,
+      username,
+      company,
+      business,
+      jobSearch,
+      jobTitle,
+      jobLocation,
+      jobCountry,
+    };
+  }, [email, linkedinUrl, username, company, business, jobTitle, jobLocation, jobCountry]);
 
   const fieldsValid = isEnrichmentInputValidForTiers(fields, normalizedTiers);
   const canSubmit =
@@ -75,7 +87,7 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
     requirements.emailOrCompanyOrUsername && !username.trim() && !email.trim() && !company.trim();
 
   const tier4Unsatisfied =
-    requirements.businessOrJobSearch && !business.trim() && !jobSearch.trim();
+    requirements.businessOrJobSearch && !business.trim() && !jobTitle.trim() && !jobLocation.trim();
 
   const toggleTier = (tier: RequestedTier, checked: boolean) => {
     if (mode === "sync" && tier === "tier1") {
@@ -117,8 +129,15 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
       const trimmedBusiness = business.trim();
       if (trimmedBusiness) base.business = trimmedBusiness;
 
-      const trimmedJobSearch = jobSearch.trim();
-      if (trimmedJobSearch) base.jobSearch = trimmedJobSearch;
+      const trimmedJobTitle = jobTitle.trim();
+      const trimmedJobLocation = jobLocation.trim();
+      const trimmedJobCountry = jobCountry.trim();
+      if (trimmedJobTitle) base.jobTitle = trimmedJobTitle;
+      if (trimmedJobLocation) base.jobLocation = trimmedJobLocation;
+      if (trimmedJobCountry) base.jobCountry = trimmedJobCountry;
+      if (trimmedJobTitle || trimmedJobLocation) {
+        base.jobSearch = `${trimmedJobTitle} ${trimmedJobLocation}`.trim();
+      }
 
       await onSubmit(base);
     } catch (submitError) {
@@ -233,12 +252,30 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="jobSearch">Job search {fieldSuffix(false)}</Label>
+              <Label htmlFor="jobTitle">Job title {fieldSuffix(false)}</Label>
               <Input
-                id="jobSearch"
-                value={jobSearch}
-                onChange={(e) => setJobSearch(e.target.value)}
-                placeholder="Staff Backend Engineer"
+                id="jobTitle"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+                placeholder="e.g., Senior Backend Engineer"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="jobLocation">Job location {fieldSuffix(false)}</Label>
+              <Input
+                id="jobLocation"
+                value={jobLocation}
+                onChange={(e) => setJobLocation(e.target.value)}
+                placeholder="e.g., Remote, San Francisco, Berlin"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="jobCountry">Job country {fieldSuffix(false)}</Label>
+              <Input
+                id="jobCountry"
+                value={jobCountry}
+                onChange={(e) => setJobCountry(e.target.value)}
+                placeholder="e.g., USA, Germany, Canada"
               />
             </div>
           </div>

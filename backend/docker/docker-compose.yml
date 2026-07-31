@@ -1,25 +1,26 @@
-﻿services:
+services:
   migrate:
     build:
       context: ..
       dockerfile: docker/Dockerfile.api
     working_dir: /app/backend
     environment:
-      DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
     command: ["alembic", "upgrade", "head"]
     depends_on:
       postgres:
         condition: service_healthy
     restart: "no"
   api:
-    network_mode: host
     build:
       context: ..
       dockerfile: docker/Dockerfile.api
     environment:
-      API_TOKEN: change-me
-      DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
+      API_TOKEN: ${API_TOKEN:-change-me}
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
+      # Worker queue routing - must match tier-workers configuration
+      WORKER_QUEUE_MODE: ${WORKER_QUEUE_MODE:-per_tier}
       # Free-mode sidecars (default-on). Enrichers degrade to empty fragments
       # if these are unreachable, so this stays safe if a sidecar is skipped.
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
@@ -61,6 +62,13 @@
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       SENTRY_SEND_DEFAULT_PII: ${SENTRY_SEND_DEFAULT_PII:-false}
       ENABLE_ERROR_TRACKING_PROBE: ${ENABLE_ERROR_TRACKING_PROBE:-false}
+      # Email service (SendGrid)
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-true}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
+      SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -81,8 +89,8 @@
     extra_hosts:
       - "host.docker.internal:${MULTILOGIN_HOST_IP:-host-gateway}"
     environment:
-      API_TOKEN: change-me
-      DATABASE_URL: postgresql+asyncpg://hyrepath:hyrepath@postgres:5432/hyrepath
+      API_TOKEN: ${API_TOKEN:-}
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
@@ -153,8 +161,10 @@
       dockerfile: Dockerfile.postgres
     environment:
       POSTGRES_USER: hyrepath
-      POSTGRES_PASSWORD: psjjssjsjndj479987ffhudfui
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: hyrepath
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -223,12 +233,49 @@
       start_period: 20s
     restart: unless-stopped
 
+  # Email worker — processes email queue via SendGrid API
+  worker-email:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      REDIS_URL: redis://redis:6379/0
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-true}
+      EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-false}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
+      SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
+      WORKER_STARTUP_DELAY: "0"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+    command: ["rq", "worker", "email", "--url", "redis://redis:6379/0"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from app.workers.queue import get_redis_connection; get_redis_connection().ping()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   # â”€â”€ Paid / heavy services (opt-in via `--profile`) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   # Free-mode `docker compose up` never launches these. Flip the matching
   # provider mode flag AND start the profile when you pay.
   reacher:
     image: reacherhq/backend:latest
     profiles: ["paid"]
+    ports:
+    - "8082:8080"
     environment:
       RCH_HTTP_HOST: 0.0.0.0
     restart: unless-stopped
@@ -253,7 +300,7 @@
     restart: unless-stopped
   ollama:
     image: ollama/ollama:latest
-    profiles: ["llm"]
+    profiles: ["ollama"]
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped

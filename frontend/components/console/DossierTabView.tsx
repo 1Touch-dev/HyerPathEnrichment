@@ -5,6 +5,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DossierSummary } from "@/components/console/DossierSummary";
 import { DossierScanList } from "@/components/console/DossierScanList";
 import { EmptyState } from "@/components/console/EmptyState";
+import { ConfidenceDashboard } from "@/components/dossier/ConfidenceDashboard";
+import { SourceBadges } from "@/components/dossier/SourceBadges";
+import { NetworkGraph } from "@/components/dossier/NetworkGraph";
+import { BusinessProfileCard } from "@/components/dossier/BusinessProfileCard";
 import type { Dossier } from "@/src/lib/types";
 import type { DossierEntity } from "./dossier-entity";
 
@@ -21,6 +25,7 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
       handles: dossier.handles.length,
       emails: dossier.emails.length + dossier.verifiedEmails.length,
       jobs: dossier.jobs.length,
+      business: dossier.business ? 1 : 0,
       confidence: dossier.confidence.length,
       sources: dossier.sources.length,
     }),
@@ -32,9 +37,15 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
       counts.handles > 0 ||
       counts.emails > 0 ||
       counts.jobs > 0 ||
+      counts.business > 0 ||
       counts.confidence > 0 ||
       counts.sources > 0,
     [counts],
+  );
+
+  const hasConnections = useMemo(
+    () => counts.handles > 0 || counts.jobs > 0 || dossier.coworkers.length > 0,
+    [counts, dossier.coworkers.length],
   );
 
   return (
@@ -50,9 +61,19 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
         <TabsTrigger value="professional" disabled={counts.jobs === 0}>
           Professional {counts.jobs > 0 && `(${counts.jobs})`}
         </TabsTrigger>
-        <TabsTrigger value="meta" disabled={counts.confidence === 0 && counts.sources === 0}>
-          Confidence & Sources
+        <TabsTrigger value="business" disabled={counts.business === 0}>
+          Business
         </TabsTrigger>
+        <TabsTrigger value="confidence" disabled={counts.confidence === 0}>
+          Confidence {counts.confidence > 0 && `(${counts.confidence})`}
+        </TabsTrigger>
+        <TabsTrigger value="sources" disabled={counts.sources === 0}>
+          Sources {counts.sources > 0 && `(${counts.sources})`}
+        </TabsTrigger>
+        {/* Network tab temporarily hidden */}
+        {/* <TabsTrigger value="network" disabled={!hasConnections}>
+          Network
+        </TabsTrigger> */}
       </TabsList>
 
       <TabsContent value="overview" className="mt-4">
@@ -78,6 +99,12 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Job Listings:</span>
                     <span className="font-medium">{counts.jobs}</span>
+                  </div>
+                )}
+                {counts.business > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Business Profile:</span>
+                    <span className="font-medium">✓</span>
                   </div>
                 )}
                 {counts.confidence > 0 && (
@@ -151,18 +178,54 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
         )}
       </TabsContent>
 
-      <TabsContent value="meta" className="mt-4">
-        {counts.confidence > 0 || counts.sources > 0 ? (
-          <DossierScanList
-            dossier={dossier}
-            categories={["confidence", "sources"]}
-            selectedId={selectedId}
-            onSelect={onSelect}
-          />
+      <TabsContent value="business" className="mt-4">
+        {dossier.business ? (
+          <BusinessProfileCard business={dossier.business} />
         ) : (
-          <EmptyState title="No metadata" description="No confidence rules or sources recorded." />
+          <EmptyState
+            title="No business information"
+            description="No business profile found in this enrichment."
+          />
         )}
       </TabsContent>
+
+      <TabsContent value="confidence" className="mt-4">
+        {counts.confidence > 0 ? (
+          <ConfidenceDashboard confidence={dossier.confidence} />
+        ) : (
+          <EmptyState
+            title="No confidence data"
+            description="No confidence scoring available for this enrichment."
+          />
+        )}
+      </TabsContent>
+
+      <TabsContent value="sources" className="mt-4">
+        {counts.sources > 0 ? (
+          <SourceBadges sources={dossier.sources} className="p-4 rounded-lg border bg-card" />
+        ) : (
+          <EmptyState title="No sources" description="No enrichment sources recorded." />
+        )}
+      </TabsContent>
+
+      {/* Network tab content temporarily hidden */}
+      {/* <TabsContent value="network" className="mt-4">
+        {hasConnections ? (
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="text-sm font-semibold mb-4">Connection Network</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Interactive graph showing relationships between the subject, social handles,
+              companies, and coworkers.
+            </p>
+            <NetworkGraph dossier={dossier} />
+          </div>
+        ) : (
+          <EmptyState
+            title="No connections"
+            description="No handles, jobs, or coworkers to visualize."
+          />
+        )}
+      </TabsContent> */}
     </Tabs>
   );
 }
