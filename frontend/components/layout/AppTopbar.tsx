@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { HealthIndicator } from "@/components/console/HealthIndicator";
 import { Button } from "@/components/ui/button";
 import { HyrepathLogo } from "@/components/layout/HyrepathLogo";
+import { UserMenu } from "@/components/auth/user-menu";
 
 export function AppTopbar() {
   const pathname = usePathname();
@@ -53,6 +54,7 @@ export function AppTopbar() {
         <Button asChild variant="outline" size="sm" className="h-9">
           <Link href="/opt-out">Opt out</Link>
         </Button>
+        <UserMenu />
       </div>
     </header>
   );

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { toBackendOptOutRequest } from "@/src/lib/api-adapter";
-import { backendFetch } from "@/src/lib/backend-client";
+import { backendFetchPublic } from "@/src/lib/backend-client";
 import {
   bffServiceUnavailable,
   bffSuccess,
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   let backendResponse: Response;
   try {
-    backendResponse = await backendFetch("/api/opt-out", {
+    backendResponse = await backendFetchPublic("/api/opt-out", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(toBackendOptOutRequest(body)),

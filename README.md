@@ -801,9 +801,15 @@ Other targets: `make down`, `make test`, `make migrate`, `make help`.
 
 - Python 3.12+ (creates `backend/.venv` — required on PEP 668 / externally-managed systems)
 - Node.js 18+ (frontend)
-- Redis (for async queue and rate limits)
+- Redis (for async queue, rate limits, and auth token blacklist)
+- PostgreSQL (for auth tables and job storage in Docker; SQLite for local dev)
 - Docker + Docker Compose (recommended for full stack)
 - GNU Make (for the targets above)
+
+**For authentication (recommended):**
+- SendGrid account (for email verification emails)
+- Google Cloud project with OAuth credentials (optional, for social login)
+- Strong SECRET_KEY (generate with: `openssl rand -hex 32`)
 
 ### Backend — local (SQLite)
 
@@ -896,9 +902,34 @@ Copy `backend/.env.example` → `backend/.env`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `API_TOKEN` | `change-me` | Bearer token for protected routes |
+| `API_TOKEN` | `change-me` | Bearer token for protected routes (legacy, will be replaced by auth) |
 | `DATABASE_URL` | `sqlite+aiosqlite:///./hyrepath.db` | Async DB connection |
-| `REDIS_URL` | `redis://localhost:6379/0` | Queue, suppression, rate limits |
+| `REDIS_URL` | `redis://localhost:6379/0` | Queue, suppression, rate limits, token blacklist |
+| `SECRET_KEY` | (none) | **Required for auth** — 256-bit secret for JWT signing (generate: `openssl rand -hex 32`) |
+
+### Authentication (recommended)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SECRET_KEY` | (none) | **Required** — JWT signing key (generate with: `openssl rand -hex 32`) |
+| `JWT_ALGORITHM` | `HS256` | JWT algorithm |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token lifetime |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
+| `COOKIE_SECURE` | `false` | Set to `true` in production (HTTPS only) |
+| `COOKIE_DOMAIN` | (empty) | Cookie domain (e.g., `.yourdomain.com` for production) |
+| `SENDGRID_API_KEY` | (none) | SendGrid API key for verification emails |
+| `SENDGRID_FROM_EMAIL` | (none) | Sender email address |
+| `FRONTEND_URL` | `http://localhost:3000` | Frontend URL for email links |
+
+**Google OAuth (optional):**
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `GOOGLE_OAUTH_CLIENT_ID` | (none) | Google OAuth client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | (none) | Google OAuth client secret |
+| `GOOGLE_OAUTH_REDIRECT_URL` | (none) | OAuth callback URL (e.g., `http://localhost:3000/callback/google`) |
+
+See [Google OAuth Setup Guide](docs/google-oauth-setup.md) and [Authentication Guide](docs/authentication-guide.md) for detailed setup instructions.
 | `R2_BUCKET` | `hyrepath-assets` | Object storage bucket name |
 | `R2_PUBLIC_BASE_URL` | `https://cdn.example.com` | CDN base for cached photos |
 

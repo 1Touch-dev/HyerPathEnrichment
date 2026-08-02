@@ -25,11 +25,44 @@ async function parseJsonBody(response: Response): Promise<unknown> {
   }
 }
 
+/**
+ * Client-side fetch with automatic token refresh on 401.
+ * Always includes credentials for cookie-based auth.
+ */
 async function request<T>(path: string, init?: RequestInit): Promise<SuccessEnvelope<T>> {
-  const response = await fetch(path, {
+  // First attempt with current credentials
+  let response = await fetch(path, {
     ...init,
     cache: "no-store",
+    credentials: "include", // Always include cookies
   });
+
+  // If 401, try refreshing the token
+  if (response.status === 401) {
+    const refreshResponse = await fetch("/api/auth/refresh", {
+      method: "POST",
+      credentials: "include",
+    });
+
+    // If refresh succeeds, retry original request
+    if (refreshResponse.ok) {
+      response = await fetch(path, {
+        ...init,
+        cache: "no-store",
+        credentials: "include",
+      });
+    } else {
+      // Refresh failed, redirect to login
+      if (typeof window !== "undefined") {
+        window.location.href = "/login?session_expired=true";
+      }
+      throw new ApiError("Session expired", {
+        code: "UNAUTHORIZED",
+        statusCode: 401,
+      });
+    }
+  }
+
   const body = await parseJsonBody(response);
 
   if (!response.ok || isErrorEnvelope(body)) {

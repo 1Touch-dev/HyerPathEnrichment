@@ -43,3 +43,4 @@ Add or update an ADR when you:
 | [0006](0006-llm-heuristic-default.md) | Heuristic LLM stub default with opt-in LiteLLM | Accepted | 2026-07-20 |
 | [0007](0007-stdlib-json-logging.md) | Stdlib JSON logging over structlog | Accepted | 2026-07-21 |
 | [0008](0008-tier1-linux-host-network.md) | Tier 1 Multilogin co-located with worker via `network_mode: host` on Linux | Accepted | 2026-07-22 |
+| [0009](0009-cookie-oauth-authentication.md) | Cookie-based OAuth authentication with FastAPI-Users | Accepted | 2026-07-31 |

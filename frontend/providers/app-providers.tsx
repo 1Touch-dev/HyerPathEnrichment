@@ -5,6 +5,7 @@ import { ReactNode, useState } from "react";
 import { Provider } from "react-redux";
 import { Toaster } from "@/components/ui/sonner";
 import { store } from "@/store";
+import { AuthProvider } from "./auth-provider";
 
 type AppProvidersProps = {
   children: ReactNode;
@@ -26,8 +27,10 @@ export function AppProviders({ children }: AppProvidersProps) {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        {children}
-        <Toaster />
+        <AuthProvider>
+          {children}
+          <Toaster />
+        </AuthProvider>
       </QueryClientProvider>
     </Provider>
   );
