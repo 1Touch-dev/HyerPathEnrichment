@@ -1,3 +1,5 @@
+import logging
+
 from redis import Redis
 from rq import Queue
 
@@ -6,10 +8,19 @@ from app.domain.enums import RequestedTier
 
 QUEUE_NAME = "enrichment"
 
+logger = logging.getLogger(__name__)
+
 
 def get_redis_connection() -> Redis:
-    """Synchronous Redis connection for RQ (the async client is not compatible)."""
-    return Redis.from_url(get_settings().redis_url)
+    """Synchronous Redis connection for RQ with proper timeouts to handle Redis under load."""
+    return Redis.from_url(
+        get_settings().redis_url,
+        socket_connect_timeout=5,
+        socket_timeout=10,
+        socket_keepalive=True,
+        socket_keepalive_options={},
+        health_check_interval=30,
+    )
 
 
 def get_queue_name_for_tiers(requested_tiers: list[RequestedTier]) -> str:
@@ -72,6 +83,8 @@ def enqueue_enrichment(
     - If is_child_job=False: parent job, don't enqueue (children are enqueued separately)
 
     This enables parallel execution across different tier groups.
+
+    Raises: Exception on enqueue failure (connection errors, Redis errors, etc.)
     """
     from app.workers.jobs import run_enrichment_job
 
@@ -81,23 +94,40 @@ def enqueue_enrichment(
     connection = get_redis_connection()
     timeout_seconds = settings.rq_job_timeout_seconds
 
-    if settings.worker_queue_mode == "single":
-        # Single queue mode: all tiers go to one queue
-        queue = Queue("enrichment", connection=connection)
-        queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
-    else:
-        # Per-tier mode
-        if is_child_job:
-            # Child job: enqueue to its assigned tier queue
-            queue_name = get_queue_name_for_tiers(tiers)
-            queue = Queue(queue_name, connection=connection)
+    try:
+        if settings.worker_queue_mode == "single":
+            # Single queue mode: all tiers go to one queue
+            queue = Queue("enrichment", connection=connection)
             queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+            logger.info(f"Enqueued job {job_id} to queue: enrichment")
         else:
-            # Parent job or simple job
-            # If this would be split into children, don't enqueue here
-            # (children are enqueued separately in service layer)
-            if not should_split_into_children(tiers):
-                # Simple job with single tier group - enqueue normally
+            # Per-tier mode
+            if is_child_job:
+                # Child job: enqueue to its assigned tier queue
                 queue_name = get_queue_name_for_tiers(tiers)
                 queue = Queue(queue_name, connection=connection)
                 queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+                logger.info(f"Enqueued child job {job_id} to queue: {queue_name}")
+            else:
+                # Parent job or simple job
+                # If this would be split into children, don't enqueue here
+                # (children are enqueued separately in service layer)
+                if not should_split_into_children(tiers):
+                    # Simple job with single tier group - enqueue normally
+                    queue_name = get_queue_name_for_tiers(tiers)
+                    queue = Queue(queue_name, connection=connection)
+                    queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+                    logger.info(f"Enqueued job {job_id} to queue: {queue_name}")
+    except Exception as e:
+        logger.error(
+            f"Failed to enqueue job {job_id}",
+            extra={
+                "job_id": job_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "is_child_job": is_child_job,
+                "tiers": [t.value if isinstance(t, RequestedTier) else t for t in tiers],
+            },
+            exc_info=True,
+        )
+        raise

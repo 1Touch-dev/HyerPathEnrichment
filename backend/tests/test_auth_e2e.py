@@ -21,7 +21,7 @@ from app.main import app
 
 
 @pytest.mark.asyncio
-async def test_complete_auth_e2e_flow(db_session: AsyncSession):
+async def test_complete_auth_e2e_flow(db: AsyncSession):
     """Test complete authentication flow end-to-end."""
     async with AsyncClient(app=app, base_url="http://test") as client:
         # 1. Test registration with email validation
@@ -42,7 +42,7 @@ async def test_complete_auth_e2e_flow(db_session: AsyncSession):
         # 3. Get verification token from database
         from sqlalchemy import select
 
-        result = await db_session.execute(select(User).where(User.email == "newuser@example.com"))
+        result = await db.execute(select(User).where(User.email == "newuser@example.com"))
         user = result.scalar_one_or_none()
         assert user is not None
         assert user.is_verified is False
@@ -50,7 +50,7 @@ async def test_complete_auth_e2e_flow(db_session: AsyncSession):
         # Get verification token
         from app.auth.models import EmailVerificationToken
 
-        result = await db_session.execute(
+        result = await db.execute(
             select(EmailVerificationToken).where(EmailVerificationToken.user_id == user.id)
         )
         verification_token = result.scalar_one()
@@ -115,9 +115,7 @@ async def test_complete_auth_e2e_flow(db_session: AsyncSession):
         )
         jti = token_payload["jti"]
 
-        result = await db_session.execute(
-            select(LoggedOutToken).where(LoggedOutToken.token_jti == jti)
-        )
+        result = await db.execute(select(LoggedOutToken).where(LoggedOutToken.token_jti == jti))
         logged_out_token = result.scalar_one_or_none()
         assert logged_out_token is not None
 
@@ -136,9 +134,7 @@ async def test_complete_auth_e2e_flow(db_session: AsyncSession):
         verified_cookies = login_response_verified.cookies
 
         # 13. Verify logged-out tokens were cleared for this user
-        result = await db_session.execute(
-            select(LoggedOutToken).where(LoggedOutToken.user_id == user.id)
-        )
+        result = await db.execute(select(LoggedOutToken).where(LoggedOutToken.user_id == user.id))
         _ = result.scalars().all()
         # In production, old tokens should be cleaned up on login
         # For now, just verify new login works
@@ -164,9 +160,7 @@ async def test_complete_auth_e2e_flow(db_session: AsyncSession):
         # 16. Verify audit log has all events
         from app.auth.models import AuthAuditLog
 
-        result = await db_session.execute(
-            select(AuthAuditLog).where(AuthAuditLog.user_id == user.id)
-        )
+        result = await db.execute(select(AuthAuditLog).where(AuthAuditLog.user_id == user.id))
         audit_logs = result.scalars().all()
 
         # Should have: register, login (unverified), email_verified, logout, login (verified)
@@ -180,7 +174,7 @@ async def test_complete_auth_e2e_flow(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_invalid_email_registration(db_session: AsyncSession):
+async def test_invalid_email_registration(db: AsyncSession):
     """Test registration with invalid email format."""
     async with AsyncClient(app=app, base_url="http://test") as client:
         # Test various invalid email formats
@@ -205,7 +199,7 @@ async def test_invalid_email_registration(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_weak_password_registration(db_session: AsyncSession):
+async def test_weak_password_registration(db: AsyncSession):
     """Test registration with weak password."""
     async with AsyncClient(app=app, base_url="http://test") as client:
         # Test various weak passwords
@@ -229,7 +223,7 @@ async def test_weak_password_registration(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_deleted_account_login_blocked(db_session: AsyncSession):
+async def test_deleted_account_login_blocked(db: AsyncSession):
     """Test that deleted accounts cannot login."""
     async with AsyncClient(app=app, base_url="http://test") as client:
         # Create and verify a user
@@ -245,10 +239,10 @@ async def test_deleted_account_login_blocked(db_session: AsyncSession):
         # Get user and mark as verified
         from sqlalchemy import select
 
-        result = await db_session.execute(select(User).where(User.email == "todelete@example.com"))
+        result = await db.execute(select(User).where(User.email == "todelete@example.com"))
         user = result.scalar_one()
         user.is_verified = True
-        await db_session.commit()
+        await db.commit()
 
         # Login
         login_data = {

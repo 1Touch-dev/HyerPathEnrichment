@@ -28,7 +28,7 @@ export async function backendFetch(
   try {
     // Get auth token from cookies
     const cookieStore = await cookies();
-    const authToken = cookieStore.get("auth_token");
+    const authToken = cookieStore.get("access_token");
 
     const headers: Record<string, string> = {
       ...((init?.headers as Record<string, string>) ?? {}),
@@ -36,7 +36,7 @@ export async function backendFetch(
 
     // Forward cookie to backend if available
     if (authToken) {
-      headers.Cookie = `auth_token=${authToken.value}`;
+      headers.Cookie = `access_token=${authToken.value}`;
     }
 
     return await fetch(`${baseUrl}${path}`, {

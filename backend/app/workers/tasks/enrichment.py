@@ -5,6 +5,9 @@ from __future__ import annotations
 import asyncio
 import logging
 
+# Import ORM registry FIRST to register all models with SQLAlchemy
+import app.database.orm_registry  # noqa: F401
+
 from app.core.logging import set_job_id
 from app.database.session import SessionLocal, engine
 from app.domain.enums import JobStatus

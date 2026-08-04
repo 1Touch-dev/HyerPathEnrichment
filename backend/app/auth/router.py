@@ -6,7 +6,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -239,6 +239,7 @@ async def login(
         samesite="lax",
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         domain=settings.COOKIE_DOMAIN,
+        path="/",  # Ensure cookie is available for all paths
     )
 
     # Log successful login
@@ -287,8 +288,8 @@ async def logout(
         except JWTError as e:
             logger.warning(f"Failed to decode token for blacklisting: {e}")
 
-    # Clear cookie
-    response.delete_cookie(key="access_token", domain=settings.COOKIE_DOMAIN)
+    # Clear cookie (must match path from set_cookie)
+    response.delete_cookie(key="access_token", domain=settings.COOKIE_DOMAIN, path="/")
 
     # Log logout
     await log_auth_event(
@@ -345,8 +346,8 @@ async def delete_account(
     current_user.deleted_at = datetime.now(UTC)
     await db.commit()
 
-    # Clear cookie
-    response.delete_cookie(key="access_token", domain=settings.COOKIE_DOMAIN)
+    # Clear cookie (must match path from set_cookie)
+    response.delete_cookie(key="access_token", domain=settings.COOKIE_DOMAIN, path="/")
 
     # Log account deletion
     await log_auth_event(
@@ -371,13 +372,27 @@ async def get_current_user(current_user: CurrentUser) -> UserRead:
 @router.post("/verify-email", response_model=MessageResponse)
 async def verify_email(
     http_request: Request,
-    request: VerifyEmailRequest,
     db: AsyncSession = Depends(get_db_session),
+    token: str | None = Query(None, description="Verification token from email link"),
+    request: VerifyEmailRequest | None = None,
 ) -> MessageResponse:
     """
     Verify user email with token from email link.
+
+    Accepts token either as:
+    - Query parameter: POST /verify-email?token=xxx (standard for email links)
+    - Request body: POST /verify-email with {"token": "xxx"}
     """
-    user = await verify_email_token(db, request.token)
+    # Get token from query param or request body
+    verification_token = token or (request.token if request else None)
+
+    if not verification_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token is required (as query parameter or in request body)",
+        )
+
+    user = await verify_email_token(db, verification_token)
 
     if not user:
         raise HTTPException(

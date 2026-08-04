@@ -26,7 +26,7 @@ async function parseJsonBody(response: Response): Promise<unknown> {
 }
 
 /**
- * Client-side fetch with automatic token refresh on 401.
+ * Client-side fetch with automatic retry on 401.
  * Always includes credentials for cookie-based auth.
  */
 async function request<T>(path: string, init?: RequestInit): Promise<SuccessEnvelope<T>> {
@@ -37,22 +37,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<SuccessEnve
     credentials: "include", // Always include cookies
   });
 
-  // If 401, try refreshing the token
+  // If 401, retry once (in case of transient auth issues)
+  // If the retry also fails, redirect to login
   if (response.status === 401) {
-    const refreshResponse = await fetch("/api/auth/refresh", {
-      method: "POST",
+    // Retry the request once
+    response = await fetch(path, {
+      ...init,
+      cache: "no-store",
       credentials: "include",
     });
 
-    // If refresh succeeds, retry original request
-    if (refreshResponse.ok) {
-      response = await fetch(path, {
-        ...init,
-        cache: "no-store",
-        credentials: "include",
-      });
-    } else {
-      // Refresh failed, redirect to login
+    // If retry also fails, redirect to login
+    if (response.status === 401) {
       if (typeof window !== "undefined") {
         window.location.href = "/login?session_expired=true";
       }

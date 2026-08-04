@@ -9,13 +9,15 @@ def hash_password(password: str) -> str:
     """
     Hash a password using bcrypt with salt.
 
+    Bcrypt has a 72-byte limit. Longer passwords are truncated.
+
     Args:
         password: Plain text password
 
     Returns:
         Bcrypt hash string (includes salt and cost factor)
     """
-    password_bytes = password.encode("utf-8")
+    password_bytes = password.encode("utf-8")[:72]  # Bcrypt 72-byte limit
     salt = bcrypt.gensalt(rounds=12)  # Cost factor: 2^12 iterations
     hashed: bytes = bcrypt.hashpw(password_bytes, salt)
     return hashed.decode("utf-8")
@@ -32,7 +34,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    password_bytes = plain_password.encode("utf-8")
+    password_bytes = plain_password.encode("utf-8")[:72]  # Bcrypt 72-byte limit
     hashed_bytes = hashed_password.encode("utf-8")
     result: bool = bcrypt.checkpw(password_bytes, hashed_bytes)
     return result
