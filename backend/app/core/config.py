@@ -130,6 +130,9 @@ class Settings(BaseSettings):
     litellm_model: str = Field(default="gpt-4o-mini", alias="LITELLM_MODEL")
     litellm_fallbacks: str = Field(default="", alias="LITELLM_FALLBACKS")
 
+    # OpenAI API (for CV extraction, embeddings, etc.)
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+
     # Proxies (paid-later)
     scrapoxy_url: str = Field(default="", alias="SCRAPOXY_URL")
     scrapoxy_username: str = Field(default="", alias="SCRAPOXY_USERNAME")
