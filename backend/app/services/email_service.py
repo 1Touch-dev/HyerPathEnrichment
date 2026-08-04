@@ -23,6 +23,8 @@ class EmailTemplate(str, Enum):
     DATA_ACCESS_VERIFICATION = "data_access_verification"
     OTP_VERIFICATION = "otp_verification"
     MARKETING_NEWSLETTER = "marketing_newsletter"
+    EMAIL_VERIFICATION = "email_verification"
+    EMAIL_VERIFICATION_REMINDER = "email_verification_reminder"
 
 
 class EmailService:
@@ -153,6 +155,8 @@ class EmailService:
             EmailTemplate.DATA_ACCESS_VERIFICATION: self._render_data_access,
             EmailTemplate.OTP_VERIFICATION: self._render_otp,
             EmailTemplate.MARKETING_NEWSLETTER: self._render_newsletter,
+            EmailTemplate.EMAIL_VERIFICATION: self._render_email_verification,
+            EmailTemplate.EMAIL_VERIFICATION_REMINDER: self._render_email_verification_reminder,
         }
 
         renderer = templates.get(template)
@@ -384,6 +388,117 @@ class EmailService:
         {content}
 
         Unsubscribe: {unsubscribe_link}
+        ---
+        Hyrepath Enrichment | support@hyrepath.com
+        """
+
+        return html, text, subject
+
+    def _render_email_verification(self, ctx: dict[str, Any]) -> tuple[str, str, str]:
+        """Render email verification email."""
+        first_name = ctx.get("first_name", "")
+        verification_link = ctx.get("verification_link", "")
+        expiry_hours = ctx.get("expiry_hours", 24)
+
+        subject = "Verify Your Email Address"
+
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2c3e50;">Welcome to Hyrepath Enrichment{", " + first_name if first_name else ""}!</h2>
+            <p>Thank you for registering. Please verify your email address to activate your account.</p>
+
+            <p style="text-align: center; margin: 30px 0;">
+                <a href="{verification_link}"
+                   style="background: #4CAF50; color: white; padding: 14px 28px;
+                          text-decoration: none; border-radius: 4px; display: inline-block; font-size: 16px;">
+                    Verify Email Address
+                </a>
+            </p>
+
+            <p style="color: #666; font-size: 14px;">
+                Or copy and paste this link into your browser:<br>
+                <a href="{verification_link}" style="color: #4CAF50; word-break: break-all;">{verification_link}</a>
+            </p>
+
+            <p style="color: #999; font-size: 12px; margin-top: 30px;">
+                This verification link expires in {expiry_hours} hours.
+            </p>
+
+            <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+                Hyrepath Enrichment | support@hyrepath.com
+            </p>
+        </body>
+        </html>
+        """
+
+        text = f"""
+        Welcome to Hyrepath Enrichment{", " + first_name if first_name else ""}!
+
+        Thank you for registering. Please verify your email address to activate your account.
+
+        Click the link below to verify your email:
+        {verification_link}
+
+        This verification link expires in {expiry_hours} hours.
+
+        ---
+        Hyrepath Enrichment | support@hyrepath.com
+        """
+
+        return html, text, subject
+
+    def _render_email_verification_reminder(self, ctx: dict[str, Any]) -> tuple[str, str, str]:
+        """Render email verification reminder."""
+        first_name = ctx.get("first_name", "")
+        verification_link = ctx.get("verification_link", "")
+        expiry_hours = ctx.get("expiry_hours", 24)
+
+        subject = "Reminder: Verify Your Email Address"
+
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2c3e50;">Email Verification Reminder</h2>
+            <p>Hi{" " + first_name if first_name else ""},</p>
+            <p>You requested a new verification link. Please verify your email address to activate your account.</p>
+
+            <p style="text-align: center; margin: 30px 0;">
+                <a href="{verification_link}"
+                   style="background: #4CAF50; color: white; padding: 14px 28px;
+                          text-decoration: none; border-radius: 4px; display: inline-block; font-size: 16px;">
+                    Verify Email Address
+                </a>
+            </p>
+
+            <p style="color: #666; font-size: 14px;">
+                Or copy and paste this link into your browser:<br>
+                <a href="{verification_link}" style="color: #4CAF50; word-break: break-all;">{verification_link}</a>
+            </p>
+
+            <p style="color: #999; font-size: 12px; margin-top: 30px;">
+                This verification link expires in {expiry_hours} hours.
+            </p>
+
+            <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+                Hyrepath Enrichment | support@hyrepath.com
+            </p>
+        </body>
+        </html>
+        """
+
+        text = f"""
+        Email Verification Reminder
+
+        Hi{" " + first_name if first_name else ""},
+
+        You requested a new verification link. Please verify your email address to activate your account.
+
+        Click the link below to verify your email:
+        {verification_link}
+
+        This verification link expires in {expiry_hours} hours.
+
         ---
         Hyrepath Enrichment | support@hyrepath.com
         """

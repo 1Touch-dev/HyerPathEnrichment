@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { VerificationBanner } from "@/components/auth/verification-banner";
 import { AppBottomNav } from "./AppBottomNav";
 import { AppNavRail } from "./AppNavRail";
 import { AppSidebar } from "./AppSidebar";
@@ -22,6 +23,7 @@ export function AppShell({ children }: AppShellProps) {
       <AppNavRail pathname={pathname} />
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar />
+        <VerificationBanner />
         <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">{children}</main>
         <AppBottomNav pathname={pathname} />
       </div>

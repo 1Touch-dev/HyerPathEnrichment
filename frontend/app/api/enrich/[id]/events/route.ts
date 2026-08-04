@@ -67,6 +67,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   if (!backendResponse.ok || !backendResponse.body) {
+    console.warn(`[SSE /enrich/${jobId}/events] Backend returned ${backendResponse.status}`);
     return backendFailureResponse(backendResponse);
   }
 
