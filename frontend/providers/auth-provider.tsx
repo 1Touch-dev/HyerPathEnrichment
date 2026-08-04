@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { startProactiveRefresh, stopProactiveRefresh } from "@/src/lib/token-refresh";
 
 interface User {
   id: string;
@@ -52,6 +53,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchUser();
   }, []);
+
+  // Start/stop proactive token refresh based on auth state
+  useEffect(() => {
+    if (user) {
+      // User is authenticated - start proactive refresh
+      startProactiveRefresh();
+    } else {
+      // User is not authenticated - stop proactive refresh
+      stopProactiveRefresh();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      stopProactiveRefresh();
+    };
+  }, [user]);
 
   const login = async (email: string, password: string) => {
     const response = await fetch("/api/auth/login", {

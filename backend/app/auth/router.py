@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,14 @@ from app.auth.dependencies import CurrentUser
 from app.auth.logged_out_tokens import LoggedOutTokenService
 from app.auth.models import AuthAuditLog, User
 from app.auth.password import hash_password, verify_password
+from app.auth.refresh_tokens import (
+    create_refresh_token,
+    detect_token_reuse,
+    revoke_refresh_token,
+    revoke_token_family,
+    rotate_refresh_token,
+    validate_refresh_token,
+)
 from app.auth.schemas import (
     LoginRequest,
     LoginResponse,
@@ -229,7 +238,10 @@ async def login(
     # Create access token
     access_token, jti = create_access_token(str(user.id), user.email)
 
-    # Set HttpOnly cookie
+    # Create refresh token
+    refresh_token_value, _ = await create_refresh_token(db, user.id)
+
+    # Set HttpOnly cookies for both tokens
     settings = get_settings()
     response.set_cookie(
         key="access_token",
@@ -240,6 +252,16 @@ async def login(
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         domain=settings.COOKIE_DOMAIN,
         path="/",  # Ensure cookie is available for all paths
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token_value,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        domain=settings.COOKIE_DOMAIN,
+        path="/",
     )
 
     # Log successful login
@@ -291,6 +313,14 @@ async def logout(
     # Clear cookie (must match path from set_cookie)
     response.delete_cookie(key="access_token", domain=settings.COOKIE_DOMAIN, path="/")
 
+    # Revoke refresh token if present
+    refresh_token = request.cookies.get("refresh_token")
+    if refresh_token:
+        await revoke_refresh_token(db, refresh_token)
+
+    # Clear refresh token cookie
+    response.delete_cookie(key="refresh_token", domain=settings.COOKIE_DOMAIN, path="/")
+
     # Log logout
     await log_auth_event(
         db,
@@ -303,6 +333,165 @@ async def logout(
     )
 
     return MessageResponse(message="Logged out successfully")
+
+
+@router.post("/refresh", response_model=LoginResponse)
+async def refresh_token(
+    request: Request,
+    response: Response,
+    refresh_token: Annotated[str | None, Cookie()] = None,
+    db: AsyncSession = Depends(get_db_session),
+) -> LoginResponse:
+    """
+    Refresh access token using refresh token.
+
+    Implements token rotation - issues new refresh token and invalidates old one.
+    Detects token reuse and revokes entire token family for security.
+    """
+    settings = get_settings()
+    ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent")
+
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token provided",
+        )
+
+    # Validate refresh token
+    token_obj, user = await validate_refresh_token(db, refresh_token)
+
+    if not token_obj or not user:
+        await log_auth_event(
+            db,
+            "token_refresh",
+            False,
+            ip,
+            user_agent,
+            None,
+            None,
+            "Invalid or expired refresh token",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
+
+    # Detect token reuse (security breach)
+    if await detect_token_reuse(db, token_obj):
+        # Token was already used - revoke entire family
+        await revoke_token_family(db, refresh_token, "Token reuse detected")
+
+        # Log security event
+        await log_auth_event(
+            db,
+            "token_reuse_detected",
+            False,
+            ip,
+            user_agent,
+            str(user.id),
+            user.email,
+            "Refresh token reuse - family revoked",
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Token reuse detected. Please log in again.",
+        )
+
+    # Check if user is deleted
+    if user.deleted_at is not None:
+        await log_auth_event(
+            db,
+            "token_refresh",
+            False,
+            ip,
+            user_agent,
+            str(user.id),
+            user.email,
+            "Account deleted",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account has been deleted",
+        )
+
+    # Check if user is active
+    if not user.is_active:
+        await log_auth_event(
+            db,
+            "token_refresh",
+            False,
+            ip,
+            user_agent,
+            str(user.id),
+            user.email,
+            "Account inactive",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is inactive",
+        )
+
+    # Rotate refresh token (mark old as used, create new)
+    new_refresh_token_value, _ = await rotate_refresh_token(db, refresh_token, user.id)
+
+    if not new_refresh_token_value:
+        await log_auth_event(
+            db,
+            "token_refresh",
+            False,
+            ip,
+            user_agent,
+            str(user.id),
+            user.email,
+            "Token rotation failed",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to rotate refresh token",
+        )
+
+    # Create new access token
+    new_access_token, jti = create_access_token(str(user.id), user.email)
+
+    # Set new cookies
+    response.set_cookie(
+        key="access_token",
+        value=new_access_token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        domain=settings.COOKIE_DOMAIN,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token_value,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        domain=settings.COOKIE_DOMAIN,
+        path="/",
+    )
+
+    # Log successful refresh
+    await log_auth_event(
+        db,
+        "token_refresh",
+        True,
+        ip,
+        user_agent,
+        str(user.id),
+        user.email,
+    )
+
+    return LoginResponse(
+        user=UserRead.model_validate(user),
+        message="Token refreshed successfully",
+    )
 
 
 @router.post("/delete-account", response_model=MessageResponse)

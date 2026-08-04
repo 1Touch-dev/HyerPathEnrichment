@@ -25,8 +25,40 @@ async function parseJsonBody(response: Response): Promise<unknown> {
   }
 }
 
+// Single-flight pattern: ensure only one refresh happens at a time
+let refreshPromise: Promise<boolean> | null = null;
+
 /**
- * Client-side fetch with automatic retry on 401.
+ * Refresh access token using refresh token cookie.
+ * Uses single-flight pattern to prevent concurrent refresh attempts.
+ */
+async function refreshAccessToken(): Promise<boolean> {
+  // If refresh already in progress, wait for it
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+      return response.ok;
+    } catch (error) {
+      console.error("Token refresh failed:", error);
+      return false;
+    } finally {
+      // Clear promise after completion
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+/**
+ * Client-side fetch with automatic token refresh on 401.
  * Always includes credentials for cookie-based auth.
  */
 async function request<T>(path: string, init?: RequestInit): Promise<SuccessEnvelope<T>> {
@@ -37,18 +69,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<SuccessEnve
     credentials: "include", // Always include cookies
   });
 
-  // If 401, retry once (in case of transient auth issues)
-  // If the retry also fails, redirect to login
+  // If 401, try to refresh token and retry
   if (response.status === 401) {
-    // Retry the request once
-    response = await fetch(path, {
-      ...init,
-      cache: "no-store",
-      credentials: "include",
-    });
+    // Try to refresh token
+    const refreshed = await refreshAccessToken();
 
-    // If retry also fails, redirect to login
-    if (response.status === 401) {
+    if (refreshed) {
+      // Retry the original request with new token
+      response = await fetch(path, {
+        ...init,
+        cache: "no-store",
+        credentials: "include",
+      });
+    } else {
+      // Refresh failed, redirect to login
       if (typeof window !== "undefined") {
         window.location.href = "/login?session_expired=true";
       }
