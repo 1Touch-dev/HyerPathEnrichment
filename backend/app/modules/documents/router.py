@@ -12,11 +12,12 @@ from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
 from app.modules.documents.schemas import (
     CVDataResponse,
+    DocumentDetailResponse,
     DocumentMetadata,
     DocumentUploadResponse,
     JobStatusResponse,
     SearchRequest,
-    SearchResult,
+    SearchResponse,
 )
 from app.modules.documents.service import DocumentService
 
@@ -28,7 +29,7 @@ router = APIRouter(prefix="/api/documents", tags=["documents"], route_class=Enve
 @router.post(
     "/upload",
     response_model=DocumentUploadResponse,
-    status_code=status.HTTP_202_ACCEPTED,
+    status_code=status.HTTP_200_OK,
 )
 async def upload_document(
     current_user: CurrentUser,
@@ -84,12 +85,12 @@ async def get_job_status(
     return await service.get_job_status(job_id, current_user.id)
 
 
-@router.post("/search", response_model=list[SearchResult])
+@router.post("/search", response_model=SearchResponse)
 async def search_documents(
     search_request: SearchRequest,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),
-) -> list[SearchResult]:
+) -> SearchResponse:
     """Semantic search across candidate documents.
 
     Uses vector embeddings to find semantically similar content.
@@ -101,14 +102,40 @@ async def search_documents(
         db: Database session
 
     Returns:
-        List of search results with similarity scores
+        Search response with results list
 
     Note:
         This endpoint requires Agent 2's embedding worker to be operational.
         Returns empty results if embeddings are not available.
     """
     service = DocumentService(db)
-    return await service.search_documents(search_request, current_user.id)
+    results = await service.search_documents(search_request, current_user.id)
+    return SearchResponse(results=results)
+
+
+@router.get("/{document_id}", response_model=DocumentDetailResponse)
+async def get_document(
+    document_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> DocumentDetailResponse:
+    """Get document details by ID.
+
+    Returns complete document information including extracted text and metadata.
+
+    Args:
+        document_id: Document UUID
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Document details
+
+    Raises:
+        404: Document not found
+    """
+    service = DocumentService(db)
+    return await service.get_document_by_id(document_id, current_user.id)
 
 
 @router.get("/{document_id}/cv-data", response_model=CVDataResponse)

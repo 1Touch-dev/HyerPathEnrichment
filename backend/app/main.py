@@ -11,6 +11,7 @@ from app.core.lifespan import lifespan
 from app.core.logging import RequestContextMiddleware
 from app.dependencies.rate_limit import enforce_compliance_rate_limit
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.modules.documents.router import router as documents_router
 from app.modules.dsar.router import router as dsar_router
 from app.modules.email.router import router as email_router
 from app.modules.enrichment.router import router as enrich_router
@@ -68,6 +69,7 @@ app.include_router(opt_out_router, dependencies=[Depends(enforce_compliance_rate
 app.include_router(auth_router)
 
 # Protected routes (require verified user)
+app.include_router(documents_router, dependencies=[Depends(current_verified_user)])
 app.include_router(enrich_router, dependencies=[Depends(current_verified_user)])
 app.include_router(email_router, dependencies=[Depends(current_verified_user)])
 app.include_router(

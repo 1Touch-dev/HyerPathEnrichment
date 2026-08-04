@@ -22,10 +22,10 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from app.core.config import get_settings
-from app.database.postgres import get_async_db
+from app.database.session import get_db_session
 from app.main import app
 
 # Test fixtures directory
@@ -33,6 +33,18 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 SAMPLE_CV_PDF = FIXTURES_DIR / "sample_cv.pdf"
 SAMPLE_CV_DOCX = FIXTURES_DIR / "sample_cv.docx"
 SAMPLE_CV_MINIMAL = FIXTURES_DIR / "sample_cv_minimal.pdf"
+
+
+def unwrap_envelope(response):
+    """Extract data from API envelope format.
+
+    The API wraps responses in: {'success': True, 'data': {...}, 'message': None, 'meta': None}
+    This helper extracts just the 'data' portion for easier testing.
+    """
+    body = response.json()
+    if "data" in body and body.get("success"):
+        return body["data"]
+    return body
 
 
 @pytest.fixture
@@ -60,7 +72,7 @@ class TestDocumentUploadFlow:
         if not SAMPLE_CV_PDF.exists():
             pytest.skip("Test fixture not found. Run: python tests/fixtures/generate_test_cvs.py")
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Upload document
             with open(SAMPLE_CV_PDF, "rb") as f:
                 response = await client.post(
@@ -69,43 +81,43 @@ class TestDocumentUploadFlow:
                     headers=auth_headers,
                 )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "job_id" in data
-            job_id = data["job_id"]
+        assert response.status_code == 200
+        data = unwrap_envelope(response)
+        assert "job_id" in data
+        job_id = data["job_id"]
 
-            # Poll job status (wait up to 30 seconds)
-            for _ in range(30):
-                response = await client.get(
-                    f"/api/documents/jobs/{job_id}",
-                    headers=auth_headers,
-                )
-                assert response.status_code == 200
-                job_data = response.json()
-
-                if job_data["status"] in ["completed", "failed"]:
-                    break
-
-                await asyncio.sleep(1)
-
-            # Verify job completed successfully
-            assert job_data["status"] == "completed"
-            assert "document_id" in job_data
-            document_id = job_data["document_id"]
-
-            # Get document details
+        # Poll job status (wait up to 30 seconds)
+        for _ in range(30):
             response = await client.get(
-                f"/api/documents/{document_id}",
+                f"/api/documents/jobs/{job_id}",
                 headers=auth_headers,
             )
             assert response.status_code == 200
-            doc = response.json()
+            job_data = unwrap_envelope(response)
 
-            # Verify document metadata
-            assert doc["document_type"] == "pdf"
-            assert doc["processing_status"] == "completed"
-            assert doc["raw_text"] is not None
-            assert len(doc["raw_text"]) > 100  # Should have extracted text
+            if job_data["status"] in ["completed", "failed"]:
+                break
+
+            await asyncio.sleep(1)
+
+        # Verify job completed successfully
+        assert job_data["status"] == "completed"
+        assert "document_id" in job_data
+        document_id = job_data["document_id"]
+
+        # Get document details
+        response = await client.get(
+            f"/api/documents/{document_id}",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        doc = unwrap_envelope(response)
+
+        # Verify document metadata
+        assert doc["document_type"] == "pdf"
+        assert doc["processing_status"] == "completed"
+        assert doc["raw_text"] is not None
+        assert len(doc["raw_text"]) > 100  # Should have extracted text
 
     @pytest.mark.asyncio
     async def test_upload_docx_complete_flow(self, auth_headers):
@@ -113,7 +125,7 @@ class TestDocumentUploadFlow:
         if not SAMPLE_CV_DOCX.exists():
             pytest.skip("Test fixture not found")
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             with open(SAMPLE_CV_DOCX, "rb") as f:
                 response = await client.post(
                     "/api/documents/upload",
@@ -127,9 +139,9 @@ class TestDocumentUploadFlow:
                     headers=auth_headers,
                 )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "job_id" in data
+        assert response.status_code == 200
+        data = unwrap_envelope(response)
+        assert "job_id" in data
 
     @pytest.mark.asyncio
     async def test_duplicate_upload_detected(self, auth_headers):
@@ -137,7 +149,7 @@ class TestDocumentUploadFlow:
         if not SAMPLE_CV_PDF.exists():
             pytest.skip("Test fixture not found")
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Upload first time
             with open(SAMPLE_CV_PDF, "rb") as f:
                 response1 = await client.post(
@@ -145,22 +157,22 @@ class TestDocumentUploadFlow:
                     files={"file": ("cv1.pdf", f, "application/pdf")},
                     headers=auth_headers,
                 )
-            assert response1.status_code == 200
-            _job_id_1 = response1.json()["job_id"]  # noqa: F841
+        assert response1.status_code == 200
+        _job_id_1 = unwrap_envelope(response1)["job_id"]  # noqa: F841
 
-            # Wait for processing
-            await asyncio.sleep(5)
+        # Wait for processing
+        await asyncio.sleep(5)
 
-            # Upload same file again
-            with open(SAMPLE_CV_PDF, "rb") as f:
-                response2 = await client.post(
-                    "/api/documents/upload",
-                    files={"file": ("cv2.pdf", f, "application/pdf")},
-                    headers=auth_headers,
-                )
+        # Upload same file again
+        with open(SAMPLE_CV_PDF, "rb") as f:
+            response2 = await client.post(
+                "/api/documents/upload",
+                files={"file": ("cv2.pdf", f, "application/pdf")},
+                headers=auth_headers,
+            )
 
-            # Should either reject or return existing document
-            assert response2.status_code in [200, 409]  # 409 = Conflict (duplicate)
+        # Should either reject or return existing document
+        assert response2.status_code in [200, 409]  # 409 = Conflict (duplicate)
 
 
 class TestEmbeddingGeneration:
@@ -176,7 +188,7 @@ class TestEmbeddingGeneration:
         if not settings.enable_embeddings:
             pytest.skip("Embeddings disabled")
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Upload document
             with open(SAMPLE_CV_PDF, "rb") as f:
                 response = await client.post(
@@ -185,14 +197,13 @@ class TestEmbeddingGeneration:
                     headers=auth_headers,
                 )
 
-            _job_id = response.json()["job_id"]  # noqa: F841
+            _job_id = unwrap_envelope(response)["job_id"]  # noqa: F841
 
             # Wait for full pipeline (parsing + embedding)
             await asyncio.sleep(15)
 
             # Check that embeddings exist in database
-            async for db in get_async_db():
-
+            async for db in get_db_session():
                 embeddings = await db.execute(
                     "SELECT COUNT(*) FROM document_embeddings WHERE document_id IN "
                     "(SELECT id FROM candidate_documents WHERE user_id = :user_id)",
@@ -212,7 +223,7 @@ class TestVectorSearch:
         if not settings.enable_embeddings:
             pytest.skip("Embeddings disabled")
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Search for backend engineers
             response = await client.post(
                 "/api/documents/search",
@@ -220,17 +231,17 @@ class TestVectorSearch:
                 headers=auth_headers,
             )
 
-            assert response.status_code == 200
-            results = response.json()
-            assert "results" in results
-            assert isinstance(results["results"], list)
+        assert response.status_code == 200
+        results = unwrap_envelope(response)
+        assert "results" in results
+        assert isinstance(results["results"], list)
 
-            # If documents exist, should return similarity scores
-            if results["results"]:
-                for result in results["results"]:
-                    assert "document_id" in result
-                    assert "similarity_score" in result
-                    assert 0.0 <= result["similarity_score"] <= 1.0
+        # If documents exist, should return similarity scores
+        if results["results"]:
+            for result in results["results"]:
+                assert "document_id" in result
+                assert "similarity_score" in result
+                assert 0.0 <= result["similarity_score"] <= 1.0
 
     @pytest.mark.asyncio
     async def test_search_relevance(self, auth_headers):
@@ -239,7 +250,7 @@ class TestVectorSearch:
         if not settings.enable_embeddings:
             pytest.skip("Embeddings disabled")
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/documents/search",
                 json={"query": "machine learning engineer", "limit": 5},
@@ -262,7 +273,7 @@ class TestCVExtraction:
         if not SAMPLE_CV_PDF.exists():
             pytest.skip("Test fixture not found")
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Upload document
             with open(SAMPLE_CV_PDF, "rb") as f:
                 response = await client.post(
@@ -271,7 +282,7 @@ class TestCVExtraction:
                     headers=auth_headers,
                 )
 
-            job_id = response.json()["job_id"]
+            job_id = unwrap_envelope(response)["job_id"]
 
             # Wait for full pipeline
             await asyncio.sleep(20)
@@ -281,7 +292,7 @@ class TestCVExtraction:
                 f"/api/documents/jobs/{job_id}",
                 headers=auth_headers,
             )
-            document_id = response.json()["document_id"]
+            document_id = unwrap_envelope(response)["document_id"]
 
             # Get extracted CV data
             response = await client.get(
@@ -289,13 +300,13 @@ class TestCVExtraction:
                 headers=auth_headers,
             )
 
-            assert response.status_code == 200
-            cv_data = response.json()
+        assert response.status_code == 200
+        cv_data = unwrap_envelope(response)
 
-            # Verify structured fields
-            assert "personal_info" in cv_data or "name" in cv_data
-            assert "experience" in cv_data or "work_history" in cv_data
-            assert "skills" in cv_data
+        # Verify structured fields
+        assert "personal_info" in cv_data or "name" in cv_data
+        assert "experience" in cv_data or "work_history" in cv_data
+        assert "skills" in cv_data
 
     @pytest.mark.asyncio
     async def test_cv_completeness_score(self, auth_headers):
@@ -303,7 +314,7 @@ class TestCVExtraction:
         if not SAMPLE_CV_MINIMAL.exists():
             pytest.skip("Test fixture not found")
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Upload minimal CV
             with open(SAMPLE_CV_MINIMAL, "rb") as f:
                 response = await client.post(
@@ -312,7 +323,7 @@ class TestCVExtraction:
                     headers=auth_headers,
                 )
 
-            job_id = response.json()["job_id"]
+            job_id = unwrap_envelope(response)["job_id"]
             await asyncio.sleep(20)
 
             # Get CV data
@@ -320,18 +331,18 @@ class TestCVExtraction:
                 f"/api/documents/jobs/{job_id}",
                 headers=auth_headers,
             )
-            document_id = response.json()["document_id"]
+            document_id = unwrap_envelope(response)["document_id"]
 
             response = await client.get(
                 f"/api/documents/{document_id}/cv-data",
                 headers=auth_headers,
             )
 
-            cv_data = response.json()
+            cv_data = unwrap_envelope(response)
 
-            # Minimal CV should have lower completeness
-            if "completeness_score" in cv_data:
-                assert cv_data["completeness_score"] < 0.8
+        # Minimal CV should have lower completeness
+        if "completeness_score" in cv_data:
+            assert cv_data["completeness_score"] < 0.8
 
 
 class TestErrorHandling:
@@ -344,7 +355,7 @@ class TestErrorHandling:
         if not malformed_path.exists():
             pytest.skip("Test fixture not found")
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             with open(malformed_path, "rb") as f:
                 response = await client.post(
                     "/api/documents/upload",
@@ -354,7 +365,7 @@ class TestErrorHandling:
 
             # Should either reject upfront or fail gracefully
             if response.status_code == 200:
-                job_id = response.json()["job_id"]
+                job_id = unwrap_envelope(response)["job_id"]
                 await asyncio.sleep(5)
 
                 # Check job failed
@@ -362,13 +373,13 @@ class TestErrorHandling:
                     f"/api/documents/jobs/{job_id}",
                     headers=auth_headers,
                 )
-                job_data = response.json()
+                job_data = unwrap_envelope(response)
                 assert job_data["status"] == "failed"
 
     @pytest.mark.asyncio
     async def test_file_too_large_rejected(self, auth_headers):
         """Test that files over 10MB are rejected."""
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Create 11MB of fake data
             large_file = b"x" * (11 * 1024 * 1024)
 
@@ -383,7 +394,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_invalid_file_type_rejected(self, auth_headers):
         """Test that non-PDF/DOCX files are rejected."""
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/documents/upload",
                 files={"file": ("script.exe", b"fake exe", "application/x-msdownload")},
@@ -423,7 +434,7 @@ class TestFullPipeline:
         if not settings.enable_embeddings:
             pytest.skip("Embeddings disabled")
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Step 1: Upload CV
             with open(SAMPLE_CV_PDF, "rb") as f:
                 response = await client.post(
@@ -433,7 +444,7 @@ class TestFullPipeline:
                 )
 
             assert response.status_code == 200
-            job_id = response.json()["job_id"]
+            job_id = unwrap_envelope(response)["job_id"]
 
             # Step 2: Wait for processing (parsing + chunking + embedding + extraction)
             max_wait = 60  # 60 seconds max
@@ -442,7 +453,7 @@ class TestFullPipeline:
                     f"/api/documents/jobs/{job_id}",
                     headers=auth_headers,
                 )
-                job_data = response.json()
+                job_data = unwrap_envelope(response)
 
                 if job_data["status"] == "completed":
                     break
@@ -459,12 +470,12 @@ class TestFullPipeline:
                 f"/api/documents/{document_id}",
                 headers=auth_headers,
             )
-            doc = response.json()
+            doc = unwrap_envelope(response)
             assert doc["raw_text"] is not None
             assert "john" in doc["raw_text"].lower()
 
             # Step 4: Verify embeddings generated
-            async for db in get_async_db():
+            async for db in get_db_session():
                 from sqlalchemy import text
 
                 result = await db.execute(
@@ -480,7 +491,7 @@ class TestFullPipeline:
                 json={"query": "Senior Backend Engineer Python FastAPI", "limit": 5},
                 headers=auth_headers,
             )
-            results = response.json()["results"]
+            results = unwrap_envelope(response)["results"]
 
             # Should find the uploaded document
             doc_ids = [r["document_id"] for r in results]
@@ -491,7 +502,7 @@ class TestFullPipeline:
                 f"/api/documents/{document_id}/cv-data",
                 headers=auth_headers,
             )
-            cv_data = response.json()
+            cv_data = unwrap_envelope(response)
             assert cv_data is not None
 
             print("\n✅ Full pipeline test PASSED!")

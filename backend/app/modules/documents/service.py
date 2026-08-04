@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.documents.models import CandidateDocument, DocumentJob
 from app.modules.documents.schemas import (
     CVDataResponse,
+    DocumentDetailResponse,
     DocumentMetadata,
     DocumentUploadResponse,
     JobStatusResponse,
@@ -212,6 +213,7 @@ class DocumentService:
             job_id=str(job.id),
             status=job.status,
             progress=job.progress,
+            document_id=str(job.document_id) if job.document_id else None,
             result=job.result,
             error=job.error,
             created_at=job.created_at,
@@ -243,6 +245,45 @@ class DocumentService:
             extra={"query": search_request.query, "user_id": str(user_id)[:8]},
         )
         return []
+
+    async def get_document_by_id(self, document_id: str, user_id: UUID) -> DocumentDetailResponse:
+        """Get document by ID.
+
+        Args:
+            document_id: Document UUID
+            user_id: User ID (for authorization)
+
+        Returns:
+            Document details
+
+        Raises:
+            HTTPException: If document not found or unauthorized
+        """
+        result = await self.db.execute(
+            select(CandidateDocument).where(
+                CandidateDocument.id == UUID(document_id),
+                CandidateDocument.user_id == user_id,
+            )
+        )
+        document = result.scalar_one_or_none()
+
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found",
+            )
+
+        return DocumentDetailResponse(
+            document_id=str(document.id),
+            document_type=document.document_type,
+            original_filename=document.original_filename,
+            file_size_bytes=document.file_size_bytes,
+            processing_status=document.processing_status,
+            raw_text=document.raw_text,
+            extracted_data=document.extracted_data,
+            created_at=document.created_at,
+            updated_at=document.updated_at,
+        )
 
     async def get_cv_data(self, document_id: str, user_id: UUID) -> CVDataResponse:
         """Get structured CV data.
