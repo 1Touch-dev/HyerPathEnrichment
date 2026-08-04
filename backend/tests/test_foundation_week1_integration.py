@@ -23,6 +23,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.database.session import get_db_session
@@ -81,42 +82,42 @@ class TestDocumentUploadFlow:
                     headers=auth_headers,
                 )
 
-        assert response.status_code == 200
-        data = unwrap_envelope(response)
-        assert "job_id" in data
-        job_id = data["job_id"]
+            assert response.status_code == 200
+            data = unwrap_envelope(response)
+            assert "job_id" in data
+            job_id = data["job_id"]
 
-        # Poll job status (wait up to 30 seconds)
-        for _ in range(30):
+            # Poll job status (wait up to 30 seconds)
+            for _ in range(30):
+                response = await client.get(
+                    f"/api/documents/jobs/{job_id}",
+                    headers=auth_headers,
+                )
+                assert response.status_code == 200
+                job_data = unwrap_envelope(response)
+
+                if job_data["status"] in ["completed", "failed"]:
+                    break
+
+                await asyncio.sleep(1)
+
+            # Verify job completed successfully
+            assert job_data["status"] == "completed"
+            assert "document_id" in job_data
+            document_id = job_data["document_id"]
+
+            # Get document details
             response = await client.get(
-                f"/api/documents/jobs/{job_id}",
+                f"/api/documents/{document_id}",
                 headers=auth_headers,
             )
             assert response.status_code == 200
-            job_data = unwrap_envelope(response)
+            doc = unwrap_envelope(response)
 
-            if job_data["status"] in ["completed", "failed"]:
-                break
-
-            await asyncio.sleep(1)
-
-        # Verify job completed successfully
-        assert job_data["status"] == "completed"
-        assert "document_id" in job_data
-        document_id = job_data["document_id"]
-
-        # Get document details
-        response = await client.get(
-            f"/api/documents/{document_id}",
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
-        doc = unwrap_envelope(response)
-
-        # Verify document metadata
-        assert doc["document_type"] == "pdf"
-        assert doc["processing_status"] == "completed"
-        assert doc["raw_text"] is not None
+            # Verify document metadata
+            assert doc["document_type"] == "pdf"
+            assert doc["processing_status"] == "completed"
+            assert doc["raw_text"] is not None
         assert len(doc["raw_text"]) > 100  # Should have extracted text
 
     @pytest.mark.asyncio
@@ -139,9 +140,9 @@ class TestDocumentUploadFlow:
                     headers=auth_headers,
                 )
 
-        assert response.status_code == 200
-        data = unwrap_envelope(response)
-        assert "job_id" in data
+            assert response.status_code == 200
+            data = unwrap_envelope(response)
+            assert "job_id" in data
 
     @pytest.mark.asyncio
     async def test_duplicate_upload_detected(self, auth_headers):
@@ -157,22 +158,22 @@ class TestDocumentUploadFlow:
                     files={"file": ("cv1.pdf", f, "application/pdf")},
                     headers=auth_headers,
                 )
-        assert response1.status_code == 200
-        _job_id_1 = unwrap_envelope(response1)["job_id"]  # noqa: F841
+            assert response1.status_code == 200
+            _job_id_1 = unwrap_envelope(response1)["job_id"]  # noqa: F841
 
-        # Wait for processing
-        await asyncio.sleep(5)
+            # Wait for processing
+            await asyncio.sleep(5)
 
-        # Upload same file again
-        with open(SAMPLE_CV_PDF, "rb") as f:
-            response2 = await client.post(
-                "/api/documents/upload",
-                files={"file": ("cv2.pdf", f, "application/pdf")},
-                headers=auth_headers,
-            )
+            # Upload same file again
+            with open(SAMPLE_CV_PDF, "rb") as f:
+                response2 = await client.post(
+                    "/api/documents/upload",
+                    files={"file": ("cv2.pdf", f, "application/pdf")},
+                    headers=auth_headers,
+                )
 
-        # Should either reject or return existing document
-        assert response2.status_code in [200, 409]  # 409 = Conflict (duplicate)
+            # Should either reject or return existing document
+            assert response2.status_code in [200, 409]  # 409 = Conflict (duplicate)
 
 
 class TestEmbeddingGeneration:
@@ -205,8 +206,10 @@ class TestEmbeddingGeneration:
             # Check that embeddings exist in database
             async for db in get_db_session():
                 embeddings = await db.execute(
-                    "SELECT COUNT(*) FROM document_embeddings WHERE document_id IN "
-                    "(SELECT id FROM candidate_documents WHERE user_id = :user_id)",
+                    text(
+                        "SELECT COUNT(*) FROM document_embeddings WHERE document_id IN "
+                        "(SELECT id FROM candidate_documents WHERE user_id = :user_id)"
+                    ),
                     {"user_id": auth_headers["X-Test-User-ID"]},
                 )
                 count = embeddings.scalar()
@@ -300,13 +303,13 @@ class TestCVExtraction:
                 headers=auth_headers,
             )
 
-        assert response.status_code == 200
-        cv_data = unwrap_envelope(response)
+            assert response.status_code == 200
+            cv_data = unwrap_envelope(response)
 
-        # Verify structured fields
-        assert "personal_info" in cv_data or "name" in cv_data
-        assert "experience" in cv_data or "work_history" in cv_data
-        assert "skills" in cv_data
+            # Verify structured fields
+            assert "personal_info" in cv_data or "name" in cv_data
+            assert "experience" in cv_data or "work_history" in cv_data
+            assert "skills" in cv_data
 
     @pytest.mark.asyncio
     async def test_cv_completeness_score(self, auth_headers):
@@ -340,9 +343,9 @@ class TestCVExtraction:
 
             cv_data = unwrap_envelope(response)
 
-        # Minimal CV should have lower completeness
-        if "completeness_score" in cv_data:
-            assert cv_data["completeness_score"] < 0.8
+            # Minimal CV should have lower completeness
+            if "completeness_score" in cv_data:
+                assert cv_data["completeness_score"] < 0.8
 
 
 class TestErrorHandling:

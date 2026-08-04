@@ -16,7 +16,7 @@ from alembic import op
 from sqlalchemy import text
 
 revision: str = "009_enable_pgvector"
-down_revision: Union[str, Sequence[str], None] = "007_add_user_id_to_dsar"
+down_revision: Union[str, Sequence[str], None] = "008_candidate_documents"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

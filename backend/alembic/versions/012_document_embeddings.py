@@ -10,6 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision: str = '012_document_embeddings'
@@ -28,23 +29,20 @@ def upgrade() -> None:
         # Enable vector extension
         op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
-        # Create table with vector column
-        op.create_table(
-            'document_embeddings',
-            sa.Column('id', sa.UUID(), nullable=False),
-            sa.Column('document_id', sa.UUID(), nullable=False),
-            sa.Column('chunk_index', sa.Integer(), nullable=False),
-            sa.Column('chunk_text', sa.Text(), nullable=False),
-            sa.Column('embedding', postgresql.ARRAY(sa.Float()), nullable=False),
-            sa.Column('token_count', sa.Integer(), nullable=False),
-            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-            sa.ForeignKeyConstraint(
-                ['document_id'],
-                ['candidate_documents.id'],
-                ondelete='CASCADE'
-            ),
-            sa.PrimaryKeyConstraint('id')
-        )
+        # Create table with vector column using raw SQL for pgvector type
+        op.execute(text("""
+            CREATE TABLE document_embeddings (
+                id UUID NOT NULL,
+                document_id UUID NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                chunk_text TEXT NOT NULL,
+                embedding vector(1536) NOT NULL,
+                token_count INTEGER NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                PRIMARY KEY (id),
+                FOREIGN KEY (document_id) REFERENCES candidate_documents(id) ON DELETE CASCADE
+            )
+        """))
 
         # Create indexes
         op.create_index(

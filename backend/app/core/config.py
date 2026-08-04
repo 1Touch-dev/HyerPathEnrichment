@@ -132,6 +132,7 @@ class Settings(BaseSettings):
 
     # OpenAI API (for CV extraction, embeddings, etc.)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    enable_embeddings: bool = Field(default=True, alias="ENABLE_EMBEDDINGS")
 
     # Proxies (paid-later)
     scrapoxy_url: str = Field(default="", alias="SCRAPOXY_URL")

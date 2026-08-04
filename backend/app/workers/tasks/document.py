@@ -14,10 +14,11 @@ import app.database.orm_registry  # noqa: F401
 
 from app.database.session import SessionLocal, engine
 from app.infrastructure.redis import close_redis
+from app.modules.documents.models import CandidateDocument
 from app.services.document_processor import DocumentProcessor, DocumentProcessingError
 from app.storage.document_storage import DocumentStorageError
 from rq import Queue
-from sqlalchemy import text
+from sqlalchemy import text, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -80,12 +81,9 @@ async def _process_document_job(
             extraction_result = processor.process_document(file_data, mime_type)
 
             # Update database with extracted content
-            from sqlalchemy import update as sa_update
-            from app.database.base import Base
-
             await session.execute(
-                sa_update(Base.metadata.tables["candidate_documents"])
-                .where(Base.metadata.tables["candidate_documents"].c.id == document_id)
+                sa_update(CandidateDocument)
+                .where(CandidateDocument.id == document_id)
                 .values(
                     raw_text=extraction_result["text"],
                     extracted_data={
@@ -148,13 +146,10 @@ async def _process_document_job(
             if session is not None:
                 await session.rollback()
 
-            from sqlalchemy import update as sa_update
-            from app.database.base import Base
-
             async with SessionLocal() as recovery_session:
                 await recovery_session.execute(
-                    sa_update(Base.metadata.tables["candidate_documents"])
-                    .where(Base.metadata.tables["candidate_documents"].c.id == document_id)
+                    sa_update(CandidateDocument)
+                    .where(CandidateDocument.id == document_id)
                     .values(processing_status="failed"),
                 )
                 await recovery_session.commit()

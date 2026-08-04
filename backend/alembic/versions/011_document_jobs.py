@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "011_document_jobs"
-down_revision: Union[str, Sequence[str], None] = "008_candidate_documents"
+down_revision: Union[str, Sequence[str], None] = "009_enable_pgvector"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
