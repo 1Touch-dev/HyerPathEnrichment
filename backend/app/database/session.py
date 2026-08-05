@@ -1,6 +1,5 @@
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -136,7 +135,6 @@ async def init_db() -> None:
     logger.info("database schema migrated to alembic head (dialect=%s)", engine.dialect.name)
 
 
-@asynccontextmanager
 async def get_db_session() -> AsyncIterator[AsyncSession]:
     async with SessionLocal() as session:
         yield session
