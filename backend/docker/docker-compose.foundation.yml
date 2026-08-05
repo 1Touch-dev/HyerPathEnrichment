@@ -30,7 +30,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - document_cache:/app/backend/.asset-cache
-    restart: unless-stopped
+    restart: on-failure:5
     deploy:
       resources:
         limits:
@@ -69,7 +69,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    restart: unless-stopped
+    restart: on-failure:5
     deploy:
       resources:
         limits:
