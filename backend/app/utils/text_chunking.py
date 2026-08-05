@@ -65,8 +65,17 @@ def chunk_document(text: str, max_tokens: int = 512, overlap: int = 50) -> list[
 
     try:
         raw_chunks = splitter.split_text(text)
-    except Exception:
-        logger.warning("Text splitter failed; returning single chunk", exc_info=True)
+    except Exception as e:
+        logger.warning(
+            "Text splitter failed; returning single chunk",
+            exc_info=True,
+            extra={
+                "error_type": type(e).__name__,
+                "text_length": len(text),
+                "max_tokens": max_tokens,
+                "overlap": overlap,
+            },
+        )
         return [
             {
                 "chunk_text": text,
@@ -86,6 +95,17 @@ def chunk_document(text: str, max_tokens: int = 512, overlap: int = 50) -> list[
         start_char = text.find(chunk_text, current_pos)
         if start_char == -1:
             # Fallback if exact match fails (shouldn't happen but defensive)
+            logger.warning(
+                "Chunk position not found; using fallback position",
+                extra={
+                    "chunk_index": idx,
+                    "current_pos": current_pos,
+                    "chunk_length": len(chunk_text),
+                    "chunk_preview": chunk_text[:50] + "..."
+                    if len(chunk_text) > 50
+                    else chunk_text,
+                },
+            )
             start_char = current_pos
 
         end_char = start_char + len(chunk_text)

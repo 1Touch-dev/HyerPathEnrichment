@@ -68,19 +68,50 @@ async def process_document_embeddings(document_id: str) -> dict:
         )
 
         # Step 1: Chunk document (Agent 3's functionality)
-        chunks = chunk_document(document.raw_text, max_tokens=512, overlap=50)
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        chunks = chunk_document(
+            document.raw_text,
+            max_tokens=settings.embedding_chunk_size,
+            overlap=settings.embedding_chunk_overlap,
+        )
 
         if not chunks:
-            logger.warning(f"No chunks generated for document {document_id}")
+            logger.warning(
+                f"No chunks generated for document {document_id}",
+                extra={"document_id": document_id, "text_length": len(document.raw_text)},
+            )
             return {
                 "success": False,
                 "error": "No chunks generated",
                 "document_id": document_id,
             }
 
+        # Validate chunk count and token distribution
+        total_tokens = sum(chunk["token_count"] for chunk in chunks)
+        avg_tokens = total_tokens / len(chunks)
+        max_chunk_tokens = max(chunk["token_count"] for chunk in chunks)
+
+        if max_chunk_tokens > settings.embedding_chunk_size * 1.1:  # 10% tolerance
+            logger.warning(
+                "Chunk exceeds token limit",
+                extra={
+                    "document_id": document_id,
+                    "max_chunk_tokens": max_chunk_tokens,
+                    "configured_limit": settings.embedding_chunk_size,
+                },
+            )
+
         logger.info(
             f"Generated {len(chunks)} chunks for document {document_id}",
-            extra={"document_id": document_id, "num_chunks": len(chunks)},
+            extra={
+                "document_id": document_id,
+                "num_chunks": len(chunks),
+                "total_tokens": total_tokens,
+                "avg_tokens_per_chunk": avg_tokens,
+                "max_chunk_tokens": max_chunk_tokens,
+            },
         )
 
         # Step 2: Generate embeddings

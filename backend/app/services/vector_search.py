@@ -12,10 +12,11 @@ from typing import TypedDict
 from uuid import UUID
 
 from sqlalchemy import select, text
-from sqlalchemy.sql import literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import literal_column
 
 from app.core.config import get_settings
+from app.utils.text_chunking import ChunkDict
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
 async def store_embeddings(
     session: AsyncSession,
     document_id: UUID,
-    chunks_with_embeddings: list[tuple[dict, list[float], int]],
+    chunks_with_embeddings: list[tuple[ChunkDict, list[float], int]],
 ) -> None:
     """Store document chunk embeddings in database.
 
@@ -74,8 +75,45 @@ async def store_embeddings(
         document_id: Parent document UUID
         chunks_with_embeddings: List of (chunk_dict, embedding_vector, token_count)
             where chunk_dict has keys: chunk_text, chunk_index, start_char, end_char
+
+    Raises:
+        ValueError: If embeddings fail validation (dimension mismatch, duplicates, token count)
     """
     from app.modules.documents.models import DocumentEmbedding
+
+    # Validation: Check embedding dimensions
+    if chunks_with_embeddings:
+        expected_dim = len(chunks_with_embeddings[0][1])
+        if expected_dim != 1536:  # text-embedding-3-small dimension
+            logger.warning(
+                "Unexpected embedding dimension",
+                extra={
+                    "document_id": str(document_id),
+                    "expected": 1536,
+                    "actual": expected_dim,
+                },
+            )
+
+        for idx, (chunk, embedding, token_count) in enumerate(chunks_with_embeddings):
+            if len(embedding) != expected_dim:
+                raise ValueError(
+                    f"Embedding dimension mismatch at chunk {idx}: "
+                    f"expected {expected_dim}, got {len(embedding)}"
+                )
+
+            # Validate token count is reasonable
+            if token_count <= 0 or token_count > 8192:  # OpenAI max context
+                raise ValueError(
+                    f"Invalid token count at chunk {idx}: {token_count} (expected 1-8192)"
+                )
+
+    # Validation: Check for duplicate chunk indices
+    chunk_indices = [chunk["chunk_index"] for chunk, _, _ in chunks_with_embeddings]
+    if len(chunk_indices) != len(set(chunk_indices)):
+        duplicates = [idx for idx in chunk_indices if chunk_indices.count(idx) > 1]
+        raise ValueError(
+            f"Duplicate chunk indices detected for document {document_id}: {set(duplicates)}"
+        )
 
     embeddings = []
     for chunk, embedding, token_count in chunks_with_embeddings:
@@ -97,6 +135,7 @@ async def store_embeddings(
             "document_id": str(document_id),
             "num_chunks": len(embeddings),
             "total_tokens": sum(e.token_count for e in embeddings),
+            "embedding_dimension": expected_dim if embeddings else 0,
         },
     )
 
