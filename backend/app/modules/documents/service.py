@@ -12,6 +12,7 @@ from rq import Queue
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clients.embeddings import get_embeddings_client
 from app.modules.documents.models import CandidateDocument, DocumentJob
 from app.modules.documents.schemas import (
     CVDataResponse,
@@ -22,6 +23,7 @@ from app.modules.documents.schemas import (
     SearchRequest,
     SearchResult,
 )
+from app.services.vector_search import similarity_search
 from app.workers.queue import QUEUE_DOCUMENT, get_redis_connection
 
 logger = logging.getLogger(__name__)
@@ -225,7 +227,7 @@ class DocumentService:
         search_request: SearchRequest,
         user_id: UUID,
     ) -> list[SearchResult]:
-        """Semantic search across candidate documents.
+        """Semantic search across candidate documents using vector embeddings.
 
         Args:
             search_request: Search query and filters
@@ -233,17 +235,43 @@ class DocumentService:
 
         Returns:
             List of search results
-
-        Note:
-            This is a placeholder implementation. Actual semantic search
-            requires vector embeddings from Agent 2's work.
         """
-        # TODO: Implement semantic search with vector embeddings
-        # For now, return empty results
-        logger.warning(
-            "Semantic search not yet implemented",
-            extra={"query": search_request.query, "user_id": str(user_id)[:8]},
+        # Step 1: Generate query embedding
+        embeddings_client = await get_embeddings_client()
+        query_embedding, _ = await embeddings_client.generate_embedding(search_request.query)
+
+        # Step 2: Vector similarity search
+        raw_results = await similarity_search(
+            session=self.db,
+            query_embedding=query_embedding,
+            limit=search_request.limit or 10,
+            similarity_threshold=0.5,
         )
+
+        # Step 3: Authorization filter (user can only search their own documents)
+        if raw_results:
+            doc_ids = [UUID(r["document_id"]) for r in raw_results]
+            auth_query = select(CandidateDocument).where(
+                CandidateDocument.id.in_(doc_ids),
+                CandidateDocument.user_id == user_id,
+            )
+            authorized = await self.db.execute(auth_query)
+            authorized_docs = {str(doc.id): doc for doc in authorized.scalars()}
+
+            # Filter to only authorized documents
+            raw_results = [r for r in raw_results if r["document_id"] in authorized_docs]
+
+            # Step 4: Map to API schema
+            return [
+                SearchResult(
+                    document_id=r["document_id"],
+                    similarity_score=r["similarity"],
+                    cv_data=authorized_docs[r["document_id"]].extracted_data or {},
+                    excerpt=r["chunk_text"][:200],
+                )
+                for r in raw_results
+            ]
+
         return []
 
     async def get_document_by_id(self, document_id: str, user_id: UUID) -> DocumentDetailResponse:
