@@ -114,11 +114,10 @@ async def _process_document_job(
                 redis_conn = get_redis_connection()
                 embedding_queue = Queue(QUEUE_EMBEDDING, connection=redis_conn)
 
-                # Enqueue embedding job with document_id and extracted text
+                # Enqueue embedding job with document_id (worker fetches text from DB)
                 embedding_queue.enqueue(
                     "app.workers.tasks.embedding.run_embedding_job",
                     document_id,
-                    extraction_result["text"],
                     job_timeout=300,  # 5 minutes
                 )
 
