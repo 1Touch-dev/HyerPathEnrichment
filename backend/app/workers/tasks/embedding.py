@@ -24,7 +24,7 @@ from app.workers.queue import QUEUE_EMBEDDING, get_redis_connection
 logger = logging.getLogger(__name__)
 
 
-async def process_document_embeddings(document_id: str) -> dict:
+async def process_document_embeddings(document_id: str) -> dict[str, bool | str | int | float]:
     """Generate embeddings for a document's text chunks.
 
     Workflow:
@@ -164,7 +164,7 @@ async def process_document_embeddings(document_id: str) -> dict:
         return result_data
 
 
-def run_embedding_job(document_id: str) -> dict:
+def run_embedding_job(document_id: str) -> dict[str, bool | str | int | float]:
     """RQ worker entry point for embedding generation.
 
     Synchronous wrapper for async embedding processing.
@@ -219,8 +219,12 @@ def check_worker_health(queue_name: str) -> bool:
     """
     try:
         redis_conn = get_redis_connection()
-        # Simple Redis ping
+        # Test Redis connectivity with ping
         redis_conn.ping()
+
+        # Test write operation
+        test_key = f"health_check:{queue_name}"
+        redis_conn.setex(test_key, 10, "ok")
 
         # Check if we can access the queue
         from rq import Queue

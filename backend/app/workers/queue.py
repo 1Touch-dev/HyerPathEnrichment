@@ -38,6 +38,9 @@ def get_redis_connection() -> Redis:
         socket_keepalive=True,
         socket_keepalive_options={},
         health_check_interval=30,
+        retry_on_timeout=True,
+        retry_on_error=[ConnectionError, TimeoutError],
+        max_connections=50,
     )
 
 
