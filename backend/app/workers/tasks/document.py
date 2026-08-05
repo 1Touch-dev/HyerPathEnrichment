@@ -116,7 +116,7 @@ async def _process_document_job(
 
                 # Enqueue embedding job with document_id and extracted text
                 embedding_queue.enqueue(
-                    "app.workers.tasks.embedding.generate_embedding_job",
+                    "app.workers.tasks.embedding.run_embedding_job",
                     document_id,
                     extraction_result["text"],
                     job_timeout=300,  # 5 minutes
