@@ -171,14 +171,17 @@ async def similarity_search(
         # Use pgvector cosine similarity (1 - cosine_distance)
         # cosine_distance is <=> operator in pgvector
         # similarity = 1 - cosine_distance
+        # Format embedding as PostgreSQL array string for pgvector
+        embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
+        
         query_stmt = select(
             DocumentEmbedding.document_id,
             DocumentEmbedding.chunk_index,
             DocumentEmbedding.chunk_text,
             DocumentEmbedding.token_count,
             # Use literal_column for computed similarity
-            literal_column("(1 - (embedding <=> :query_embedding))").label("similarity"),
-        ).where(text("(1 - (embedding <=> :query_embedding)) >= :threshold"))
+            literal_column("(1 - (embedding <=> :query_embedding::vector))").label("similarity"),
+        ).where(text("(1 - (embedding <=> :query_embedding::vector)) >= :threshold"))
 
         if document_id:
             query_stmt = query_stmt.where(DocumentEmbedding.document_id == document_id)
@@ -186,7 +189,7 @@ async def similarity_search(
         query_stmt = (
             query_stmt.order_by(text("similarity DESC"))
             .limit(limit)
-            .params(query_embedding=query_embedding, threshold=similarity_threshold)
+            .params(query_embedding=embedding_str, threshold=similarity_threshold)
         )
 
         try:
