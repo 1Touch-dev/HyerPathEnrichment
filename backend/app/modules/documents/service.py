@@ -249,7 +249,7 @@ class DocumentService:
             List of search results
         """
         # Step 1: Generate query embedding
-        embeddings_client = await get_embeddings_client()
+        embeddings_client = get_embeddings_client()
         query_embedding, _ = await embeddings_client.generate_embedding(search_request.query)
 
         # Step 2: Vector similarity search
