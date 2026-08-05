@@ -8,6 +8,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.worker-document
+    networks:
+      - default
     environment:
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
@@ -54,6 +56,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.worker-embedding
+    networks:
+      - default
     environment:
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
