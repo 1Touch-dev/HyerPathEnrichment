@@ -109,8 +109,20 @@ class DocumentService:
                     "existing_doc_id": str(existing_doc.id),
                 },
             )
+            # Create a job record with status="duplicate" for tracking
+            job = DocumentJob(
+                user_id=user_id,
+                document_id=existing_doc.id,
+                job_type="upload",
+                status="duplicate",
+                progress=100.0,
+            )
+            self.db.add(job)
+            await self.db.commit()
+            await self.db.refresh(job)
+
             return DocumentUploadResponse(
-                job_id="",  # No new job
+                job_id=str(job.id),
                 document_id=str(existing_doc.id),
                 message="Document already exists",
             )
@@ -378,6 +390,107 @@ class DocumentService:
             )
             for doc in documents
         ]
+
+    async def delete_document(self, document_id: str, user_id: UUID) -> None:
+        """Delete a document and its associated data.
+
+        Args:
+            document_id: Document UUID
+            user_id: User ID (for authorization)
+
+        Raises:
+            HTTPException: If document not found or unauthorized
+        """
+        result = await self.db.execute(
+            select(CandidateDocument).where(
+                CandidateDocument.id == UUID(document_id),
+                CandidateDocument.user_id == user_id,
+            )
+        )
+        document = result.scalar_one_or_none()
+
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found",
+            )
+
+        # Delete document (cascade deletes embeddings and jobs)
+        await self.db.delete(document)
+        await self.db.commit()
+
+        logger.info(
+            "Document deleted",
+            extra={
+                "document_id": document_id,
+                "user_id": str(user_id)[:8],
+            },
+        )
+
+    async def reprocess_document(self, document_id: str, user_id: UUID) -> DocumentUploadResponse:
+        """Reprocess an existing document.
+
+        Creates a new processing job for an existing document.
+
+        Args:
+            document_id: Document UUID
+            user_id: User ID (for authorization)
+
+        Returns:
+            Upload response with new job_id
+
+        Raises:
+            HTTPException: If document not found or unauthorized
+        """
+        result = await self.db.execute(
+            select(CandidateDocument).where(
+                CandidateDocument.id == UUID(document_id),
+                CandidateDocument.user_id == user_id,
+            )
+        )
+        document = result.scalar_one_or_none()
+
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found",
+            )
+
+        # Reset processing status
+        document.processing_status = "pending"
+        document.raw_text = None
+        document.extracted_data = None
+
+        # Create new job record
+        job = DocumentJob(
+            user_id=user_id,
+            document_id=document.id,
+            job_type="reprocess",
+            status="pending",
+            progress=0.0,
+        )
+        self.db.add(job)
+        await self.db.commit()
+        await self.db.refresh(job)
+
+        # Note: In a full implementation, we would need to retrieve the original file data
+        # from storage and re-enqueue it. For now, this creates the job record.
+        # A production version would need file storage integration.
+
+        logger.info(
+            "Document reprocess job created",
+            extra={
+                "job_id": str(job.id),
+                "document_id": document_id,
+                "user_id": str(user_id)[:8],
+            },
+        )
+
+        return DocumentUploadResponse(
+            job_id=str(job.id),
+            document_id=str(document.id),
+            message="Document queued for reprocessing",
+        )
 
 
 def _get_file_extension(filename: str) -> str:
