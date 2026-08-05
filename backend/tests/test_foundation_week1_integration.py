@@ -82,6 +82,9 @@ class TestDocumentUploadFlow:
                     headers=auth_headers,
                 )
 
+            if response.status_code != 200:
+                print(f"ERROR: Status {response.status_code}")
+                print(f"Response body: {response.text}")
             assert response.status_code == 200
             data = unwrap_envelope(response)
             assert "job_id" in data
