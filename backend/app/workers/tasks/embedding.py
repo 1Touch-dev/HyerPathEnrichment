@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from app.auth.models import User  # noqa: F401 - Import for SQLAlchemy FK resolution
 from app.clients.embeddings import get_embeddings_client
-from app.database.session import get_db_session
+from app.database.session import SessionLocal
 from app.modules.documents.models import CandidateDocument
 from app.observability.cost_tracking import track_embedding_cost
 from app.services.vector_search import store_embeddings
@@ -46,7 +46,7 @@ async def process_document_embeddings(document_id: str) -> dict[str, bool | str 
     """
     doc_uuid = UUID(document_id)
 
-    async with get_db_session() as session:
+    async with SessionLocal() as session:
         # Fetch document
         query = select(CandidateDocument).where(CandidateDocument.id == doc_uuid)
         result = await session.execute(query)
