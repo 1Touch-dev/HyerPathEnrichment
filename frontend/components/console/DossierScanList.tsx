@@ -55,6 +55,7 @@ export function DossierScanList({
                   confidence={entity.confidence}
                   selected={selectedId === entity.id}
                   onClick={() => onSelect(entity)}
+                  platform={handle.platform}
                 />
               );
             })}

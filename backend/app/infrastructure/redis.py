@@ -16,13 +16,16 @@ def get_redis_client() -> Redis:
     global _redis
     if _redis is None:
         settings = get_settings()
-        # Short timeouts so an unreachable Redis degrades fast instead of
-        # stalling request paths that fall back to SQL.
+        # Increased timeouts to handle Redis under disk I/O pressure
+        # socket_keepalive enables TCP keepalive to detect dead connections
         _redis = Redis.from_url(
             settings.redis_url,
             decode_responses=True,
-            socket_connect_timeout=2,
-            socket_timeout=2,
+            socket_connect_timeout=5,
+            socket_timeout=10,
+            socket_keepalive=True,
+            socket_keepalive_options={},  # Use system defaults
+            health_check_interval=30,  # Check connection health every 30s
         )
     return _redis
 

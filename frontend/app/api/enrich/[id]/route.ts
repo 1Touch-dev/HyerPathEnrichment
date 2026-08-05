@@ -13,9 +13,11 @@ import { getMockJob } from "@/src/lib/mocks/mock-jobs";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
   if (isMockMode()) {
-    const job = getMockJob(params.id);
+    const job = getMockJob(id);
     if (!job) {
       return bffError("NOT_FOUND", "Job not found.", 404);
     }
@@ -24,7 +26,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
 
   let backendResponse: Response;
   try {
-    backendResponse = await backendFetch(`/enrich/${params.id}`);
+    backendResponse = await backendFetch(`/enrich/${id}`);
   } catch {
     return bffServiceUnavailable();
   }

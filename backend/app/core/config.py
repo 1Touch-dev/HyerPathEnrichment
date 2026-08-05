@@ -130,6 +130,10 @@ class Settings(BaseSettings):
     litellm_model: str = Field(default="gpt-4o-mini", alias="LITELLM_MODEL")
     litellm_fallbacks: str = Field(default="", alias="LITELLM_FALLBACKS")
 
+    # OpenAI API (for CV extraction, embeddings, etc.)
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    enable_embeddings: bool = Field(default=True, alias="ENABLE_EMBEDDINGS")
+
     # Proxies (paid-later)
     scrapoxy_url: str = Field(default="", alias="SCRAPOXY_URL")
     scrapoxy_username: str = Field(default="", alias="SCRAPOXY_USERNAME")
@@ -159,6 +163,41 @@ class Settings(BaseSettings):
 
     # Compliance
     audit_log_retention_years: int = Field(default=5, alias="AUDIT_LOG_RETENTION_YEARS")
+
+    # Email Service (SendGrid)
+    sendgrid_api_key: SecretStr = Field(default=SecretStr(""), alias="SENDGRID_API_KEY")
+    sendgrid_from_email: str = Field(default="noreply@hyrepath.com", alias="SENDGRID_FROM_EMAIL")
+    sendgrid_from_name: str = Field(default="Hyrepath Enrichment", alias="SENDGRID_FROM_NAME")
+    sendgrid_reply_to: str = Field(default="support@hyrepath.com", alias="SENDGRID_REPLY_TO")
+    email_enabled: bool = Field(default=False, alias="EMAIL_ENABLED")
+    email_test_mode: bool = Field(default=True, alias="EMAIL_TEST_MODE")
+
+    # Authentication
+    SECRET_KEY: str = Field(
+        default="change-me-in-production-use-openssl-rand-hex-32",
+        alias="SECRET_KEY",
+        description="Secret key for JWT signing (generate with: openssl rand -hex 32)",
+    )
+    JWT_ALGORITHM: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
+
+    # OAuth (Google)
+    GOOGLE_OAUTH_CLIENT_ID: str = Field(default="", alias="GOOGLE_OAUTH_CLIENT_ID")
+    GOOGLE_OAUTH_CLIENT_SECRET: SecretStr = Field(
+        default=SecretStr(""), alias="GOOGLE_OAUTH_CLIENT_SECRET"
+    )
+    GOOGLE_OAUTH_REDIRECT_URL: str = Field(
+        default="http://localhost:3000/callback/google",
+        alias="GOOGLE_OAUTH_REDIRECT_URL",
+    )
+
+    # Frontend URL (for email links)
+    FRONTEND_URL: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")
+
+    # Cookie settings
+    COOKIE_SECURE: bool = Field(default=False, alias="COOKIE_SECURE")
+    COOKIE_DOMAIN: str | None = Field(default=None, alias="COOKIE_DOMAIN")
 
     # RQ job timeout (seconds) — must accommodate full all-tier enrichment (20-30 min)
     rq_job_timeout_seconds: int = Field(default=3000, alias="RQ_JOB_TIMEOUT_SECONDS")

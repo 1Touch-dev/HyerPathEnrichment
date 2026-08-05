@@ -46,10 +46,13 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Database is Postgres everywhere | Local dev default is **SQLite** (`sqlite+aiosqlite:///./hyrepath.db`); **Docker compose uses Postgres** (`postgresql+asyncpg://...@postgres:5432/hyrepath`) shared by API + worker. Schema via **Alembic** (`init_db` → upgrade head); document columns are **JSONB** on Postgres |
 | R2 uploads go to Cloudflare | **R2 when `R2_*` creds set** (`aioboto3` PutObject + HeadObject); else local `backend/.asset-cache/` |
 | LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in. Pipeline walks handles below `DISAMBIGUATION_THRESHOLD` via `enrichers/disambiguate.py` → LLM client |
-| Opt-out / DSAR are unauthenticated | **Public** (IP rate-limited via `MAX_COMPLIANCE_REQUESTS_PER_MINUTE`); enrich routes still require Bearer |
+| Authentication is API token only | **Cookie-based auth** with FastAPI-Users (ADR 0009); enrichment and DSAR require **authenticated + verified users**; opt-out remains public |
+| Opt-out / DSAR are unauthenticated | **Opt-out is public** (IP rate-limited); **DSAR requires authenticated verified user**; enrich routes require authenticated verified user |
+| Email verification is optional | **Required** — unverified users blocked from enrichment and DSAR; only opt-out accessible without verification |
+| Logout is stateless | **Token blacklist** (Redis + PostgreSQL dual-write); logged-out tokens trigger security alerts if reused |
 | Suppression lives in Redis only | **SQL table** `suppression_list` is the durable record; Redis set `suppression:hashes` is a fast-path cache (dual-write, SQL fallback) in `compliance/suppression.py` |
-| Audit logs | **SQL `audit_logs`** — 5-year retention via `purge_audit_logs.py` |
-| DSAR flow | **`POST/GET /api/dsar`** — automated access/deletion in v1 |
+| Audit logs | **SQL `audit_logs`** for compliance + **SQL `auth_audit_logs`** for auth events — 5-year retention via `purge_audit_logs.py` |
+| DSAR flow | **`POST/GET /api/dsar`** — requires authenticated verified user in v1 (per ADR 0009) |
 | Data erasure on opt-out | Opt-out service → compliance suppress + purge jobs, photo cache, R2/local assets |
 | Sidecars are real services | Compose uses **real images**; free-mode ones default-on, paid/heavy ones behind `profiles:` |
 
@@ -274,6 +277,30 @@ Runs in parallel when `tier2` is requested:
 |--------|----------|------|
 | `jobspy.py` | `speedyapply/JobSpy` | Multi-board job pull (LinkedIn, Indeed, Glassdoor, Google Jobs, ZipRecruiter) |
 | `local_business.py` | `gosom/google-maps-scraper` | Address, phone, website, rating via sidecar |
+
+**Concurrency:** Fully async, no enrichment worker delay.
+
+**Purpose:** Discover job openings matching criteria (JobSpy) and local business information (Google Maps Scraper).
+
+**Input:** `job_search` (or `job_title`/`job_location`/`job_country`) and/or `business`
+
+**LLM Job Query Optimization:**
+
+When `LLM_MODE=litellm`, the system uses an LLM (Gemini 2.5 Flash via LiteLLM proxy) to generate board-specific optimized queries for each job board:
+
+- **LinkedIn**: Contextual location format
+- **Indeed**: Correct `country_indeed` parameter + formatted location
+- **Glassdoor**: "City, State" or "City, Country" format (strict requirement)
+- **Google Jobs**: Natural language query ("Software Engineer jobs in Mumbai, India")
+- **ZipRecruiter**: Board-specific keywords
+
+The LLM optimization normalizes locations (e.g., "Bengaluru" → "Bengaluru, Karnataka"), handles ambiguous cities (adds state/country context), and generates board-specific parameters from few-shot examples. Falls back gracefully to manual logic if LLM unavailable.
+
+**Key Implementation:** `backend/app/enrichers/jobspy.py` → `backend/app/clients/llm.py::litellm_optimize_job_query()`
+
+**Cost:** ~$0.001-0.01 per job search (Gemini 2.5 Flash). See [LLM_JOB_OPTIMIZATION.md](../../docs/LLM_JOB_OPTIMIZATION.md) for details.
+
+**JobSpy** scrapes 5 boards concurrently (LinkedIn, Indeed, Glassdoor, Google, ZipRecruiter) via `python-jobspy`. ZipRecruiter often returns 403 (bot detection). Paid proxy (`PROXY_MODE=paid`) helps but doesn't guarantee success. Google Maps Scraper is a containerized sidecar (`docker/Dockerfile.google-maps-scraper`) built from `gosom/google-maps-scraper`.
 
 ### LLM post-pass — disambiguation
 
@@ -551,7 +578,9 @@ python scripts/setup_changedetection_watches.py create https://acme.example/care
 python scripts/setup_changedetection_watches.py list
 ```
 
-Flow: changedetection detects a page change → `POST /api/signals/changedetection` → API forwards `{source, watch_id, title, url, timestamp}` to `NOTIFY_WEBHOOK_URL` when configured.
+Flow: changedetection detects a page change → `POST /api/signals/changedetection` → API persists to `signals` table → forwards `{source, watch_id, title, url, timestamp}` to `NOTIFY_WEBHOOK_URL` when configured → frontend displays at `/signals` route.
+
+**Frontend UI:** Authenticated route at `/app/signals` displays signals list with pagination, external links, and empty state. Uses `@tanstack/react-query` for data fetching and auto-refresh. Components: `features/signals/components/SignalsTable.tsx`, `features/signals/hooks/useSignalList.ts`.
 
 ### Structured logging
 
@@ -631,6 +660,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Area | Target (v0.2 guide) | Current scaffold |
 |------|---------------------|------------------|
 | API routes + auth | FastAPI + Bearer | Implemented — JSON responses use shared success/error envelopes (`app/core/`) |
+| Cookie-based authentication | Google OAuth + email/password with verification | **Implemented (ADR 0009)** — `app/auth/` with FastAPI-Users, email verification (24h expiry), logged-out token detection (dual Redis+PostgreSQL), bcrypt password hashing (12 rounds), httpOnly cookies, rate limiting, audit logging, unverified user access control; enrichment + DSAR require verified users; opt-out remains public |
 | Orchestrator + tier dispatch | `runner.py` | Implemented |
 | Enricher modules (11) | Real tool integrations | Real subprocess/library/sidecar calls behind `app/clients/` and `app/integrations/`; degrade to empty fragments when a backend is absent |
 | External clients layer | Config-selected free/paid backends | `app/clients/` (proxy, llm, email_verify, sidecar, process) + `app/integrations/` (linkedin, multilogin, browser); mode flags in `core/config.py` |
@@ -649,9 +679,9 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Langfuse tracing | Per disambiguation call | `clients.llm.trace()`; no-op until `LANGFUSE_*` set |
 | Sidecars | 5+ isolated services | Real images; free-mode default-on, paid behind compose `profiles:`; default stack Compose healthchecks (incl. redis/api/worker/GMaps) |
 | Compose healthchecks | Infra readiness gates | Default stack probes healthy; api/worker gate on healthy postgres + redis |
-| Opt-out auth | Authenticated (intentional v1) | Implemented — see `docs/LEGAL.md` |
-| Audit logs | SQL + 5-year retention script | Implemented |
-| DSAR flow | `POST/GET /api/dsar` | Implemented |
+| Opt-out / DSAR auth | Opt-out public, DSAR authenticated | **Implemented (ADR 0009)** — Opt-out remains public (IP rate-limited); DSAR requires authenticated verified user; enrichment requires authenticated verified user |
+| Audit logs | SQL + 5-year retention script | Implemented — `audit_logs` (compliance) + `auth_audit_logs` (auth events) |
+| DSAR flow | `POST/GET /api/dsar` | Implemented — requires authenticated verified user (per ADR 0009) |
 | Data erasure | Purge on opt-out/DSAR deletion | Implemented |
 | Scrapoxy proxy pool | Rate-limit hardening | `ProxyProvider` (`PROXY_MODE=none|scrapoxy|paid`, default none = direct) |
 | Change signals | changedetection.io webhook → notify | `POST /api/signals/changedetection` → `clients/notify.py` (`NOTIFY_WEBHOOK_URL`, optional `X-Signal-Token`) |

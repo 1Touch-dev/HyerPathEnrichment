@@ -1,5 +1,8 @@
 from fastapi import Depends, FastAPI, Header
+from fastapi.middleware.cors import CORSMiddleware
 
+from app.auth.dependencies import VerifiedUser
+from app.auth.router import router as auth_router
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import Settings, get_settings
 from app.core.errors import UnauthorizedError
@@ -7,7 +10,10 @@ from app.core.exception_handlers import register_exception_handlers
 from app.core.lifespan import lifespan
 from app.core.logging import RequestContextMiddleware
 from app.dependencies.rate_limit import enforce_compliance_rate_limit
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.modules.documents.router import router as documents_router
 from app.modules.dsar.router import router as dsar_router
+from app.modules.email.router import router as email_router
 from app.modules.enrichment.router import router as enrich_router
 from app.modules.health.router import router as health_router
 from app.modules.opt_out.router import router as opt_out_router
@@ -19,9 +25,15 @@ async def verify_token(
     authorization: str | None = Header(default=None),
     settings: Settings = Depends(get_settings),
 ) -> None:
+    """Legacy API token verification (deprecated, use auth instead)."""
     expected = f"Bearer {settings.api_token}"
     if authorization != expected:
         raise UnauthorizedError("unauthorized")
+
+
+async def current_verified_user(user: VerifiedUser) -> VerifiedUser:
+    """Require authenticated and verified user (replacement for verify_token)."""
+    return user
 
 
 app = FastAPI(
@@ -30,12 +42,39 @@ app = FastAPI(
     lifespan=lifespan,
     route_class=EnvelopeAPIRoute,
 )
+
+# Security middleware
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestContextMiddleware)
+
+# CORS configuration for frontend
+settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.FRONTEND_URL] if settings.FRONTEND_URL else ["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
+# Register exception handlers
 register_exception_handlers(app)
+
+# Public routes (no auth required)
 app.include_router(health_router)
-app.include_router(enrich_router, dependencies=[Depends(verify_token)])
-_compliance_deps = [Depends(enforce_compliance_rate_limit)]
-app.include_router(opt_out_router, dependencies=_compliance_deps)
-app.include_router(dsar_router, dependencies=_compliance_deps)
+app.include_router(opt_out_router, dependencies=[Depends(enforce_compliance_rate_limit)])
+
+# Auth routes (authentication itself)
+app.include_router(auth_router)
+
+# Protected routes (require verified user)
+app.include_router(documents_router, dependencies=[Depends(current_verified_user)])
+app.include_router(enrich_router, dependencies=[Depends(current_verified_user)])
+app.include_router(email_router, dependencies=[Depends(current_verified_user)])
+app.include_router(
+    dsar_router,
+    dependencies=[Depends(current_verified_user), Depends(enforce_compliance_rate_limit)],
+)
 app.include_router(signals_webhook_router)
-app.include_router(signals_list_router, dependencies=[Depends(verify_token)])
+app.include_router(signals_list_router, dependencies=[Depends(current_verified_user)])

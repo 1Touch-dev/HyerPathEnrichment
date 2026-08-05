@@ -241,6 +241,9 @@ export function toBackendEnrichmentRequest(input: EnrichmentInput) {
     company: input.company || null,
     business: input.business || null,
     job_search: input.jobSearch || null,
+    job_title: input.jobTitle || null,
+    job_location: input.jobLocation || null,
+    job_country: input.jobCountry || null,
     requested_tiers: input.requestedTiers,
   };
 }
@@ -286,6 +289,9 @@ export function parseEnrichmentInput(body: Partial<EnrichmentInput>): Enrichment
     company: body.company?.trim() || "",
     business: body.business?.trim() || "",
     jobSearch: body.jobSearch?.trim() || "",
+    jobTitle: body.jobTitle?.trim() || "",
+    jobLocation: body.jobLocation?.trim() || "",
+    jobCountry: body.jobCountry?.trim() || "",
     requestedTiers: body.requestedTiers?.length
       ? body.requestedTiers
       : ["tier1", "tier2", "tier3", "tier4"],

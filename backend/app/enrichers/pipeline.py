@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, List
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,18 +53,20 @@ class Pipeline:
         self._email_verify = email_verify_enricher()
         self.tier4 = tier4_enrichers()
 
-    async def run(self, request: EnrichmentRequest) -> JobRecord:
+    async def run(self, request: EnrichmentRequest, user_id: UUID | None = None) -> JobRecord:
         """Synchronous path: create a job and run the pipeline inline."""
-        job = await self.jobs.create(request, JobStatus.running)
+        job = await self.jobs.create(request, JobStatus.running, user_id=user_id)
         await self.jobs.flush()
         return await self._execute(job, request, sync_mode=True)
 
-    async def create_queued_job(self, request: EnrichmentRequest) -> JobRecord:
+    async def create_queued_job(
+        self, request: EnrichmentRequest, user_id: UUID | None = None
+    ) -> JobRecord:
         """Async path: persist a queued job for a worker to pick up later."""
         if await is_request_suppressed(self.db, request):
-            return await self._create_suppressed_job(request)
+            return await self._create_suppressed_job(request, user_id=user_id)
 
-        job = await self.jobs.create(request, JobStatus.queued)
+        job = await self.jobs.create(request, JobStatus.queued, user_id=user_id)
         await self.jobs.commit()
         await self.jobs.refresh(job)
         return job
@@ -71,11 +74,15 @@ class Pipeline:
     async def is_request_suppressed(self, request: EnrichmentRequest) -> bool:
         return await is_request_suppressed(self.db, request)
 
-    async def create_suppressed_job(self, request: EnrichmentRequest) -> JobRecord:
-        return await self._create_suppressed_job(request)
+    async def create_suppressed_job(
+        self, request: EnrichmentRequest, user_id: UUID | None = None
+    ) -> JobRecord:
+        return await self._create_suppressed_job(request, user_id=user_id)
 
-    async def _create_suppressed_job(self, request: EnrichmentRequest) -> JobRecord:
-        job = await self.jobs.create(request, JobStatus.suppressed)
+    async def _create_suppressed_job(
+        self, request: EnrichmentRequest, user_id: UUID | None = None
+    ) -> JobRecord:
+        job = await self.jobs.create(request, JobStatus.suppressed, user_id=user_id)
         dossier = base_dossier(request)
         dossier.metadata["suppressed"] = True
         await self.jobs.mark_status(
@@ -105,6 +112,11 @@ class Pipeline:
         if job is None:
             logger.warning("execute_job called for unknown job")
             return None
+
+        # If this is a child job, handle it specially
+        if job.parent_job_id:
+            return await self._execute_child_job(job)
+
         request = EnrichmentRequest.model_validate(job.request_payload)
         # Commit the running transition immediately rather than leaving it as a
         # dirty attribute: autoflush would otherwise open an uncommitted write
@@ -130,6 +142,157 @@ class Pipeline:
                 await publish_job_status(job_id, JobStatus.failed)
             raise
 
+    async def create_parent_job(
+        self, request: EnrichmentRequest, user_id: UUID | None = None
+    ) -> JobRecord:
+        """Create a parent job that orchestrates children."""
+        job = await self.jobs.create(request, JobStatus.running, user_id=user_id)
+        await self.jobs.flush()
+        return job
+
+    async def create_child_job(
+        self, parent: JobRecord, request: EnrichmentRequest, tier_assignment: list[str]
+    ) -> JobRecord:
+        """Create a child job assigned to specific tiers."""
+        child = await self.jobs.create_child_job(parent, request, tier_assignment)
+        await self.jobs.flush()
+        return child
+
+    async def _execute_child_job(self, child_job: JobRecord) -> JobRecord:
+        """Execute child job with assigned tiers only."""
+        request = EnrichmentRequest.model_validate(child_job.request_payload)
+
+        # Override requested_tiers with child's assignment
+        tier_assignment = [RequestedTier(t) for t in (child_job.tier_assignment or [])]
+        request.requested_tiers = tier_assignment
+
+        child_job = await self.jobs.mark_status(child_job, JobStatus.running)
+
+        try:
+            result = await self._execute(child_job, request, sync_mode=False)
+
+            # After completion, check if we can merge into parent
+            await self._try_merge_into_parent(child_job)
+
+            return result
+        except Exception:
+            # Mark child as failed, but don't fail parent yet
+            await self.jobs.mark_status(child_job, JobStatus.failed)
+            await self._check_parent_completion(child_job.parent_job_id)
+            raise
+
+    async def _try_merge_into_parent(self, completed_child: JobRecord) -> None:
+        """Attempt to merge child results into parent if all children complete."""
+        if not completed_child.parent_job_id:
+            return
+
+        # Check if all siblings are done
+        if not await self.jobs.all_children_complete(completed_child.parent_job_id):
+            return
+
+        # All children complete - merge results
+        parent = await self.jobs.get(completed_child.parent_job_id)
+        if not parent:
+            return
+
+        children: List[JobRecord] = await self.jobs.get_children(parent.id)
+
+        # Merge all child dossiers
+        merged_dossier = self._merge_child_dossiers(
+            [Dossier.model_validate(child.dossier_payload) for child in children]
+        )
+
+        # Determine parent status (completed if any child succeeded, failed if all failed)
+        any_completed = any(child.status == JobStatus.completed.value for child in children)
+        parent_status = JobStatus.completed if any_completed else JobStatus.failed
+
+        await self.jobs.mark_status(
+            parent,
+            parent_status,
+            dossier_payload=merged_dossier.model_dump(mode="json"),
+        )
+
+    async def _check_parent_completion(self, parent_job_id: str | None) -> None:
+        """Check if parent should be marked as complete/failed after child fails."""
+        if not parent_job_id:
+            return
+
+        if await self.jobs.all_children_complete(parent_job_id):
+            await self._try_merge_into_parent_by_id(parent_job_id)
+
+    async def _try_merge_into_parent_by_id(self, parent_job_id: str) -> None:
+        """Helper to merge when we only have parent ID."""
+        parent = await self.jobs.get(parent_job_id)
+        if not parent:
+            return
+
+        children: List[JobRecord] = await self.jobs.get_children(parent.id)
+        if not children:
+            return
+
+        # Use the first child to trigger merge logic
+        await self._try_merge_into_parent(children[0])
+
+    def _merge_child_dossiers(self, child_dossiers: list[Dossier]) -> Dossier:
+        """Merge multiple child dossiers into one parent dossier."""
+        merged = Dossier()
+
+        for child_dossier in child_dossiers:
+            # Merge photo (take first non-null)
+            if child_dossier.photo and not merged.photo:
+                merged.photo = child_dossier.photo
+
+            # Merge handles (deduplicate)
+            for handle in child_dossier.handles:
+                key = (handle.platform.lower(), handle.username.lower())
+                if not any((h.platform.lower(), h.username.lower()) == key for h in merged.handles):
+                    merged.handles.append(handle)
+
+            # Merge emails (deduplicate)
+            for email in child_dossier.emails:
+                if email not in merged.emails:
+                    merged.emails.append(email)
+
+            # Merge verified_emails (deduplicate by value)
+            for verified in child_dossier.verified_emails:
+                if not any(
+                    v.value.lower() == verified.value.lower() for v in merged.verified_emails
+                ):
+                    merged.verified_emails.append(verified)
+
+            # Merge github
+            if child_dossier.github and not merged.github:
+                merged.github = child_dossier.github
+
+            # Merge coworkers (deduplicate)
+            for coworker in child_dossier.coworkers:
+                if coworker not in merged.coworkers:
+                    merged.coworkers.append(coworker)
+
+            # Merge jobs (deduplicate by normalize key)
+            for job in child_dossier.jobs:
+                # Simple deduplication - could use normalize_job_key from merge.py
+                if job not in merged.jobs:
+                    merged.jobs.append(job)
+
+            # Merge business (take first non-null)
+            if child_dossier.business and not merged.business:
+                merged.business = child_dossier.business
+
+            # Merge sources (deduplicate)
+            for source in child_dossier.sources:
+                if source not in merged.sources:
+                    merged.sources.append(source)
+
+            # Merge confidence (take from first child or recalculate)
+            if child_dossier.confidence and not merged.confidence:
+                merged.confidence = child_dossier.confidence
+
+            # Merge metadata
+            merged.metadata.update(child_dossier.metadata)
+
+        return merged
+
     async def _execute(
         self,
         job: JobRecord,
@@ -147,19 +310,54 @@ class Pipeline:
             )
 
         payloads = await self._dispatch(request, sync_mode=sync_mode)
+        # #region agent log
+        logger.info(
+            "[DEBUG-85dffc] _dispatch completed",
+            extra={
+                "payload_count": len(payloads),
+                "empty_payloads": sum(1 for p in payloads if not p or p == {}),
+                "hypothesisId": "C",
+            },
+        )
+        # #endregion
         dossier = await self._merge(request, payloads)
 
-        # Determine if we found any enrichment data
-        has_data = (
+        # Determine if we found any REAL enrichment data
+        # Sources alone don't count as data - they just indicate which enrichers ran
+        # Empty github/business objects also don't count as real data
+        has_real_data = (
             dossier.photo is not None
             or len(dossier.handles) > 0
             or len(dossier.emails) > 0
             or len(dossier.verified_emails) > 0
-            or len(dossier.sources) > 0
-            or dossier.business is not None
+            or (
+                dossier.business is not None
+                and any(
+                    [
+                        dossier.business.name,
+                        dossier.business.phone,
+                        dossier.business.address,
+                    ]
+                )
+            )
+            or len(dossier.jobs) > 0
+            or len(dossier.coworkers) > 0
+            or (
+                dossier.github is not None
+                and (
+                    dossier.github.get("publicCommits", 0) > 0
+                    or len(dossier.github.get("organizations", [])) > 0
+                )
+            )
         )
 
-        status = JobStatus.completed if has_data else JobStatus.completed_no_data
+        # #region agent log
+        logger.info(
+            f"[DEBUG-85dffc] job status determination: has_real_data={has_real_data} has_photo={dossier.photo is not None} handle_count={len(dossier.handles)} email_count={len(dossier.emails)} source_count={len(dossier.sources)} job_count={len(dossier.jobs)}"
+        )
+        # #endregion
+
+        status = JobStatus.completed if has_real_data else JobStatus.completed_no_data
         return await self.jobs.mark_status(
             job,
             status,
@@ -169,8 +367,10 @@ class Pipeline:
     async def get_job(self, job_id: str) -> JobRecord | None:
         return await self.jobs.get(job_id)
 
-    async def list_jobs(self, limit: int, offset: int) -> tuple[list[JobRecord], int]:
-        return await self.jobs.list(limit, offset)
+    async def list_jobs(
+        self, limit: int, offset: int, user_id: UUID | None = None
+    ) -> tuple[list[JobRecord], int]:
+        return await self.jobs.list(limit, offset, user_id=user_id)
 
     @staticmethod
     def identifier_summary_from_payload(payload: dict[str, Any] | None) -> str:
@@ -308,6 +508,17 @@ class Pipeline:
             try:
                 payloads = await self._run_tier(self.tier1, request)
                 duration = time.time() - start
+                # #region agent log
+                logger.info(
+                    "[DEBUG-85dffc] tier1 task completed",
+                    extra={
+                        "payload_count": len(payloads),
+                        "empty_payloads": sum(1 for p in payloads if not p or p == {}),
+                        "duration": duration,
+                        "hypothesisId": "B,D",
+                    },
+                )
+                # #endregion
                 logger.info(
                     "Completed tier1 execution",
                     extra={
@@ -449,12 +660,26 @@ class Pipeline:
             return_exceptions=True,
         )
         payloads: list[dict[str, Any]] = []
+        exception_count = 0
         for result in results:
             if isinstance(result, BaseException):
                 logger.exception("parallel enricher failed", exc_info=result)
+                exception_count += 1
                 payloads.append({})
             else:
                 payloads.append(result)
+        # #region agent log
+        logger.info(
+            "[DEBUG-85dffc] _run_tier_parallel completed",
+            extra={
+                "total_enrichers": len(enrichers),
+                "exception_count": exception_count,
+                "total_payloads": len(payloads),
+                "empty_payloads": sum(1 for p in payloads if not p or p == {}),
+                "hypothesisId": "B",
+            },
+        )
+        # #endregion
         return payloads
 
     async def _invoke_enricher_with_retry(
@@ -498,17 +723,53 @@ class Pipeline:
     async def _invoke_enricher(
         self, worker: Enricher, request: EnrichmentRequest
     ) -> dict[str, Any]:
+        # #region agent log
+        logger.info(
+            "[DEBUG-85dffc] _invoke_enricher entry",
+            extra={
+                "enricher_name": getattr(worker, "source_name", type(worker).__name__),
+                "has_validate": hasattr(worker, "validate"),
+                "hypothesisId": "A",
+            },
+        )
+        # #endregion
         try:
             if not await worker.validate(request):
+                # #region agent log
+                logger.info(
+                    "[DEBUG-85dffc] enricher validation failed",
+                    extra={
+                        "enricher_name": getattr(worker, "source_name", type(worker).__name__),
+                        "hypothesisId": "A",
+                    },
+                )
+                # #endregion
                 return {}
             await worker.initialize()
             try:
                 payload = await worker.run(request)
                 payload = await worker.normalize(payload)
-                return await worker.score(payload)
+                result = await worker.score(payload)
+                # #region agent log
+                logger.info(
+                    f"[DEBUG-85dffc] enricher completed successfully: enricher={getattr(worker, 'source_name', type(worker).__name__)} payload_keys={list(result.keys()) if isinstance(result, dict) else None} is_empty={not result or result == {}} has_photo={'photo' in result if isinstance(result, dict) else False}"
+                )
+                # #endregion
+                return result
             finally:
                 await worker.cleanup()
-        except Exception:
+        except Exception as exc:
+            # #region agent log
+            logger.info(
+                "[DEBUG-85dffc] enricher exception caught",
+                extra={
+                    "enricher_name": getattr(worker, "source_name", type(worker).__name__),
+                    "exception_type": type(exc).__name__,
+                    "exception_msg": str(exc)[:200],
+                    "hypothesisId": "A",
+                },
+            )
+            # #endregion
             logger.exception(
                 "enricher failed: %s",
                 getattr(worker, "source_name", type(worker).__name__),
