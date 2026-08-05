@@ -338,6 +338,34 @@ If rollback fails:
 2. Page on-call engineer: `@oncall-backend`
 3. Escalate to Tech Lead: @tech-lead
 
+## Rollback Decision Tree
+
+```mermaid
+flowchart TD
+    Start[Production Issue Detected] --> Severity{Severity?}
+
+    Severity -->|P0: Site Down| FullRollback[Full Rollback Immediately]
+    Severity -->|P1: Feature Broken| Assess{Can Disable Feature?}
+    Severity -->|P2: Degraded| Investigate[Investigate and Hot-fix]
+
+    Assess -->|Yes| DisableFeature[Set ENABLE_EMBEDDINGS=false]
+    Assess -->|No| PartialRollback[Partial Rollback]
+
+    FullRollback --> Notify1[Notify incidents channel]
+    DisableFeature --> Notify2[Notify eng-ops]
+    PartialRollback --> Notify2
+
+    Notify1 --> Execute1[Execute rollback script]
+    Notify2 --> Execute2[Apply configuration]
+
+    Execute1 --> Verify[Run health checks]
+    Execute2 --> Verify
+
+    Verify --> Success{All Checks Pass?}
+    Success -->|Yes| PostMortem[Schedule post-mortem]
+    Success -->|No| Escalate[Escalate to on-call]
+```
+
 ## Rollback Decision Matrix
 
 | Severity | Action | Timeline |
@@ -378,6 +406,77 @@ git push staging master --force
 # 4. Verify staging healthy
 ./scripts/smoke_test.sh staging
 ```
+
+## Automated Rollback Testing
+
+### Test Script
+
+Create `scripts/test_rollback.sh`:
+
+```bash
+#!/bin/bash
+set -e
+
+echo "=== Foundation Week 1 Rollback Test ==="
+
+# 1. Backup current state
+echo "Step 1: Backing up current state..."
+git rev-parse HEAD > /tmp/current_commit.txt
+pg_dump -h localhost -U hyrepath hyrepath > /tmp/backup.sql
+
+# 2. Perform rollback
+echo "Step 2: Rolling back to agent-1-merged..."
+git checkout master
+git reset --hard agent-1-merged
+
+# 3. Database rollback
+echo "Step 3: Rolling back migrations..."
+cd backend
+alembic downgrade 008
+
+# 4. Verify services
+echo "Step 4: Verifying services..."
+docker-compose restart api
+sleep 5
+
+# 5. Health check
+echo "Step 5: Running health checks..."
+curl -f http://localhost:8000/health || { echo "Health check failed"; exit 1; }
+
+# 6. Verify document endpoints gone
+echo "Step 6: Verifying document endpoints disabled..."
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/documents)
+if [ "$STATUS" == "404" ]; then
+  echo "✓ Document endpoints correctly disabled"
+else
+  echo "✗ Document endpoints still active"
+  exit 1
+fi
+
+# 7. Restore original state
+echo "Step 7: Restoring original state..."
+git checkout $(cat /tmp/current_commit.txt)
+alembic upgrade head
+docker-compose restart api
+
+echo "=== Rollback Test Complete ✓ ==="
+```
+
+### Monthly Rollback Drill
+
+**Schedule:** First Monday of each month, 10 AM staging
+
+**Procedure:**
+1. Announce in #eng-ops: "Starting rollback drill"
+2. Run `scripts/test_rollback.sh` on staging
+3. Verify all checks pass
+4. Document any issues in rollback runbook
+5. Update rollback time estimate if needed
+
+**Success Criteria:**
+- Rollback completes in <5 minutes
+- All services healthy post-rollback
+- No data loss (test data recoverable)
 
 ## Version History
 
