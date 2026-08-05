@@ -12,6 +12,7 @@ from uuid import UUID
 from rq import get_current_job
 from sqlalchemy import select
 
+from app.auth.models import User  # noqa: F401 - Import for SQLAlchemy FK resolution
 from app.clients.embeddings import get_embeddings_client
 from app.database.session import get_db_session
 from app.modules.documents.models import CandidateDocument
