@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -10,6 +11,13 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base, JsonDoc
+
+try:
+    from pgvector.sqlalchemy import Vector
+
+    PGVECTOR_AVAILABLE = True
+except ImportError:
+    PGVECTOR_AVAILABLE = False
 
 
 class CandidateDocument(Base):
@@ -66,3 +74,49 @@ class DocumentJob(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+
+class DocumentEmbedding(Base):
+    """Document chunk embedding with vector similarity support.
+
+    Stores text chunks with their embeddings for semantic search.
+    Uses pgvector on PostgreSQL, JSON array on SQLite.
+    """
+
+    __tablename__ = "document_embeddings"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("candidate_documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
+    token_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+    # Special handling for embedding column - pgvector on PostgreSQL, Text on SQLite
+    if PGVECTOR_AVAILABLE:
+        # PostgreSQL with pgvector extension
+        embedding = mapped_column(Vector(1536), nullable=False)
+    else:
+        # SQLite fallback - store as JSON text array
+        _embedding_json: Mapped[str] = mapped_column("embedding", Text, nullable=False)
+
+        @property
+        def embedding(self) -> list[float]:
+            """Get embedding as list of floats."""
+            if isinstance(self._embedding_json, list):
+                return self._embedding_json
+            return json.loads(self._embedding_json)
+
+        @embedding.setter
+        def embedding(self, value: list[float]) -> None:
+            """Set embedding from list of floats."""
+            if isinstance(value, str):
+                self._embedding_json = value
+            else:
+                self._embedding_json = json.dumps(value)

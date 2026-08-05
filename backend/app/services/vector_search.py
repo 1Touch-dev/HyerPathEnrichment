@@ -12,6 +12,7 @@ from typing import TypedDict
 from uuid import UUID
 
 from sqlalchemy import select, text
+from sqlalchemy.sql import literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -136,9 +137,9 @@ async def similarity_search(
             DocumentEmbedding.chunk_index,
             DocumentEmbedding.chunk_text,
             DocumentEmbedding.token_count,
-            # Cast to numeric for comparison
-            (1 - text("embedding <=> :query_embedding")).label("similarity"),
-        ).where((1 - text("embedding <=> :query_embedding")) >= similarity_threshold)
+            # Use literal_column for computed similarity
+            literal_column("(1 - (embedding <=> :query_embedding))").label("similarity"),
+        ).where(text("(1 - (embedding <=> :query_embedding)) >= :threshold"))
 
         if document_id:
             query_stmt = query_stmt.where(DocumentEmbedding.document_id == document_id)
@@ -146,7 +147,7 @@ async def similarity_search(
         query_stmt = (
             query_stmt.order_by(text("similarity DESC"))
             .limit(limit)
-            .params(query_embedding=query_embedding)
+            .params(query_embedding=query_embedding, threshold=similarity_threshold)
         )
 
         try:
