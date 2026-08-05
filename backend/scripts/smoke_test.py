@@ -2,7 +2,7 @@
 
 Env:
   BASE_URL          — API root (default http://localhost:8000)
-  API_TOKEN         — Bearer token (default change-me)
+  API_TOKEN         — Bearer token (default from .env.production if exists, else change-me)
   SMOKE_TIMEOUT     — per-request timeout seconds (default 60)
   SMOKE_SKIP_ASYNC  — set to 1 to skip async enrich + poll (sync-only)
   SMOKE_PROD        — when set to 1, require explicit BASE_URL (production mode)
@@ -16,6 +16,7 @@ import os
 import sys
 import time
 import uuid
+from pathlib import Path
 
 import requests
 
@@ -28,7 +29,22 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000").rstrip("/")
-API_TOKEN = os.environ.get("API_TOKEN", "change-me")
+
+# Try to load API_TOKEN from .env.production if not provided
+_API_TOKEN_FROM_ENV = os.environ.get("API_TOKEN")
+if not _API_TOKEN_FROM_ENV:
+    # Try loading from .env.production
+    _env_prod_path = Path(__file__).parent.parent / "backend" / ".env.production"
+    if _env_prod_path.exists():
+        try:
+            for line in _env_prod_path.read_text().splitlines():
+                if line.strip().startswith("API_TOKEN="):
+                    _API_TOKEN_FROM_ENV = line.split("=", 1)[1].strip()
+                    break
+        except Exception:
+            pass
+
+API_TOKEN = _API_TOKEN_FROM_ENV or "change-me"
 TIMEOUT = float(os.environ.get("SMOKE_TIMEOUT", "60"))
 SKIP_ASYNC = os.environ.get("SMOKE_SKIP_ASYNC", "").strip().lower() in {"1", "true", "yes"}
 POLL_INTERVAL = 2.0
