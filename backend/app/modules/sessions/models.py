@@ -1,13 +1,18 @@
 """Database models for practice session tracking."""
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, JsonDoc
+
+if TYPE_CHECKING:
+    from app.auth.models import User
 
 
 class PracticeSession(Base):
@@ -38,6 +43,7 @@ class PracticeSession(Base):
     )
 
     # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="practice_sessions")
     attempts: Mapped[list["QuestionAttempt"]] = relationship(
         "QuestionAttempt", back_populates="session", cascade="all, delete-orphan"
     )
@@ -91,6 +97,7 @@ class QuestionAttempt(Base):
     )
 
     # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="question_attempts")
     session: Mapped["PracticeSession"] = relationship("PracticeSession", back_populates="attempts")
 
     __table_args__ = (
