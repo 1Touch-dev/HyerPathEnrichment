@@ -231,7 +231,7 @@ async def generate_interview_feedback(
             )
             response.raise_for_status()
 
-            result = response.json()
+            result = await response.json()
             content = result["choices"][0]["message"]["content"]
 
             # Extract token usage

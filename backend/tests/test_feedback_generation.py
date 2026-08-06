@@ -181,7 +181,7 @@ async def test_generate_interview_feedback_no_api_key():
 @pytest.mark.asyncio
 async def test_generate_interview_feedback_success():
     """Successful API call returns valid feedback."""
-    settings = Settings(openai_api_key="test-key")
+    settings = Settings.model_construct(openai_api_key="test-key")
 
     mock_response = {
         "choices": [
@@ -217,7 +217,7 @@ async def test_generate_interview_feedback_success():
 
         # Mock the post response
         mock_response_obj = AsyncMock()
-        mock_response_obj.raise_for_status = AsyncMock()
+        mock_response_obj.raise_for_status = lambda: None
         mock_response_obj.json = AsyncMock(return_value=mock_response)
         mock_client.post = AsyncMock(return_value=mock_response_obj)
 
@@ -229,9 +229,10 @@ async def test_generate_interview_feedback_success():
 
         # Verify API was called
         assert mock_client.post.called
-        call_kwargs = mock_client.post.call_args.kwargs
+        call_args = mock_client.post.call_args
+        call_kwargs = call_args.kwargs
 
-        assert "https://api.openai.com" in call_kwargs.get("url", "")
+        assert "https://api.openai.com" in call_args.args[0]
         assert call_kwargs["headers"]["Authorization"] == "Bearer test-key"
         assert call_kwargs["json"]["model"] == "gpt-4o-mini"
         assert call_kwargs["json"]["response_format"]["type"] == "json_object"
@@ -252,15 +253,18 @@ async def test_generate_interview_feedback_success():
 @pytest.mark.asyncio
 async def test_generate_interview_feedback_api_error():
     """API errors are propagated."""
-    settings = Settings(openai_api_key="test-key")
+    settings = Settings.model_construct(openai_api_key="test-key")
 
     with patch("httpx.AsyncClient") as mock_client_class:
         mock_client = AsyncMock()
         mock_client_class.return_value.__aenter__.return_value = mock_client
 
         # Mock response that raises error
+        def raise_api_error():
+            raise Exception("API Error")
+        
         mock_response_obj = AsyncMock()
-        mock_response_obj.raise_for_status = AsyncMock(side_effect=Exception("API Error"))
+        mock_response_obj.raise_for_status = raise_api_error
         mock_client.post = AsyncMock(return_value=mock_response_obj)
 
         with pytest.raises(Exception, match="API Error"):
@@ -296,7 +300,7 @@ def test_feedback_structure_type():
 @pytest.mark.asyncio
 async def test_generate_feedback_token_usage_tracking():
     """Token usage is correctly extracted from API response."""
-    settings = Settings(openai_api_key="test-key")
+    settings = Settings.model_construct(openai_api_key="test-key")
 
     mock_response = {
         "choices": [
