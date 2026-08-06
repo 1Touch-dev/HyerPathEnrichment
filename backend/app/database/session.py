@@ -40,6 +40,11 @@ if settings.database_url.startswith("sqlite"):
 logger.info("database engine created (dialect=%s)", engine.dialect.name)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
+# Sync session factory for RQ workers (sync context)
+sync_engine = create_engine(_to_sync_url(settings.database_url), **_engine_kwargs)
+from sqlalchemy.orm import sessionmaker, Session
+SyncSessionLocal = sessionmaker(sync_engine, expire_on_commit=False, class_=Session)
+
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_REVISION = "001_baseline_schema"
 # Stable lock key so API + worker do not run DDL concurrently.
