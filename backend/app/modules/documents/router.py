@@ -183,3 +183,52 @@ async def list_documents(
     """
     service = DocumentService(db)
     return await service.list_documents(current_user.id, limit)
+
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    document_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    """Delete a document and its associated data.
+
+    Deletes the document record, embeddings, and associated jobs.
+    Cascade delete handles embeddings automatically.
+
+    Args:
+        document_id: Document UUID
+        current_user: Authenticated user
+        db: Database session
+
+    Raises:
+        404: Document not found
+    """
+    service = DocumentService(db)
+    await service.delete_document(document_id, current_user.id)
+
+
+@router.post("/{document_id}/reprocess", response_model=DocumentUploadResponse)
+async def reprocess_document(
+    document_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> DocumentUploadResponse:
+    """Reprocess an existing document.
+
+    Creates a new processing job for an existing document.
+    Useful for reprocessing failed jobs or updating extracted data.
+
+    Args:
+        document_id: Document UUID
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Upload response with new job_id
+
+    Raises:
+        404: Document not found
+    """
+    service = DocumentService(db)
+    return await service.reprocess_document(document_id, current_user.id)

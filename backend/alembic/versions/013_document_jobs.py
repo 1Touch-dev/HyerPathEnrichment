@@ -15,8 +15,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision: str = "011_document_jobs"
-down_revision: Union[str, Sequence[str], None] = "009_enable_pgvector"
+revision: str = "013_document_jobs"
+down_revision: Union[str, Sequence[str], None] = "010_enable_pgvector"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

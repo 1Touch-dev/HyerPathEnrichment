@@ -13,8 +13,10 @@ from uuid import UUID
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import literal_column
 
 from app.core.config import get_settings
+from app.utils.text_chunking import ChunkDict
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +66,7 @@ def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
 async def store_embeddings(
     session: AsyncSession,
     document_id: UUID,
-    chunks_with_embeddings: list[tuple[dict, list[float], int]],
+    chunks_with_embeddings: list[tuple[ChunkDict, list[float], int]],
 ) -> None:
     """Store document chunk embeddings in database.
 
@@ -73,8 +75,45 @@ async def store_embeddings(
         document_id: Parent document UUID
         chunks_with_embeddings: List of (chunk_dict, embedding_vector, token_count)
             where chunk_dict has keys: chunk_text, chunk_index, start_char, end_char
+
+    Raises:
+        ValueError: If embeddings fail validation (dimension mismatch, duplicates, token count)
     """
     from app.modules.documents.models import DocumentEmbedding
+
+    # Validation: Check embedding dimensions
+    if chunks_with_embeddings:
+        expected_dim = len(chunks_with_embeddings[0][1])
+        if expected_dim != 1536:  # text-embedding-3-small dimension
+            logger.warning(
+                "Unexpected embedding dimension",
+                extra={
+                    "document_id": str(document_id),
+                    "expected": 1536,
+                    "actual": expected_dim,
+                },
+            )
+
+        for idx, (chunk, embedding, token_count) in enumerate(chunks_with_embeddings):
+            if len(embedding) != expected_dim:
+                raise ValueError(
+                    f"Embedding dimension mismatch at chunk {idx}: "
+                    f"expected {expected_dim}, got {len(embedding)}"
+                )
+
+            # Validate token count is reasonable
+            if token_count <= 0 or token_count > 8192:  # OpenAI max context
+                raise ValueError(
+                    f"Invalid token count at chunk {idx}: {token_count} (expected 1-8192)"
+                )
+
+    # Validation: Check for duplicate chunk indices
+    chunk_indices = [chunk["chunk_index"] for chunk, _, _ in chunks_with_embeddings]
+    if len(chunk_indices) != len(set(chunk_indices)):
+        duplicates = [idx for idx in chunk_indices if chunk_indices.count(idx) > 1]
+        raise ValueError(
+            f"Duplicate chunk indices detected for document {document_id}: {set(duplicates)}"
+        )
 
     embeddings = []
     for chunk, embedding, token_count in chunks_with_embeddings:
@@ -96,6 +135,7 @@ async def store_embeddings(
             "document_id": str(document_id),
             "num_chunks": len(embeddings),
             "total_tokens": sum(e.token_count for e in embeddings),
+            "embedding_dimension": expected_dim if embeddings else 0,
         },
     )
 
@@ -131,23 +171,24 @@ async def similarity_search(
         # Use pgvector cosine similarity (1 - cosine_distance)
         # cosine_distance is <=> operator in pgvector
         # similarity = 1 - cosine_distance
+        # Format embedding as PostgreSQL array string for pgvector
+        # IMPORTANT: We pass this as a literal string, not a bound parameter,
+        # because pgvector's ::vector cast doesn't work with parameter binding
+        embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
+
         query_stmt = select(
             DocumentEmbedding.document_id,
             DocumentEmbedding.chunk_index,
             DocumentEmbedding.chunk_text,
             DocumentEmbedding.token_count,
-            # Cast to numeric for comparison
-            (1 - text("embedding <=> :query_embedding")).label("similarity"),
-        ).where((1 - text("embedding <=> :query_embedding")) >= similarity_threshold)
+            # Use literal embedding string (not bound parameter) for pgvector compatibility
+            literal_column(f"(1 - (embedding <=> '{embedding_str}'::vector))").label("similarity"),
+        ).where(text(f"(1 - (embedding <=> '{embedding_str}'::vector)) >= {similarity_threshold}"))
 
         if document_id:
             query_stmt = query_stmt.where(DocumentEmbedding.document_id == document_id)
 
-        query_stmt = (
-            query_stmt.order_by(text("similarity DESC"))
-            .limit(limit)
-            .params(query_embedding=query_embedding)
-        )
+        query_stmt = query_stmt.order_by(text("similarity DESC")).limit(limit)
 
         try:
             result = await session.execute(query_stmt)

@@ -63,10 +63,15 @@ async def test_generate_embedding_retry_logic(embeddings_client, mock_openai_res
     with patch.object(
         embeddings_client.client.embeddings, "create", new_callable=AsyncMock
     ) as mock_create:
+        # Create mock request object
+        from unittest.mock import MagicMock
+
+        mock_request = MagicMock()
+
         # Fail twice, then succeed
         mock_create.side_effect = [
-            APIError("Rate limit exceeded"),
-            APIError("Rate limit exceeded"),
+            APIError("Rate limit exceeded", request=mock_request, body={}),
+            APIError("Rate limit exceeded", request=mock_request, body={}),
             mock_openai_response,
         ]
 
@@ -84,7 +89,14 @@ async def test_generate_embedding_max_retries_exceeded(embeddings_client):
     with patch.object(
         embeddings_client.client.embeddings, "create", new_callable=AsyncMock
     ) as mock_create:
-        mock_create.side_effect = APIError("Persistent error")
+        # Create mock request object
+        from unittest.mock import MagicMock
+
+        mock_request = MagicMock()
+
+        mock_create.side_effect = APIError(
+            "Persistent error", request=mock_request, body={}
+        )
 
         with pytest.raises(APIError):
             await embeddings_client.generate_embedding("test text")

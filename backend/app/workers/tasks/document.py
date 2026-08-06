@@ -108,31 +108,51 @@ async def _process_document_job(
 
             # Chain to embedding generation queue
             # NOTE: This assumes embedding worker exists - part of Agent 2's work
-            try:
-                from app.workers.queue import QUEUE_EMBEDDING, get_redis_connection
+            max_chain_attempts = 3
+            chain_attempt = 0
+            chain_success = False
 
-                redis_conn = get_redis_connection()
-                embedding_queue = Queue(QUEUE_EMBEDDING, connection=redis_conn)
+            while chain_attempt < max_chain_attempts and not chain_success:
+                try:
+                    from app.workers.queue import QUEUE_EMBEDDING, get_redis_connection
 
-                # Enqueue embedding job with document_id and extracted text
-                embedding_queue.enqueue(
-                    "app.workers.tasks.embedding.generate_embedding_job",
-                    document_id,
-                    extraction_result["text"],
-                    job_timeout=300,  # 5 minutes
-                )
+                    redis_conn = get_redis_connection()
+                    embedding_queue = Queue(QUEUE_EMBEDDING, connection=redis_conn)
 
-                logger.info(
-                    "Chained to embedding queue",
-                    extra={"document_id": document_id, "queue": QUEUE_EMBEDDING},
-                )
-            except Exception as chain_exc:
-                # Don't fail the document processing if chaining fails
-                logger.warning(
-                    "Failed to chain to embedding queue",
-                    exc_info=True,
-                    extra={"document_id": document_id, "error": str(chain_exc)},
-                )
+                    # Enqueue embedding job with document_id (worker fetches text from DB)
+                    embedding_queue.enqueue(
+                        "app.workers.tasks.embedding.run_embedding_job",
+                        document_id,
+                        job_timeout=300,  # 5 minutes
+                    )
+
+                    logger.info(
+                        "Chained to embedding queue",
+                        extra={"document_id": document_id, "queue": QUEUE_EMBEDDING},
+                    )
+                    chain_success = True
+                except Exception as chain_exc:
+                    chain_attempt += 1
+                    if chain_attempt == max_chain_attempts:
+                        # Final failure - log but don't crash document processing
+                        logger.warning(
+                            "Failed to chain to embedding queue after max attempts",
+                            exc_info=True,
+                            extra={
+                                "document_id": document_id,
+                                "error": str(chain_exc),
+                                "attempts": chain_attempt,
+                            },
+                        )
+                    else:
+                        # Retry with brief delay
+                        logger.warning(
+                            f"Failed to chain to embedding queue (attempt {chain_attempt}/{max_chain_attempts}), retrying",
+                            extra={"document_id": document_id, "error": str(chain_exc)},
+                        )
+                        import time
+
+                        time.sleep(1)
 
     except (DocumentProcessingError, DocumentStorageError, ValueError) as exc:
         logger.error(
@@ -188,6 +208,14 @@ def check_worker_health(queue_name: str) -> bool:
         from app.workers.queue import get_redis_connection
 
         redis_conn = get_redis_connection()
+
+        # Test Redis connectivity with ping
+        redis_conn.ping()
+
+        # Test write operation
+        test_key = f"health_check:{queue_name}"
+        redis_conn.setex(test_key, 10, "ok")
+
         queue = Queue(queue_name, connection=redis_conn)
 
         # Check if we can connect and get queue length

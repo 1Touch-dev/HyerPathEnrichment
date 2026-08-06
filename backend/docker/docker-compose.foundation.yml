@@ -8,6 +8,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.worker-document
+    networks:
+      - default
     environment:
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
@@ -30,7 +32,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - document_cache:/app/backend/.asset-cache
-    restart: unless-stopped
+    restart: on-failure:5
     deploy:
       resources:
         limits:
@@ -54,6 +56,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.worker-embedding
+    networks:
+      - default
     environment:
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
@@ -69,7 +73,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    restart: unless-stopped
+    restart: on-failure:5
     deploy:
       resources:
         limits:

@@ -12,8 +12,9 @@ from uuid import UUID
 from rq import get_current_job
 from sqlalchemy import select
 
+from app.auth.models import User  # noqa: F401 - Import for SQLAlchemy FK resolution
 from app.clients.embeddings import get_embeddings_client
-from app.database.session import get_db_session
+from app.database.session import SessionLocal
 from app.modules.documents.models import CandidateDocument
 from app.observability.cost_tracking import track_embedding_cost
 from app.services.vector_search import store_embeddings
@@ -23,7 +24,7 @@ from app.workers.queue import QUEUE_EMBEDDING, get_redis_connection
 logger = logging.getLogger(__name__)
 
 
-async def process_document_embeddings(document_id: str) -> dict:
+async def process_document_embeddings(document_id: str) -> dict[str, bool | str | int | float]:
     """Generate embeddings for a document's text chunks.
 
     Workflow:
@@ -45,7 +46,7 @@ async def process_document_embeddings(document_id: str) -> dict:
     """
     doc_uuid = UUID(document_id)
 
-    async with get_db_session() as session:
+    async with SessionLocal() as session:
         # Fetch document
         query = select(CandidateDocument).where(CandidateDocument.id == doc_uuid)
         result = await session.execute(query)
@@ -67,19 +68,50 @@ async def process_document_embeddings(document_id: str) -> dict:
         )
 
         # Step 1: Chunk document (Agent 3's functionality)
-        chunks = chunk_document(document.raw_text, max_tokens=512, overlap=50)
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        chunks = chunk_document(
+            document.raw_text,
+            max_tokens=settings.embedding_chunk_size,
+            overlap=settings.embedding_chunk_overlap,
+        )
 
         if not chunks:
-            logger.warning(f"No chunks generated for document {document_id}")
+            logger.warning(
+                f"No chunks generated for document {document_id}",
+                extra={"document_id": document_id, "text_length": len(document.raw_text)},
+            )
             return {
                 "success": False,
                 "error": "No chunks generated",
                 "document_id": document_id,
             }
 
+        # Validate chunk count and token distribution
+        total_tokens = sum(chunk["token_count"] for chunk in chunks)
+        avg_tokens = total_tokens / len(chunks)
+        max_chunk_tokens = max(chunk["token_count"] for chunk in chunks)
+
+        if max_chunk_tokens > settings.embedding_chunk_size * 1.1:  # 10% tolerance
+            logger.warning(
+                "Chunk exceeds token limit",
+                extra={
+                    "document_id": document_id,
+                    "max_chunk_tokens": max_chunk_tokens,
+                    "configured_limit": settings.embedding_chunk_size,
+                },
+            )
+
         logger.info(
             f"Generated {len(chunks)} chunks for document {document_id}",
-            extra={"document_id": document_id, "num_chunks": len(chunks)},
+            extra={
+                "document_id": document_id,
+                "num_chunks": len(chunks),
+                "total_tokens": total_tokens,
+                "avg_tokens_per_chunk": avg_tokens,
+                "max_chunk_tokens": max_chunk_tokens,
+            },
         )
 
         # Step 2: Generate embeddings
@@ -132,7 +164,7 @@ async def process_document_embeddings(document_id: str) -> dict:
         return result_data
 
 
-def run_embedding_job(document_id: str) -> dict:
+def run_embedding_job(document_id: str) -> dict[str, bool | str | int | float]:
     """RQ worker entry point for embedding generation.
 
     Synchronous wrapper for async embedding processing.
@@ -187,8 +219,12 @@ def check_worker_health(queue_name: str) -> bool:
     """
     try:
         redis_conn = get_redis_connection()
-        # Simple Redis ping
+        # Test Redis connectivity with ping
         redis_conn.ping()
+
+        # Test write operation
+        test_key = f"health_check:{queue_name}"
+        redis_conn.setex(test_key, 10, "ok")
 
         # Check if we can access the queue
         from rq import Queue

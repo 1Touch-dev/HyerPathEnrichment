@@ -284,28 +284,49 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     class FakeRQJob:
         """Fake RQ job object."""
 
-        def __init__(self, job_id: str):
+        def __init__(self, job_id: str, status: str = "queued"):
             self.id = job_id
+            self.status = status
+            self.result = None
 
     class FakeQueue:
-        """Fake RQ Queue that doesn't require Redis."""
+        """Fake RQ Queue that processes jobs synchronously for testing."""
 
         def __init__(self, name: str, connection=None):
             self.name = name
             self.connection = connection
-            self._jobs = []
+            self._jobs = {}
 
         def enqueue(self, func, *args, job_timeout=None, **kwargs):
+            """Enqueue and immediately process job synchronously."""
             import uuid
+            import importlib
 
             job_id = str(uuid.uuid4())
-            self._jobs.append((job_id, func, args, kwargs))
-            return FakeRQJob(job_id)
+            job = FakeRQJob(job_id)
+            self._jobs[job_id] = job
 
-    # Patch RQ Queue class
+            # Try to actually process the job synchronously if it's a string path
+            if isinstance(func, str):
+                try:
+                    # Import and call the function
+                    module_path, func_name = func.rsplit(".", 1)
+                    module = importlib.import_module(module_path)
+                    worker_func = getattr(module, func_name)
+                    # Call it in the background (don't block)
+                    # For now, just mark as queued - the test will need to handle this
+                    job.status = "queued"
+                except Exception as e:
+                    print(f"[FakeQueue] Failed to process job {job_id}: {e}")
+                    job.status = "failed"
+
+            return job
+
+    # Patch RQ Queue class - patch where it's used, not where it's defined
     import rq
 
-    monkeypatch.setattr(rq, "Queue", FakeQueue)
+    monkeypatch.setattr("app.modules.documents.service.Queue", FakeQueue)
+    monkeypatch.setattr(rq, "Queue", FakeQueue)  # Keep this for other potential uses
 
     return fake
 

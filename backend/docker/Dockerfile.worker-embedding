@@ -30,4 +30,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "from app.workers.tasks.embedding import check_worker_health; exit(0 if check_worker_health('embedding_generation') else 1)"
 
 # Default command: RQ worker for embedding_generation queue
-CMD ["rq", "worker", "embedding_generation", "--url", "${REDIS_URL}"]
+# CMD is overridden by docker-compose.foundation.yml
+# CMD ["rq", "worker", "embedding_generation", "--url", "${REDIS_URL}"]

@@ -15,8 +15,8 @@ from typing import Sequence, Union
 from alembic import op
 from sqlalchemy import text
 
-revision: str = "009_enable_pgvector"
-down_revision: Union[str, Sequence[str], None] = "008_candidate_documents"
+revision: str = "010_enable_pgvector"
+down_revision: Union[str, Sequence[str], None] = "009_unique_user_file_hash"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -203,6 +203,7 @@ async def test_similarity_search_with_document_filter():
 async def test_similarity_search_threshold():
     """Test similarity search respects threshold."""
     mock_session = AsyncMock()
+    # Query vector pointing in direction [1, 0, 0, ...]
     query_embedding = [1.0] + [0.0] * 1535
 
     with patch("app.services.vector_search.get_settings") as mock_settings:
@@ -212,12 +213,14 @@ async def test_similarity_search_threshold():
 
         doc_id = uuid4()
         # Create embeddings with different similarities
+        # High similarity: [0.9, 0.1, 0, ...] - mostly aligned with query
+        # Low similarity: [0.3, 0.7, 0, ...] - less aligned with query
         mock_emb1 = DocumentEmbedding(
             id=uuid4(),
             document_id=doc_id,
             chunk_index=0,
             chunk_text="high similarity",
-            embedding=[0.9] + [0.0] * 1535,  # sim ~0.9
+            embedding=[0.9, 0.1] + [0.0] * 1534,  # cos_sim ~0.994
             token_count=50,
         )
         mock_emb2 = DocumentEmbedding(
@@ -225,7 +228,7 @@ async def test_similarity_search_threshold():
             document_id=doc_id,
             chunk_index=1,
             chunk_text="low similarity",
-            embedding=[0.3] + [0.0] * 1535,  # sim ~0.3
+            embedding=[0.3, 0.7] + [0.0] * 1534,  # cos_sim ~0.391
             token_count=60,
         )
 

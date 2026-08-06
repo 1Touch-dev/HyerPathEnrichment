@@ -133,6 +133,16 @@ class Settings(BaseSettings):
     # OpenAI API (for CV extraction, embeddings, etc.)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     enable_embeddings: bool = Field(default=True, alias="ENABLE_EMBEDDINGS")
+    embedding_chunk_size: int = Field(
+        default=512,
+        alias="EMBEDDING_CHUNK_SIZE",
+        description="Maximum tokens per text chunk for embeddings",
+    )
+    embedding_chunk_overlap: int = Field(
+        default=50,
+        alias="EMBEDDING_CHUNK_OVERLAP",
+        description="Token overlap between consecutive chunks",
+    )
 
     # Proxies (paid-later)
     scrapoxy_url: str = Field(default="", alias="SCRAPOXY_URL")
