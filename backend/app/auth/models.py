@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, JsonDoc
+
+if TYPE_CHECKING:
+    from app.modules.sessions.models import PracticeSession, QuestionAttempt
 
 
 class User(Base):
@@ -54,6 +57,16 @@ class User(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
+    )
+
+    # Relationships
+    practice_sessions: Mapped[list["PracticeSession"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    question_attempts: Mapped[list["QuestionAttempt"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
 

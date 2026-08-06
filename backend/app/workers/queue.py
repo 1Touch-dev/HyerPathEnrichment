@@ -16,10 +16,14 @@ QUEUE_DOCUMENT = "document_processing"
 QUEUE_EMBEDDING = "embedding_generation"
 QUEUE_CV_EXTRACTION = "cv_extraction"
 
+# Foundation Week 2 queues (interview practice features)
+QUEUE_FEEDBACK = "feedback"
+
 # Queue priorities (higher = processed first)
 QUEUE_PRIORITIES = {
     QUEUE_EMAIL: 10,  # Highest (user-facing)
     QUEUE_CV_EXTRACTION: 8,  # High (user-facing)
+    QUEUE_FEEDBACK: 7,  # High (user-facing feedback)
     QUEUE_DOCUMENT: 5,  # Medium (async)
     QUEUE_EMBEDDING: 3,  # Low (batch)
     QUEUE_NAME: 2,  # Low (existing enrichment)
@@ -148,6 +152,37 @@ def enqueue_enrichment(
                 "error_type": type(e).__name__,
                 "is_child_job": is_child_job,
                 "tiers": [t.value if isinstance(t, RequestedTier) else t for t in tiers],
+            },
+            exc_info=True,
+        )
+        raise
+
+
+def enqueue_feedback(attempt_id: str) -> None:
+    """Enqueue a feedback generation job.
+
+    Args:
+        attempt_id: UUID string of the QuestionAttempt
+
+    Raises:
+        Exception: On enqueue failure
+    """
+    from app.workers.tasks.feedback import generate_feedback_job
+
+    connection = get_redis_connection()
+    timeout_seconds = 60  # Feedback generation should be fast
+
+    try:
+        queue = Queue(QUEUE_FEEDBACK, connection=connection)
+        queue.enqueue(generate_feedback_job, attempt_id, job_timeout=timeout_seconds)
+        logger.info(f"Enqueued feedback job for attempt: {attempt_id}")
+    except Exception as e:
+        logger.error(
+            f"Failed to enqueue feedback job for attempt {attempt_id}",
+            extra={
+                "attempt_id": attempt_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
             },
             exc_info=True,
         )
