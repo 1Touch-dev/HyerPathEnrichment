@@ -18,22 +18,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add unique constraint and composite index on (user_id, file_hash)."""
-    # Create unique constraint
-    op.create_unique_constraint(
-        'uq_candidate_documents_user_file',
-        'candidate_documents',
-        ['user_id', 'file_hash']
-    )
-
-    # Create composite index for faster lookups (redundant with unique constraint but explicit)
-    op.create_index(
-        'idx_candidate_documents_user_file',
-        'candidate_documents',
-        ['user_id', 'file_hash']
-    )
+    # Use batch mode for SQLite compatibility
+    with op.batch_alter_table('candidate_documents', schema=None) as batch_op:
+        batch_op.create_unique_constraint(
+            'uq_candidate_documents_user_file',
+            ['user_id', 'file_hash']
+        )
+        batch_op.create_index(
+            'idx_candidate_documents_user_file',
+            ['user_id', 'file_hash']
+        )
 
 
 def downgrade() -> None:
     """Remove unique constraint and composite index."""
-    op.drop_index('idx_candidate_documents_user_file', table_name='candidate_documents')
-    op.drop_constraint('uq_candidate_documents_user_file', 'candidate_documents', type_='unique')
+    with op.batch_alter_table('candidate_documents', schema=None) as batch_op:
+        batch_op.drop_index('idx_candidate_documents_user_file')
+        batch_op.drop_constraint('uq_candidate_documents_user_file', type_='unique')
