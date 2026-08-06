@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.database.session import SessionLocal
+from app.database.session import SyncSessionLocal
 from app.modules.sessions.models import QuestionAttempt
 from app.observability.cost_tracking import track_llm_cost, track_llm_failure
 from app.services.feedback_generator import generate_interview_feedback
@@ -23,12 +23,12 @@ from app.services.feedback_generator import generate_interview_feedback
 logger = logging.getLogger(__name__)
 
 
-async def _generate_feedback_async(attempt_id: str, db: Session) -> None:
-    """Internal async logic for feedback generation.
+def _generate_feedback_sync(attempt_id: str, db: Session) -> None:
+    """Internal sync logic for feedback generation in RQ worker.
 
     Args:
         attempt_id: UUID string of the QuestionAttempt
-        db: Database session
+        db: Sync database session
 
     Raises:
         ValueError: If attempt not found or invalid
@@ -55,13 +55,20 @@ async def _generate_feedback_async(attempt_id: str, db: Session) -> None:
     if hasattr(attempt, "attempt_metadata") and isinstance(attempt.attempt_metadata, dict):
         question_text = attempt.attempt_metadata.get("question_text", question_text)
 
-    # Generate feedback
+    # Generate feedback (run async function in event loop)
     logger.info(f"Calling feedback service for attempt {attempt_id}")
-    feedback, token_usage = await generate_interview_feedback(
-        question=question_text,
-        answer=attempt.text_response,
-        settings=settings,
-    )
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        feedback, token_usage = loop.run_until_complete(
+            generate_interview_feedback(
+                question=question_text,
+                answer=attempt.text_response,
+                settings=settings,
+            )
+        )
+    finally:
+        loop.close()
 
     # Update attempt with feedback
     attempt.ai_score = Decimal(str(feedback["overall_score"]))
@@ -87,14 +94,21 @@ async def _generate_feedback_async(attempt_id: str, db: Session) -> None:
         },
     )
 
-    # Track LLM cost
-    await track_llm_cost(
-        model="gpt-4o-mini",
-        input_tokens=token_usage["input_tokens"],
-        output_tokens=token_usage["output_tokens"],
-        operation="feedback",
-        user_id=str(attempt.user_id),
-    )
+    # Track LLM cost (run async function in new loop)
+    loop2 = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop2)
+    try:
+        loop2.run_until_complete(
+            track_llm_cost(
+                model="gpt-4o-mini",
+                input_tokens=token_usage["input_tokens"],
+                output_tokens=token_usage["output_tokens"],
+                operation="feedback",
+                user_id=str(attempt.user_id),
+            )
+        )
+    finally:
+        loop2.close()
 
 
 def generate_feedback_job(attempt_id: str) -> None:
@@ -118,15 +132,10 @@ def generate_feedback_job(attempt_id: str) -> None:
         UUID(attempt_id)
 
         # Get database session
-        db = SessionLocal()
+        db = SyncSessionLocal()
 
-        # Run async logic in event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_generate_feedback_async(attempt_id, db))
-        finally:
-            loop.close()
+        # Run sync logic
+        _generate_feedback_sync(attempt_id, db)
 
     except Exception as e:
         logger.error(
