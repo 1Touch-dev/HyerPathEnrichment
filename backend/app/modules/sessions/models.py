@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, JsonDoc
@@ -20,9 +21,9 @@ class PracticeSession(Base):
 
     __tablename__ = "practice_sessions"
 
-    id: Mapped[UUID] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
-        String(36),
+        PGUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -71,23 +72,23 @@ class QuestionAttempt(Base):
 
     __tablename__ = "question_attempts"
 
-    id: Mapped[UUID] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     session_id: Mapped[UUID] = mapped_column(
-        String(36),
+        PGUUID(as_uuid=True),
         ForeignKey("practice_sessions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     user_id: Mapped[UUID] = mapped_column(
-        String(36),
+        PGUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    question_id: Mapped[UUID | None] = mapped_column(String(36), nullable=True)
+    question_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     response_type: Mapped[str] = mapped_column(String(20), nullable=False)
     text_response: Mapped[str | None] = mapped_column(Text, nullable=True)
-    audio_recording_id: Mapped[UUID | None] = mapped_column(String(36), nullable=True)
+    audio_recording_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     ai_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     score_breakdown: Mapped[dict[str, Any] | None] = mapped_column(JsonDoc, nullable=True)
     ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -18,6 +18,7 @@ from app.modules.sessions.schemas import (
     SessionResponse,
     SessionUpdateRequest,
 )
+from app.workers.queue import enqueue_feedback
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +226,24 @@ class SessionManager:
                 "response_type": request.response_type,
             },
         )
+
+        # Enqueue feedback generation job if text response exists
+        if attempt.text_response:
+            try:
+                enqueue_feedback(str(attempt.id))
+                logger.info(
+                    "Enqueued feedback generation job",
+                    extra={"attempt_id": str(attempt.id)},
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed to enqueue feedback job",
+                    extra={
+                        "attempt_id": str(attempt.id),
+                        "error": str(e),
+                    },
+                    exc_info=True,
+                )
 
         return QuestionAttemptResponse.model_validate(attempt)
 
