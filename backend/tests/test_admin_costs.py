@@ -1,7 +1,6 @@
 """Tests for admin cost API endpoints."""
 
 import pytest
-from datetime import datetime, UTC
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
@@ -88,7 +87,7 @@ async def test_get_daily_costs_superuser(superuser):
             assert response.date == "2026-08-06"
             assert response.embeddings.cost_usd == 0.1
             assert response.llm.cost_usd == 0.05
-            assert response.total_cost_usd == 0.15
+            assert abs(response.total_cost_usd - 0.15) < 0.001
 
 
 @pytest.mark.asyncio
@@ -183,9 +182,7 @@ async def test_get_cost_breakdown_superuser(superuser):
             with patch("app.modules.admin.router.get_monthly_cost") as mock_monthly_embed:
                 with patch("app.modules.admin.router.get_monthly_llm_cost") as mock_monthly_llm:
                     with patch("app.modules.admin.router.get_total_cost") as mock_total_embed:
-                        with patch(
-                            "app.workers.queue.get_redis_connection"
-                        ) as mock_redis_conn:
+                        with patch("app.workers.queue.get_redis_connection") as mock_redis_conn:
                             # Mock daily
                             mock_daily_embed.return_value = {
                                 "tokens": 5000,
@@ -227,7 +224,7 @@ async def test_get_cost_breakdown_superuser(superuser):
 
                             response = await get_cost_breakdown(_user=superuser)
 
-                            assert response.daily.total_cost_usd == 0.15
+                            assert abs(response.daily.total_cost_usd - 0.15) < 0.001
                             assert response.monthly.total_cost_usd == 4.5
                             assert response.total.total_cost_usd == 150.0
 

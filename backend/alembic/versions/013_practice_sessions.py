@@ -30,52 +30,95 @@ def upgrade() -> None:
     uuid_type = postgresql.UUID() if dialect == "postgresql" else sa.String(36)
     json_type = postgresql.JSONB() if dialect == "postgresql" else sa.JSON()
 
-    # Create practice_sessions table
-    op.create_table(
-        "practice_sessions",
-        sa.Column("id", uuid_type, primary_key=True, nullable=False),
-        sa.Column(
-            "user_id",
-            uuid_type,
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("session_type", sa.String(50), nullable=False),
-        sa.Column(
-            "started_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-            server_default=sa.text("CURRENT_TIMESTAMP"),
-        ),
-        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "status",
-            sa.String(20),
-            nullable=False,
-            server_default="in_progress",
-        ),
-        sa.Column("questions_attempted", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("questions_completed", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("overall_score", sa.Numeric(5, 2), nullable=True),
-        sa.Column("session_metadata", json_type, nullable=False, server_default="{}"),
-    )
+    # For SQLite, include check constraints in table definition
+    if dialect == "sqlite":
+        # Create practice_sessions table with inline constraints
+        op.create_table(
+            "practice_sessions",
+            sa.Column("id", uuid_type, primary_key=True, nullable=False),
+            sa.Column(
+                "user_id",
+                uuid_type,
+                sa.ForeignKey("users.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column("session_type", sa.String(50), nullable=False),
+            sa.Column(
+                "started_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("CURRENT_TIMESTAMP"),
+            ),
+            sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column(
+                "status",
+                sa.String(20),
+                nullable=False,
+                server_default="in_progress",
+            ),
+            sa.Column("questions_attempted", sa.Integer, nullable=False, server_default="0"),
+            sa.Column("questions_completed", sa.Integer, nullable=False, server_default="0"),
+            sa.Column("overall_score", sa.Numeric(5, 2), nullable=True),
+            sa.Column("session_metadata", json_type, nullable=False, server_default="{}"),
+            sa.CheckConstraint(
+                "status IN ('pending', 'in_progress', 'completed', 'failed', 'abandoned')",
+                name="check_session_status"
+            ),
+            sa.CheckConstraint(
+                "questions_attempted >= questions_completed",
+                name="check_questions_count"
+            ),
+            sa.CheckConstraint(
+                "overall_score IS NULL OR (overall_score >= 0 AND overall_score <= 100)",
+                name="check_overall_score_range"
+            ),
+        )
+    else:
+        # For PostgreSQL, create table then add constraints
+        op.create_table(
+            "practice_sessions",
+            sa.Column("id", uuid_type, primary_key=True, nullable=False),
+            sa.Column(
+                "user_id",
+                uuid_type,
+                sa.ForeignKey("users.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column("session_type", sa.String(50), nullable=False),
+            sa.Column(
+                "started_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("CURRENT_TIMESTAMP"),
+            ),
+            sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column(
+                "status",
+                sa.String(20),
+                nullable=False,
+                server_default="in_progress",
+            ),
+            sa.Column("questions_attempted", sa.Integer, nullable=False, server_default="0"),
+            sa.Column("questions_completed", sa.Integer, nullable=False, server_default="0"),
+            sa.Column("overall_score", sa.Numeric(5, 2), nullable=True),
+            sa.Column("session_metadata", json_type, nullable=False, server_default="{}"),
+        )
 
-    # Add CHECK constraints for practice_sessions
-    op.create_check_constraint(
-        "check_session_status",
-        "practice_sessions",
-        "status IN ('pending', 'in_progress', 'completed', 'failed', 'abandoned')",
-    )
-    op.create_check_constraint(
-        "check_questions_count",
-        "practice_sessions",
-        "questions_attempted >= questions_completed",
-    )
-    op.create_check_constraint(
-        "check_overall_score_range",
-        "practice_sessions",
-        "overall_score IS NULL OR (overall_score >= 0 AND overall_score <= 100)",
-    )
+        op.create_check_constraint(
+            "check_session_status",
+            "practice_sessions",
+            "status IN ('pending', 'in_progress', 'completed', 'failed', 'abandoned')",
+        )
+        op.create_check_constraint(
+            "check_questions_count",
+            "practice_sessions",
+            "questions_attempted >= questions_completed",
+        )
+        op.create_check_constraint(
+            "check_overall_score_range",
+            "practice_sessions",
+            "overall_score IS NULL OR (overall_score >= 0 AND overall_score <= 100)",
+        )
 
     # Create indexes for practice_sessions
     op.create_index(
@@ -83,45 +126,81 @@ def upgrade() -> None:
     )
     op.create_index("idx_sessions_started", "practice_sessions", ["started_at"])
 
-    # Create question_attempts table
-    op.create_table(
-        "question_attempts",
-        sa.Column("id", uuid_type, primary_key=True, nullable=False),
-        sa.Column(
-            "session_id",
-            uuid_type,
-            sa.ForeignKey("practice_sessions.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "user_id",
-            uuid_type,
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("question_id", uuid_type, nullable=True),
-        sa.Column("response_type", sa.String(10), nullable=False),
-        sa.Column("text_response", sa.Text, nullable=True),
-        sa.Column("audio_recording_id", uuid_type, nullable=True),
-        sa.Column("ai_score", sa.Numeric(5, 2), nullable=True),
-        sa.Column("score_breakdown", json_type, nullable=True),
-        sa.Column("ai_feedback", sa.Text, nullable=True),
-        sa.Column("time_taken_seconds", sa.Integer, nullable=True),
-        sa.Column(
-            "attempted_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-            server_default=sa.text("CURRENT_TIMESTAMP"),
-        ),
-        sa.Column("attempt_metadata", json_type, nullable=True),
-    )
+    # Create question_attempts table with inline constraint for SQLite
+    if dialect == "sqlite":
+        op.create_table(
+            "question_attempts",
+            sa.Column("id", uuid_type, primary_key=True, nullable=False),
+            sa.Column(
+                "session_id",
+                uuid_type,
+                sa.ForeignKey("practice_sessions.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column(
+                "user_id",
+                uuid_type,
+                sa.ForeignKey("users.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column("question_id", uuid_type, nullable=True),
+            sa.Column("response_type", sa.String(10), nullable=False),
+            sa.Column("text_response", sa.Text, nullable=True),
+            sa.Column("audio_recording_id", uuid_type, nullable=True),
+            sa.Column("ai_score", sa.Numeric(5, 2), nullable=True),
+            sa.Column("score_breakdown", json_type, nullable=True),
+            sa.Column("ai_feedback", sa.Text, nullable=True),
+            sa.Column("time_taken_seconds", sa.Integer, nullable=True),
+            sa.Column(
+                "attempted_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("CURRENT_TIMESTAMP"),
+            ),
+            sa.Column("attempt_metadata", json_type, nullable=True),
+            sa.CheckConstraint(
+                "response_type IN ('text', 'audio')",
+                name="check_response_type"
+            ),
+        )
+    else:
+        op.create_table(
+            "question_attempts",
+            sa.Column("id", uuid_type, primary_key=True, nullable=False),
+            sa.Column(
+                "session_id",
+                uuid_type,
+                sa.ForeignKey("practice_sessions.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column(
+                "user_id",
+                uuid_type,
+                sa.ForeignKey("users.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column("question_id", uuid_type, nullable=True),
+            sa.Column("response_type", sa.String(10), nullable=False),
+            sa.Column("text_response", sa.Text, nullable=True),
+            sa.Column("audio_recording_id", uuid_type, nullable=True),
+            sa.Column("ai_score", sa.Numeric(5, 2), nullable=True),
+            sa.Column("score_breakdown", json_type, nullable=True),
+            sa.Column("ai_feedback", sa.Text, nullable=True),
+            sa.Column("time_taken_seconds", sa.Integer, nullable=True),
+            sa.Column(
+                "attempted_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("CURRENT_TIMESTAMP"),
+            ),
+            sa.Column("attempt_metadata", json_type, nullable=True),
+        )
 
-    # Add CHECK constraint for question_attempts
-    op.create_check_constraint(
-        "check_response_type",
-        "question_attempts",
-        "response_type IN ('text', 'audio')",
-    )
+        op.create_check_constraint(
+            "check_response_type",
+            "question_attempts",
+            "response_type IN ('text', 'audio')",
+        )
 
     # Create indexes for question_attempts
     op.create_index("idx_attempts_session", "question_attempts", ["session_id"])
@@ -130,16 +209,27 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove practice_sessions and question_attempts tables."""
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+
     # Drop question_attempts first (has FK to practice_sessions)
     op.drop_index("idx_attempts_user", table_name="question_attempts")
     op.drop_index("idx_attempts_session", table_name="question_attempts")
-    op.drop_constraint("check_response_type", "question_attempts", type_="check")
+
+    # Only drop constraints explicitly on PostgreSQL (SQLite drops them with table)
+    if dialect == "postgresql":
+        op.drop_constraint("check_response_type", "question_attempts", type_="check")
+
     op.drop_table("question_attempts")
 
     # Drop practice_sessions
     op.drop_index("idx_sessions_started", table_name="practice_sessions")
     op.drop_index("idx_sessions_user_status", table_name="practice_sessions")
-    op.drop_constraint("check_overall_score_range", "practice_sessions", type_="check")
-    op.drop_constraint("check_questions_count", "practice_sessions", type_="check")
-    op.drop_constraint("check_session_status", "practice_sessions", type_="check")
+
+    # Only drop constraints explicitly on PostgreSQL (SQLite drops them with table)
+    if dialect == "postgresql":
+        op.drop_constraint("check_overall_score_range", "practice_sessions", type_="check")
+        op.drop_constraint("check_questions_count", "practice_sessions", type_="check")
+        op.drop_constraint("check_session_status", "practice_sessions", type_="check")
+
     op.drop_table("practice_sessions")
