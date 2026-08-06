@@ -172,25 +172,23 @@ async def similarity_search(
         # cosine_distance is <=> operator in pgvector
         # similarity = 1 - cosine_distance
         # Format embedding as PostgreSQL array string for pgvector
+        # IMPORTANT: We pass this as a literal string, not a bound parameter,
+        # because pgvector's ::vector cast doesn't work with parameter binding
         embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
-        
+
         query_stmt = select(
             DocumentEmbedding.document_id,
             DocumentEmbedding.chunk_index,
             DocumentEmbedding.chunk_text,
             DocumentEmbedding.token_count,
-            # Use literal_column for computed similarity
-            literal_column("(1 - (embedding <=> :query_embedding::vector))").label("similarity"),
-        ).where(text("(1 - (embedding <=> :query_embedding::vector)) >= :threshold"))
+            # Use literal embedding string (not bound parameter) for pgvector compatibility
+            literal_column(f"(1 - (embedding <=> '{embedding_str}'::vector))").label("similarity"),
+        ).where(text(f"(1 - (embedding <=> '{embedding_str}'::vector)) >= {similarity_threshold}"))
 
         if document_id:
             query_stmt = query_stmt.where(DocumentEmbedding.document_id == document_id)
 
-        query_stmt = (
-            query_stmt.order_by(text("similarity DESC"))
-            .limit(limit)
-            .params(query_embedding=embedding_str, threshold=similarity_threshold)
-        )
+        query_stmt = query_stmt.order_by(text("similarity DESC")).limit(limit)
 
         try:
             result = await session.execute(query_stmt)

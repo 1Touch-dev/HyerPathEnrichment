@@ -214,7 +214,7 @@ class EmbeddingsClient:
         return results
 
 
-async def get_embeddings_client(
+def get_embeddings_client(
     model: str | None = None, dimensions: int | None = None
 ) -> EmbeddingsClient:
     """Factory function to get embeddings client with settings defaults.
