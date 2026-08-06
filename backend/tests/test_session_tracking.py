@@ -1,7 +1,7 @@
 """Comprehensive tests for session tracking system."""
 
 import pytest
-from datetime import datetime
+from datetime import datetime, UTC
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -26,7 +26,7 @@ async def session_manager(db: AsyncSession) -> SessionManager:
 @pytest.fixture
 async def test_user_id() -> str:
     """Generate a test user ID."""
-    return uuid4()
+    return str(uuid4())
 
 
 @pytest.fixture
@@ -37,12 +37,11 @@ async def sample_session(db: AsyncSession, test_user_id: str) -> PracticeSession
         user_id=str(test_user_id),
         session_type="behavioral",
         status="pending",
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(UTC),  # Fixed deprecated utcnow()
         session_metadata={"difficulty": "medium"},
     )
     db.add(session)
-    await db.commit()
-    await db.refresh(session)
+    await db.flush()  # Flush to make data visible within the transaction
     return session
 
 
@@ -59,7 +58,7 @@ class TestSessionCreation:
 
         assert response.session_type == "technical"
         assert response.status == "pending"
-        assert response.user_id == test_user_id
+        assert str(response.user_id) == test_user_id  # Compare as strings
         assert response.questions_attempted == 0
         assert response.questions_completed == 0
         assert response.session_metadata == {"topic": "algorithms"}
@@ -83,7 +82,7 @@ class TestSessionRetrieval:
         """Test retrieving an existing session."""
         response = await session_manager.get_session(sample_session.id, test_user_id)
 
-        assert response.id == sample_session.id
+        assert str(response.id) == sample_session.id  # Compare as strings
         assert response.session_type == "behavioral"
         assert response.status == "pending"
 
@@ -120,7 +119,7 @@ class TestSessionListing:
 
         assert response.total == 1
         assert len(response.sessions) == 1
-        assert response.sessions[0].id == sample_session.id
+        assert str(response.sessions[0].id) == sample_session.id  # Compare as strings
 
     async def test_list_sessions_pagination(
         self, session_manager: SessionManager, db: AsyncSession, test_user_id: str
@@ -341,7 +340,7 @@ class TestQuestionAttempts:
         response = await session_manager.add_attempt(sample_session.id, request, test_user_id)
 
         assert response.response_type == "audio"
-        assert response.audio_recording_id == audio_id
+        assert str(response.audio_recording_id) == audio_id  # Compare as strings
         assert response.ai_score == 88.5
 
     async def test_add_attempt_updates_session_metrics(
