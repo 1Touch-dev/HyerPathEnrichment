@@ -14,10 +14,8 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import JSONB
 
-from app.database.base import Base
-from app.database.json_doc import JsonDoc
+from app.database.base import Base, JsonDoc
 
 if TYPE_CHECKING:
     from app.auth.models import User
@@ -46,7 +44,7 @@ class PracticeSession(Base):
     questions_attempted: Mapped[int] = mapped_column(nullable=False, default=0)
     questions_completed: Mapped[int] = mapped_column(nullable=False, default=0)
     overall_score: Mapped[Decimal | None] = mapped_column(nullable=True)
-    metadata: Mapped[dict] = mapped_column(
+    session_metadata: Mapped[dict] = mapped_column(
         JsonDoc,
         nullable=False,
         default=dict,
@@ -106,6 +104,10 @@ class QuestionAttempt(Base):
     attempted_at: Mapped[datetime] = mapped_column(
         nullable=False,
         default=lambda: datetime.now(UTC),
+    )
+    attempt_metadata: Mapped[dict | None] = mapped_column(
+        JsonDoc,
+        nullable=True,
     )
 
     # Relationships
