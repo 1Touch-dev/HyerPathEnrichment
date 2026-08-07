@@ -13,7 +13,7 @@ import app.database.orm_registry  # noqa: F401
 from app.core.config import get_settings, validate_tier1_settings
 from app.core.logging import configure_logging
 from app.observability.error_tracking import init_error_tracking
-from app.workers.queue import get_redis_connection, get_worker_queue
+from app.workers.queue import get_redis_connection
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,8 @@ def main() -> None:
     configure_logging()
     init_error_tracking()
 
+    settings = get_settings()
+
     # Startup retry logic with exponential backoff
     max_attempts = 5
     for attempt in range(1, max_attempts + 1):
@@ -42,8 +44,37 @@ def main() -> None:
             connection = get_redis_connection()
             # Test connection
             connection.ping()
-            queue = get_worker_queue()
-            logger.info(f"Successfully connected to Redis and queue: {queue.name}")
+
+            from rq import Queue
+
+            if settings.worker_queue_mode == "per_tier":
+                # Tier-specific worker: must listen to exactly one assigned queue.
+                if not settings.worker_target_queue:
+                    raise ValueError(
+                        "WORKER_TARGET_QUEUE required when WORKER_QUEUE_MODE=per_tier"
+                    )
+                queues = [Queue(settings.worker_target_queue, connection=connection)]
+                logger.info(f"Worker configured for tier queue: {settings.worker_target_queue}")
+            else:
+                # General-purpose worker: listen to feedback, document processing, and default queues
+                from app.workers.queue import (
+                    QUEUE_FEEDBACK,
+                    QUEUE_DOCUMENT,
+                    QUEUE_EMBEDDING,
+                    QUEUE_CV_EXTRACTION,
+                    QUEUE_NAME,
+                )
+
+                queues = [
+                    Queue(QUEUE_FEEDBACK, connection=connection),  # Week 2: Interview feedback
+                    Queue(QUEUE_DOCUMENT, connection=connection),  # Week 1: Document processing
+                    Queue(QUEUE_EMBEDDING, connection=connection),  # Week 1: Embeddings
+                    Queue(QUEUE_CV_EXTRACTION, connection=connection),  # Week 1: CV extraction
+                    Queue(QUEUE_NAME, connection=connection),  # Original enrichment queue
+                ]
+                logger.info(f"Worker configured for multiple queues: {[q.name for q in queues]}")
+
+            logger.info("Successfully connected to Redis")
             break
         except Exception as exc:
             if attempt == max_attempts:
@@ -60,16 +91,16 @@ def main() -> None:
             )
             time.sleep(backoff_seconds)
 
-    logger.info(f"Worker starting, listening to queue: {queue.name}")
+    logger.info(f"Worker starting, listening to queues: {[q.name for q in queues]}")
 
     # RQ's default Worker forks (no os.fork on Windows) and uses SIGALRM
     # for job timeouts (also unavailable on Windows). SimpleWorker + no-op
     # death penalty keeps local dev working; Linux production keeps defaults.
     worker: BaseWorker
     if hasattr(os, "fork"):
-        worker = Worker([queue], connection=connection)
+        worker = Worker(queues, connection=connection)
     else:
-        worker = SimpleWorker([queue], connection=connection)
+        worker = SimpleWorker(queues, connection=connection)
         # RQ's stubs type death_penalty_class as type[UnixSignalDeathPenalty];
         # cast satisfies both older mypy (which flags the assignment) and newer
         # mypy 2.3+ (which flags unused type: ignore comments).

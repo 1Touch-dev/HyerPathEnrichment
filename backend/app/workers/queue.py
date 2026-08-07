@@ -16,14 +16,20 @@ QUEUE_DOCUMENT = "document_processing"
 QUEUE_EMBEDDING = "embedding_generation"
 QUEUE_CV_EXTRACTION = "cv_extraction"
 
+# Foundation Week 2 queues (interview practice features)
+QUEUE_FEEDBACK = "feedback"
+QUEUE_AUDIO_CLEANUP = "audio_cleanup"
+
 # Queue priorities (higher = processed first)
 QUEUE_PRIORITIES = {
     QUEUE_EMAIL: 10,  # Highest (user-facing)
     QUEUE_CV_EXTRACTION: 8,  # High (user-facing)
+    QUEUE_FEEDBACK: 7,  # High (user-facing feedback)
     QUEUE_DOCUMENT: 5,  # Medium (async)
     QUEUE_EMBEDDING: 3,  # Low (batch)
     QUEUE_NAME: 2,  # Low (existing enrichment)
     QUEUE_CLEANUP: 1,  # Lowest (maintenance)
+    QUEUE_AUDIO_CLEANUP: 1,  # Lowest (maintenance)
 }
 
 logger = logging.getLogger(__name__)
@@ -152,3 +158,76 @@ def enqueue_enrichment(
             exc_info=True,
         )
         raise
+
+
+def enqueue_feedback(attempt_id: str) -> None:
+    """Enqueue a feedback generation job.
+
+    Args:
+        attempt_id: UUID string of the QuestionAttempt
+
+    Raises:
+        Exception: On enqueue failure
+    """
+    from app.workers.tasks.feedback import generate_feedback_job
+
+    connection = get_redis_connection()
+    timeout_seconds = 60  # Feedback generation should be fast
+
+    try:
+        queue = Queue(QUEUE_FEEDBACK, connection=connection)
+        queue.enqueue(generate_feedback_job, attempt_id, job_timeout=timeout_seconds)
+        logger.info(f"Enqueued feedback job for attempt: {attempt_id}")
+    except Exception as e:
+        logger.error(
+            f"Failed to enqueue feedback job for attempt {attempt_id}",
+            extra={
+                "attempt_id": attempt_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+            exc_info=True,
+        )
+        raise
+
+
+def register_scheduled_jobs() -> None:
+    """Register scheduled cron jobs with RQ Scheduler.
+
+    Note:
+        This should be called once on scheduler startup.
+        Requires RQ Scheduler to be running separately.
+    """
+    try:
+        from rq_scheduler import Scheduler
+
+        from app.workers.tasks.audio_cleanup import cleanup_expired_audio
+
+        connection = get_redis_connection()
+        scheduler = Scheduler(connection=connection)
+
+        # Schedule audio cleanup daily at 2 AM UTC
+        scheduler.cron(
+            "0 2 * * *",  # Cron expression: minute hour day month weekday
+            func=cleanup_expired_audio,
+            queue_name=QUEUE_AUDIO_CLEANUP,
+            id="audio_cleanup_daily",
+            timeout=3600,  # 1 hour timeout for large batches
+        )
+
+        logger.info(
+            "Registered scheduled jobs",
+            extra={"jobs": ["audio_cleanup_daily"]},
+        )
+
+    except ImportError:
+        logger.warning(
+            "rq-scheduler not installed, scheduled jobs will not run. "
+            "Install with: pip install rq-scheduler"
+        )
+    except Exception as exc:
+        logger.error(
+            "Failed to register scheduled jobs",
+            exc_info=True,
+            extra={"error": str(exc)},
+        )

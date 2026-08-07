@@ -39,4 +39,6 @@ RUN curl -fsSL -o /tmp/email-sleuth.tar.gz \
 ENV EMAIL_SLEUTH_BIN=email-sleuth
 
 COPY . /app/backend
+RUN sed -i 's/\r$//' /app/backend/docker/run-migrations.sh \
+    && chmod +x /app/backend/docker/run-migrations.sh
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "backend"]

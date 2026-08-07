@@ -6,7 +6,7 @@ services:
     working_dir: /app/backend
     environment:
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
-    command: ["alembic", "upgrade", "head"]
+    command: ["/bin/bash", "/app/backend/docker/run-migrations.sh"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,6 +126,9 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       SENTRY_SEND_DEFAULT_PII: ${SENTRY_SEND_DEFAULT_PII:-false}
+      # OpenAI API for embeddings (document search) and feedback generation
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      WORKER_STARTUP_DELAY: "0"
     depends_on:
       migrate:
         condition: service_completed_successfully
