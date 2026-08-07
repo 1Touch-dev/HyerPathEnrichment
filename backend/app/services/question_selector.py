@@ -10,11 +10,11 @@ Selects questions based on:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import and_, func, select, update
+from sqlalchemy import ColumnElement, and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ async def select_questions(
     category: QuestionCategory | None = None,
     count: int = 5,
     exclude_recent_days: int = 7,
-) -> list[dict]:
+) -> list[dict[str, object]]:
     """Select interview questions with smart filtering and rotation.
 
     Args:
@@ -62,27 +62,30 @@ async def select_questions(
         >>> for q in questions:
         ...     print(f"{q['difficulty']}: {q['question_text'][:50]}...")
     """
-    from app.models import InterviewQuestion, InterviewAttempt
+    from app.models import InterviewAttempt, InterviewQuestion
 
     # Build base query with job role filter
     dialect_name = session.bind.dialect.name if session.bind else "sqlite"
 
     if dialect_name == "postgresql":
         # PostgreSQL: use array contains operator
-        base_conditions = [func.array_position(InterviewQuestion.job_roles, job_role).isnot(None)]
+        base_conditions: list[ColumnElement[bool]] = [
+            func.array_position(InterviewQuestion.job_roles, job_role).isnot(None)
+        ]
     else:
-        # SQLite: check if JSON array contains the role
-        base_conditions = [func.json_each(InterviewQuestion.job_roles).params(job_role).isnot(None)]
+        # SQLite: job_roles is stored as a JSON-encoded text array (e.g. '["a", "b"]").
+        # Match on the quoted JSON string element to avoid partial-word false positives.
+        base_conditions = [InterviewQuestion.job_roles.like(f'%"{job_role}"%')]
 
     # Add optional filters
     if difficulty:
         base_conditions.append(InterviewQuestion.difficulty == difficulty)
 
     if category:
-        base_conditions.append(InterviewQuestion.category == category)
+        base_conditions.append(InterviewQuestion.question_category == category)
 
     # Exclude recently attempted questions
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=exclude_recent_days)
+    cutoff_date = datetime.now(UTC) - timedelta(days=exclude_recent_days)
 
     recent_attempts_subquery = (
         select(InterviewAttempt.question_id)
@@ -134,7 +137,7 @@ async def select_questions(
         {
             "id": str(q.id),
             "question_text": q.question_text,
-            "category": q.category,
+            "category": q.question_category,
             "difficulty": q.difficulty,
             "job_roles": q.job_roles,
             "technologies": q.technologies,
@@ -180,16 +183,14 @@ async def get_question_stats(
     dialect_name = session.bind.dialect.name if session.bind else "sqlite"
 
     # Base conditions
-    conditions = []
+    conditions: list[ColumnElement[bool]] = []
     if job_role:
         if dialect_name == "postgresql":
             conditions.append(
                 func.array_position(InterviewQuestion.job_roles, job_role).isnot(None)
             )
         else:
-            conditions.append(
-                func.json_each(InterviewQuestion.job_roles).params(job_role).isnot(None)
-            )
+            conditions.append(InterviewQuestion.job_roles.like(f'%"{job_role}"%'))
 
     # Total count
     base_query = select(func.count()).select_from(InterviewQuestion)
@@ -202,7 +203,7 @@ async def get_question_stats(
     # Counts by category
     category_counts = {}
     for cat in ["behavioral", "technical", "system_design"]:
-        cat_query = base_query.where(InterviewQuestion.category == cat)
+        cat_query = base_query.where(InterviewQuestion.question_category == cat)
         cat_result = await session.execute(cat_query)
         category_counts[cat] = cat_result.scalar() or 0
 

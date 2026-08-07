@@ -111,6 +111,7 @@ ignore_missing_imports = false
 module = [
   "redis.*",
   "rq.*",
+  "rq_scheduler.*",
   "aioboto3.*",
   "selenium.*",
   "jobspy.*",

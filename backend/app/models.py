@@ -7,14 +7,19 @@ Defines database models for:
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import uuid4
+from datetime import UTC, datetime
+from typing import Any
+from uuid import UUID, uuid4
 
-from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import Mapped, mapped_column
 
-Base = declarative_base()
+from app.database.base import Base, JsonDoc
+
+# PostgreSQL: native TEXT[] array (see migration 016). SQLite: JSON-encoded TEXT,
+# transparently (de)serialized to/from a Python list by SQLAlchemy's JSON type.
+StringArray = postgresql.ARRAY(String).with_variant(JSON(), "sqlite")
 
 
 class InterviewQuestion(Base):
@@ -22,23 +27,29 @@ class InterviewQuestion(Base):
 
     __tablename__ = "interview_questions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    question_text = Column(Text, nullable=False)
-    question_category = Column(String(50), nullable=False)  # behavioral, technical, system_design
-    difficulty = Column(String(20), nullable=False)  # easy, medium, hard
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    question_text: Mapped[str] = mapped_column(Text, nullable=False)
+    question_category: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # behavioral, technical, system_design
+    difficulty: Mapped[str] = mapped_column(String(20), nullable=False)  # easy, medium, hard
 
-    # For PostgreSQL: use ARRAY, for SQLite: use Text with JSON
-    job_roles = Column(ARRAY(String), nullable=False)  # PostgreSQL
-    technologies = Column(ARRAY(String), nullable=False)  # PostgreSQL
+    job_roles: Mapped[list[str]] = mapped_column(StringArray, nullable=False)
+    technologies: Mapped[list[str]] = mapped_column(StringArray, nullable=False)
 
-    sample_answer = Column(Text, nullable=True)
-    scoring_rubric = Column(JSONB, nullable=True)  # PostgreSQL: JSONB, SQLite: Text
-    source = Column(String(100), nullable=True)
-    usage_count = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    sample_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scoring_rubric: Mapped[dict[str, Any] | None] = mapped_column(JsonDoc, nullable=True)
+    source: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
 
     def __repr__(self) -> str:
-        return f"<InterviewQuestion(id={self.id}, category={self.question_category}, difficulty={self.difficulty})>"
+        return (
+            f"<InterviewQuestion(id={self.id}, category={self.question_category}, "
+            f"difficulty={self.difficulty})>"
+        )
 
 
 class InterviewAttempt(Base):
@@ -46,10 +57,15 @@ class InterviewAttempt(Base):
 
     __tablename__ = "interview_attempts"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False)  # Foreign key not enforced for now
-    question_id = Column(UUID(as_uuid=True), ForeignKey("interview_questions.id"), nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(nullable=False)  # Foreign key not enforced for now
+    question_id: Mapped[UUID] = mapped_column(ForeignKey("interview_questions.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
 
     def __repr__(self) -> str:
-        return f"<InterviewAttempt(id={self.id}, user_id={self.user_id}, question_id={self.question_id})>"
+        return (
+            f"<InterviewAttempt(id={self.id}, user_id={self.user_id}, "
+            f"question_id={self.question_id})>"
+        )
