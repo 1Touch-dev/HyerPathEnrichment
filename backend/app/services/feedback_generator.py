@@ -64,7 +64,7 @@ Evaluate the candidate's answer using this rubric (each dimension 0-25 points):
    - 10-14: Somewhat disorganized or unprofessional
    - 0-9: Poor structure or inappropriate tone
 
-Provide:
+Provide your evaluation in JSON format with:
 - Specific dimension scores
 - Overall score (sum of dimensions, 0-100)
 - 2-4 concrete strengths
@@ -98,7 +98,7 @@ Evaluate this interview response and provide structured feedback.
         user_content = f"""
 Answer: {answer}
 
-Evaluate this interview response and provide structured feedback. Since no specific question was provided, assess the response as a general demonstration of the candidate's communication skills, technical knowledge, and professional presentation.
+Evaluate this interview response and provide structured feedback in JSON format. Since no specific question was provided, assess the response as a general demonstration of the candidate's communication skills, technical knowledge, and professional presentation.
 """.strip()
 
     return [
