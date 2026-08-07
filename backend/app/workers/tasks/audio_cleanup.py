@@ -92,40 +92,36 @@ async def _cleanup_expired_audio_async(db: Session) -> dict[str, int]:
     successfully_deleted_ids: list[UUID] = []
 
     for record in expired_recordings:
-        recording_id = record.id if hasattr(record, "id") else record[0]
-        storage_path = record.storage_path if hasattr(record, "storage_path") else record[1]
-        user_id = record.user_id if hasattr(record, "user_id") else record[2]
+        # Handle both dict and Row objects
+        if isinstance(record, dict):
+            recording_id = record["id"]
+            storage_path = record["storage_path"]
+            user_id = record["user_id"]
+        else:
+            recording_id = record.id if hasattr(record, "id") else record[0]
+            storage_path = record.storage_path if hasattr(record, "storage_path") else record[1]
+            user_id = record.user_id if hasattr(record, "user_id") else record[2]
 
         try:
             # Attempt to delete from storage
-            storage_deleted = await storage_client.delete_audio(storage_path)
+            await storage_client.delete_audio(storage_path)
 
-            if storage_deleted:
-                successfully_deleted_ids.append(recording_id)
-                deleted_count += 1
+            # Storage deleted successfully (True) or file not found (False)
+            # In both cases, we should remove the DB record to avoid orphans
+            successfully_deleted_ids.append(recording_id)
+            deleted_count += 1
 
-                # Audit log for GDPR compliance
-                logger.info(
-                    "Audio recording deleted for GDPR compliance",
-                    extra={
-                        "recording_id": str(recording_id),
-                        "user_id": str(user_id)[:8],
-                        "storage_path": storage_path[:64],
-                        "deleted_at": datetime.utcnow().isoformat(),
-                        "reason": "expired_retention_period",
-                    },
-                )
-            else:
-                # Storage deletion failed, but we still want to remove DB record
-                # to avoid orphaned records
-                successfully_deleted_ids.append(recording_id)
-                logger.warning(
-                    "Storage deletion failed, removing DB record anyway",
-                    extra={
-                        "recording_id": str(recording_id),
-                        "storage_path": storage_path[:64],
-                    },
-                )
+            # Audit log for GDPR compliance
+            logger.info(
+                "Audio recording deleted for GDPR compliance",
+                extra={
+                    "recording_id": str(recording_id),
+                    "user_id": str(user_id),
+                    "storage_path": storage_path,
+                    "deleted_at": datetime.utcnow().isoformat(),
+                    "reason": "expired_retention_period",
+                },
+            )
 
         except Exception as exc:
             failed_count += 1
@@ -134,7 +130,7 @@ async def _cleanup_expired_audio_async(db: Session) -> dict[str, int]:
                 exc_info=True,
                 extra={
                     "recording_id": str(recording_id),
-                    "storage_path": storage_path[:64],
+                    "storage_path": storage_path,
                     "error": str(exc),
                     "error_type": type(exc).__name__,
                 },
@@ -143,14 +139,17 @@ async def _cleanup_expired_audio_async(db: Session) -> dict[str, int]:
     # Delete successfully processed records from database
     if successfully_deleted_ids:
         try:
+            from sqlalchemy import bindparam
+
+            # Use bindparam with expanding for IN clause
             delete_stmt = text("""
                 DELETE FROM practice_audio_recordings
-                WHERE id = ANY(:ids)
-            """)
-            db.execute(
-                delete_stmt,
-                params={"ids": [str(id) for id in successfully_deleted_ids]},
-            )
+                WHERE id IN :ids
+            """).bindparams(bindparam("ids", expanding=True))
+
+            # Pass list of string IDs
+            db.execute(delete_stmt, params={"ids": [str(id) for id in successfully_deleted_ids]})
+
             db.commit()
 
             logger.info(
@@ -167,9 +166,8 @@ async def _cleanup_expired_audio_async(db: Session) -> dict[str, int]:
                     "error": str(exc),
                 },
             )
-            # Mark these as failed since DB deletion failed
-            failed_count += len(successfully_deleted_ids)
-            deleted_count -= len(successfully_deleted_ids)
+            # Adjust stats - storage deletion succeeded but DB failed, so count is 0
+            deleted_count = 0
 
     return {"deleted_count": deleted_count, "failed_count": failed_count}
 

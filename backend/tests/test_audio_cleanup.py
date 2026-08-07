@@ -145,13 +145,16 @@ class TestCleanupExpiredAudio:
         # Mock SELECT and DELETE
         mock_db_session.execute.side_effect = [mock_result, MagicMock()]
 
-        async def mock_delete_audio(path: str) -> bool:
-            return True
+        # Create mock storage client with AsyncMock
+        mock_storage_client = MagicMock()
+        mock_storage_client.delete_audio = AsyncMock(return_value=True)
 
         with (
             patch("app.workers.tasks.audio_cleanup.SyncSessionLocal", return_value=mock_db_session),
-            patch.object(AudioStorageClient, "delete_audio", new=mock_delete_audio),
+            patch("app.workers.tasks.audio_cleanup.AudioStorageClient") as mock_client_class,
         ):
+            mock_client_class.return_value = mock_storage_client
+
             result = cleanup_expired_audio()
 
             # Verify query includes LIMIT 1000
@@ -179,19 +182,26 @@ class TestCleanupExpiredAudio:
 
     def test_cleanup_audit_logging(self, mock_db_session, sample_expired_recordings, caplog):
         """Test that audit logs are generated for GDPR compliance."""
+        import logging
+
+        # Set caplog level before running test
+        caplog.set_level(logging.INFO, logger="app.workers.tasks.audio_cleanup")
+
         mock_result = MagicMock()
         mock_result.fetchall.return_value = [sample_expired_recordings[0]]
         # Mock SELECT and DELETE
         mock_db_session.execute.side_effect = [mock_result, MagicMock()]
 
-        async def mock_delete_audio(path: str) -> bool:
-            return True
+        # Create mock storage client with AsyncMock
+        mock_storage_client = MagicMock()
+        mock_storage_client.delete_audio = AsyncMock(return_value=True)
 
         with (
             patch("app.workers.tasks.audio_cleanup.SyncSessionLocal", return_value=mock_db_session),
-            patch.object(AudioStorageClient, "delete_audio", new=mock_delete_audio),
-            caplog.at_level("INFO"),
+            patch("app.workers.tasks.audio_cleanup.AudioStorageClient") as mock_client_class,
         ):
+            mock_client_class.return_value = mock_storage_client
+
             cleanup_expired_audio()
 
             # Verify audit log contains required fields in extra data
@@ -222,18 +232,23 @@ class TestCleanupExpiredAudio:
         mock_db_session.execute.side_effect = [mock_result, MagicMock()]
 
         # First deletion succeeds, second fails
+        mock_storage_client = MagicMock()
         call_count = [0]
 
-        async def side_effect_delete(path: str) -> bool:
+        async def side_effect_delete(path: str):
             call_count[0] += 1
             if call_count[0] == 1:
                 return True
             raise Exception("Storage error")
 
+        mock_storage_client.delete_audio = side_effect_delete
+
         with (
             patch("app.workers.tasks.audio_cleanup.SyncSessionLocal", return_value=mock_db_session),
-            patch.object(AudioStorageClient, "delete_audio", new=side_effect_delete),
+            patch("app.workers.tasks.audio_cleanup.AudioStorageClient") as mock_client_class,
         ):
+            mock_client_class.return_value = mock_storage_client
+
             result = cleanup_expired_audio()
 
             # One succeeded (and was committed to DB), one failed
@@ -271,13 +286,16 @@ class TestCleanupExpiredAudio:
         # Mock SELECT and then DELETE
         mock_db_session.execute.side_effect = [mock_result, MagicMock()]
 
-        async def mock_delete_audio(path: str) -> bool:
-            return True
+        # Create mock storage client with AsyncMock
+        mock_storage_client = MagicMock()
+        mock_storage_client.delete_audio = AsyncMock(return_value=True)
 
         with (
             patch("app.workers.tasks.audio_cleanup.SyncSessionLocal", return_value=mock_db_session),
-            patch.object(AudioStorageClient, "delete_audio", new=mock_delete_audio),
+            patch("app.workers.tasks.audio_cleanup.AudioStorageClient") as mock_client_class,
         ):
+            mock_client_class.return_value = mock_storage_client
+
             cleanup_expired_audio()
 
             # Verify DB delete was called
@@ -311,13 +329,16 @@ class TestCleanupExpiredAudio:
 
         mock_db_session.execute.side_effect = execute_side_effect
 
-        async def mock_delete_audio(path: str) -> bool:
-            return True
+        # Create mock storage client with AsyncMock
+        mock_storage_client = MagicMock()
+        mock_storage_client.delete_audio = AsyncMock(return_value=True)
 
         with (
             patch("app.workers.tasks.audio_cleanup.SyncSessionLocal", return_value=mock_db_session),
-            patch.object(AudioStorageClient, "delete_audio", new=mock_delete_audio),
+            patch("app.workers.tasks.audio_cleanup.AudioStorageClient") as mock_client_class,
         ):
+            mock_client_class.return_value = mock_storage_client
+
             result = cleanup_expired_audio()
 
             # Verify rollback was called
@@ -361,14 +382,18 @@ class TestCleanupExpiredAudio:
         # Mock SELECT and DELETE
         mock_db_session.execute.side_effect = [mock_result, MagicMock()]
 
-        async def mock_delete_audio(path: str) -> bool:
-            # Storage deletion returns False (not found)
-            return False
+        # Create mock storage client with AsyncMock
+        mock_storage_client = MagicMock()
+        mock_storage_client.delete_audio = AsyncMock(
+            return_value=False
+        )  # Storage deletion returns False
 
         with (
             patch("app.workers.tasks.audio_cleanup.SyncSessionLocal", return_value=mock_db_session),
-            patch.object(AudioStorageClient, "delete_audio", new=mock_delete_audio),
+            patch("app.workers.tasks.audio_cleanup.AudioStorageClient") as mock_client_class,
         ):
+            mock_client_class.return_value = mock_storage_client
+
             cleanup_expired_audio()
 
             # DB record should still be deleted to avoid orphans

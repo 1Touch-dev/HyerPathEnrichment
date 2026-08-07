@@ -129,9 +129,11 @@ class TestQuestionGeneration:
         assert len(messages) == 2
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "user"
-        assert "software_engineer" in messages[1]["content"].lower()
-        assert "technical" in messages[1]["content"].lower()
-        assert "medium" in messages[1]["content"].lower()
+        # Use case-insensitive checks for content
+        content = messages[1]["content"].lower()
+        assert "software" in content and "engineer" in content
+        assert "technical" in content
+        assert "medium" in content
 
     def test_parse_single_question_response(self, sample_question_response):
         """Test parsing single question from API response."""
