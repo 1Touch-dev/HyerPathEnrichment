@@ -126,6 +126,7 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       SENTRY_SEND_DEFAULT_PII: ${SENTRY_SEND_DEFAULT_PII:-false}
+      WORKER_STARTUP_DELAY: "0"
     depends_on:
       migrate:
         condition: service_completed_successfully
