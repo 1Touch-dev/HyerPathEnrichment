@@ -75,22 +75,30 @@ Be constructive and specific. Focus on helping the candidate improve.
 """.strip()
 
 
-def _build_feedback_messages(question: str, answer: str) -> list[dict[str, str]]:
+def _build_feedback_messages(question: str | None, answer: str) -> list[dict[str, str]]:
     """Build chat messages for feedback generation.
 
     Args:
-        question: The interview question asked
+        question: The interview question asked (None for general evaluation)
         answer: The candidate's response
 
     Returns:
         List of message dicts for OpenAI chat API
     """
-    user_content = f"""
+    if question and question.strip():
+        user_content = f"""
 Question: {question}
 
 Answer: {answer}
 
 Evaluate this interview response and provide structured feedback.
+""".strip()
+    else:
+        # No specific question - evaluate answer as a general interview response
+        user_content = f"""
+Answer: {answer}
+
+Evaluate this interview response and provide structured feedback. Since no specific question was provided, assess the response as a general demonstration of the candidate's communication skills, technical knowledge, and professional presentation.
 """.strip()
 
     return [
@@ -166,14 +174,14 @@ def _parse_feedback_response(content: str, *, strict: bool = False) -> Interview
 
 
 async def generate_interview_feedback(
-    question: str,
+    question: str | None,
     answer: str,
     settings: Settings,
 ) -> tuple[InterviewFeedback, dict[str, int]]:
     """Generate AI feedback for an interview answer using GPT-4o-mini.
 
     Args:
-        question: The interview question asked
+        question: The interview question asked (None for general evaluation)
         answer: The candidate's response
         settings: App settings with OpenAI API key
 
@@ -249,7 +257,7 @@ async def generate_interview_feedback(
                     "overall_score": feedback["overall_score"],
                     "input_tokens": token_usage["input_tokens"],
                     "output_tokens": token_usage["output_tokens"],
-                    "question_length": len(question),
+                    "question_length": len(question) if question else 0,
                     "answer_length": len(answer),
                 },
             )
