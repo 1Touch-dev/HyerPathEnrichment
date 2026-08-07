@@ -104,24 +104,37 @@ async def _cleanup_expired_audio_async(db: Session) -> dict[str, int]:
 
         try:
             # Attempt to delete from storage
-            await storage_client.delete_audio(storage_path)
+            storage_deleted = await storage_client.delete_audio(storage_path)
 
             # Storage deleted successfully (True) or file not found (False)
             # In both cases, we should remove the DB record to avoid orphans
             successfully_deleted_ids.append(recording_id)
             deleted_count += 1
 
-            # Audit log for GDPR compliance
-            logger.info(
-                "Audio recording deleted for GDPR compliance",
-                extra={
-                    "recording_id": str(recording_id),
-                    "user_id": str(user_id),
-                    "storage_path": storage_path,
-                    "deleted_at": datetime.utcnow().isoformat(),
-                    "reason": "expired_retention_period",
-                },
-            )
+            # Audit log AFTER storage deletion confirmation
+            # Only log successful deletions vs orphaned record cleanup
+            if storage_deleted:
+                logger.info(
+                    "Audio recording deleted for GDPR compliance",
+                    extra={
+                        "recording_id": str(recording_id),
+                        "user_id": str(user_id),
+                        "storage_path": storage_path,
+                        "deleted_at": datetime.utcnow().isoformat(),
+                        "reason": "expired_retention_period",
+                        "deletion_type": "storage_and_db",
+                    },
+                )
+            else:
+                # Orphaned record - storage file already gone
+                logger.warning(
+                    "Removed orphaned audio DB record (storage file not found)",
+                    extra={
+                        "recording_id": str(recording_id),
+                        "storage_path": storage_path,
+                        "deletion_type": "db_only_orphaned",
+                    },
+                )
 
         except Exception as exc:
             failed_count += 1
