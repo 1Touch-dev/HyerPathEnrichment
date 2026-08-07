@@ -18,6 +18,7 @@ QUEUE_CV_EXTRACTION = "cv_extraction"
 
 # Foundation Week 2 queues (interview practice features)
 QUEUE_FEEDBACK = "feedback"
+QUEUE_AUDIO_CLEANUP = "audio_cleanup"
 
 # Queue priorities (higher = processed first)
 QUEUE_PRIORITIES = {
@@ -28,6 +29,7 @@ QUEUE_PRIORITIES = {
     QUEUE_EMBEDDING: 3,  # Low (batch)
     QUEUE_NAME: 2,  # Low (existing enrichment)
     QUEUE_CLEANUP: 1,  # Lowest (maintenance)
+    QUEUE_AUDIO_CLEANUP: 1,  # Lowest (maintenance)
 }
 
 logger = logging.getLogger(__name__)
@@ -187,3 +189,45 @@ def enqueue_feedback(attempt_id: str) -> None:
             exc_info=True,
         )
         raise
+
+
+def register_scheduled_jobs() -> None:
+    """Register scheduled cron jobs with RQ Scheduler.
+
+    Note:
+        This should be called once on scheduler startup.
+        Requires RQ Scheduler to be running separately.
+    """
+    try:
+        from rq_scheduler import Scheduler
+
+        from app.workers.tasks.audio_cleanup import cleanup_expired_audio
+
+        connection = get_redis_connection()
+        scheduler = Scheduler(connection=connection)
+
+        # Schedule audio cleanup daily at 2 AM UTC
+        scheduler.cron(
+            "0 2 * * *",  # Cron expression: minute hour day month weekday
+            func=cleanup_expired_audio,
+            queue_name=QUEUE_AUDIO_CLEANUP,
+            id="audio_cleanup_daily",
+            timeout=3600,  # 1 hour timeout for large batches
+        )
+
+        logger.info(
+            "Registered scheduled jobs",
+            extra={"jobs": ["audio_cleanup_daily"]},
+        )
+
+    except ImportError:
+        logger.warning(
+            "rq-scheduler not installed, scheduled jobs will not run. "
+            "Install with: pip install rq-scheduler"
+        )
+    except Exception as exc:
+        logger.error(
+            "Failed to register scheduled jobs",
+            exc_info=True,
+            extra={"error": str(exc)},
+        )
