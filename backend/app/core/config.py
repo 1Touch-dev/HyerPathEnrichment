@@ -212,6 +212,11 @@ class Settings(BaseSettings):
     # RQ job timeout (seconds) — must accommodate full all-tier enrichment (20-30 min)
     rq_job_timeout_seconds: int = Field(default=3000, alias="RQ_JOB_TIMEOUT_SECONDS")
 
+    # Budget monitoring
+    DAILY_COST_THRESHOLD_USD: float = Field(default=100.0, alias="DAILY_COST_THRESHOLD_USD")
+    MONTHLY_COST_THRESHOLD_USD: float = Field(default=2000.0, alias="MONTHLY_COST_THRESHOLD_USD")
+    ENABLE_BUDGET_ALERTS: bool = Field(default=True, alias="ENABLE_BUDGET_ALERTS")
+
 
 _TIER1_PROD_ENVS = frozenset({"production", "staging"})
 

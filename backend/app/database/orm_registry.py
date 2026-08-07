@@ -10,6 +10,7 @@ from app.auth.models import (
 from app.compliance.models import AuditLog, DsarRecord, SuppressionRecord
 from app.database.base import Base
 from app.modules.enrichment.models import JobRecord
+from app.modules.sessions.models import PracticeSession, QuestionAttempt
 from app.modules.signals.models import SignalRecord
 from app.storage.models import PhotoCacheRecord
 
@@ -27,6 +28,8 @@ _ = (
     EmailVerificationToken,
     LoggedOutToken,
     AuthAuditLog,
+    PracticeSession,
+    QuestionAttempt,
 )
 
 # Re-export for alembic env after patch
@@ -40,6 +43,8 @@ __all__ = [
     "LoggedOutToken",
     "OAuthAccount",
     "PhotoCacheRecord",
+    "PracticeSession",
+    "QuestionAttempt",
     "RefreshToken",
     "SignalRecord",
     "SuppressionRecord",
