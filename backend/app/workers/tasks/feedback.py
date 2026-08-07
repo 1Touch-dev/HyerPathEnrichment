@@ -51,9 +51,10 @@ def _generate_feedback_sync(attempt_id: str, db: Session) -> None:
 
     # For now, we need a question - in production this would come from a questions table
     # Using attempt_metadata as a workaround for foundation week
-    question_text = "Please describe your approach to this problem."
+    # If question_id is null, pass None to enable general evaluation mode
+    question_text = None
     if hasattr(attempt, "attempt_metadata") and isinstance(attempt.attempt_metadata, dict):
-        question_text = attempt.attempt_metadata.get("question_text", question_text)
+        question_text = attempt.attempt_metadata.get("question_text")
 
     # Generate feedback (run async function in event loop)
     logger.info(f"Calling feedback service for attempt {attempt_id}")
