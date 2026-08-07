@@ -126,6 +126,8 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       SENTRY_SEND_DEFAULT_PII: ${SENTRY_SEND_DEFAULT_PII:-false}
+      # OpenAI API for embeddings (document search) and feedback generation
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       WORKER_STARTUP_DELAY: "0"
     depends_on:
       migrate:
