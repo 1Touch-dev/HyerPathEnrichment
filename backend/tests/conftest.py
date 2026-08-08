@@ -60,8 +60,9 @@ async def setup_test_database():
     For PostgreSQL: Disposes and recreates the engine to ensure it binds to the test event loop.
     For SQLite: Just ensures proper cleanup.
     """
-    from app.database import session as db_session_module
     from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.database import session as db_session_module
 
     # Check if using PostgreSQL (which has the event loop issue)
     db_url = get_settings().database_url
@@ -80,7 +81,7 @@ async def setup_test_database():
         )
 
         # Recreate SessionLocal with new engine
-        from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
         db_session_module.SessionLocal = async_sessionmaker(
             db_session_module.engine, expire_on_commit=False, class_=AsyncSession
@@ -243,11 +244,9 @@ class FakeRedis:
 
     def watch(self, *keys: str):
         """Watch keys (no-op for fake)."""
-        pass
 
     def multi(self):
         """Start transaction (no-op for fake)."""
-        pass
 
 
 @pytest.fixture(autouse=True)
@@ -299,8 +298,8 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
 
         def enqueue(self, func, *args, job_timeout=None, **kwargs):
             """Enqueue and immediately process job synchronously."""
-            import uuid
             import importlib
+            import uuid
 
             job_id = str(uuid.uuid4())
             job = FakeRQJob(job_id)
@@ -309,10 +308,10 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
             # Try to actually process the job synchronously if it's a string path
             if isinstance(func, str):
                 try:
-                    # Import and call the function
+                    # Verify the target function is importable before marking queued
                     module_path, func_name = func.rsplit(".", 1)
                     module = importlib.import_module(module_path)
-                    worker_func = getattr(module, func_name)
+                    getattr(module, func_name)
                     # Call it in the background (don't block)
                     # For now, just mark as queued - the test will need to handle this
                     job.status = "queued"

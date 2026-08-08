@@ -162,7 +162,7 @@ class TestDocumentUploadFlow:
                     headers=auth_headers,
                 )
             assert response1.status_code == 200
-            _job_id_1 = unwrap_envelope(response1)["job_id"]  # noqa: F841
+            _job_id_1 = unwrap_envelope(response1)["job_id"]
 
             # Wait for processing
             await asyncio.sleep(5)
@@ -201,7 +201,7 @@ class TestEmbeddingGeneration:
                     headers=auth_headers,
                 )
 
-            _job_id = unwrap_envelope(response)["job_id"]  # noqa: F841
+            _job_id = unwrap_envelope(response)["job_id"]
 
             # Wait for full pipeline (parsing + embedding)
             await asyncio.sleep(15)

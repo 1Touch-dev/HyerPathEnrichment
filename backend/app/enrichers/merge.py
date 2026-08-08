@@ -273,8 +273,10 @@ def build_confidence(request: EnrichmentRequest, dossier: Dossier) -> list[Confi
                 0.89 if any(e.status != "disposable" for e in dossier.verified_emails) else 0.22
             ),
             evidence=[
-                "verified emails: "
-                f"{sum(1 for e in dossier.verified_emails if e.status != 'disposable')}"
+                (
+                    "verified emails: "
+                    f"{sum(1 for e in dossier.verified_emails if e.status != 'disposable')}"
+                )
             ],
         ),
         ConfidenceBreakdown(

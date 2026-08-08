@@ -1,14 +1,15 @@
 """Tests for OpenAI embeddings client with retry logic and cost tracking."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from app.clients.embeddings import (
+    DEFAULT_DIMENSIONS,
+    DEFAULT_MODEL,
+    MAX_RETRIES,
     EmbeddingsClient,
     get_embeddings_client,
-    DEFAULT_MODEL,
-    DEFAULT_DIMENSIONS,
-    MAX_RETRIES,
 )
 
 
@@ -75,7 +76,7 @@ async def test_generate_embedding_retry_logic(embeddings_client, mock_openai_res
             mock_openai_response,
         ]
 
-        embedding, token_count = await embeddings_client.generate_embedding("test text")
+        embedding, _token_count = await embeddings_client.generate_embedding("test text")
 
         assert len(embedding) == DEFAULT_DIMENSIONS
         assert mock_create.call_count == 3
@@ -94,9 +95,7 @@ async def test_generate_embedding_max_retries_exceeded(embeddings_client):
 
         mock_request = MagicMock()
 
-        mock_create.side_effect = APIError(
-            "Persistent error", request=mock_request, body={}
-        )
+        mock_create.side_effect = APIError("Persistent error", request=mock_request, body={})
 
         with pytest.raises(APIError):
             await embeddings_client.generate_embedding("test text")

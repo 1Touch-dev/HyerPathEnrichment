@@ -13,6 +13,7 @@ async def authenticated_client(db: AsyncSession) -> tuple[AsyncClient, User]:
     """Create authenticated test client with user."""
     # Create and verify user
     from uuid import uuid4
+
     from app.auth.service import AuthService
 
     service = AuthService(db)
@@ -39,7 +40,7 @@ async def authenticated_client(db: AsyncSession) -> tuple[AsyncClient, User]:
 @pytest.mark.asyncio
 async def test_complete_session_flow(authenticated_client, db: AsyncSession):
     """Test complete session workflow via API."""
-    client, user, cookies = authenticated_client
+    client, _user, cookies = authenticated_client
 
     # 1. Start a new session
     create_response = await client.post(
@@ -104,7 +105,7 @@ async def test_complete_session_flow(authenticated_client, db: AsyncSession):
 @pytest.mark.asyncio
 async def test_duplicate_active_session_prevention(authenticated_client, db: AsyncSession):
     """Test that duplicate active sessions are prevented."""
-    client, user, cookies = authenticated_client
+    client, _user, cookies = authenticated_client
 
     # Start first session
     response1 = await client.post(
@@ -127,7 +128,7 @@ async def test_duplicate_active_session_prevention(authenticated_client, db: Asy
 @pytest.mark.asyncio
 async def test_session_abandonment(authenticated_client, db: AsyncSession):
     """Test abandoning a session."""
-    client, user, cookies = authenticated_client
+    client, _user, cookies = authenticated_client
 
     # Start session
     create_response = await client.post(
@@ -152,10 +153,11 @@ async def test_session_abandonment(authenticated_client, db: AsyncSession):
 @pytest.mark.asyncio
 async def test_session_ownership_verification(authenticated_client, db: AsyncSession):
     """Test that users can only access their own sessions."""
-    client, user, cookies = authenticated_client
+    client, _user, cookies = authenticated_client
 
     # Create another user
     from uuid import uuid4
+
     from app.auth.service import AuthService
 
     service = AuthService(db)
@@ -195,7 +197,7 @@ async def test_session_ownership_verification(authenticated_client, db: AsyncSes
 @pytest.mark.asyncio
 async def test_invalid_session_id_format(authenticated_client, db: AsyncSession):
     """Test handling of invalid session ID format."""
-    client, user, cookies = authenticated_client
+    client, _user, cookies = authenticated_client
 
     # Try with invalid UUID
     get_response = await client.get(
@@ -211,7 +213,7 @@ async def test_session_not_found(authenticated_client, db: AsyncSession):
     """Test handling of non-existent session."""
     from uuid import uuid4
 
-    client, user, cookies = authenticated_client
+    client, _user, cookies = authenticated_client
 
     # Try to get non-existent session
     nonexistent_id = str(uuid4())
@@ -226,7 +228,7 @@ async def test_session_not_found(authenticated_client, db: AsyncSession):
 @pytest.mark.asyncio
 async def test_score_validation_via_api(authenticated_client, db: AsyncSession):
     """Test score validation through API endpoints."""
-    client, user, cookies = authenticated_client
+    client, _user, cookies = authenticated_client
 
     # Start session
     create_response = await client.post(
@@ -258,7 +260,7 @@ async def test_score_validation_via_api(authenticated_client, db: AsyncSession):
 @pytest.mark.asyncio
 async def test_session_list_pagination(authenticated_client, db: AsyncSession):
     """Test session list pagination."""
-    client, user, cookies = authenticated_client
+    client, _user, cookies = authenticated_client
 
     # Create 5 sessions
     session_ids = []

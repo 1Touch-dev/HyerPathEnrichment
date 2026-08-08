@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -24,7 +24,7 @@ def mock_db_session():
 @pytest.fixture
 def sample_expired_recordings():
     """Sample expired audio recordings."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     return [
         {
             "id": uuid4(),

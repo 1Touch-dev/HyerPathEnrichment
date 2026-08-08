@@ -1,18 +1,18 @@
 """Comprehensive tests for session tracking system."""
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationAppError
 from app.modules.sessions.models import PracticeSession, QuestionAttempt
 from app.modules.sessions.schemas import (
+    QuestionAttemptRequest,
     SessionCreateRequest,
     SessionUpdateRequest,
-    QuestionAttemptRequest,
 )
 from app.services.session_manager import SessionManager
 
@@ -132,7 +132,7 @@ class TestSessionListing:
                 user_id=str(test_user_id),
                 session_type=f"type_{i}",
                 status="pending",
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(UTC),
             )
             db.add(session)
         await db.commit()
@@ -193,7 +193,7 @@ class TestSessionUpdate:
             user_id=str(test_user_id),
             session_type="test",
             status="in_progress",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         db.add(session)
         await db.commit()
@@ -213,8 +213,8 @@ class TestSessionUpdate:
             user_id=str(test_user_id),
             session_type="test",
             status="completed",
-            started_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
         )
         db.add(session)
         await db.commit()
@@ -233,7 +233,7 @@ class TestSessionUpdate:
             user_id=str(test_user_id),
             session_type="test",
             status="pending",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         db.add(session)
         await db.commit()
@@ -277,7 +277,7 @@ class TestSessionDeletion:
             user_id=str(test_user_id),
             session_type="test",
             status="in_progress",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         db.add(session)
         await db.commit()
@@ -289,7 +289,7 @@ class TestSessionDeletion:
             user_id=str(test_user_id),
             response_type="text",
             text_response="Test answer",
-            attempted_at=datetime.utcnow(),
+            attempted_at=datetime.now(UTC),
         )
         db.add(attempt)
         await db.commit()
@@ -380,8 +380,8 @@ class TestQuestionAttempts:
             user_id=str(test_user_id),
             session_type="test",
             status="completed",
-            started_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
         )
         db.add(session)
         await db.commit()

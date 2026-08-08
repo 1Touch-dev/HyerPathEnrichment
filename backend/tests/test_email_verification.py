@@ -1,15 +1,16 @@
 """Tests for email verification functionality."""
 
-import pytest
 from datetime import UTC, datetime, timedelta
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import EmailVerificationToken, User
 from app.auth.password import hash_password
 from app.auth.verification import (
     generate_verification_token,
-    verify_email_token,
     resend_verification_email,
+    verify_email_token,
 )
 
 

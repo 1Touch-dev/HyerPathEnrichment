@@ -16,7 +16,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import User, LoggedOutToken
+from app.auth.models import LoggedOutToken, User
 from app.main import app
 
 
@@ -104,6 +104,7 @@ async def test_complete_auth_e2e_flow(db: AsyncSession):
 
         # 10. Verify token was blacklisted
         from jose import jwt
+
         from app.core.config import get_settings
 
         settings = get_settings()

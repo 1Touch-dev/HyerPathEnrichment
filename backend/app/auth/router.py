@@ -236,7 +236,7 @@ async def login(
         )
 
     # Create access token
-    access_token, jti = create_access_token(str(user.id), user.email)
+    access_token, _jti = create_access_token(str(user.id), user.email)
 
     # Create refresh token
     refresh_token_value, _ = await create_refresh_token(db, user.id)
@@ -453,7 +453,7 @@ async def refresh_token(
         )
 
     # Create new access token
-    new_access_token, jti = create_access_token(str(user.id), user.email)
+    new_access_token, _jti = create_access_token(str(user.id), user.email)
 
     # Set new cookies
     response.set_cookie(

@@ -83,6 +83,6 @@ async def send_test_email(
     except Exception as e:
         return TestEmailResponse(
             success=False,
-            message=f"Failed to queue email: {str(e)}",
+            message=f"Failed to queue email: {e!s}",
             recipient=request.recipient,
         )

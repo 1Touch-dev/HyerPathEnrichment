@@ -1,9 +1,9 @@
 """Tests for logged-out token detection system."""
 
-import pytest
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import pytest
 import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import AsyncSession
 

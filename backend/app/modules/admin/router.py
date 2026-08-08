@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -194,15 +195,16 @@ async def get_total_costs(
         All-time cost breakdown
     """
     embedding_costs = await get_total_cost()
-    
+
     # Get LLM total from all-time counters
     try:
         from app.workers.queue import get_redis_connection
+
         redis = get_redis_connection()
         llm_data = redis.hgetall("llm:cost:total")
-        
+
         if llm_data:
-            llm_costs = {
+            llm_costs: dict[str, Any] = {
                 "input_tokens": int(llm_data.get(b"input_tokens", 0)),
                 "output_tokens": int(llm_data.get(b"output_tokens", 0)),
                 "cost_usd": float(llm_data.get(b"cost_usd", 0.0)),
@@ -246,10 +248,8 @@ async def get_top_users(
         Top users by cost
     """
     users = await get_user_costs(limit=limit)
-    
-    return TopUsersResponse(
-        users=[UserCost(**user) for user in users]
-    )
+
+    return TopUsersResponse(users=[UserCost(**user) for user in users])
 
 
 @router.get("/breakdown", response_model=CostBreakdownResponse)
@@ -277,15 +277,16 @@ async def get_cost_breakdown(
 
     # Get total costs
     embedding_total = await get_total_cost()
-    
+
     # Get LLM total
     try:
         from app.workers.queue import get_redis_connection
+
         redis = get_redis_connection()
         llm_total_data = redis.hgetall("llm:cost:total")
-        
+
         if llm_total_data:
-            llm_total = {
+            llm_total: dict[str, Any] = {
                 "input_tokens": int(llm_total_data.get(b"input_tokens", 0)),
                 "output_tokens": int(llm_total_data.get(b"output_tokens", 0)),
                 "cost_usd": float(llm_total_data.get(b"cost_usd", 0.0)),

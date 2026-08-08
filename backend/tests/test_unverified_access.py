@@ -53,26 +53,26 @@ def test_unverified_user_blocked_from_enrichment() -> None:
 
     # Unverified users should get 403 Forbidden
     # This test validates the requirement that enrichment requires verification
-    pass  # Placeholder - full implementation requires auth integration
+    # Placeholder - full implementation requires auth integration
 
 
 def test_verified_user_can_access_enrichment() -> None:
     """Test verified users can access enrichment endpoints."""
     # Verified users should successfully access enrichment
-    pass  # Placeholder - full implementation requires auth integration
+    # Placeholder - full implementation requires auth integration
 
 
 def test_unverified_user_blocked_from_dsar() -> None:
     """Test unverified users cannot access DSAR endpoints."""
     # DSAR requires authentication AND verification
     # Unverified users should get 403 Forbidden
-    pass  # Placeholder - full implementation requires auth integration
+    # Placeholder - full implementation requires auth integration
 
 
 def test_verified_user_can_access_dsar() -> None:
     """Test verified users can access DSAR endpoints."""
     # Verified users should successfully access DSAR
-    pass  # Placeholder - full implementation requires auth integration
+    # Placeholder - full implementation requires auth integration
 
 
 def test_unverified_user_can_access_opt_out() -> None:
@@ -105,7 +105,7 @@ def test_unauthenticated_user_blocked_from_dsar() -> None:
     """Test unauthenticated users cannot access DSAR."""
     # DSAR requires authentication (then verification)
     # Unauthenticated should get 401 Unauthorized
-    pass  # Placeholder - full implementation requires auth integration
+    # Placeholder - full implementation requires auth integration
 
 
 def test_unauthenticated_user_blocked_from_enrichment() -> None:
@@ -161,7 +161,7 @@ def test_dsar_access_control_hierarchy() -> None:
     # 3. Finally: process request
 
     # Implementation order matters for correct error codes
-    pass  # Placeholder - full implementation requires auth integration
+    # Placeholder - full implementation requires auth integration
 
 
 def test_enrichment_access_control_hierarchy() -> None:
@@ -171,7 +171,7 @@ def test_enrichment_access_control_hierarchy() -> None:
     # 2. Verification check (403)
     # 3. Process enrichment
 
-    pass  # Placeholder - full implementation requires auth integration
+    # Placeholder - full implementation requires auth integration
 
 
 def test_unverified_user_sees_verification_banner() -> None:
@@ -179,7 +179,7 @@ def test_unverified_user_sees_verification_banner() -> None:
     # When fetching /users/me, unverified users should see is_verified=false
     # Frontend uses this to show verification banner
 
-    pass  # Placeholder - full implementation requires auth integration
+    # Placeholder - full implementation requires auth integration
 
 
 def test_verified_user_no_verification_banner() -> None:
@@ -187,7 +187,7 @@ def test_verified_user_no_verification_banner() -> None:
     # Verified users should see is_verified=true
     # Frontend hides banner for verified users
 
-    pass  # Placeholder - full implementation requires auth integration
+    # Placeholder - full implementation requires auth integration
 
 
 @pytest.mark.asyncio
@@ -223,4 +223,4 @@ def test_access_control_documentation() -> None:
     # - /api/jobs/*
     # - All protected business logic
 
-    pass  # Documentation test
+    # Documentation test

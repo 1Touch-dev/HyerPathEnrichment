@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import pytest
 from uuid import uuid4
+
+import pytest
 
 from app.domain.enrichment import EnrichmentRequest
 from app.domain.enums import JobStatus
+from app.enrichers.pipeline import Pipeline
 from app.modules.enrichment.repository import JobRepository
 from app.modules.enrichment.service import EnrichmentService
-from app.enrichers.pipeline import Pipeline
 
 
 @pytest.mark.asyncio

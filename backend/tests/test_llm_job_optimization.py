@@ -216,6 +216,7 @@ async def test_litellm_optimize_job_query_fallback_chain(
 ) -> None:
     """Test fallback chain tries multiple models."""
     import json
+
     import httpx
 
     mock_settings.litellm_fallbacks = "gpt-4o-mini"
