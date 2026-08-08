@@ -180,8 +180,8 @@ class FakeRedis:
         self._kv[key] = value
         return True
 
-    def sadd(self, key: str, *values: str) -> int:
-        """Add members to set (sync version for RQ)."""
+    async def sadd(self, key: str, *values: str) -> int:
+        """Add members to set (async, matches redis.asyncio.Redis.sadd)."""
         members = self._sets.setdefault(key, set())
         added = len([value for value in values if value not in members])
         members.update(values)

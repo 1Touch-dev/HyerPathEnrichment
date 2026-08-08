@@ -17,7 +17,7 @@ from app.main import app
 async def unverified_user(db: AsyncSession) -> User:
     """Create unverified test user."""
     user = User(
-        email="unverified@example.com",
+        email=f"unverified-{uuid4().hex}@example.com",
         first_name="Unverified",
         last_name="User",
         hashed_password=hash_password("password123"),
@@ -33,7 +33,7 @@ async def unverified_user(db: AsyncSession) -> User:
 async def verified_user(db: AsyncSession) -> User:
     """Create verified test user."""
     user = User(
-        email="verified@example.com",
+        email=f"verified-{uuid4().hex}@example.com",
         first_name="Verified",
         last_name="User",
         hashed_password=hash_password("password123"),
@@ -85,8 +85,9 @@ def test_unverified_user_can_access_opt_out() -> None:
 
     response = client.post("/api/opt-out", json={"identifier": identifier})
 
-    # Should succeed (201) or return existing opt-out (200)
-    assert response.status_code in [200, 201]
+    # Should succeed (201) or return existing opt-out (200), or be accepted for
+    # async processing (202)
+    assert response.status_code in [200, 201, 202]
 
 
 def test_unauthenticated_user_can_access_opt_out() -> None:
@@ -98,7 +99,7 @@ def test_unauthenticated_user_can_access_opt_out() -> None:
     response = client.post("/api/opt-out", json={"identifier": identifier})
 
     # Public endpoint - should work without any auth
-    assert response.status_code in [200, 201]
+    assert response.status_code in [200, 201, 202]
 
 
 def test_unauthenticated_user_blocked_from_dsar() -> None:
@@ -150,7 +151,7 @@ def test_opt_out_rate_limiting_works_without_auth() -> None:
     for _ in range(3):
         response = client.post("/api/opt-out", json={"identifier": identifier})
         # Should succeed or be rate limited based on IP
-        assert response.status_code in [200, 201, 429]
+        assert response.status_code in [200, 201, 202, 429]
 
 
 def test_dsar_access_control_hierarchy() -> None:

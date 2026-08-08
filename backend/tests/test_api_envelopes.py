@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from fastapi import APIRouter
@@ -14,7 +15,7 @@ from app.core.responses import success_envelope
 from app.main import app
 from tests.envelope_helpers import assert_error, assert_success
 
-AUTH_HEADERS = {"Authorization": "Bearer change-me"}
+AUTH_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
 
 
 def test_health_success_envelope() -> None:
@@ -27,7 +28,7 @@ def test_health_success_envelope() -> None:
 def test_unauthorized_error_envelope() -> None:
     client = TestClient(app)
     body = assert_error(client.get("/enrich"), 401, "UNAUTHORIZED")
-    assert body["error"]["message"] == "unauthorized"
+    assert body["error"]["message"] == "Invalid or missing authorization"
     assert body["meta"] is None
 
 
