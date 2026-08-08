@@ -13,17 +13,32 @@ Tests the full user journey:
 """
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user_from_cookie, require_verified_user
 from app.auth.models import LoggedOutToken, User
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def _use_real_cookie_auth() -> None:
+    """These tests exercise the real cookie-based login flow.
+
+    The global ``override_auth_for_tests`` fixture (in conftest.py) replaces
+    cookie auth with a header-based test shortcut for convenience in most
+    tests. This module needs the real dependency restored so registration,
+    login, and logout actually exercise JWT/cookie handling end-to-end.
+    """
+    app.dependency_overrides.pop(get_current_user_from_cookie, None)
+    app.dependency_overrides.pop(require_verified_user, None)
+    yield
 
 
 @pytest.mark.asyncio
 async def test_complete_auth_e2e_flow(db: AsyncSession):
     """Test complete authentication flow end-to-end."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # 1. Test registration with email validation
         register_data = {
             "email": "newuser@example.com",
@@ -34,7 +49,7 @@ async def test_complete_auth_e2e_flow(db: AsyncSession):
 
         register_response = await client.post("/auth/register", json=register_data)
         assert register_response.status_code == 201
-        assert "verification" in register_response.json()["message"].lower()
+        assert "verify" in register_response.json()["message"].lower()
 
         # 2. Verify verification email was queued (mocked in test)
         # In real implementation, check email queue
@@ -69,17 +84,17 @@ async def test_complete_auth_e2e_flow(db: AsyncSession):
 
         # 5. Try to access enrichment endpoint (should fail - unverified)
         enrich_response = await client.post(
-            "/api/enrich",
-            json={"business_name": "Test Corp"},
+            "/enrich",
+            json={"business": "Test Corp"},
             cookies=cookies,
         )
         assert enrich_response.status_code == 403
-        assert "verification required" in enrich_response.json()["detail"].lower()
+        assert "verification required" in enrich_response.json()["error"]["message"].lower()
 
         # 6. Try to access DSAR endpoint (should fail - unverified)
         dsar_response = await client.post(
             "/api/dsar",
-            json={"email": "test@example.com"},
+            json={"identifier": "test@example.com", "request_type": "access"},
             cookies=cookies,
         )
         assert dsar_response.status_code == 403
@@ -87,7 +102,7 @@ async def test_complete_auth_e2e_flow(db: AsyncSession):
         # 7. Verify opt-out is accessible without auth (public)
         optout_response = await client.post(
             "/api/opt-out",
-            json={"email": "test@example.com", "business_name": "Test"},
+            json={"identifier": "test@example.com", "reason": "gdpr"},
         )
         assert optout_response.status_code in [200, 201, 202]
 
@@ -122,12 +137,12 @@ async def test_complete_auth_e2e_flow(db: AsyncSession):
 
         # 11. Try to use logged-out token (should fail)
         enrich_response_with_old_token = await client.post(
-            "/api/enrich",
-            json={"business_name": "Test Corp"},
+            "/enrich",
+            json={"business": "Test Corp"},
             cookies=cookies,
         )
         assert enrich_response_with_old_token.status_code == 401
-        assert "revoked" in enrich_response_with_old_token.json()["detail"].lower()
+        assert "revoked" in enrich_response_with_old_token.json()["error"]["message"].lower()
 
         # 12. Login again with verified account
         login_response_verified = await client.post("/auth/login", json=login_data)
@@ -142,17 +157,17 @@ async def test_complete_auth_e2e_flow(db: AsyncSession):
 
         # 14. Access enrichment endpoint (should succeed - verified)
         enrich_response_verified = await client.post(
-            "/api/enrich",
-            json={"business_name": "Test Corp"},
+            "/enrich",
+            json={"business": "Test Corp"},
             cookies=verified_cookies,
         )
         # Should not be 403 anymore
         assert enrich_response_verified.status_code != 403
 
         # 15. Access DSAR endpoint (should succeed - verified)
-        dsar_response_verified = await client.get(
+        dsar_response_verified = await client.post(
             "/api/dsar",
-            params={"email": "newuser@example.com"},
+            json={"identifier": "newuser@example.com", "request_type": "access"},
             cookies=verified_cookies,
         )
         # Should not be 403 anymore
@@ -177,7 +192,7 @@ async def test_complete_auth_e2e_flow(db: AsyncSession):
 @pytest.mark.asyncio
 async def test_invalid_email_registration(db: AsyncSession):
     """Test registration with invalid email format."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Test various invalid email formats
         invalid_emails = [
             "notanemail",
@@ -202,7 +217,7 @@ async def test_invalid_email_registration(db: AsyncSession):
 @pytest.mark.asyncio
 async def test_weak_password_registration(db: AsyncSession):
     """Test registration with weak password."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Test various weak passwords
         weak_passwords = [
             "short",  # Too short
@@ -226,7 +241,7 @@ async def test_weak_password_registration(db: AsyncSession):
 @pytest.mark.asyncio
 async def test_deleted_account_login_blocked(db: AsyncSession):
     """Test that deleted accounts cannot login."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Create and verify a user
         register_data = {
             "email": "todelete@example.com",
@@ -252,13 +267,12 @@ async def test_deleted_account_login_blocked(db: AsyncSession):
         }
         login_response = await client.post("/auth/login", json=login_data)
         assert login_response.status_code == 200
-        cookies = login_response.cookies
 
         # Delete account
-        delete_response = await client.post("/auth/delete-account", cookies=cookies)
+        delete_response = await client.post("/auth/delete-account")
         assert delete_response.status_code == 200
 
         # Try to login again (should fail)
         login_response_after_delete = await client.post("/auth/login", json=login_data)
         assert login_response_after_delete.status_code == 403
-        assert "deleted" in login_response_after_delete.json()["detail"].lower()
+        assert "deleted" in login_response_after_delete.json()["error"]["message"].lower()

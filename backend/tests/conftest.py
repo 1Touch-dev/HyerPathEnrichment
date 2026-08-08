@@ -160,8 +160,12 @@ class FakeRedis:
         lst = self._lists.get(key, [])
         return lst.pop() if lst else None
 
-    def exists(self, key: str) -> int:
-        """Check if key exists (for RQ compatibility)."""
+    async def exists(self, key: str) -> int:
+        """Check if key exists (matches redis.asyncio.Redis.exists)."""
+        return 1 if key in self._kv or key in self._lists or key in self._sets else 0
+
+    def _exists_sync(self, key: str) -> int:
+        """Sync helper for internal RQ-compatibility methods."""
         return 1 if key in self._kv or key in self._lists or key in self._sets else 0
 
     def hset(self, name: str, key: str, value: str) -> int:
@@ -175,8 +179,8 @@ class FakeRedis:
         prefix = f"{name}:"
         return {k.removeprefix(prefix): v for k, v in self._kv.items() if k.startswith(prefix)}
 
-    def setex(self, key: str, time: int, value: str) -> bool:
-        """Set with expiry (for RQ compatibility)."""
+    async def setex(self, key: str, time: int, value: str) -> bool:
+        """Set with expiry (matches redis.asyncio.Redis.setex)."""
         self._kv[key] = value
         return True
 
@@ -216,7 +220,7 @@ class FakeRedis:
 
     def ttl(self, key: str) -> int:
         """Time to live (for RQ - always return -1 for no expiry)."""
-        return -1 if self.exists(key) else -2
+        return -1 if self._exists_sync(key) else -2
 
     def zadd(self, name: str, mapping: dict) -> int:
         """Add to sorted set (stub for RQ)."""
@@ -278,6 +282,9 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     monkeypatch.setattr(job_events, "_get_events_redis_client", lambda: fake)
     # Patch workers.queue.get_redis_connection for document service
     monkeypatch.setattr("app.workers.queue.get_redis_connection", lambda: fake)
+    # Patch auth router's Redis usage (token blacklisting on logout/delete)
+    monkeypatch.setattr("app.auth.router.get_redis_client", lambda: fake)
+    monkeypatch.setattr("app.auth.dependencies.get_redis_client", lambda: fake)
 
     # Mock RQ Queue for document processing tests
     class FakeRQJob:

@@ -17,10 +17,10 @@ from redis import Redis
 from rq import Queue
 from sqlalchemy import select
 
+from app.auth.models import User
 from app.core.config import get_settings
 from app.database.session import SyncSessionLocal
 from app.modules.sessions.models import PracticeSession, QuestionAttempt
-from app.modules.users.models import User
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -45,7 +45,8 @@ def create_test_attempt() -> str:
             user = User(
                 id=uuid4(),
                 email="test-feedback@example.com",
-                full_name="Feedback Test User",
+                first_name="Feedback",
+                last_name="Test User",
                 hashed_password="test-password-hash",
             )
             db.add(user)

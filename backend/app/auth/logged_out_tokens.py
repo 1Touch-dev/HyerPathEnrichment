@@ -164,7 +164,7 @@ class LoggedOutTokenService:
                 ip_address=ip_address,
                 user_agent=user_agent,
                 failure_reason="Token used after logout (possible token theft)",
-                metadata={
+                extra_data={
                     "token_jti": token_jti,
                     "alert_type": "logged_out_token_reuse",
                 },

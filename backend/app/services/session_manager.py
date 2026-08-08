@@ -41,8 +41,8 @@ class SessionManager:
     async def create_session(self, request: SessionCreateRequest, user_id: UUID) -> SessionResponse:
         """Create a new practice session."""
         session = PracticeSession(
-            id=str(uuid4()),
-            user_id=str(user_id),
+            id=uuid4(),
+            user_id=user_id,
             session_type=request.session_type,
             status="pending",
             started_at=datetime.now(UTC),
@@ -189,15 +189,13 @@ class SessionManager:
 
         # Create attempt
         attempt = QuestionAttempt(
-            id=str(uuid4()),
-            session_id=str(session_id),
-            user_id=str(user_id),
-            question_id=str(request.question_id) if request.question_id else None,
+            id=uuid4(),
+            session_id=session_id,
+            user_id=user_id,
+            question_id=request.question_id,
             response_type=request.response_type,
             text_response=request.text_response,
-            audio_recording_id=str(request.audio_recording_id)
-            if request.audio_recording_id
-            else None,
+            audio_recording_id=request.audio_recording_id,
             ai_score=request.ai_score,
             score_breakdown=request.score_breakdown,
             ai_feedback=request.ai_feedback,
