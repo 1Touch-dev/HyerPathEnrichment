@@ -1,0 +1,18 @@
+{
+  "setup-worktree-unix": [
+    "cp $ROOT_WORKTREE_PATH/backend/.env backend/.env 2>/dev/null || true",
+    "cp $ROOT_WORKTREE_PATH/frontend/.env.local frontend/.env.local 2>/dev/null || true",
+    "cd backend && (pip install -e . || pip install -r requirements.txt) && cd ..",
+    "cd frontend && npm ci && cd .."
+  ],
+  "setup-worktree-windows": [
+    "Copy-Item \"$env:ROOT_WORKTREE_PATH\\backend\\.env\" \"backend\\.env\" -ErrorAction SilentlyContinue",
+    "Copy-Item \"$env:ROOT_WORKTREE_PATH\\frontend\\.env.local\" \"frontend\\.env.local\" -ErrorAction SilentlyContinue",
+    "cd backend; pip install -e . ; cd ..",
+    "cd frontend; npm ci; cd .."
+  ],
+  "setup-worktree": [
+    "cd backend && pip install -e . && cd ..",
+    "cd frontend && npm ci && cd .."
+  ]
+}
