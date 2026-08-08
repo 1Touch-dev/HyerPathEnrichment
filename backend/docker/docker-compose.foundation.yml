@@ -1,0 +1,96 @@
+# Foundation Week 1 - AI Candidate Platform Services
+# This is an overlay compose file for document processing, embeddings, and CV extraction workers
+# Usage: docker compose -f docker-compose.yml -f docker-compose.foundation.yml up
+
+services:
+  # Document processing worker - handles PDF/DOCX parsing and storage
+  worker-document:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker-document
+    networks:
+      - default
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      REDIS_URL: redis://redis:6379/0
+      WORKER_STARTUP_DELAY: "0"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+      # R2 storage (optional - falls back to local .asset-cache/)
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
+    command: ["rq", "worker", "document_processing", "--url", "redis://redis:6379/0"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - document_cache:/app/backend/.asset-cache
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from app.workers.tasks.document import check_worker_health; exit(0 if check_worker_health('document_processing') else 1)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Embedding generation worker - OpenAI embeddings for vector search
+  worker-embedding:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker-embedding
+    networks:
+      - default
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      WORKER_STARTUP_DELAY: "0"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+    command: ["rq", "worker", "embedding_generation", "--url", "redis://redis:6379/0"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from app.workers.tasks.embedding import check_worker_health; exit(0 if check_worker_health('embedding_generation') else 1)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  document_cache:

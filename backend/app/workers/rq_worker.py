@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from typing import cast
 
 from rq import SimpleWorker, Worker
@@ -33,8 +34,31 @@ def main() -> None:
     # Logging before Sentry so LoggingIntegration can attach to the root logger.
     configure_logging()
     init_error_tracking()
-    connection = get_redis_connection()
-    queue = get_worker_queue()
+
+    # Startup retry logic with exponential backoff
+    max_attempts = 5
+    for attempt in range(1, max_attempts + 1):
+        try:
+            connection = get_redis_connection()
+            # Test connection
+            connection.ping()
+            queue = get_worker_queue()
+            logger.info(f"Successfully connected to Redis and queue: {queue.name}")
+            break
+        except Exception as exc:
+            if attempt == max_attempts:
+                logger.error(
+                    f"Failed to connect to Redis after {max_attempts} attempts",
+                    exc_info=True,
+                )
+                raise
+
+            backoff_seconds = 2**attempt  # Exponential backoff: 2, 4, 8, 16 seconds
+            logger.warning(
+                f"Failed to connect to Redis (attempt {attempt}/{max_attempts}), "
+                f"retrying in {backoff_seconds}s: {exc}"
+            )
+            time.sleep(backoff_seconds)
 
     logger.info(f"Worker starting, listening to queue: {queue.name}")
 

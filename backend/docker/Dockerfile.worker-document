@@ -1,0 +1,33 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install minimal dependencies for document processing
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml /app/pyproject.toml
+COPY app /app/backend/app
+
+# Install base dependencies + document processing libraries
+# PyMuPDF, python-docx, tiktoken for PDF/DOCX processing
+RUN pip install --no-cache-dir -e . \
+    && pip list | grep -E "(PyMuPDF|python-docx|tiktoken)"
+
+COPY . /app/backend
+ENV PYTHONPATH=/app/backend
+
+# Copy the entrypoint script
+COPY docker/entrypoint-worker.sh /entrypoint-worker.sh
+
+# Ensure Unix line endings and make executable
+RUN sed -i 's/\r$//' /entrypoint-worker.sh && \
+    chmod +x /entrypoint-worker.sh
+
+# Set as entrypoint (CMD gets passed as arguments to entrypoint)
+ENTRYPOINT ["/entrypoint-worker.sh"]
+
+CMD ["python", "-m", "app.workers.rq_worker"]

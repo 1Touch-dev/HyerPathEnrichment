@@ -9,6 +9,7 @@ dependencies = [
   "uvicorn[standard]>=0.30,<1.0",
   "pydantic>=2.8,<3.0",
   "pydantic-settings>=2.3,<3.0",
+  "python-multipart>=0.0.9,<1.0",
   "sqlalchemy>=2.0,<3.0",
   "alembic>=1.13,<2.0",
   "aiosqlite>=0.20,<1.0",
@@ -28,6 +29,12 @@ dependencies = [
   "passlib[bcrypt]>=1.7,<2.0",
   "bcrypt>=4.0,<5.0",
   "slowapi>=0.1.9,<1.0",
+  "tiktoken>=0.7,<1.0",
+  "langchain-text-splitters>=0.3,<1.0",
+  "openai>=1.0,<2.0",
+  "PyMuPDF>=1.24,<2.0",
+  "python-docx>=1.1,<2.0",
+  "pgvector>=0.3,<1.0",
 ]
 
 [project.optional-dependencies]
@@ -117,6 +124,10 @@ module = [
   "jose.*",
   "passlib.*",
   "slowapi.*",
+  "fitz",
+  "docx",
+  "tiktoken",
+  "langchain_text_splitters",
 ]
 ignore_missing_imports = true
 

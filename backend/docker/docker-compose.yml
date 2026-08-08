@@ -69,6 +69,8 @@ services:
       SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
       SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
       SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
+      # OpenAI API for embeddings (document search)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -168,7 +170,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hyrepath -d hyrepath"]
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -U hyrepath -d hyrepath && psql -U hyrepath -d hyrepath -tAc \"SELECT 1 FROM pg_extension WHERE extname='vector'\" | grep -q 1"
       interval: 5s
       timeout: 5s
       retries: 30

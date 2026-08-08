@@ -6,7 +6,25 @@ from rq import Queue
 from app.core.config import get_settings
 from app.domain.enums import RequestedTier
 
+# Phase 1 queues (existing)
 QUEUE_NAME = "enrichment"
+QUEUE_EMAIL = "email"
+QUEUE_CLEANUP = "cleanup"
+
+# Foundation Week 1 queues (document processing pipeline)
+QUEUE_DOCUMENT = "document_processing"
+QUEUE_EMBEDDING = "embedding_generation"
+QUEUE_CV_EXTRACTION = "cv_extraction"
+
+# Queue priorities (higher = processed first)
+QUEUE_PRIORITIES = {
+    QUEUE_EMAIL: 10,  # Highest (user-facing)
+    QUEUE_CV_EXTRACTION: 8,  # High (user-facing)
+    QUEUE_DOCUMENT: 5,  # Medium (async)
+    QUEUE_EMBEDDING: 3,  # Low (batch)
+    QUEUE_NAME: 2,  # Low (existing enrichment)
+    QUEUE_CLEANUP: 1,  # Lowest (maintenance)
+}
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +38,9 @@ def get_redis_connection() -> Redis:
         socket_keepalive=True,
         socket_keepalive_options={},
         health_check_interval=30,
+        retry_on_timeout=True,
+        retry_on_error=[ConnectionError, TimeoutError],
+        max_connections=50,
     )
 
 
