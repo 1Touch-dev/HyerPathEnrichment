@@ -48,7 +48,10 @@ class MultiloginClient:
         base = launcher_v2_url.rstrip("/")
         if base.endswith("/api/v2"):
             return base[: -len("/api/v2")] + "/api/v1"
-        return base.replace("/api/v2", "/api/v1")
+        if "/api/v2" in base:
+            return base.replace("/api/v2", "/api/v1")
+        # If no /api/v2 in URL, append /api/v1
+        return base + "/api/v1"
 
     @staticmethod
     def _launcher_client(*, timeout: float) -> httpx.AsyncClient:
@@ -162,10 +165,10 @@ class MultiloginClient:
         _email, _password, folder_id = self._require_credentials()
         bearer = token or await self.get_token()
 
-        url = (
-            f"{settings.multilogin_launcher_url.rstrip('/')}"
-            f"/profile/f/{folder_id}/p/{profile_id}/start"
-        )
+        # Use the launcher URL as-is (should be /api/v2 for proper port response)
+        base_url = settings.multilogin_launcher_url.rstrip("/")
+        url = f"{base_url}/profile/f/{folder_id}/p/{profile_id}/start"
+
         async with self._launcher_client(timeout=60.0) as client:
             response = await client.get(
                 url,
@@ -194,8 +197,8 @@ class MultiloginClient:
         """Stop a running browser profile."""
         settings = get_settings()
         bearer = token or await self.get_token()
-        v1_base = self._launcher_v1_base(settings.multilogin_launcher_url)
-        url = f"{v1_base}/profile/stop/p/{profile_id}"
+        base_url = settings.multilogin_launcher_url.rstrip("/")
+        url = f"{base_url}/profile/stop/p/{profile_id}"
 
         async with self._launcher_client(timeout=30.0) as client:
             response = await client.get(url, headers=self._json_headers(bearer))

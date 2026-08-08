@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,11 +21,22 @@ from app.storage.models import PhotoCacheRecord
 from app.storage.photo_cache import slug_hash
 
 
-async def process_dsar(db: AsyncSession, request: DsarRequest) -> DsarResponse:
-    """Create and immediately process a DSAR (automated v1)."""
+async def process_dsar(db: AsyncSession, request: DsarRequest, user_id: UUID) -> DsarResponse:
+    """
+    Create and immediately process a DSAR (automated v1).
+
+    Args:
+        db: Database session
+        request: DSAR request payload
+        user_id: Authenticated user ID (for access control)
+
+    Returns:
+        DSAR response with summary
+    """
     identifier_hash = hash_identifier(request.identifier)
     record = DsarRecord(
         id=f"dsar_{uuid4().hex}",
+        user_id=user_id,
         identifier_hash=identifier_hash,
         request_type=request.request_type.value,
         status=DsarStatus.pending.value,
@@ -38,7 +49,11 @@ async def process_dsar(db: AsyncSession, request: DsarRequest) -> DsarResponse:
         db,
         AuditEventType.dsar_created,
         identifier_hash,
-        details={"dsar_id": record.id, "request_type": request.request_type.value},
+        details={
+            "dsar_id": record.id,
+            "request_type": request.request_type.value,
+            "user_id": str(user_id),
+        },
     )
 
     if request.request_type == DsarType.deletion:
@@ -59,6 +74,7 @@ async def process_dsar(db: AsyncSession, request: DsarRequest) -> DsarResponse:
         details={
             "dsar_id": record.id,
             "request_type": request.request_type.value,
+            "user_id": str(user_id),
             "summary": summary,
         },
     )
@@ -68,8 +84,25 @@ async def process_dsar(db: AsyncSession, request: DsarRequest) -> DsarResponse:
     return _to_response(record)
 
 
-async def get_dsar(db: AsyncSession, dsar_id: str) -> DsarResponse | None:
-    record = await db.get(DsarRecord, dsar_id)
+async def get_dsar(db: AsyncSession, dsar_id: str, user_id: UUID) -> DsarResponse | None:
+    """
+    Retrieve DSAR record by ID.
+
+    Args:
+        db: Database session
+        dsar_id: DSAR record ID
+        user_id: Authenticated user ID (for access control)
+
+    Returns:
+        DSAR response if found and user has access, None otherwise
+    """
+    result = await db.execute(
+        select(DsarRecord).where(
+            DsarRecord.id == dsar_id,
+            DsarRecord.user_id == user_id,  # Ensure user can only access their own DSAR
+        )
+    )
+    record = result.scalar_one_or_none()
     if record is None:
         return None
     return _to_response(record)

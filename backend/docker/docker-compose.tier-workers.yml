@@ -40,7 +40,7 @@ services:
       # HOST NETWORK MODE: All services must use 127.0.0.1
       # ────────────────────────────────────────────────────────────────────
       # Core services (postgres, redis bind to 0.0.0.0 but accessed via 127.0.0.1)
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@127.0.0.1:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@127.0.0.1:5433/hyrepath
       REDIS_URL: redis://127.0.0.1:6379/0
 
       # Multilogin connection (containerized, host network, same loopback)

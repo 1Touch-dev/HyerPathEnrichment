@@ -168,6 +168,33 @@ class Settings(BaseSettings):
     email_enabled: bool = Field(default=False, alias="EMAIL_ENABLED")
     email_test_mode: bool = Field(default=True, alias="EMAIL_TEST_MODE")
 
+    # Authentication
+    SECRET_KEY: str = Field(
+        default="change-me-in-production-use-openssl-rand-hex-32",
+        alias="SECRET_KEY",
+        description="Secret key for JWT signing (generate with: openssl rand -hex 32)",
+    )
+    JWT_ALGORITHM: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
+
+    # OAuth (Google)
+    GOOGLE_OAUTH_CLIENT_ID: str = Field(default="", alias="GOOGLE_OAUTH_CLIENT_ID")
+    GOOGLE_OAUTH_CLIENT_SECRET: SecretStr = Field(
+        default=SecretStr(""), alias="GOOGLE_OAUTH_CLIENT_SECRET"
+    )
+    GOOGLE_OAUTH_REDIRECT_URL: str = Field(
+        default="http://localhost:3000/callback/google",
+        alias="GOOGLE_OAUTH_REDIRECT_URL",
+    )
+
+    # Frontend URL (for email links)
+    FRONTEND_URL: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")
+
+    # Cookie settings
+    COOKIE_SECURE: bool = Field(default=False, alias="COOKIE_SECURE")
+    COOKIE_DOMAIN: str | None = Field(default=None, alias="COOKIE_DOMAIN")
+
     # RQ job timeout (seconds) — must accommodate full all-tier enrichment (20-30 min)
     rq_job_timeout_seconds: int = Field(default=3000, alias="RQ_JOB_TIMEOUT_SECONDS")
 

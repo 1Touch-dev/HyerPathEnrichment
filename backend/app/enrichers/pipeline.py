@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Any, List
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,18 +53,20 @@ class Pipeline:
         self._email_verify = email_verify_enricher()
         self.tier4 = tier4_enrichers()
 
-    async def run(self, request: EnrichmentRequest) -> JobRecord:
+    async def run(self, request: EnrichmentRequest, user_id: UUID | None = None) -> JobRecord:
         """Synchronous path: create a job and run the pipeline inline."""
-        job = await self.jobs.create(request, JobStatus.running)
+        job = await self.jobs.create(request, JobStatus.running, user_id=user_id)
         await self.jobs.flush()
         return await self._execute(job, request, sync_mode=True)
 
-    async def create_queued_job(self, request: EnrichmentRequest) -> JobRecord:
+    async def create_queued_job(
+        self, request: EnrichmentRequest, user_id: UUID | None = None
+    ) -> JobRecord:
         """Async path: persist a queued job for a worker to pick up later."""
         if await is_request_suppressed(self.db, request):
-            return await self._create_suppressed_job(request)
+            return await self._create_suppressed_job(request, user_id=user_id)
 
-        job = await self.jobs.create(request, JobStatus.queued)
+        job = await self.jobs.create(request, JobStatus.queued, user_id=user_id)
         await self.jobs.commit()
         await self.jobs.refresh(job)
         return job
@@ -71,11 +74,15 @@ class Pipeline:
     async def is_request_suppressed(self, request: EnrichmentRequest) -> bool:
         return await is_request_suppressed(self.db, request)
 
-    async def create_suppressed_job(self, request: EnrichmentRequest) -> JobRecord:
-        return await self._create_suppressed_job(request)
+    async def create_suppressed_job(
+        self, request: EnrichmentRequest, user_id: UUID | None = None
+    ) -> JobRecord:
+        return await self._create_suppressed_job(request, user_id=user_id)
 
-    async def _create_suppressed_job(self, request: EnrichmentRequest) -> JobRecord:
-        job = await self.jobs.create(request, JobStatus.suppressed)
+    async def _create_suppressed_job(
+        self, request: EnrichmentRequest, user_id: UUID | None = None
+    ) -> JobRecord:
+        job = await self.jobs.create(request, JobStatus.suppressed, user_id=user_id)
         dossier = base_dossier(request)
         dossier.metadata["suppressed"] = True
         await self.jobs.mark_status(
@@ -135,9 +142,11 @@ class Pipeline:
                 await publish_job_status(job_id, JobStatus.failed)
             raise
 
-    async def create_parent_job(self, request: EnrichmentRequest) -> JobRecord:
+    async def create_parent_job(
+        self, request: EnrichmentRequest, user_id: UUID | None = None
+    ) -> JobRecord:
         """Create a parent job that orchestrates children."""
-        job = await self.jobs.create(request, JobStatus.running)
+        job = await self.jobs.create(request, JobStatus.running, user_id=user_id)
         await self.jobs.flush()
         return job
 
@@ -301,19 +310,54 @@ class Pipeline:
             )
 
         payloads = await self._dispatch(request, sync_mode=sync_mode)
+        # #region agent log
+        logger.info(
+            "[DEBUG-85dffc] _dispatch completed",
+            extra={
+                "payload_count": len(payloads),
+                "empty_payloads": sum(1 for p in payloads if not p or p == {}),
+                "hypothesisId": "C",
+            },
+        )
+        # #endregion
         dossier = await self._merge(request, payloads)
 
-        # Determine if we found any enrichment data
-        has_data = (
+        # Determine if we found any REAL enrichment data
+        # Sources alone don't count as data - they just indicate which enrichers ran
+        # Empty github/business objects also don't count as real data
+        has_real_data = (
             dossier.photo is not None
             or len(dossier.handles) > 0
             or len(dossier.emails) > 0
             or len(dossier.verified_emails) > 0
-            or len(dossier.sources) > 0
-            or dossier.business is not None
+            or (
+                dossier.business is not None
+                and any(
+                    [
+                        dossier.business.name,
+                        dossier.business.phone,
+                        dossier.business.address,
+                    ]
+                )
+            )
+            or len(dossier.jobs) > 0
+            or len(dossier.coworkers) > 0
+            or (
+                dossier.github is not None
+                and (
+                    dossier.github.get("publicCommits", 0) > 0
+                    or len(dossier.github.get("organizations", [])) > 0
+                )
+            )
         )
 
-        status = JobStatus.completed if has_data else JobStatus.completed_no_data
+        # #region agent log
+        logger.info(
+            f"[DEBUG-85dffc] job status determination: has_real_data={has_real_data} has_photo={dossier.photo is not None} handle_count={len(dossier.handles)} email_count={len(dossier.emails)} source_count={len(dossier.sources)} job_count={len(dossier.jobs)}"
+        )
+        # #endregion
+
+        status = JobStatus.completed if has_real_data else JobStatus.completed_no_data
         return await self.jobs.mark_status(
             job,
             status,
@@ -323,8 +367,10 @@ class Pipeline:
     async def get_job(self, job_id: str) -> JobRecord | None:
         return await self.jobs.get(job_id)
 
-    async def list_jobs(self, limit: int, offset: int) -> tuple[list[JobRecord], int]:
-        return await self.jobs.list(limit, offset)
+    async def list_jobs(
+        self, limit: int, offset: int, user_id: UUID | None = None
+    ) -> tuple[list[JobRecord], int]:
+        return await self.jobs.list(limit, offset, user_id=user_id)
 
     @staticmethod
     def identifier_summary_from_payload(payload: dict[str, Any] | None) -> str:
@@ -462,6 +508,17 @@ class Pipeline:
             try:
                 payloads = await self._run_tier(self.tier1, request)
                 duration = time.time() - start
+                # #region agent log
+                logger.info(
+                    "[DEBUG-85dffc] tier1 task completed",
+                    extra={
+                        "payload_count": len(payloads),
+                        "empty_payloads": sum(1 for p in payloads if not p or p == {}),
+                        "duration": duration,
+                        "hypothesisId": "B,D",
+                    },
+                )
+                # #endregion
                 logger.info(
                     "Completed tier1 execution",
                     extra={
@@ -603,12 +660,26 @@ class Pipeline:
             return_exceptions=True,
         )
         payloads: list[dict[str, Any]] = []
+        exception_count = 0
         for result in results:
             if isinstance(result, BaseException):
                 logger.exception("parallel enricher failed", exc_info=result)
+                exception_count += 1
                 payloads.append({})
             else:
                 payloads.append(result)
+        # #region agent log
+        logger.info(
+            "[DEBUG-85dffc] _run_tier_parallel completed",
+            extra={
+                "total_enrichers": len(enrichers),
+                "exception_count": exception_count,
+                "total_payloads": len(payloads),
+                "empty_payloads": sum(1 for p in payloads if not p or p == {}),
+                "hypothesisId": "B",
+            },
+        )
+        # #endregion
         return payloads
 
     async def _invoke_enricher_with_retry(
@@ -652,17 +723,53 @@ class Pipeline:
     async def _invoke_enricher(
         self, worker: Enricher, request: EnrichmentRequest
     ) -> dict[str, Any]:
+        # #region agent log
+        logger.info(
+            "[DEBUG-85dffc] _invoke_enricher entry",
+            extra={
+                "enricher_name": getattr(worker, "source_name", type(worker).__name__),
+                "has_validate": hasattr(worker, "validate"),
+                "hypothesisId": "A",
+            },
+        )
+        # #endregion
         try:
             if not await worker.validate(request):
+                # #region agent log
+                logger.info(
+                    "[DEBUG-85dffc] enricher validation failed",
+                    extra={
+                        "enricher_name": getattr(worker, "source_name", type(worker).__name__),
+                        "hypothesisId": "A",
+                    },
+                )
+                # #endregion
                 return {}
             await worker.initialize()
             try:
                 payload = await worker.run(request)
                 payload = await worker.normalize(payload)
-                return await worker.score(payload)
+                result = await worker.score(payload)
+                # #region agent log
+                logger.info(
+                    f"[DEBUG-85dffc] enricher completed successfully: enricher={getattr(worker, 'source_name', type(worker).__name__)} payload_keys={list(result.keys()) if isinstance(result, dict) else None} is_empty={not result or result == {}} has_photo={'photo' in result if isinstance(result, dict) else False}"
+                )
+                # #endregion
+                return result
             finally:
                 await worker.cleanup()
-        except Exception:
+        except Exception as exc:
+            # #region agent log
+            logger.info(
+                "[DEBUG-85dffc] enricher exception caught",
+                extra={
+                    "enricher_name": getattr(worker, "source_name", type(worker).__name__),
+                    "exception_type": type(exc).__name__,
+                    "exception_msg": str(exc)[:200],
+                    "hypothesisId": "A",
+                },
+            )
+            # #endregion
             logger.exception(
                 "enricher failed: %s",
                 getattr(worker, "source_name", type(worker).__name__),

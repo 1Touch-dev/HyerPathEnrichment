@@ -1,11 +1,12 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { DossierView } from "@/components/console/DossierView";
 import { JobProgress } from "@/components/console/JobProgress";
 import { EmptyState } from "@/components/console/EmptyState";
@@ -51,11 +52,28 @@ function LoadingSkeleton() {
 
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const jobId = params.id;
   const { data: job, isLoading, error, isFetching, isPending, refetch } = useJobQuery(jobId);
 
   const lastStatusRef = useRef(job?.status);
   const lastStatusChangeRef = useRef(Date.now());
+
+  // Debug: Log dossier data
+  useEffect(() => {
+    if (job?.dossier) {
+      console.log("[DEBUG] Job dossier data:", {
+        jobId: job.id,
+        status: job.status,
+        dossier: job.dossier,
+        hasPhoto: !!job.dossier.photo,
+        photoUrl: job.dossier.photo?.assetUrl,
+        handleCount: job.dossier.handles?.length || 0,
+        emailCount: job.dossier.emails?.length || 0,
+        sourceCount: job.dossier.sources?.length || 0,
+      });
+    }
+  }, [job]);
 
   // Track status changes and detect stuck state
   useEffect(() => {
@@ -90,15 +108,35 @@ export default function JobDetailPage() {
 
   // Show error if request failed and we have no job data
   if (error && !job) {
+    const isNotFound = error.message?.includes("404") || error.message?.includes("not found");
+
     return (
-      <Alert variant="destructive">
-        <AlertDescription>{formatApiErrorMessage(error)}</AlertDescription>
-      </Alert>
+      <div className="flex flex-col gap-4">
+        <Button variant="ghost" onClick={() => router.push("/app/jobs")} className="w-fit">
+          <ArrowLeft className="mr-2 size-4" />
+          Back to Jobs
+        </Button>
+        <Alert variant="destructive">
+          <AlertDescription>
+            {isNotFound
+              ? `Job ${jobId} not found. It may have been deleted or expired.`
+              : formatApiErrorMessage(error)}
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
   if (!job) {
-    return <EmptyState title="Job not found" description={`No job with id ${jobId}`} />;
+    return (
+      <div className="flex flex-col gap-4">
+        <Button variant="ghost" onClick={() => router.push("/app/jobs")} className="w-fit">
+          <ArrowLeft className="mr-2 size-4" />
+          Back to Jobs
+        </Button>
+        <EmptyState title="Job not found" description={`No job with id ${jobId}`} />
+      </div>
+    );
   }
 
   const isPolling = isFetching && !isTerminalStatus(job.status);

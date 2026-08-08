@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any, List
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,11 +25,13 @@ class JobRepository:
         request: EnrichmentRequest,
         status: JobStatus,
         *,
+        user_id: UUID | None = None,
         dossier_payload: dict[str, Any] | None = None,
     ) -> JobRecord:
         job = JobRecord(
             id=f"job_{uuid4().hex}",
             status=status.value,
+            user_id=user_id,
             request_payload=request.model_dump(mode="json"),
             dossier_payload=dossier_payload or {},
             identifier_hashes=hashes_from_request(request),
@@ -41,15 +43,17 @@ class JobRepository:
         return await self.db.get(JobRecord, job_id)
 
     async def list(
-        self, limit: int, offset: int, include_internal: bool = False
+        self, limit: int, offset: int, user_id: UUID | None = None, include_internal: bool = False
     ) -> tuple[list[JobRecord], int]:
         clamped_limit = max(1, min(limit, 100))
         clamped_offset = max(0, offset)
 
-        # Build base query with internal filter
+        # Build base query with filters
         base_query = select(JobRecord)
         if not include_internal:
             base_query = base_query.where(JobRecord.is_internal.is_(False))
+        if user_id is not None:
+            base_query = base_query.where(JobRecord.user_id == user_id)
 
         # Count with filter
         total_result = await self.db.execute(
@@ -108,6 +112,7 @@ class JobRepository:
         child = JobRecord(
             id=f"job_{uuid4().hex}",
             status=JobStatus.queued.value,
+            user_id=parent_job.user_id,
             request_payload=request.model_dump(mode="json"),
             dossier_payload={},
             identifier_hashes=parent_job.identifier_hashes,

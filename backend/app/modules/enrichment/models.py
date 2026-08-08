@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base, JsonDoc
@@ -16,6 +16,9 @@ class JobRecord(Base):
 
     id: Mapped[str] = mapped_column(
         String(64), primary_key=True, default=lambda: f"job_{uuid4().hex}"
+    )
+    user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     status: Mapped[str] = mapped_column(String(32), default=JobStatus.queued.value, nullable=False)
     request_payload: Mapped[dict[str, Any]] = mapped_column(JsonDoc, default=dict, nullable=False)

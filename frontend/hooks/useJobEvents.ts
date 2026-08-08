@@ -11,6 +11,7 @@ interface UseJobEventsOptions {
 
 export function useJobEvents({ jobId, enabled = true, onStatusChange }: UseJobEventsOptions) {
   const [eventSource, setEventSource] = useState<EventSource | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const onStatusChangeRef = useRef(onStatusChange);
 
@@ -22,6 +23,9 @@ export function useJobEvents({ jobId, enabled = true, onStatusChange }: UseJobEv
     if (!enabled || !jobId) {
       return;
     }
+
+    // Reset error state
+    setError(null);
 
     // Create SSE connection
     const url = `/enrich/${jobId}/events`;
@@ -48,6 +52,12 @@ export function useJobEvents({ jobId, enabled = true, onStatusChange }: UseJobEv
 
     es.onerror = (error) => {
       console.error("SSE error:", error);
+
+      // Check if it's a network error (404, 401, etc.)
+      if (es.readyState === EventSource.CLOSED) {
+        setError("Failed to connect to job events stream. The job may not exist.");
+      }
+
       es.close();
     };
 
@@ -61,5 +71,6 @@ export function useJobEvents({ jobId, enabled = true, onStatusChange }: UseJobEv
 
   return {
     close: () => eventSource?.close(),
+    error,
   };
 }
