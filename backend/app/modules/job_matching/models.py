@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -66,19 +67,17 @@ class JobPostingEmbedding(Base):
     if PGVECTOR_AVAILABLE:
         embedding = mapped_column(Vector(1536), nullable=False)
     else:
-        import json as _json
-
         _embedding_json: Mapped[str] = mapped_column("embedding", Text, nullable=False)
 
         @property  # type: ignore[no-redef]
         def embedding(self) -> list[float]:
             if isinstance(self._embedding_json, list):
                 return self._embedding_json
-            return list(self._json.loads(self._embedding_json))
+            return list(json.loads(self._embedding_json))
 
         @embedding.setter
         def embedding(self, value: list[float]) -> None:
-            self._embedding_json = value if isinstance(value, str) else self._json.dumps(value)
+            self._embedding_json = value if isinstance(value, str) else json.dumps(value)
 
 
 class CandidateJobPreferences(Base):

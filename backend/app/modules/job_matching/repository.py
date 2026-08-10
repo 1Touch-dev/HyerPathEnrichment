@@ -7,9 +7,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import bindparam, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import Select, literal_column
 
 from app.core.config import get_settings
 from app.modules.job_matching.models import (
@@ -244,35 +243,44 @@ async def find_similar_postings(
         # Use pgvector cosine similarity (1 - cosine_distance)
         # cosine_distance is <=> operator in pgvector
         # similarity = 1 - cosine_distance
-        # Format embedding as PostgreSQL array string for pgvector
-        # IMPORTANT: We pass this as a literal string, not a bound parameter,
-        # because pgvector's ::vector cast doesn't work with parameter binding
+        # Format embedding as a PostgreSQL array string, bound as a real query
+        # parameter (not string-interpolated into the SQL text) and cast to
+        # ::vector inside the query. literal_column() does not parse ":name"
+        # bind-param syntax, so the whole similarity expression + WHERE/ORDER BY
+        # is built as one text() query where bind params ARE parsed and bound.
         embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
 
-        query_stmt: Select[Any] = (
-            select(
-                JobPostingEmbedding.job_posting_id,
-                # Use literal embedding string (not bound parameter) for pgvector compatibility
-                literal_column(
-                    f"(1 - (job_posting_embeddings.embedding <=> '{embedding_str}'::vector))"
-                ).label("similarity"),
-            )
-            .join(JobPosting, JobPosting.id == JobPostingEmbedding.job_posting_id)
-            .where(
-                text(
-                    f"(1 - (job_posting_embeddings.embedding <=> '{embedding_str}'::vector)) >= {similarity_threshold}"
-                )
-            )
-            .where(JobPosting.is_active.is_(True))
-        )
-
+        posting_filter_sql = ""
+        params: dict[str, Any] = {
+            "query_embedding": embedding_str,
+            "similarity_threshold": similarity_threshold,
+            "result_limit": limit,
+        }
         if posting_ids:
-            query_stmt = query_stmt.where(JobPosting.id.in_(posting_ids))
+            posting_filter_sql = "AND job_postings.id IN :posting_ids"
+            params["posting_ids"] = tuple(str(pid) for pid in posting_ids)
 
-        query_stmt = query_stmt.order_by(text("similarity DESC")).limit(limit)
+        similarity_sql = text(
+            f"""
+            SELECT
+                job_posting_embeddings.job_posting_id AS job_posting_id,
+                (1 - (job_posting_embeddings.embedding <=> CAST(:query_embedding AS vector)))
+                    AS similarity
+            FROM job_posting_embeddings
+            JOIN job_postings ON job_postings.id = job_posting_embeddings.job_posting_id
+            WHERE job_postings.is_active IS TRUE
+                AND (1 - (job_posting_embeddings.embedding <=> CAST(:query_embedding AS vector)))
+                    >= :similarity_threshold
+                {posting_filter_sql}
+            ORDER BY similarity DESC
+            LIMIT :result_limit
+            """
+        )
+        if posting_ids:
+            similarity_sql = similarity_sql.bindparams(bindparam("posting_ids", expanding=True))
 
         try:
-            result = await db.execute(query_stmt)
+            result = await db.execute(similarity_sql, params)
             rows = result.all()
 
             results: list[tuple[UUID, float]] = [

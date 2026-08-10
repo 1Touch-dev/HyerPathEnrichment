@@ -28,15 +28,17 @@ export async function fetchMatches(limit: number, offset: number): Promise<JobMa
 }
 
 export async function markMatchViewed(matchId: string): Promise<void> {
-  await fetch(`/api/job-matching/matches/${matchId}/view`, { method: "POST" });
+  const res = await fetch(`/api/job-matching/matches/${matchId}/view`, { method: "POST" });
+  if (!res.ok) throw new Error(`Failed to mark match viewed: ${res.status}`);
 }
 
 export async function submitMatchFeedback(matchId: string, feedback: "up" | "down"): Promise<void> {
-  await fetch(`/api/job-matching/matches/${matchId}/feedback`, {
+  const res = await fetch(`/api/job-matching/matches/${matchId}/feedback`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ feedback }),
   });
+  if (!res.ok) throw new Error(`Failed to submit match feedback: ${res.status}`);
 }
 
 export async function triggerScan(): Promise<{ scanEnqueued: boolean }> {

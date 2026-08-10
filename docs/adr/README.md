@@ -46,4 +46,3 @@ Add or update an ADR when you:
 | [0009](0009-cookie-oauth-authentication.md) | Cookie-based OAuth authentication with FastAPI-Users | Accepted | 2026-07-31 |
 | [0011](0011-pgvector-vs-dedicated-vector-db.md) | pgvector over dedicated vector databases | Accepted | 2026-08-04 |
 | [0013](0013-job-matching-queue-and-storage.md) | Dedicated queue and storage for job matching (Module 1) | Accepted | 2026-08-10 |
-| [0013](0013-job-matching-queue-and-storage.md) | Dedicated queue and storage for job matching (Module 1) | Accepted | 2026-08-10 |

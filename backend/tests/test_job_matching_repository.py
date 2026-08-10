@@ -10,6 +10,7 @@ async session fixture is `db`, and there is no shared user fixture, so
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 import pytest
 from sqlalchemy import select
@@ -186,6 +187,27 @@ class TestPostingEmbeddingRepository:
         assert len(rows) == 1  # updated in place, not duplicated
         assert list(rows[0].embedding) == [0.4, 0.5, 0.6]
         assert rows[0].token_count == 20
+
+    async def test_embedding_getter_parses_json_string_on_sqlite(self, db: AsyncSession):
+        """Guards against a latent AttributeError in the SQLite-fallback `embedding`
+        property getter (§ audit item 3): force a genuine DB round-trip so the row
+        is reloaded with `_embedding_json` as a raw JSON string (not the list
+        object still cached from the setter in this session), then confirm the
+        getter parses it back into a list without raising.
+        """
+        posting = await _make_posting(db)
+        posting_id = posting.id
+        embedding = [0.25, -0.5, 0.75]
+
+        await repository.store_posting_embedding(db, posting_id, embedding, token_count=7)
+
+        db.expire_all()
+        result = await db.execute(
+            select(JobPostingEmbedding).where(JobPostingEmbedding.job_posting_id == posting_id)
+        )
+        row = result.scalar_one()
+        assert isinstance(row._embedding_json, str)  # confirms this exercises the parse path
+        assert row.embedding == pytest.approx(embedding)
 
 
 class TestJobMatchRepository:
@@ -526,3 +548,40 @@ class TestFindSimilarPostings:
             db, query_embedding=[1.0, 0.0, 0.0], limit=2, similarity_threshold=0.5
         )
         assert len(results) == 2
+
+    async def test_postgres_path_binds_embedding_as_parameter_not_literal(
+        self, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Guards against SQL string-interpolation of the embedding vector (audit
+        item 4): forces the Postgres branch by pointing settings at a Postgres
+        URL, then intercepts the exact statement/params passed to `db.execute()`
+        (no real Postgres needed) to confirm the embedding values are bound as
+        query parameters rather than baked into the SQL text.
+        """
+        from app.core.config import get_settings
+
+        monkeypatch.setattr(get_settings(), "database_url", "postgresql+asyncpg://fake/db")
+
+        captured: dict[str, Any] = {}
+        original_execute = db.execute
+
+        async def spy_execute(statement, params=None, *args, **kwargs):
+            if isinstance(params, dict) and "query_embedding" in params:
+                captured["sql_text"] = str(statement)
+                captured["params"] = params
+                raise RuntimeError("no real Postgres in this test — forces the Python fallback")
+            return await original_execute(statement, params, *args, **kwargs)
+
+        monkeypatch.setattr(db, "execute", spy_execute)
+
+        embedding = [0.123456, -0.654321, 0.999999]
+        # The simulated failure makes it fall through to the Python/SQLite fallback path,
+        # which still runs against this test's real (SQLite) session — that fallback
+        # behavior isn't what's under test here, only the captured Postgres-branch call.
+        await repository.find_similar_postings(db, query_embedding=embedding, limit=5)
+
+        assert "sql_text" in captured, "expected the Postgres branch to be exercised"
+        assert "0.123456" not in captured["sql_text"]
+        assert "-0.654321" not in captured["sql_text"]
+        assert "0.999999" not in captured["sql_text"]
+        assert captured["params"]["query_embedding"] == "[0.123456,-0.654321,0.999999]"

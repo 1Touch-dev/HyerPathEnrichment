@@ -40,7 +40,10 @@ def score_salary_fit(
     pref_min: int | None,
     pref_max: int | None,
 ) -> float:
-    """1.0 if fully compatible, 0.0 if fully incompatible, partial credit for overlap.
+    """1.0 if the posting's and candidate's salary ranges overlap at all, 0.0 if
+    they don't overlap. This is a discrete overlap check, not a graduated
+    "how much do they overlap" score — there is no partial credit between 0.0
+    and 1.0 for near-misses.
 
     Missing data on either side is treated as neutral (0.5) rather than penalized,
     since most scraped postings omit salary entirely.
