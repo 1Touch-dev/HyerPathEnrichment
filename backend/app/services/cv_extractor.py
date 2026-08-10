@@ -126,7 +126,7 @@ async def extract_cv_data(cv_text: str, settings: Settings) -> CVData:
                 json=payload,
             )
             response.raise_for_status()
-            data = await response.json()
+            data = response.json()
 
             content = data["choices"][0]["message"]["content"]
             raw_data: dict[str, Any] = json.loads(content)

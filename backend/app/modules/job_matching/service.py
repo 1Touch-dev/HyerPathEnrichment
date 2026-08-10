@@ -54,7 +54,12 @@ class JobMatchingService:
     async def upsert_preferences(
         self, user_id: UUID, payload: JobPreferencesRequest
     ) -> JobPreferencesResponse:
-        await repository.upsert_preferences(self.db, user_id, payload.model_dump())
+        # exclude_unset: only fields the client actually sent should overwrite existing
+        # preferences. A full model_dump() would reset every omitted field back to its
+        # schema default on every PUT, silently destroying previously-saved preferences.
+        await repository.upsert_preferences(
+            self.db, user_id, payload.model_dump(exclude_unset=True)
+        )
         return await self.get_preferences(user_id)
 
     async def list_matches(self, user_id: UUID, limit: int, offset: int) -> JobMatchListResponse:

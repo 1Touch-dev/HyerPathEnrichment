@@ -263,7 +263,7 @@ def register_scheduled_jobs() -> None:
         from app.workers.tasks.job_matching import fan_out_daily_scans
 
         scheduler.cron(
-            "0 6 * * *",  # 06:00 UTC daily — before audio_cleanup's 02:00 slot to avoid contention
+            get_settings().job_matching_scan_cron,  # default "0 6 * * *", configurable via JOB_MATCHING_SCAN_CRON
             func=fan_out_daily_scans,
             queue_name=QUEUE_JOB_MATCHING,
             id="job_matching_fan_out_daily",

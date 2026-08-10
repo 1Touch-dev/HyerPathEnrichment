@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { PreferencesForm } from "./PreferencesForm";
@@ -15,8 +15,8 @@ function wrapper({ children }: { children: ReactNode }) {
 const samplePreferences: CandidateJobPreferences = {
   userId: "u1",
   sourceDocumentId: null,
-  desiredRoles: [],
-  desiredLocations: [],
+  desiredRoles: ["Backend Engineer"],
+  desiredLocations: ["Remote"],
   remotePreference: "remote",
   salaryMin: 100000,
   salaryMax: 150000,
@@ -59,10 +59,12 @@ describe("PreferencesForm", () => {
     mockUsePreferences({ data: undefined, isLoading: false });
     render(<PreferencesForm />, { wrapper });
     expect(screen.getByLabelText("Minimum salary")).toHaveValue(null);
+    expect(screen.getByLabelText("Desired roles")).toHaveValue("");
+    expect(screen.getByLabelText("Desired locations")).toHaveValue("");
     expect(screen.getByText("Save preferences")).toBeInTheDocument();
   });
 
-  it("submits the form with the expected shape", () => {
+  it("submits the form with the expected shape, including the newly-added fields", () => {
     mockUsePreferences({ data: samplePreferences, isLoading: false });
     render(<PreferencesForm />, { wrapper });
 
@@ -71,11 +73,67 @@ describe("PreferencesForm", () => {
     form!.requestSubmit();
 
     expect(mutateMock).toHaveBeenCalledWith({
+      desiredRoles: ["Backend Engineer"],
+      desiredLocations: ["Remote"],
       salaryMin: 100000,
       salaryMax: 150000,
       remotePreference: "remote",
+      notificationChannels: ["email"],
+      digestFrequency: "daily",
       isScanEnabled: true,
     });
+  });
+
+  it("round-trips edits to desiredRoles/desiredLocations as comma-split arrays", () => {
+    mockUsePreferences({ data: samplePreferences, isLoading: false });
+    render(<PreferencesForm />, { wrapper });
+
+    const rolesInput = screen.getByLabelText("Desired roles");
+    fireEvent.change(rolesInput, { target: { value: "Staff Engineer, Principal Engineer" } });
+
+    const locationsInput = screen.getByLabelText("Desired locations");
+    fireEvent.change(locationsInput, { target: { value: "Remote, Austin, TX" } });
+
+    const form = screen.getByText("Save preferences").closest("form");
+    form!.requestSubmit();
+
+    expect(mutateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        desiredRoles: ["Staff Engineer", "Principal Engineer"],
+        desiredLocations: ["Remote", "Austin", "TX"],
+      }),
+    );
+  });
+
+  it("toggles a notification channel and includes it on submit", () => {
+    mockUsePreferences({
+      data: { ...samplePreferences, notificationChannels: [] },
+      isLoading: false,
+    });
+    render(<PreferencesForm />, { wrapper });
+
+    const emailCheckbox = screen.getByLabelText("Email");
+    fireEvent.click(emailCheckbox);
+
+    const form = screen.getByText("Save preferences").closest("form");
+    form!.requestSubmit();
+
+    expect(mutateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationChannels: ["email"] }),
+    );
+  });
+
+  it("submits the selected digest frequency", () => {
+    mockUsePreferences({
+      data: { ...samplePreferences, digestFrequency: "weekly" },
+      isLoading: false,
+    });
+    render(<PreferencesForm />, { wrapper });
+
+    const form = screen.getByText("Save preferences").closest("form");
+    form!.requestSubmit();
+
+    expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({ digestFrequency: "weekly" }));
   });
 
   it("renders the SMS notifications switch as disabled and unchecked", () => {
@@ -87,5 +145,16 @@ describe("PreferencesForm", () => {
     const smsSwitch = container?.querySelector("button[role='switch']");
     expect(smsSwitch).toBeDisabled();
     expect(smsSwitch).toHaveAttribute("data-state", "unchecked");
+  });
+
+  it("renders the Webhook notifications switch as disabled and unchecked", () => {
+    mockUsePreferences({ data: samplePreferences, isLoading: false });
+    render(<PreferencesForm />, { wrapper });
+
+    const webhookLabel = screen.getByText("Webhook notifications");
+    const container = webhookLabel.closest("div.flex");
+    const webhookSwitch = container?.querySelector("button[role='switch']");
+    expect(webhookSwitch).toBeDisabled();
+    expect(webhookSwitch).toHaveAttribute("data-state", "unchecked");
   });
 });

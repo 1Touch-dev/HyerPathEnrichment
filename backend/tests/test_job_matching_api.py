@@ -157,6 +157,43 @@ def test_put_preferences_rejects_salary_max_below_min(client: TestClient) -> Non
     assert response.status_code == 422
 
 
+def test_put_preferences_partial_update_preserves_omitted_fields(client: TestClient) -> None:
+    """Regression test for the destructive-overwrite bug (Fix 4a): a PUT that only
+    changes `salary_min` must not reset `desired_roles` (or any other omitted field)
+    back to its schema default. Before the fix, `service.py` called `payload.model_dump()`
+    (no `exclude_unset`), so every omitted field was silently overwritten on every save.
+    """
+    headers = _auth_headers()
+
+    first = client.put(
+        "/api/job-matching/preferences",
+        headers=headers,
+        json={
+            "desired_roles": ["Engineer"],
+            "desired_locations": ["Remote"],
+            "notification_channels": ["email"],
+            "digest_frequency": "weekly",
+        },
+    )
+    first_data = assert_success(first)
+    assert first_data["desired_roles"] == ["Engineer"]
+    assert first_data["digest_frequency"] == "weekly"
+
+    # Only salary_min is sent this time — everything else should be left untouched.
+    second = client.put(
+        "/api/job-matching/preferences",
+        headers=headers,
+        json={"salary_min": 90_000},
+    )
+    second_data = assert_success(second)
+
+    assert second_data["salary_min"] == 90_000
+    assert second_data["desired_roles"] == ["Engineer"]
+    assert second_data["desired_locations"] == ["Remote"]
+    assert second_data["notification_channels"] == ["email"]
+    assert second_data["digest_frequency"] == "weekly"
+
+
 # ---------------------------------------------------------------------------
 # GET /api/job-matching/matches
 # ---------------------------------------------------------------------------

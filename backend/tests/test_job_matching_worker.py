@@ -289,6 +289,38 @@ class TestBuildSearchTerm:
 
         assert _build_search_term(prefs, cv_doc) == "software engineer"
 
+    def test_uses_real_cvdata_current_role_field_when_present(self):
+        """Regression test for the CV-parsing pipeline fix chain: `extracted_data` is now
+        genuinely populated from `CVData.model_dump()` (see `document.py`'s Fix 2 wiring),
+        so this locks in that `_build_search_term` reads the exact same field name
+        `CVData` actually uses for "current role" — not a guessed/mismatched key.
+        """
+        from app.domain.candidate import CVData
+
+        cv_data = CVData(
+            full_name="Jane Doe",
+            current_role="Staff Software Engineer",
+            technical_skills=["Python", "SQL"],
+        )
+        extracted = cv_data.model_dump()
+        assert "current_role" in extracted  # confirms the exact field name used below
+
+        prefs = MagicMock(desired_roles=[])
+        cv_doc = MagicMock(extracted_data=extracted)
+
+        assert _build_search_term(prefs, cv_doc) == "Staff Software Engineer"
+
+    def test_falls_back_to_default_when_real_cvdata_has_no_current_role(self):
+        from app.domain.candidate import CVData
+
+        cv_data = CVData(full_name="Jane Doe")  # no current_role extracted from CV
+        extracted = cv_data.model_dump()
+
+        prefs = MagicMock(desired_roles=[])
+        cv_doc = MagicMock(extracted_data=extracted)
+
+        assert _build_search_term(prefs, cv_doc) == "software engineer"
+
 
 class TestScanJobsForCandidate:
     def test_end_to_end_creates_postings_and_scores(self):

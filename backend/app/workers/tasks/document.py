@@ -55,7 +55,8 @@ async def _process_document_job(
             # Validate document exists
             result = await session.execute(
                 text(
-                    "SELECT id, user_id, storage_path FROM candidate_documents WHERE id = :doc_id"
+                    "SELECT id, user_id, storage_path, document_type "
+                    "FROM candidate_documents WHERE id = :doc_id"
                 ),
                 {"doc_id": document_id},
             )
@@ -65,6 +66,7 @@ async def _process_document_job(
                 raise ValueError(f"Document {document_id} not found in database")
 
             user_id = str(doc_row[1])
+            document_type = str(doc_row[3])
 
             logger.info(
                 "Processing document",
@@ -80,6 +82,35 @@ async def _process_document_job(
             processor = DocumentProcessor()
             extraction_result = processor.process_document(file_data, mime_type)
 
+            # Fail-soft structured CV extraction (skills, role, experience, etc.) layered
+            # on top of the raw text/metadata extraction above. A failure here must never
+            # break document processing — only the structured fields are lost.
+            cv_structured_data: dict[str, object] = {}
+            if document_type == "cv":
+                try:
+                    from app.core.config import get_settings
+                    from app.services.cv_extractor import extract_cv_data
+
+                    settings = get_settings()
+                    cv_data = await extract_cv_data(extraction_result["text"], settings)
+                    if cv_data.completeness_score > 0.0:
+                        cv_structured_data = cv_data.model_dump()
+                    else:
+                        logger.warning(
+                            "CV structured extraction returned empty/low-completeness result",
+                            extra={"document_id": document_id, "user_id": user_id[:8]},
+                        )
+                except Exception as cv_exc:
+                    logger.warning(
+                        "CV structured extraction failed; continuing without structured fields",
+                        exc_info=True,
+                        extra={
+                            "document_id": document_id,
+                            "user_id": user_id[:8],
+                            "error": str(cv_exc),
+                        },
+                    )
+
             # Update database with extracted content
             await session.execute(
                 sa_update(CandidateDocument)
@@ -91,6 +122,7 @@ async def _process_document_job(
                         "page_count": extraction_result.get("page_count"),
                         "paragraph_count": extraction_result.get("paragraph_count"),
                         "metadata": extraction_result.get("metadata", {}),
+                        **cv_structured_data,
                     },
                     processing_status="completed",
                 ),

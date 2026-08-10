@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,6 +15,19 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { usePreferences, useUpdatePreferences } from "../hooks/usePreferences";
 
+const NOTIFICATION_CHANNELS = [
+  { value: "email", label: "Email", enabled: true },
+  { value: "sms", label: "SMS", enabled: false },
+  { value: "webhook", label: "Webhook", enabled: false },
+] as const;
+
+function splitCommaSeparated(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export function PreferencesForm() {
   const { data: preferences, isLoading } = usePreferences();
   const updateMutation = useUpdatePreferences();
@@ -22,23 +36,63 @@ export function PreferencesForm() {
   const [salaryMax, setSalaryMax] = useState(preferences?.salaryMax?.toString() ?? "");
   const [remotePreference, setRemotePreference] = useState(preferences?.remotePreference ?? "");
   const [isScanEnabled, setIsScanEnabled] = useState(preferences?.isScanEnabled ?? true);
+  const [desiredRoles, setDesiredRoles] = useState(preferences?.desiredRoles?.join(", ") ?? "");
+  const [desiredLocations, setDesiredLocations] = useState(
+    preferences?.desiredLocations?.join(", ") ?? "",
+  );
+  const [notificationChannels, setNotificationChannels] = useState<string[]>(
+    preferences?.notificationChannels ?? ["email"],
+  );
+  const [digestFrequency, setDigestFrequency] = useState(preferences?.digestFrequency ?? "daily");
 
   if (isLoading) return <div className="animate-pulse h-64 rounded-lg bg-muted" />;
+
+  function toggleChannel(channel: string, checked: boolean) {
+    setNotificationChannels((prev) =>
+      checked ? [...new Set([...prev, channel])] : prev.filter((c) => c !== channel),
+    );
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     updateMutation.mutate({
+      desiredRoles: splitCommaSeparated(desiredRoles),
+      desiredLocations: splitCommaSeparated(desiredLocations),
       salaryMin: salaryMin ? Number(salaryMin) : null,
       salaryMax: salaryMax ? Number(salaryMax) : null,
       remotePreference: remotePreference
         ? (remotePreference as "remote" | "hybrid" | "onsite")
         : null,
+      notificationChannels: notificationChannels as ("email" | "sms" | "webhook")[],
+      digestFrequency: digestFrequency as "daily" | "weekly" | "off",
       isScanEnabled,
     });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div>
+        <Label htmlFor="desiredRoles">Desired roles</Label>
+        <Input
+          id="desiredRoles"
+          placeholder="e.g. Backend Engineer, Staff Engineer"
+          value={desiredRoles}
+          onChange={(e) => setDesiredRoles(e.target.value)}
+        />
+        <p className="text-sm text-muted-foreground">Comma-separated, most preferred first.</p>
+      </div>
+
+      <div>
+        <Label htmlFor="desiredLocations">Desired locations</Label>
+        <Input
+          id="desiredLocations"
+          placeholder="e.g. New York, NY, Remote"
+          value={desiredLocations}
+          onChange={(e) => setDesiredLocations(e.target.value)}
+        />
+        <p className="text-sm text-muted-foreground">Comma-separated.</p>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="salaryMin">Minimum salary</Label>
@@ -74,6 +128,56 @@ export function PreferencesForm() {
         </Select>
       </div>
 
+      <div>
+        <Label htmlFor="digestFrequency">Digest frequency</Label>
+        <Select
+          value={digestFrequency}
+          onValueChange={(value) => setDigestFrequency(value as "daily" | "weekly" | "off")}
+        >
+          <SelectTrigger id="digestFrequency">
+            <SelectValue placeholder="Daily" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="daily">Daily</SelectItem>
+            <SelectItem value="weekly">Weekly</SelectItem>
+            <SelectItem value="off">Off</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Notification channels</Label>
+        {NOTIFICATION_CHANNELS.map((channel) => (
+          <div
+            key={channel.value}
+            className={
+              channel.enabled
+                ? "flex items-center gap-2"
+                : "flex items-center justify-between rounded-lg border border-dashed p-4 opacity-60"
+            }
+          >
+            {channel.enabled ? (
+              <>
+                <Checkbox
+                  id={`channel-${channel.value}`}
+                  checked={notificationChannels.includes(channel.value)}
+                  onCheckedChange={(checked) => toggleChannel(channel.value, checked === true)}
+                />
+                <Label htmlFor={`channel-${channel.value}`}>{channel.label}</Label>
+              </>
+            ) : (
+              <>
+                <div>
+                  <Label>{channel.label} notifications</Label>
+                  <p className="text-sm text-muted-foreground">Coming soon.</p>
+                </div>
+                <Switch disabled checked={false} />
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
       <div className="flex items-center justify-between rounded-lg border p-4">
         <div>
           <Label htmlFor="scanEnabled">Daily job scan</Label>
@@ -82,14 +186,6 @@ export function PreferencesForm() {
           </p>
         </div>
         <Switch id="scanEnabled" checked={isScanEnabled} onCheckedChange={setIsScanEnabled} />
-      </div>
-
-      <div className="flex items-center justify-between rounded-lg border border-dashed p-4 opacity-60">
-        <div>
-          <Label>SMS notifications</Label>
-          <p className="text-sm text-muted-foreground">Coming soon.</p>
-        </div>
-        <Switch disabled checked={false} />
       </div>
 
       <Button type="submit" disabled={updateMutation.isPending}>
