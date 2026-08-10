@@ -55,6 +55,7 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | DSAR flow | **`POST/GET /api/dsar`** — requires authenticated verified user in v1 (per ADR 0009) |
 | Data erasure on opt-out | Opt-out service → compliance suppress + purge jobs, photo cache, R2/local assets |
 | Sidecars are real services | Compose uses **real images**; free-mode ones default-on, paid/heavy ones behind `profiles:` |
+| SMS notification channel | Job-matching preferences accept `"sms"` but no Twilio client exists; selecting it is a UI-disabled no-op. |
 
 ### Task routing — where to start
 
@@ -686,6 +687,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Scrapoxy proxy pool | Rate-limit hardening | `ProxyProvider` (`PROXY_MODE=none|scrapoxy|paid`, default none = direct) |
 | Change signals | changedetection.io webhook → notify | `POST /api/signals/changedetection` → `clients/notify.py` (`NOTIFY_WEBHOOK_URL`, optional `X-Signal-Token`) |
 | Prometheus metrics | `/metrics` endpoint | Optional dependency |
+| Job matching (Module 1) | `app/modules/job_matching/`, `app/workers/tasks/job_matching.py` | Real, scaffolded per `phase2_module1.md`. Depends on CV upload UI existing (currently missing — see that doc §11.10). |
 
 Use this table when reviewing PRs, running `GRILLME.md` sessions, or planning the next delivery slice.
 

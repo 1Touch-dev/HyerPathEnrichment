@@ -1,10 +1,13 @@
 import {
+  CandidateJobPreferences,
   Dossier,
   EnrichmentInput,
   EnrichmentJob,
   HealthStatus,
   JobListItem,
   JobListResponse,
+  JobMatch,
+  JobMatchListResponse,
   JobStatus,
   OptOutInput,
   RequestedTier,
@@ -19,6 +22,9 @@ import type {
   BackendHealthResponse,
   BackendJobListItem,
   BackendJobListResponse,
+  BackendJobMatchListResponse,
+  BackendJobMatchResponse,
+  BackendJobPreferencesResponse,
   BackendJobResponse,
   BackendSignalListItem,
   BackendSignalListResponse,
@@ -28,6 +34,9 @@ export type {
   BackendDsarResponse,
   BackendHealthResponse,
   BackendJobListResponse,
+  BackendJobMatchListResponse,
+  BackendJobMatchResponse,
+  BackendJobPreferencesResponse,
   BackendJobResponse,
   BackendSignalListResponse,
 } from "@/src/lib/generated/api-schemas";
@@ -99,6 +108,14 @@ function normalizeHandleMetadata(
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
+function normalizeNullableFields<T extends Record<string, unknown>>(value: T): T {
+  const normalized: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(value)) {
+    normalized[key] = val === null ? undefined : val;
+  }
+  return normalized as T;
+}
+
 function mapDossier(dossier: BackendDossier): Dossier {
   const metadata = dossier.metadata ?? {};
 
@@ -131,7 +148,12 @@ function mapDossier(dossier: BackendDossier): Dossier {
     github: mapGithub(dossier.github),
     coworkers: dossier.coworkers ?? [],
     jobs: dossier.jobs ?? [],
-    business: dossier.business ?? undefined,
+    business: dossier.business
+      ? // Backend's BusinessProfile schema marks most optional fields `| null`;
+        // the frontend type uses `| undefined` for "absent" — normalize at the
+        // boundary. (Field names are otherwise passed through as-is here.)
+        (normalizeNullableFields(dossier.business) as unknown as Dossier["business"])
+      : undefined,
     confidence: dossier.confidence ?? [],
     sources: dossier.sources ?? [],
     metadata: {
@@ -233,6 +255,61 @@ export function mapBackendSignalListToFrontend(
   };
 }
 
+export function mapBackendJobPreferencesToFrontend(
+  raw: BackendJobPreferencesResponse,
+): CandidateJobPreferences {
+  return {
+    userId: raw.user_id,
+    sourceDocumentId: raw.source_document_id,
+    desiredRoles: raw.desired_roles ?? [],
+    desiredLocations: raw.desired_locations ?? [],
+    remotePreference: raw.remote_preference ?? null,
+    salaryMin: raw.salary_min ?? null,
+    salaryMax: raw.salary_max ?? null,
+    salaryCurrency: raw.salary_currency,
+    notificationChannels: raw.notification_channels ?? [],
+    digestFrequency: raw.digest_frequency,
+    isScanEnabled: raw.is_scan_enabled,
+    lastScannedAt: raw.last_scanned_at,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+export function mapBackendJobMatchItem(item: BackendJobMatchResponse): JobMatch {
+  return {
+    matchId: item.match_id,
+    jobPostingId: item.job_posting_id,
+    title: item.title,
+    company: item.company,
+    location: item.location,
+    remote: item.remote,
+    source: item.source,
+    sourceUrl: item.source_url,
+    salaryMin: item.salary_min,
+    salaryMax: item.salary_max,
+    salaryCurrency: item.salary_currency,
+    overallScore: item.overall_score,
+    scoreBreakdown: item.score_breakdown,
+    explanation: item.explanation,
+    isNew: item.is_new,
+    viewedAt: item.viewed_at,
+    feedback: item.feedback,
+    createdAt: item.created_at,
+  };
+}
+
+export function mapBackendJobMatchListToFrontend(
+  response: BackendJobMatchListResponse,
+): JobMatchListResponse {
+  return {
+    matches: response.matches.map(mapBackendJobMatchItem),
+    total: response.total,
+    limit: response.limit,
+    offset: response.offset,
+  };
+}
+
 export function toBackendEnrichmentRequest(input: EnrichmentInput) {
   return {
     email: input.email || null,
@@ -260,6 +337,20 @@ export function toBackendDsarRequest(input: DsarInput) {
     identifier: input.identifier,
     request_type: input.requestType,
     notes: input.notes || null,
+  };
+}
+
+export function toBackendJobPreferencesRequest(input: Partial<CandidateJobPreferences>) {
+  return {
+    desired_roles: input.desiredRoles,
+    desired_locations: input.desiredLocations,
+    remote_preference: input.remotePreference ?? null,
+    salary_min: input.salaryMin ?? null,
+    salary_max: input.salaryMax ?? null,
+    salary_currency: input.salaryCurrency,
+    notification_channels: input.notificationChannels,
+    digest_frequency: input.digestFrequency,
+    is_scan_enabled: input.isScanEnabled,
   };
 }
 

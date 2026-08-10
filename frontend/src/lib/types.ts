@@ -216,3 +216,58 @@ export type SignalListResponse = {
 export type PhotoAsset = NonNullable<Dossier["photo"]>;
 export type JobListing = Dossier["jobs"][number];
 export type BusinessProfile = NonNullable<Dossier["business"]>;
+
+// Module 1: AI Job Matching & Notifications
+// NOTE: distinct from JobListing (Dossier tier-4 enrichment output) and
+// JobListResponse (enrichment task records) — see phase2_module1.md §4.
+
+export type CandidateJobPreferences = {
+  userId: string;
+  sourceDocumentId: string | null;
+  desiredRoles: string[];
+  desiredLocations: string[];
+  remotePreference: "remote" | "hybrid" | "onsite" | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string;
+  notificationChannels: ("email" | "sms" | "webhook")[];
+  digestFrequency: "daily" | "weekly" | "off";
+  isScanEnabled: boolean;
+  lastScannedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type JobMatch = {
+  matchId: string;
+  jobPostingId: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  source: string;
+  sourceUrl: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+  overallScore: number;
+  scoreBreakdown: Record<string, number>;
+  explanation: string | null;
+  isNew: boolean;
+  viewedAt: string | null;
+  feedback: "up" | "down" | null;
+  createdAt: string;
+};
+
+export type JobMatchListResponse = {
+  matches: JobMatch[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+// Real-time piece (not in phase2_module1.md §10/§11 — added on top of the spec to
+// support the `/api/job-matching/events` SSE route; see useUnreadMatchEvents).
+export type UnreadMatchCountEvent = {
+  unreadCount: number;
+};

@@ -1,4 +1,13 @@
-import { LayoutDashboard, History, Shield, Settings, Activity, Bell, Search } from "lucide-react";
+import {
+  LayoutDashboard,
+  History,
+  Shield,
+  Settings,
+  Activity,
+  Bell,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type NavItem = {
@@ -19,6 +28,7 @@ export const mainNav: NavSection = {
     { href: "/app/enrich", label: "Look up", icon: Search },
     { href: "/app/history", label: "History", icon: History },
     { href: "/app/signals", label: "Signals", icon: Bell },
+    { href: "/app/matches", label: "Matches", icon: Sparkles },
   ],
 };
 

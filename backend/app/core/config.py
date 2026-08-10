@@ -121,6 +121,21 @@ class Settings(BaseSettings):
     gmaps_job_timeout_seconds: int = Field(default=300, alias="GMAPS_JOB_TIMEOUT_SECONDS")
     gmaps_job_poll_seconds: int = Field(default=10, alias="GMAPS_JOB_POLL_SECONDS")
 
+    # Module 1: AI Job Matching & Notifications
+    job_matching_enabled: bool = Field(default=True, alias="JOB_MATCHING_ENABLED")
+    job_matching_scan_cron: str = Field(default="0 6 * * *", alias="JOB_MATCHING_SCAN_CRON")
+    job_matching_max_postings_per_scan: int = Field(
+        default=50, alias="JOB_MATCHING_MAX_POSTINGS_PER_SCAN"
+    )
+    job_matching_similarity_threshold: float = Field(
+        default=0.5, alias="JOB_MATCHING_SIMILARITY_THRESHOLD"
+    )
+    job_matching_top_n_explanations: int = Field(default=5, alias="JOB_MATCHING_TOP_N_EXPLANATIONS")
+    job_matching_inactive_after_days: int = Field(
+        default=14, alias="JOB_MATCHING_INACTIVE_AFTER_DAYS"
+    )
+    notify_sms_enabled: bool = Field(default=False, alias="NOTIFY_SMS_ENABLED")
+
     # LLM disambiguation
     disambiguation_threshold: float = Field(default=0.7, alias="DISAMBIGUATION_THRESHOLD")
     ollama_base_url: str = Field(default="", alias="OLLAMA_BASE_URL")

@@ -25,6 +25,7 @@ class EmailTemplate(str, Enum):
     MARKETING_NEWSLETTER = "marketing_newsletter"
     EMAIL_VERIFICATION = "email_verification"
     EMAIL_VERIFICATION_REMINDER = "email_verification_reminder"
+    JOB_MATCH_DIGEST = "job_match_digest"
 
 
 class EmailService:
@@ -157,6 +158,7 @@ class EmailService:
             EmailTemplate.MARKETING_NEWSLETTER: self._render_newsletter,
             EmailTemplate.EMAIL_VERIFICATION: self._render_email_verification,
             EmailTemplate.EMAIL_VERIFICATION_REMINDER: self._render_email_verification_reminder,
+            EmailTemplate.JOB_MATCH_DIGEST: self._render_job_match_digest,
         }
 
         renderer = templates.get(template)
@@ -505,6 +507,37 @@ class EmailService:
 
         return html, text, subject
 
+    def _render_job_match_digest(self, ctx: dict[str, Any]) -> tuple[str, str, str]:
+        """Render the daily/weekly job-match digest email.
+
+        ctx["matches"]: list of dicts with title, company, location, overall_score,
+        explanation, source_url — see job_matching.py's _send_match_digest_async().
+        """
+        matches = ctx.get("matches", [])
+        subject = f"{len(matches)} new job match{'es' if len(matches) != 1 else ''} for you"
+
+        rows_html = "".join(
+            f"""
+            <tr>
+              <td style="padding:12px;border-bottom:1px solid #eee;">
+                <strong>{m["title"]}</strong> at {m["company"]}<br/>
+                <span style="color:#666;">{m.get("location") or "Remote/Unspecified"}</span><br/>
+                <span style="color:#0a7;">Match score: {m["overall_score"]}/100</span><br/>
+                <p>{m.get("explanation", "")}</p>
+                <a href="{m.get("source_url", "#")}">View job</a>
+              </td>
+            </tr>
+            """
+            for m in matches
+        )
+        html = f"<table style='width:100%;'>{rows_html}</table>"
+        text = "\n\n".join(
+            f"{m['title']} at {m['company']} — {m['overall_score']}/100\n{m.get('explanation', '')}"
+            for m in matches
+        )
+
+        return html, text, subject
+
 
 # Singleton instance
 _email_service: EmailService | None = None
@@ -535,7 +568,7 @@ def enqueue_email(
         subject: Optional custom subject
         delay_seconds: Optional delay before sending
     """
-    from datetime import datetime, timedelta
+    from datetime import UTC, datetime, timedelta
 
     from redis import Redis
     from rq import Queue
@@ -547,7 +580,7 @@ def enqueue_email(
     queue = Queue("email", connection=redis_conn)
 
     if delay_seconds > 0:
-        scheduled_time = datetime.utcnow() + timedelta(seconds=delay_seconds)
+        scheduled_time = datetime.now(UTC) + timedelta(seconds=delay_seconds)
         queue.enqueue_at(
             scheduled_time,
             send_email_task,
