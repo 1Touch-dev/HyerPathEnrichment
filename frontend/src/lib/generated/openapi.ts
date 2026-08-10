@@ -1609,6 +1609,8 @@ export interface components {
             salary_max?: number | null;
             /** Salary Min */
             salary_min?: number | null;
+            /** Webhook Url */
+            webhook_url?: string | null;
         };
         /** JobPreferencesResponse */
         JobPreferencesResponse: {
@@ -1656,6 +1658,8 @@ export interface components {
             updated_at: string;
             /** User Id */
             user_id: string;
+            /** Webhook Url */
+            webhook_url?: string | null;
         };
         /**
          * JobStatus

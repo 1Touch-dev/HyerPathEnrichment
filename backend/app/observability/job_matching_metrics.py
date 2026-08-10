@@ -50,6 +50,12 @@ job_matching_digest_emails_sent_total = Counter(
     "job_matching_digest_emails_sent_total", "Total digest emails sent"
 )
 
+job_matching_webhook_notifications_total = Counter(
+    "job_matching_webhook_notifications_total",
+    "Total job-match webhook delivery attempts",
+    ["status"],
+)
+
 job_matching_scan_duration_seconds = Histogram(
     "job_matching_scan_duration_seconds", "Duration of a single candidate scan"
 )

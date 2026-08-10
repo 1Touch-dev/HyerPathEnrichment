@@ -26,8 +26,8 @@ If a field is missing from the CV, use null. Do not invent data.
 Focus on:
 - Contact info (name, email, phone, LinkedIn, GitHub)
 - Technical and soft skills
-- Work experience (roles, companies, years)
-- Education (degree, field)
+- Work experience (roles, companies, years, industries)
+- Education (degree, field, certifications)
 - Job preferences (desired roles, locations, remote preference)
 
 Be thorough but conservative - only extract what's clearly stated in the CV.

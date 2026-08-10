@@ -262,6 +262,18 @@ def _mock_enqueue_email():
     return patch("app.workers.queue.enqueue_email")
 
 
+def _mock_notify_job_match(return_value: bool = True):
+    """Patch `notify_job_match` at its source module `app.clients.notify`.
+
+    Same rationale as `_mock_enqueue_email`: `_send_match_digest_async` does
+    `from app.clients.notify import notify_job_match` *inside* the function body, so the
+    source attribute must be patched for the re-import to pick it up.
+    """
+    return patch(
+        "app.clients.notify.notify_job_match", new_callable=AsyncMock, return_value=return_value
+    )
+
+
 class TestBuildSearchTerm:
     """`_build_search_term` is a plain sync function — no async/DB needed."""
 
@@ -527,6 +539,87 @@ class TestSendMatchDigest:
 
         assert result == {"sent": 0}
         mock_enqueue.assert_not_called()
+
+    def test_calls_notify_job_match_when_webhook_channel_and_url_configured(self):
+        """Webhook dispatch fires with a correctly-shaped payload when both the
+        'webhook' channel is selected AND a webhook_url is configured."""
+        user = _create_user(email=f"webhook-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(
+            user.id,
+            notification_channels=["email", "webhook"],
+            webhook_url="https://hooks.example.com/job-matches",
+        )
+        posting = _create_posting(source_url="https://linkedin.com/jobs/12345")
+        _create_match(user.id, posting.id, notified_at=None)
+
+        with _mock_enqueue_email(), _mock_notify_job_match(return_value=True) as mock_notify:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_notify.assert_called_once()
+        _, kwargs = mock_notify.call_args
+        assert kwargs["webhook_url"] == "https://hooks.example.com/job-matches"
+        assert kwargs["candidate_id"] == str(user.id)
+        assert kwargs["matches"][0]["title"] == posting.title
+        assert kwargs["matches"][0]["company"] == posting.company
+        assert kwargs["matches"][0]["source_url"] == posting.source_url
+
+    def test_skips_notify_job_match_when_webhook_channel_not_selected(self):
+        """No webhook_url is dispatched to when 'webhook' isn't in notification_channels,
+        even though a webhook_url is configured."""
+        user = _create_user(email=f"webhook-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(
+            user.id,
+            notification_channels=["email"],
+            webhook_url="https://hooks.example.com/job-matches",
+        )
+        posting = _create_posting()
+        _create_match(user.id, posting.id, notified_at=None)
+
+        with _mock_enqueue_email(), _mock_notify_job_match() as mock_notify:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_notify.assert_not_called()
+
+    def test_skips_notify_job_match_when_webhook_url_not_configured(self):
+        """No dispatch when 'webhook' is selected but no webhook_url is configured."""
+        user = _create_user(email=f"webhook-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(
+            user.id,
+            notification_channels=["email", "webhook"],
+            webhook_url=None,
+        )
+        posting = _create_posting()
+        _create_match(user.id, posting.id, notified_at=None)
+
+        with _mock_enqueue_email(), _mock_notify_job_match() as mock_notify:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_notify.assert_not_called()
+
+    def test_webhook_failure_is_fail_soft_and_still_marks_notified(self):
+        """A failed webhook POST (notify_job_match returns False) must not raise and
+        must not prevent the digest from completing / marking matches notified."""
+        user = _create_user(email=f"webhook-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(
+            user.id,
+            notification_channels=["email", "webhook"],
+            webhook_url="https://hooks.example.com/job-matches",
+        )
+        posting = _create_posting()
+        match = _create_match(user.id, posting.id, notified_at=None)
+
+        with _mock_enqueue_email(), _mock_notify_job_match(return_value=False) as mock_notify:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_notify.assert_called_once()
+
+        refreshed = _get_match(match.id)
+        assert refreshed is not None
+        assert refreshed.notified_at is not None
 
 
 class TestCheckWorkerHealth:

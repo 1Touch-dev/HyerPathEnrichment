@@ -268,6 +268,7 @@ export function mapBackendJobPreferencesToFrontend(
     salaryMax: raw.salary_max ?? null,
     salaryCurrency: raw.salary_currency,
     notificationChannels: raw.notification_channels ?? [],
+    webhookUrl: raw.webhook_url ?? null,
     digestFrequency: raw.digest_frequency,
     isScanEnabled: raw.is_scan_enabled,
     lastScannedAt: raw.last_scanned_at,
@@ -349,6 +350,7 @@ export function toBackendJobPreferencesRequest(input: Partial<CandidateJobPrefer
     salary_max: input.salaryMax ?? null,
     salary_currency: input.salaryCurrency,
     notification_channels: input.notificationChannels,
+    webhook_url: input.webhookUrl ?? null,
     digest_frequency: input.digestFrequency,
     is_scan_enabled: input.isScanEnabled,
   };

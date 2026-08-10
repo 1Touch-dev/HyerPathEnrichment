@@ -44,6 +44,7 @@ class JobMatchingService:
             notification_channels=cast(
                 'list[Literal["email", "sms", "webhook"]]', prefs.notification_channels
             ),
+            webhook_url=prefs.webhook_url,
             digest_frequency=cast('Literal["daily", "weekly", "off"]', prefs.digest_frequency),
             is_scan_enabled=prefs.is_scan_enabled,
             last_scanned_at=prefs.last_scanned_at,

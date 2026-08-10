@@ -101,6 +101,7 @@ class CandidateJobPreferences(Base):
     notification_channels: Mapped[list[str]] = mapped_column(
         JsonDoc, default=lambda: ["email"], nullable=False
     )
+    webhook_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     digest_frequency: Mapped[str] = mapped_column(String(20), default="daily", nullable=False)
     is_scan_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
     last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

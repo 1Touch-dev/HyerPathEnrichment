@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -258,3 +258,84 @@ async def test_extract_cv_data_with_preferences():
     assert result.desired_locations == ["San Francisco", "Remote"]
     assert result.remote_preference == "hybrid"
     assert result.completeness_score == 1.0
+
+
+def test_industries_and_certifications_default_to_empty_list():
+    """CVData defaults industries and certifications to empty lists when absent."""
+    cv_data = CVData(full_name="Dana Lee")
+
+    assert cv_data.industries == []
+    assert cv_data.certifications == []
+
+
+@pytest.mark.asyncio
+async def test_extract_cv_data_with_industries_and_certifications():
+    """CV extraction populates industries and certifications when present in the LLM response."""
+    mock_response = {
+        "choices": [
+            {
+                "message": {
+                    "content": """{
+                        "full_name": "Erin Walsh",
+                        "email": "erin@example.com",
+                        "phone": "+4444444444",
+                        "technical_skills": ["Python", "AWS"],
+                        "total_years_experience": 6.0,
+                        "current_role": "Cloud Architect",
+                        "highest_degree": "Bachelor's",
+                        "industries": ["Healthcare", "Fintech"],
+                        "certifications": ["AWS Certified Solutions Architect", "PMP"]
+                    }"""
+                }
+            }
+        ]
+    }
+
+    settings = Settings(openai_api_key="test-key-123")
+
+    with patch("app.services.cv_extractor.httpx.AsyncClient") as mock_client:
+        mock_response_obj = AsyncMock()
+        mock_response_obj.json = Mock(return_value=mock_response)
+        mock_response_obj.raise_for_status = lambda: None
+
+        mock_post = AsyncMock(return_value=mock_response_obj)
+        mock_client.return_value.__aenter__.return_value.post = mock_post
+
+        result = await extract_cv_data("CV with industries and certifications...", settings)
+
+    assert result.industries == ["Healthcare", "Fintech"]
+    assert result.certifications == ["AWS Certified Solutions Architect", "PMP"]
+    assert result.completeness_score == 1.0
+
+
+@pytest.mark.asyncio
+async def test_extract_cv_data_without_industries_and_certifications_defaults_empty():
+    """CV extraction defaults industries and certifications to empty lists when the LLM omits them."""
+    mock_response = {
+        "choices": [
+            {
+                "message": {
+                    "content": """{
+                        "full_name": "Frank Ito",
+                        "email": "frank@example.com"
+                    }"""
+                }
+            }
+        ]
+    }
+
+    settings = Settings(openai_api_key="test-key-123")
+
+    with patch("app.services.cv_extractor.httpx.AsyncClient") as mock_client:
+        mock_response_obj = AsyncMock()
+        mock_response_obj.json = Mock(return_value=mock_response)
+        mock_response_obj.raise_for_status = lambda: None
+
+        mock_post = AsyncMock(return_value=mock_response_obj)
+        mock_client.return_value.__aenter__.return_value.post = mock_post
+
+        result = await extract_cv_data("Minimal CV text...", settings)
+
+    assert result.full_name == "Frank Ito"
+    assert result.industries == []
+    assert result.certifications == []

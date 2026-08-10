@@ -18,7 +18,7 @@ import { usePreferences, useUpdatePreferences } from "../hooks/usePreferences";
 const NOTIFICATION_CHANNELS = [
   { value: "email", label: "Email", enabled: true },
   { value: "sms", label: "SMS", enabled: false },
-  { value: "webhook", label: "Webhook", enabled: false },
+  { value: "webhook", label: "Webhook", enabled: true },
 ] as const;
 
 function splitCommaSeparated(value: string): string[] {
@@ -43,6 +43,7 @@ export function PreferencesForm() {
   const [notificationChannels, setNotificationChannels] = useState<string[]>(
     preferences?.notificationChannels ?? ["email"],
   );
+  const [webhookUrl, setWebhookUrl] = useState(preferences?.webhookUrl ?? "");
   const [digestFrequency, setDigestFrequency] = useState(preferences?.digestFrequency ?? "daily");
 
   if (isLoading) return <div className="animate-pulse h-64 rounded-lg bg-muted" />;
@@ -64,6 +65,7 @@ export function PreferencesForm() {
         ? (remotePreference as "remote" | "hybrid" | "onsite")
         : null,
       notificationChannels: notificationChannels as ("email" | "sms" | "webhook")[],
+      webhookUrl: webhookUrl.trim() ? webhookUrl.trim() : null,
       digestFrequency: digestFrequency as "daily" | "weekly" | "off",
       isScanEnabled,
     });
@@ -176,6 +178,22 @@ export function PreferencesForm() {
             )}
           </div>
         ))}
+
+        {notificationChannels.includes("webhook") && (
+          <div className="pl-6">
+            <Label htmlFor="webhookUrl">Webhook URL</Label>
+            <Input
+              id="webhookUrl"
+              type="url"
+              placeholder="https://example.com/webhooks/job-matches"
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+            />
+            <p className="text-sm text-muted-foreground">
+              We&apos;ll POST your top matches here on every digest.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between rounded-lg border p-4">

@@ -231,6 +231,7 @@ export type CandidateJobPreferences = {
   salaryMax: number | null;
   salaryCurrency: string;
   notificationChannels: ("email" | "sms" | "webhook")[];
+  webhookUrl: string | null;
   digestFrequency: "daily" | "weekly" | "off";
   isScanEnabled: boolean;
   lastScannedAt: string | null;

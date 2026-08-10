@@ -9,7 +9,8 @@ from pydantic import BaseModel, Field
 class CVData(BaseModel):
     """Structured data extracted from candidate CV/resume.
 
-    Contains contact info, skills, experience, education, and job preferences.
+    Contains contact info, skills, experience, education, industries,
+    certifications, and job preferences.
     Includes completeness scoring to track missing fields.
     """
 
@@ -31,10 +32,12 @@ class CVData(BaseModel):
     current_role: str | None = None
     current_company: str | None = None
     work_history: list[dict[str, Any]] | None = None
+    industries: list[str] = Field(default_factory=list)
 
     # Education
     highest_degree: str | None = None
     field_of_study: str | None = None
+    certifications: list[str] = Field(default_factory=list)
 
     # Preferences
     desired_roles: list[str] = Field(default_factory=list)

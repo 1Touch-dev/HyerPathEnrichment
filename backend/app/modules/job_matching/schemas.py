@@ -24,6 +24,7 @@ class JobPreferencesRequest(BaseModel):
     notification_channels: list[_NotificationChannel] = Field(
         default_factory=_default_notification_channels
     )
+    webhook_url: str | None = Field(default=None, max_length=2048)
     digest_frequency: Literal["daily", "weekly", "off"] = "daily"
     is_scan_enabled: bool = True
 

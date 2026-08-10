@@ -22,6 +22,7 @@ const samplePreferences: CandidateJobPreferences = {
   salaryMax: 150000,
   salaryCurrency: "USD",
   notificationChannels: ["email"],
+  webhookUrl: null,
   digestFrequency: "daily",
   isScanEnabled: true,
   lastScannedAt: null,
@@ -79,6 +80,7 @@ describe("PreferencesForm", () => {
       salaryMax: 150000,
       remotePreference: "remote",
       notificationChannels: ["email"],
+      webhookUrl: null,
       digestFrequency: "daily",
       isScanEnabled: true,
     });
@@ -147,14 +149,43 @@ describe("PreferencesForm", () => {
     expect(smsSwitch).toHaveAttribute("data-state", "unchecked");
   });
 
-  it("renders the Webhook notifications switch as disabled and unchecked", () => {
-    mockUsePreferences({ data: samplePreferences, isLoading: false });
+  it("renders an enabled webhook checkbox and reveals a URL input once checked", () => {
+    mockUsePreferences({
+      data: { ...samplePreferences, notificationChannels: [] },
+      isLoading: false,
+    });
     render(<PreferencesForm />, { wrapper });
 
-    const webhookLabel = screen.getByText("Webhook notifications");
-    const container = webhookLabel.closest("div.flex");
-    const webhookSwitch = container?.querySelector("button[role='switch']");
-    expect(webhookSwitch).toBeDisabled();
-    expect(webhookSwitch).toHaveAttribute("data-state", "unchecked");
+    expect(screen.queryByLabelText("Webhook URL")).not.toBeInTheDocument();
+
+    const webhookCheckbox = screen.getByLabelText("Webhook");
+    fireEvent.click(webhookCheckbox);
+
+    expect(screen.getByLabelText("Webhook URL")).toBeInTheDocument();
+
+    const form = screen.getByText("Save preferences").closest("form");
+    form!.requestSubmit();
+
+    expect(mutateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationChannels: ["webhook"] }),
+    );
+  });
+
+  it("submits the webhook URL when the webhook channel is enabled", () => {
+    mockUsePreferences({
+      data: { ...samplePreferences, notificationChannels: ["webhook"], webhookUrl: null },
+      isLoading: false,
+    });
+    render(<PreferencesForm />, { wrapper });
+
+    const webhookUrlInput = screen.getByLabelText("Webhook URL");
+    fireEvent.change(webhookUrlInput, { target: { value: "https://example.com/hook" } });
+
+    const form = screen.getByText("Save preferences").closest("form");
+    form!.requestSubmit();
+
+    expect(mutateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ webhookUrl: "https://example.com/hook" }),
+    );
   });
 });

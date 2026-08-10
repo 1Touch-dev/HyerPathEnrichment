@@ -21,6 +21,7 @@ const samplePreferences: CandidateJobPreferences = {
   salaryMax: null,
   salaryCurrency: "USD",
   notificationChannels: ["email"],
+  webhookUrl: null,
   digestFrequency: "daily",
   isScanEnabled: true,
   lastScannedAt: null,

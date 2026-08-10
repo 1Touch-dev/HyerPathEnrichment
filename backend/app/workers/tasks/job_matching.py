@@ -43,6 +43,7 @@ from app.observability.job_matching_metrics import (
     job_matching_postings_scraped_total,
     job_matching_scan_duration_seconds,
     job_matching_scans_total,
+    job_matching_webhook_notifications_total,
 )
 
 logger = logging.getLogger(__name__)
@@ -365,9 +366,12 @@ def send_match_digest(user_id: str) -> dict[str, int]:
 async def _send_match_digest_async(user_id: str) -> dict[str, int]:
     """Send a digest email for unnotified matches, then mark them notified.
 
-    Per Decision 6: only 'email' channel is wired; 'sms'/'webhook' preferences
-    are accepted but logged as a no-op, matching notify.py's fail-soft convention.
+    Per Decision 6: 'email' and 'webhook' channels are wired; 'sms' is accepted but
+    logged as a no-op, matching notify.py's fail-soft convention. Webhook delivery
+    additionally requires a candidate-configured `webhook_url` — without one, the
+    'webhook' channel is treated as a no-op just like 'sms'.
     """
+    from app.clients.notify import notify_job_match
     from app.workers.queue import enqueue_email
 
     async with SessionLocal() as session:
@@ -387,11 +391,21 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
 
         if "email" not in prefs.notification_channels:
             return {"sent": 0}
-        if "sms" in prefs.notification_channels or "webhook" in prefs.notification_channels:
+        if "sms" in prefs.notification_channels:
             logger.info(
-                "SMS/webhook notification requested but not implemented (Decision 6) — skipping those channels",
+                "SMS notification requested but not implemented (Decision 6) — skipping",
                 extra={"user_id": user_id[:8], "channels": prefs.notification_channels},
             )
+
+        match_payload = [
+            {
+                "title": p.title,
+                "company": p.company,
+                "overall_score": m.overall_score,
+                "source_url": p.source_url or "",
+            }
+            for m, p in top_5
+        ]
 
         # Fetch user email via auth module (read-only cross-module read of the User row —
         # allowed per RULE.md: modules may read shared domain/auth records; no service coupling).
@@ -418,6 +432,21 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
                 ],
             },
         )
+
+        if "webhook" in prefs.notification_channels and prefs.webhook_url:
+            webhook_sent = await notify_job_match(
+                webhook_url=prefs.webhook_url,
+                candidate_id=user_id,
+                matches=match_payload,
+            )
+            job_matching_webhook_notifications_total.labels(
+                status="success" if webhook_sent else "failed"
+            ).inc()
+        elif "webhook" in prefs.notification_channels:
+            logger.info(
+                "Webhook notification requested but no webhook_url configured — skipping",
+                extra={"user_id": user_id[:8]},
+            )
 
         await repository.mark_notified(session, [m.id for m, _ in unnotified])
         job_matching_digest_emails_sent_total.inc()
