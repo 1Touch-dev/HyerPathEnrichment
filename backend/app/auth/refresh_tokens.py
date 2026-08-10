@@ -145,7 +145,7 @@ async def revoke_token_family(
     result = await db.execute(
         select(RefreshToken).where(
             RefreshToken.user_id == user_id,
-            RefreshToken.used == False,  # noqa: E712
+            ~RefreshToken.used,
         )
     )
     tokens_to_revoke = result.scalars().all()

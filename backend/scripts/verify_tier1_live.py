@@ -54,6 +54,7 @@ def _run(cmd: list[str], *, cwd: Path | None = None) -> tuple[int, str]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        check=False,
     )
     out = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode, out.strip()
@@ -101,7 +102,13 @@ def main() -> int:
         if status == "fail":
             exit_code = 1
         steps.append(
-            StepResult(name=name, command=" ".join(command), exit_code=code, status=status, detail=detail[:500])
+            StepResult(
+                name=name,
+                command=" ".join(command),
+                exit_code=code,
+                status=status,
+                detail=detail[:500],
+            )
         )
 
     shape_cmd = [
@@ -135,10 +142,21 @@ def main() -> int:
         return exit_code
 
     if not _canary_filled():
-        record("canary_file", ["check", str(CANARY)], 1, "tier1_canary_set.json missing or has placeholders")
+        record(
+            "canary_file",
+            ["check", str(CANARY)],
+            1,
+            "tier1_canary_set.json missing or has placeholders",
+        )
     else:
         steps.append(
-            StepResult(name="canary_file", command=f"check {CANARY}", exit_code=0, status="pass", detail="filled")
+            StepResult(
+                name="canary_file",
+                command=f"check {CANARY}",
+                exit_code=0,
+                status="pass",
+                detail="filled",
+            )
         )
 
     connect_cmd = [_python(), str(SCRIPTS / "probe_tier1.py"), "--connect-test"]
@@ -166,7 +184,14 @@ def main() -> int:
         code, out = _run(scrape_cmd)
         record("isolation_scrape", scrape_cmd, code, out.splitlines()[-1] if out else "")
 
-    probe_args = [_python(), str(SCRIPTS / "probe_tier1_canary.py"), "--file", str(CANARY), "--pool-status", "--json"]
+    probe_args = [
+        _python(),
+        str(SCRIPTS / "probe_tier1_canary.py"),
+        "--file",
+        str(CANARY),
+        "--pool-status",
+        "--json",
+    ]
     code, out = _run(probe_args)
     record("probe_canary", probe_args, code, out.splitlines()[-1] if out else "")
 

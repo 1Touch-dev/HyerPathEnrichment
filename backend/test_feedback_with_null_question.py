@@ -8,7 +8,6 @@ This script:
 4. Monitors the job execution
 """
 
-import asyncio
 import logging
 import sys
 from uuid import uuid4
@@ -127,7 +126,7 @@ def enqueue_feedback_job(attempt_id: str) -> None:
 
     for i in range(60):  # Monitor for up to 60 seconds
         job.refresh()
-        logger.info(f"[{i+1}s] Job status: {job.get_status()}")
+        logger.info(f"[{i + 1}s] Job status: {job.get_status()}")
 
         if job.is_finished:
             logger.info("✅ Job completed successfully!")

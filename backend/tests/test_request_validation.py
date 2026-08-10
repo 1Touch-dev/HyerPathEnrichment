@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -10,7 +12,7 @@ from app.domain.enrichment import EnrichmentRequest
 from app.domain.enums import RequestedTier
 from app.main import app
 
-AUTH_HEADERS = {"Authorization": "Bearer change-me"}
+AUTH_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
 
 
 def _validation_message(exc: ValidationError) -> str:

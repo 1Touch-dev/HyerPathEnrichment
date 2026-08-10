@@ -27,7 +27,7 @@ Requirements:
 
 ## Decision
 
-Use **FastAPI-Users** with cookie transport, JWT strategy, and custom extensions.
+Use **FastAPI-Users** with cookie transport, JWT strategy, and custom extensions — chosen over pure stateless JWT and over database-backed sessions (see Alternatives Considered below) because it gives us cookie-based sessions, OAuth, and Redis-backed logout revocation without a second backend stack.
 
 ## Architecture
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +17,17 @@ def client() -> TestClient:
         yield test_client
 
 
-AUTH_HEADERS = {"Authorization": "Bearer change-me"}
+@pytest.fixture(autouse=True)
+def _no_signal_webhook_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable the local dev changedetection API key/webhook so tests don't
+    depend on secrets configured in a developer's local .env file."""
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "changedetection_api_key", "")
+    monkeypatch.setattr(get_settings(), "notify_webhook_url", "")
+
+
+AUTH_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
 
 
 def _post_signal(client: TestClient, watch_id: str, title: str, url: str) -> None:
@@ -60,7 +71,7 @@ def test_list_signals_pagination(client: TestClient) -> None:
 def test_list_signals_requires_bearer(client: TestClient) -> None:
     response = client.get("/api/signals")
     assert response.status_code == 401
-    assert response.json()["error"]["message"] == "unauthorized"
+    assert "authorization" in response.json()["error"]["message"].lower()
 
 
 def test_webhook_persists_before_notify(

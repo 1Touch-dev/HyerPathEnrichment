@@ -24,7 +24,7 @@ import json
 import os
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -103,7 +103,9 @@ async def poll_job(
         response = await client.get(f"{base_url}/enrich/{job_id}", headers=headers)
         final = unwrap_envelope(response.json())
         status = str(final.get("status") or "")
-        print(f"  ... status={status or 'unknown'} ({time.monotonic() - (deadline - poll_timeout):.0f}s elapsed)")
+        print(
+            f"  ... status={status or 'unknown'} ({time.monotonic() - (deadline - poll_timeout):.0f}s elapsed)"
+        )
         if status not in {"queued", "running"}:
             return final
         await asyncio.sleep(poll_interval)
@@ -113,17 +115,23 @@ async def poll_job(
 def print_dossier(dossier: dict[str, Any]) -> None:
     print("\n== merged dossier ==")
     photo = dossier.get("photo") or {}
-    print(f"photo: asset_url={photo.get('asset_url') or '(none)'} confidence={photo.get('confidence')}")
+    print(
+        f"photo: asset_url={photo.get('asset_url') or '(none)'} confidence={photo.get('confidence')}"
+    )
     handles = dossier.get("handles") or []
     print(f"handles ({len(handles)}):")
     for h in handles:
-        print(f"  - {h.get('platform')}: {h.get('username')} ({h.get('profile_url')}) confidence={h.get('confidence')}")
+        print(
+            f"  - {h.get('platform')}: {h.get('username')} ({h.get('profile_url')}) confidence={h.get('confidence')}"
+        )
     emails = dossier.get("emails") or []
     verified = dossier.get("verified_emails") or []
     print(f"emails: {emails}")
     print(f"verified_emails ({len(verified)}):")
     for e in verified:
-        print(f"  - {e.get('value')} status={e.get('status')} confidence={e.get('confidence')} source={e.get('source')}")
+        print(
+            f"  - {e.get('value')} status={e.get('status')} confidence={e.get('confidence')} source={e.get('source')}"
+        )
     github = dossier.get("github") or {}
     print(f"github: {github or '(empty)'}")
     coworkers = dossier.get("coworkers") or []
@@ -131,7 +139,9 @@ def print_dossier(dossier: dict[str, Any]) -> None:
     jobs = dossier.get("jobs") or []
     print(f"jobs ({len(jobs)}):")
     for j in jobs:
-        print(f"  - {j.get('title')} @ {j.get('company')} ({j.get('location')}) remote={j.get('remote')} source={j.get('source')}")
+        print(
+            f"  - {j.get('title')} @ {j.get('company')} ({j.get('location')}) remote={j.get('remote')} source={j.get('source')}"
+        )
     business = dossier.get("business")
     print(f"business: {business or '(none)'}")
     print(f"sources: {dossier.get('sources') or []}")
@@ -151,8 +161,10 @@ async def run(args: argparse.Namespace) -> RunResult:
 
     print("== real-world single-profile run ==")
     print(f"POST {base_url}/enrich  tiers={body.get('requested_tiers')}")
-    print(f"identifiers: linkedin_url={body.get('linkedin_url')} username={body.get('username')} "
-          f"company={body.get('company')} business={body.get('business')} email={body.get('email')}")
+    print(
+        f"identifiers: linkedin_url={body.get('linkedin_url')} username={body.get('username')} "
+        f"company={body.get('company')} business={body.get('business')} email={body.get('email')}"
+    )
 
     start = time.perf_counter()
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -228,7 +240,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run one real profile through Tier 1-4 via POST /enrich (API + worker)"
     )
-    parser.add_argument("--linkedin-url", default=None, help="Overrides the default Nithin Kamath LinkedIn URL")
+    parser.add_argument(
+        "--linkedin-url", default=None, help="Overrides the default Nithin Kamath LinkedIn URL"
+    )
     parser.add_argument("--username", default=None)
     parser.add_argument("--company", default=None)
     parser.add_argument("--business", default=None)
@@ -245,7 +259,9 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("E2E_BASE_URL", DEFAULT_BASE_URL),
         help="API base URL (default E2E_BASE_URL or http://localhost:8000)",
     )
-    parser.add_argument("--token", default=None, help="Bearer token (default: settings.api_token from .env)")
+    parser.add_argument(
+        "--token", default=None, help="Bearer token (default: settings.api_token from .env)"
+    )
     parser.add_argument("--poll-timeout", type=float, default=DEFAULT_POLL_TIMEOUT)
     parser.add_argument("--poll-interval", type=float, default=DEFAULT_POLL_INTERVAL)
     parser.add_argument("--json", action="store_true", help="Write JSON report to .e2e-results/")

@@ -211,26 +211,24 @@ def test_count_tokens(embeddings_client):
     assert token_count < 20  # Simple sentence shouldn't have too many tokens
 
 
-@pytest.mark.asyncio
-async def test_get_embeddings_client_factory():
+def test_get_embeddings_client_factory():
     """Test factory function with settings."""
     with patch("app.clients.embeddings.get_settings") as mock_settings:
         mock_settings.return_value.openai_api_key = "test-api-key"
 
-        client = await get_embeddings_client()
+        client = get_embeddings_client()
 
         assert isinstance(client, EmbeddingsClient)
         assert client.model == DEFAULT_MODEL
         assert client.dimensions == DEFAULT_DIMENSIONS
 
 
-@pytest.mark.asyncio
-async def test_get_embeddings_client_custom_params():
+def test_get_embeddings_client_custom_params():
     """Test factory function with custom parameters."""
     with patch("app.clients.embeddings.get_settings") as mock_settings:
         mock_settings.return_value.openai_api_key = "test-api-key"
 
-        client = await get_embeddings_client(model="text-embedding-3-large", dimensions=3072)
+        client = get_embeddings_client(model="text-embedding-3-large", dimensions=3072)
 
         assert client.model == "text-embedding-3-large"
         assert client.dimensions == 3072

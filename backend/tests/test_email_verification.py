@@ -14,6 +14,13 @@ from app.auth.verification import (
 )
 
 
+def _ensure_utc(value: datetime) -> datetime:
+    """SQLite drops tzinfo on read; normalize back to aware UTC for comparisons."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 @pytest.mark.asyncio
 async def test_generate_verification_token(db: AsyncSession):
     """Test verification token generation."""
@@ -45,7 +52,8 @@ async def test_generate_verification_token(db: AsyncSession):
 
     assert db_token is not None
     assert db_token.token == token
-    assert db_token.expires_at > datetime.now(UTC)
+    assert db_token.expires_at is not None
+    assert _ensure_utc(db_token.expires_at) > datetime.now(UTC)
 
 
 @pytest.mark.asyncio
@@ -201,7 +209,7 @@ async def test_resend_verification_email_success(db: AsyncSession):
     token = result.scalar_one_or_none()
 
     assert token is not None
-    assert token.expires_at > datetime.now(UTC)
+    assert _ensure_utc(token.expires_at) > datetime.now(UTC)
 
 
 @pytest.mark.asyncio

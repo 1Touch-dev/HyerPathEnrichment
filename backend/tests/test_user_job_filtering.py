@@ -18,6 +18,10 @@ async def test_list_jobs_filters_by_user_id(db):
     """Test that list_jobs only returns jobs for the specified user."""
     repo = JobRepository(db)
 
+    # Baseline: other tests in the suite may have already committed jobs to
+    # the shared test database, so measure the delta rather than an absolute count.
+    _, baseline_total = await repo.list(limit=1, offset=0, user_id=None)
+
     # Create users
     user1_id = uuid4()
     user2_id = uuid4()
@@ -50,8 +54,8 @@ async def test_list_jobs_filters_by_user_id(db):
 
     # List all jobs (no filter)
     all_jobs, all_total = await repo.list(limit=10, offset=0, user_id=None)
-    assert all_total == 5
-    assert len(all_jobs) == 5
+    assert all_total == baseline_total + 5
+    assert len(all_jobs) == min(10, all_total)
 
 
 @pytest.mark.asyncio
@@ -65,7 +69,7 @@ async def test_get_job_ownership_verification(db):
     user2_id = uuid4()
 
     # Create job for user 1
-    request = EnrichmentRequest(username="testuser", requested_tiers=[])
+    request = EnrichmentRequest(username="testuser", requested_tiers=["tier2"])
     job = await pipeline.create_queued_job(request, user_id=user1_id)
 
     # User 1 can access their own job
@@ -85,7 +89,7 @@ async def test_child_jobs_inherit_parent_user_id(db):
     repo = JobRepository(db)
 
     user_id = uuid4()
-    request = EnrichmentRequest(username="testuser", requested_tiers=[])
+    request = EnrichmentRequest(username="testuser", requested_tiers=["tier2"])
 
     # Create parent job with user_id
     parent = await repo.create(request, JobStatus.running, user_id=user_id)
@@ -106,7 +110,7 @@ async def test_pagination_with_user_filter(db):
     repo = JobRepository(db)
 
     user_id = uuid4()
-    request = EnrichmentRequest(username="testuser", requested_tiers=[])
+    request = EnrichmentRequest(username="testuser", requested_tiers=["tier2"])
 
     # Create 25 jobs for user
     for _ in range(25):
@@ -143,7 +147,7 @@ async def test_internal_jobs_excluded_from_user_list(db):
     repo = JobRepository(db)
 
     user_id = uuid4()
-    request = EnrichmentRequest(username="testuser", requested_tiers=[])
+    request = EnrichmentRequest(username="testuser", requested_tiers=["tier2"])
 
     # Create regular job
     parent = await repo.create(request, JobStatus.running, user_id=user_id)

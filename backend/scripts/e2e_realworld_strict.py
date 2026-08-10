@@ -35,14 +35,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
+from app.clients.sidecar import SidecarClient
 from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.email_discover import EmailDiscoverEnricher
 from app.enrichers.email_verify import EmailVerifyEnricher
 from app.enrichers.gitrecon import GitReconEnricher
 from app.enrichers.local_business import LocalBusinessEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
-from app.domain.enrichment import EnrichmentRequest
-from app.clients.sidecar import SidecarClient
 
 RESULTS_DIR = ROOT / ".e2e-results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -81,7 +81,8 @@ class StrictProbe:
         report = {
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "checks": [
-                {"name": r.name, "ok": r.ok, "detail": r.detail, "data": r.data} for r in self.results
+                {"name": r.name, "ok": r.ok, "detail": r.detail, "data": r.data}
+                for r in self.results
             ],
             "passed": sum(1 for r in self.results if r.ok),
             "failed": sum(1 for r in self.results if not r.ok),
@@ -121,12 +122,16 @@ class StrictProbe:
                 "max_time": 180_000_000_000,
             },
         )
-        (RESULTS_DIR / "gmaps-create.json").write_text(json.dumps(created, indent=2), encoding="utf-8")
+        (RESULTS_DIR / "gmaps-create.json").write_text(
+            json.dumps(created, indent=2), encoding="utf-8"
+        )
         ok_create = isinstance(created, dict) and "id" in created
         self.record(
             "gmaps_contract_create",
             ok_create,
-            "POST /api/v1/jobs returned id" if ok_create else f"unexpected create payload: {created}",
+            "POST /api/v1/jobs returned id"
+            if ok_create
+            else f"unexpected create payload: {created}",
             payload=created,
         )
         if not ok_create:
@@ -138,7 +143,9 @@ class StrictProbe:
         status_payload: dict[str, Any] = {}
         while time.monotonic() < deadline:
             status_payload = await client.get_json(f"/api/v1/jobs/{job_id}") or {}
-            terminal_state = str(status_payload.get("Status", status_payload.get("status", ""))).lower()
+            terminal_state = str(
+                status_payload.get("Status", status_payload.get("status", ""))
+            ).lower()
             if terminal_state in {"ok", "completed", "done"}:
                 break
             if terminal_state in {"failed", "error"}:
@@ -167,7 +174,9 @@ class StrictProbe:
         # Legacy GET /search exists on some builds but LocalBusinessEnricher uses the job API.
         try:
             async with httpx.AsyncClient(timeout=10.0) as http:
-                legacy = await http.get(f"{url.rstrip('/')}/search", params={"q": "coffee", "depth": 1})
+                legacy = await http.get(
+                    f"{url.rstrip('/')}/search", params={"q": "coffee", "depth": 1}
+                )
             self.record(
                 "gmaps_legacy_search_unused",
                 legacy.status_code == 200,
@@ -219,7 +228,9 @@ class StrictProbe:
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as http:
-                legacy = await http.get(f"{url.rstrip('/')}/search", params={"username": "torvalds"})
+                legacy = await http.get(
+                    f"{url.rstrip('/')}/search", params={"username": "torvalds"}
+                )
             # Legacy route may 200 or 404 depending on SA build; enricher does not use it.
             self.record(
                 "social_analyzer_legacy_search_unused",
@@ -227,7 +238,9 @@ class StrictProbe:
                 f"GET /search status={legacy.status_code} (legacy; enricher uses POST /analyze_string)",
             )
         except httpx.HTTPError as exc:
-            self.record("social_analyzer_legacy_search_unused", True, f"GET /search unreachable: {exc}")
+            self.record(
+                "social_analyzer_legacy_search_unused", True, f"GET /search unreachable: {exc}"
+            )
 
     async def check_enrichers_live(self) -> None:
         discover = await EmailDiscoverEnricher().run(
@@ -262,7 +275,11 @@ class StrictProbe:
                 f"handles={len(gitrecon.get('handles', []))} github_orgs={len(gitrecon.get('github', {}).get('organizations', []))}",
             )
         else:
-            self.record("enricher_gitrecon", False, "GITRECON_SCRIPT unset — install gitrecon for strict run")
+            self.record(
+                "enricher_gitrecon",
+                False,
+                "GITRECON_SCRIPT unset — install gitrecon for strict run",
+            )
 
         if self.settings.social_analyzer_url.strip():
             social = await SocialAnalyzerEnricher().run(
@@ -303,7 +320,9 @@ class StrictProbe:
                     json=body,
                 )
             payload = response.json()
-            (RESULTS_DIR / "api-sync-dossier.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            (RESULTS_DIR / "api-sync-dossier.json").write_text(
+                json.dumps(payload, indent=2), encoding="utf-8"
+            )
             dossier = payload.get("dossier", {})
             self.record(
                 "api_sync_completed",
@@ -312,7 +331,11 @@ class StrictProbe:
             )
             self.record(
                 "api_sync_has_handles_or_emails",
-                bool(dossier.get("handles") or dossier.get("emails") or dossier.get("verified_emails")),
+                bool(
+                    dossier.get("handles")
+                    or dossier.get("emails")
+                    or dossier.get("verified_emails")
+                ),
                 f"handles={len(dossier.get('handles', []))} emails={len(dossier.get('emails', []))}",
             )
             self.record(

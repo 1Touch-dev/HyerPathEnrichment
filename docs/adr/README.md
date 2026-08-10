@@ -45,3 +45,4 @@ Add or update an ADR when you:
 | [0008](0008-tier1-linux-host-network.md) | Tier 1 Multilogin co-located with worker via `network_mode: host` on Linux | Accepted | 2026-07-22 |
 | [0009](0009-cookie-oauth-authentication.md) | Cookie-based OAuth authentication with FastAPI-Users | Accepted | 2026-07-31 |
 | [0011](0011-pgvector-vs-dedicated-vector-db.md) | pgvector over dedicated vector databases | Accepted | 2026-08-04 |
+| [0012](0012-semantic-chunking-strategy.md) | Semantic chunking strategy for document processing | Accepted | 2026-08-04 |

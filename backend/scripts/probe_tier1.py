@@ -22,9 +22,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from app.clients.multilogin import MultiloginClient, MultiloginError
 from app.core.config import get_settings
 from app.integrations.linkedin.browser_facade import LinkedInBrowserClient, LinkedInPhotoError
-from app.clients.multilogin import MultiloginClient, MultiloginError
 from app.integrations.multilogin.profile_pool import ProfilePool
 
 LINKEDIN_LOGIN_URL = "https://www.linkedin.com/login"

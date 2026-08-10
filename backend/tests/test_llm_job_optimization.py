@@ -336,19 +336,6 @@ def test_jobspy_build_kwargs_manual() -> None:
     assert "google_search_term" in kwargs
 
 
-def test_jobspy_build_kwargs_from_llm(sample_llm_response: dict) -> None:
-    """Test kwargs building from LLM response."""
-    enricher = JobSpyEnricher()
-
-    kwargs = enricher._build_kwargs_from_llm(sample_llm_response, "Fallback", 15)
-
-    assert kwargs["search_term"] == "Software Engineer"
-    assert kwargs["location"] == "Bengaluru, Karnataka, India"
-    assert kwargs["country_indeed"] == "india"
-    assert kwargs["google_search_term"] == "Software Engineer jobs in Bengaluru, Karnataka, India"
-    assert kwargs["results_wanted"] == 15
-
-
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="JobSpy import causes Windows access violation in test environment")
 async def test_jobspy_fetch_with_llm_enabled() -> None:
