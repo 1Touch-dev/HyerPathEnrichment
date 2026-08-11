@@ -1,18 +1,18 @@
 """Comprehensive tests for session tracking system."""
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationAppError
 from app.modules.sessions.models import PracticeSession, QuestionAttempt
 from app.modules.sessions.schemas import (
+    QuestionAttemptRequest,
     SessionCreateRequest,
     SessionUpdateRequest,
-    QuestionAttemptRequest,
 )
 from app.services.session_manager import SessionManager
 
@@ -37,7 +37,7 @@ async def sample_session(db: AsyncSession, test_user_id: UUID) -> PracticeSessio
         user_id=test_user_id,
         session_type="behavioral",
         status="pending",
-        started_at=datetime.now(UTC),  # Fixed deprecated utcnow()
+        started_at=datetime.now(UTC),
         session_metadata={"difficulty": "medium"},
     )
     db.add(session)
@@ -134,7 +134,7 @@ class TestSessionListing:
                 user_id=test_user_id,
                 session_type=f"type_{i}",
                 status="pending",
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(UTC),
             )
             db.add(session)
         await db.commit()
@@ -195,7 +195,7 @@ class TestSessionUpdate:
             user_id=test_user_id,
             session_type="test",
             status="in_progress",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         db.add(session)
         await db.commit()
@@ -215,8 +215,8 @@ class TestSessionUpdate:
             user_id=test_user_id,
             session_type="test",
             status="completed",
-            started_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
         )
         db.add(session)
         await db.commit()
@@ -235,7 +235,7 @@ class TestSessionUpdate:
             user_id=test_user_id,
             session_type="test",
             status="pending",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         db.add(session)
         await db.commit()
@@ -279,7 +279,7 @@ class TestSessionDeletion:
             user_id=test_user_id,
             session_type="test",
             status="in_progress",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
         )
         db.add(session)
         await db.commit()
@@ -291,7 +291,7 @@ class TestSessionDeletion:
             user_id=test_user_id,
             response_type="text",
             text_response="Test answer",
-            attempted_at=datetime.utcnow(),
+            attempted_at=datetime.now(UTC),
         )
         db.add(attempt)
         await db.commit()
@@ -313,7 +313,7 @@ class TestQuestionAttempts:
     ):
         """Test adding a text response attempt."""
         request = QuestionAttemptRequest(
-            question_id=str(uuid4()),
+            question_id=uuid4(),
             response_type="text",
             text_response="My answer to the question",
             ai_score=75.0,
@@ -333,7 +333,7 @@ class TestQuestionAttempts:
         """Test adding an audio response attempt."""
         audio_id = str(uuid4())
         request = QuestionAttemptRequest(
-            question_id=str(uuid4()),
+            question_id=uuid4(),
             response_type="audio",
             audio_recording_id=audio_id,
             ai_score=88.5,
@@ -382,8 +382,8 @@ class TestQuestionAttempts:
             user_id=test_user_id,
             session_type="test",
             status="completed",
-            started_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
         )
         db.add(session)
         await db.commit()

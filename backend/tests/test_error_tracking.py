@@ -43,6 +43,7 @@ def test_init_error_tracking_sets_environment_and_release(
     )
     monkeypatch.setattr(get_settings(), "sentry_environment", "staging")
     monkeypatch.setattr(get_settings(), "sentry_release", "abc123")
+    monkeypatch.setattr(get_settings(), "sentry_traces_sample_rate", 0.0)
     with patch("sentry_sdk.init") as mock_init:
         error_tracking.init_error_tracking()
     mock_init.assert_called_once()
@@ -80,13 +81,18 @@ def test_unhandled_exception_captures_once(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_app_error_does_not_capture(monkeypatch: pytest.MonkeyPatch) -> None:
+    from uuid import uuid4
+
     monkeypatch.setattr(get_settings(), "sentry_dsn", "http://example@test.local/1")
     capture = MagicMock()
     monkeypatch.setattr("app.core.exception_handlers.capture_exception", capture)
 
     client = TestClient(app)
     assert_error(
-        client.get("/enrich/missing-job-id", headers={"Authorization": "Bearer change-me"}),
+        client.get(
+            "/enrich/missing-job-id",
+            headers={"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())},
+        ),
         404,
         "NOT_FOUND",
     )

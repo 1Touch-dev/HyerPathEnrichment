@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -70,7 +71,7 @@ def _create_sync_job(client: TestClient, headers: dict[str, str], email: str) ->
 
 def test_list_jobs_pagination() -> None:
     client = TestClient(app)
-    headers = {"Authorization": "Bearer change-me"}
+    headers = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
 
     _create_sync_job(client, headers, "first@example.com")
     _create_sync_job(client, headers, "second@example.com")
@@ -109,4 +110,4 @@ def test_list_jobs_requires_bearer() -> None:
     client = TestClient(app)
     response = client.get("/enrich")
     assert response.status_code == 401
-    assert response.json()["error"]["message"] == "unauthorized"
+    assert "authorization" in response.json()["error"]["message"].lower()

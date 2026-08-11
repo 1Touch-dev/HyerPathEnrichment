@@ -73,7 +73,7 @@ class JobSpyEnricher(Enricher):
         ]
 
         logger.info(
-            f"JobSpy returned {len(jobs)} jobs from {len(set(j['source'] for j in jobs))} sources"
+            f"JobSpy returned {len(jobs)} jobs from {len({j['source'] for j in jobs})} sources"
         )
         return {"jobs": jobs} if jobs else {}
 

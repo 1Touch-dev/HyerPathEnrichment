@@ -6,7 +6,6 @@ import logging
 
 # Import ORM registry FIRST to register all models with SQLAlchemy
 import app.database.orm_registry  # noqa: F401
-
 from app.core.config import get_settings
 from app.workers.tasks.cleanup import cleanup_orphaned_jobs
 

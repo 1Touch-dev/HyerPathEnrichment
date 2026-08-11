@@ -1,10 +1,10 @@
 """Service layer for session management with state machine."""
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -60,7 +60,7 @@ class SessionManager:
             user_id=user_id,
             session_type=request.session_type,
             status="pending",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
             session_metadata=request.session_metadata,
         )
         self.db.add(session)
@@ -146,7 +146,7 @@ class SessionManager:
 
             # Set completed_at for terminal states
             if request.status in {"completed", "failed", "abandoned"}:
-                session.completed_at = datetime.utcnow()
+                session.completed_at = datetime.now(UTC)
 
         # Update metrics
         if request.questions_attempted is not None:
@@ -220,7 +220,7 @@ class SessionManager:
             score_breakdown=request.score_breakdown,
             ai_feedback=request.ai_feedback,
             time_taken_seconds=request.time_taken_seconds,
-            attempted_at=datetime.utcnow(),
+            attempted_at=datetime.now(UTC),
         )
         self.db.add(attempt)
 

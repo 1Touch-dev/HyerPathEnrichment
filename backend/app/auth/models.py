@@ -60,11 +60,11 @@ class User(Base):
     )
 
     # Relationships
-    practice_sessions: Mapped[list["PracticeSession"]] = relationship(
+    practice_sessions: Mapped[list[PracticeSession]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )
-    question_attempts: Mapped[list["QuestionAttempt"]] = relationship(
+    question_attempts: Mapped[list[QuestionAttempt]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )

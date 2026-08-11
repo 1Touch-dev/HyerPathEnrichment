@@ -5,16 +5,18 @@ Revises: 015_add_session_tracking, 016_interview_questions
 Create Date: 2026-08-07
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
+
 revision: str = "017_practice_audio_recordings"
-down_revision: Union[str, Sequence[str], None] = ("015_add_session_tracking", "016_interview_questions")
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = ("015_add_session_tracking", "016_interview_questions")
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -29,7 +31,9 @@ def upgrade() -> None:
     op.create_table(
         "practice_audio_recordings",
         sa.Column("id", uuid_type, primary_key=True, nullable=False),
-        sa.Column("user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column(
             "practice_session_id",
             uuid_type,

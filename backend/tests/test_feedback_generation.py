@@ -20,7 +20,7 @@ from app.services.feedback_generator import (
 @pytest.fixture(scope="module", autouse=True)
 def skip_db_setup():
     """Skip database migrations for these unit tests."""
-    return None
+    return
 
 
 def test_feedback_dimensions_defined():
@@ -218,7 +218,7 @@ async def test_generate_interview_feedback_success():
         # Mock the post response
         mock_response_obj = AsyncMock()
         mock_response_obj.raise_for_status = lambda: None
-        mock_response_obj.json = AsyncMock(return_value=mock_response)
+        mock_response_obj.json = lambda: mock_response
         mock_client.post = AsyncMock(return_value=mock_response_obj)
 
         feedback, tokens = await generate_interview_feedback(
@@ -262,7 +262,7 @@ async def test_generate_interview_feedback_api_error():
         # Mock response that raises error
         def raise_api_error():
             raise Exception("API Error")
-        
+
         mock_response_obj = AsyncMock()
         mock_response_obj.raise_for_status = raise_api_error
         mock_client.post = AsyncMock(return_value=mock_response_obj)
@@ -329,8 +329,8 @@ async def test_generate_feedback_token_usage_tracking():
         mock_client_class.return_value.__aenter__.return_value = mock_client
 
         mock_response_obj = AsyncMock()
-        mock_response_obj.raise_for_status = AsyncMock()
-        mock_response_obj.json = AsyncMock(return_value=mock_response)
+        mock_response_obj.raise_for_status = lambda: None
+        mock_response_obj.json = lambda: mock_response
         mock_client.post = AsyncMock(return_value=mock_response_obj)
 
         _, tokens = await generate_interview_feedback(

@@ -10,15 +10,16 @@ Create Date: 2026-08-04
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 from sqlalchemy import text
 
+from alembic import op
+
 revision: str = "010_enable_pgvector"
-down_revision: Union[str, Sequence[str], None] = "009_unique_user_file_hash"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "009_unique_user_file_hash"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

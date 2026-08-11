@@ -59,7 +59,9 @@ def _bash(script: str, *extra: str) -> list[str]:
                 return [candidate, str(SCRIPTS / script), *extra]
         wsl = shutil.which("wsl")
         if wsl:
-            wsl_path = "/mnt/" + str(ROOT.drive).rstrip(":").lower() + str(ROOT)[2:].replace("\\", "/")
+            wsl_path = (
+                "/mnt/" + str(ROOT.drive).rstrip(":").lower() + str(ROOT)[2:].replace("\\", "/")
+            )
             wsl_script = f"{wsl_path}/scripts/{script}"
             return [wsl, "bash", wsl_script, *extra]
     return ["bash", str(SCRIPTS / script), *extra]
@@ -77,6 +79,7 @@ def _run(cmd: list[str]) -> tuple[int, str]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        check=False,
     )
     out = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode, out.strip()
@@ -129,7 +132,13 @@ def main() -> int:
         if status == "fail":
             exit_code = 1
         steps.append(
-            StepResult(name=name, command=" ".join(command), exit_code=code, status=status, detail=detail[:500])
+            StepResult(
+                name=name,
+                command=" ".join(command),
+                exit_code=code,
+                status=status,
+                detail=detail[:500],
+            )
         )
 
     unit_cmd = [
@@ -148,7 +157,12 @@ def main() -> int:
     record("unit_tests", unit_cmd, code, _detail(out) or (out.splitlines()[-1] if out else ""))
 
     if args.skip_live:
-        report = {"generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "mode": "skip-live", "steps": [asdict(s) for s in steps], "exit_code": exit_code}
+        report = {
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "mode": "skip-live",
+            "steps": [asdict(s) for s in steps],
+            "exit_code": exit_code,
+        }
         RESULTS.mkdir(parents=True, exist_ok=True)
         REPORT.write_text(json.dumps(report, indent=2), encoding="utf-8")
         return exit_code

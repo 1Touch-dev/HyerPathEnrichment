@@ -5,14 +5,13 @@ Tests PDF/DOCX parsing, file validation, security checks, and deduplication.
 
 from __future__ import annotations
 
-
 import pytest
 
-from app.services.document_processor import DocumentProcessor, DocumentProcessingError
+from app.services.document_processor import DocumentProcessingError, DocumentProcessor
 from app.storage.document_storage import (
+    MAX_FILE_SIZE_BYTES,
     DocumentStorageClient,
     DocumentStorageError,
-    MAX_FILE_SIZE_BYTES,
     compute_file_hash,
     validate_file_size,
     validate_mime_type,
@@ -101,8 +100,9 @@ startxref
 def sample_docx_data() -> bytes:
     """Create minimal valid DOCX data for testing."""
     try:
-        import docx
         from io import BytesIO
+
+        import docx
 
         doc = docx.Document()
         doc.add_paragraph("Test DOCX Content")

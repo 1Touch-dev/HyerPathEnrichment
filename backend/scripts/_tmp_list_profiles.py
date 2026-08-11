@@ -30,4 +30,12 @@ with httpx.Client(timeout=15.0) as client:
         headers=headers,
     )
     for p in resp3.json().get("data", {}).get("profiles", []):
-        print(p.get("id"), "|", p.get("name"), "| in_use_by=", repr(p.get("in_use_by")), "| last_launched_at=", p.get("last_launched_at"))
+        print(
+            p.get("id"),
+            "|",
+            p.get("name"),
+            "| in_use_by=",
+            repr(p.get("in_use_by")),
+            "| last_launched_at=",
+            p.get("last_launched_at"),
+        )

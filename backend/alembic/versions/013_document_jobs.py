@@ -9,16 +9,17 @@ Create Date: 2026-08-04
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
+
 revision: str = "013_document_jobs"
-down_revision: Union[str, Sequence[str], None] = "010_enable_pgvector"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "010_enable_pgvector"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -32,8 +33,15 @@ def upgrade() -> None:
     op.create_table(
         "document_jobs",
         sa.Column("id", uuid_type, primary_key=True, nullable=False),
-        sa.Column("user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("document_id", uuid_type, sa.ForeignKey("candidate_documents.id", ondelete="CASCADE"), nullable=True),
+        sa.Column(
+            "user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
+        sa.Column(
+            "document_id",
+            uuid_type,
+            sa.ForeignKey("candidate_documents.id", ondelete="CASCADE"),
+            nullable=True,
+        ),
         sa.Column("job_type", sa.String(50), nullable=False),
         sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
         sa.Column("progress", sa.Float, nullable=False, server_default="0.0"),
@@ -43,8 +51,12 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column("error", sa.Text, nullable=True),
-        sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("updated_at", sa.DateTime, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column(
+            "created_at", sa.DateTime, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
     )
 
     # Create indexes for common queries

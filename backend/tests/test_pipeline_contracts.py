@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -22,7 +23,7 @@ from app.enrichers.pipeline import Pipeline
 from app.main import app
 from app.modules.enrichment import service as enrichment_service
 
-AUTH_HEADERS = {"Authorization": "Bearer change-me"}
+AUTH_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
 
 
 def _stub(fragment: dict[str, Any]):
@@ -235,7 +236,9 @@ def test_suppressed_async_and_sync() -> None:
 def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) -> None:
     enqueued: list[str] = []
     monkeypatch.setattr(
-        enrichment_service, "enqueue_enrichment", lambda job_id: enqueued.append(job_id)
+        enrichment_service,
+        "enqueue_enrichment",
+        lambda job_id, *args, **kwargs: enqueued.append(job_id),
     )
 
     client = TestClient(app)

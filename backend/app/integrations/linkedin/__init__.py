@@ -37,12 +37,12 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
 }
 
 __all__ = [
+    "NO_RETRY_OUTCOMES",
+    "ROTATE_PROFILE_OUTCOMES",
     "ExtractionMethod",
     "LinkedInBrowserClient",
     "LinkedInPhotoError",
     "LinkedInPhotoResult",
-    "NO_RETRY_OUTCOMES",
-    "ROTATE_PROFILE_OUTCOMES",
     "connect_selenium",
     "detect_page_state",
     "download_image",

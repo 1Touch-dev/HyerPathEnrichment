@@ -20,14 +20,14 @@ from app.core.config import get_settings
 
 async def test_optimization(job_title: str, location: str | None, country: str | None) -> None:
     """Test LLM optimization with given parameters."""
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Testing: job_title='{job_title}', location='{location}', country='{country}'")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     settings = get_settings()
 
     # Display settings
-    print(f"\nSettings:")
+    print("\nSettings:")
     print(f"  LLM_MODE: {settings.llm_mode}")
     print(f"  LITELLM_API_BASE: {settings.litellm_api_base}")
     print(f"  LITELLM_MODEL: {settings.litellm_model}")
@@ -43,11 +43,9 @@ async def test_optimization(job_title: str, location: str | None, country: str |
         return
 
     # Call LLM optimization
-    print(f"\nCalling LiteLLM for query optimization...")
+    print("\nCalling LiteLLM for query optimization...")
     try:
-        result = await litellm_optimize_job_query(
-            job_title, location, country, settings
-        )
+        result = await litellm_optimize_job_query(job_title, location, country, settings)
 
         if result is None:
             print("\nWARNING: LLM optimization returned None (fallback to manual logic)")
@@ -91,29 +89,26 @@ async def test_optimization(job_title: str, location: str | None, country: str |
     except Exception as e:
         print(f"\nERROR: {e}")
         import traceback
+
         traceback.print_exc()
 
 
 async def main() -> None:
     """Run integration tests with various inputs."""
-    print("="*80)
+    print("=" * 80)
     print("LLM Job Query Optimization Integration Test")
-    print("="*80)
+    print("=" * 80)
 
     # Test cases
     test_cases = [
         # Test case 1: Indian city
         ("Backend Developer", "Bengaluru", "India"),
-
         # Test case 2: US city
         ("Software Engineer", "San Francisco", "USA"),
-
         # Test case 3: Location with state
         ("Data Scientist", "Bengaluru, Karnataka", "India"),
-
         # Test case 4: No country
         ("Frontend Developer", "London", None),
-
         # Test case 5: Common typo
         ("DevOps Engineer", "Bangalore", "India"),
     ]
@@ -122,9 +117,9 @@ async def main() -> None:
         await test_optimization(job_title, location, country)
         await asyncio.sleep(1)  # Rate limiting
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("Integration tests complete!")
-    print("="*80)
+    print("=" * 80)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -53,7 +52,7 @@ def _generate_feedback_sync(attempt_id: str, db: Session) -> None:
     # Using attempt_metadata as a workaround for foundation week
     # If question_id is null, pass None to enable general evaluation mode
     question_text = None
-    if hasattr(attempt, "attempt_metadata") and isinstance(attempt.attempt_metadata, dict):
+    if isinstance(attempt.attempt_metadata, dict):
         question_text = attempt.attempt_metadata.get("question_text")
 
     # Generate feedback (run async function in event loop)
@@ -72,16 +71,17 @@ def _generate_feedback_sync(attempt_id: str, db: Session) -> None:
         loop.close()
 
     # Update attempt with feedback
-    attempt.ai_score = Decimal(str(feedback["overall_score"]))
+    attempt.ai_score = float(feedback["overall_score"])
     attempt.score_breakdown = feedback["dimension_scores"]
     attempt.ai_feedback = feedback["detailed_feedback"]
 
-    # Add strengths and improvements to attempt_metadata
-    if not hasattr(attempt, "attempt_metadata") or attempt.attempt_metadata is None:
-        attempt.attempt_metadata = {}
-
-    attempt.attempt_metadata["strengths"] = feedback["strengths"]
-    attempt.attempt_metadata["improvements"] = feedback["improvements"]
+    # Add strengths and improvements to attempt_metadata.
+    # Reassign (not in-place mutate) so SQLAlchemy's change tracking detects
+    # the update on the JSON column and includes it in the commit.
+    updated_metadata = dict(attempt.attempt_metadata or {})
+    updated_metadata["strengths"] = feedback["strengths"]
+    updated_metadata["improvements"] = feedback["improvements"]
+    attempt.attempt_metadata = updated_metadata
 
     db.commit()
 
@@ -158,9 +158,9 @@ def generate_feedback_job(attempt_id: str) -> None:
                 stmt = select(QuestionAttempt).where(QuestionAttempt.id == UUID(attempt_id))
                 attempt = db.scalar(stmt)
                 if attempt:
-                    if not hasattr(attempt, "attempt_metadata") or attempt.attempt_metadata is None:
-                        attempt.attempt_metadata = {}
-                    attempt.attempt_metadata["feedback_error"] = str(e)
+                    updated_metadata = dict(attempt.attempt_metadata or {})
+                    updated_metadata["feedback_error"] = str(e)
+                    attempt.attempt_metadata = updated_metadata
                     db.commit()
             except Exception as update_error:
                 logger.error(

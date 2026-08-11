@@ -28,14 +28,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
+from app.clients.sidecar import SidecarClient
 from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.crosslinked import CrossLinkedEnricher
 from app.enrichers.email_discover import EmailDiscoverEnricher
 from app.enrichers.email_verify import EmailVerifyEnricher
 from app.enrichers.gitrecon import GitReconEnricher
 from app.enrichers.theharvester import TheHarvesterEnricher
-from app.domain.enrichment import EnrichmentRequest
-from app.clients.sidecar import SidecarClient
 
 RESULTS_DIR = ROOT / ".e2e-results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -120,7 +120,8 @@ class Tier3Probe:
             "test_profiles": [{"username": u, "company": c} for u, c in TEST_PROFILES],
             "email_verify_level": self.settings.email_verify_level,
             "checks": [
-                {"name": r.name, "ok": r.ok, "detail": r.detail, "data": r.data} for r in self.results
+                {"name": r.name, "ok": r.ok, "detail": r.detail, "data": r.data}
+                for r in self.results
             ],
             "passed": sum(1 for r in self.results if r.ok),
             "failed": sum(1 for r in self.results if not r.ok),
@@ -212,7 +213,9 @@ class Tier3Probe:
         profile_ok = False
         last_detail = "no profiles tried"
         for username, company in TEST_PROFILES:
-            request = EnrichmentRequest(username=username, company=company, requested_tiers=["tier3"])
+            request = EnrichmentRequest(
+                username=username, company=company, requested_tiers=["tier3"]
+            )
             profile_failures: list[str] = []
             for name, enricher, predicate in required:
                 if not await enricher.validate(request):
@@ -225,7 +228,9 @@ class Tier3Probe:
                     )
 
             if profile_failures:
-                last_detail = f"profile={username}/{company} failures: {'; '.join(profile_failures)}"
+                last_detail = (
+                    f"profile={username}/{company} failures: {'; '.join(profile_failures)}"
+                )
                 continue
 
             self.profile_used = (username, company)
@@ -351,7 +356,9 @@ class Tier3Probe:
                     break
                 await asyncio.sleep(3)
 
-            ok, reason = dossier_tier3_ok(dossier) if status == "completed" else (False, f"status={status}")
+            ok, reason = (
+                dossier_tier3_ok(dossier) if status == "completed" else (False, f"status={status}")
+            )
             self.record(
                 "api_async_tier3",
                 ok,
