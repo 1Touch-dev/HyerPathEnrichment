@@ -18,6 +18,8 @@ export default defineConfig({
       "src/**/*.test.tsx",
       "features/**/*.test.ts",
       "features/**/*.test.tsx",
+      "components/**/*.test.ts",
+      "components/**/*.test.tsx",
     ],
     exclude: ["e2e/**", "node_modules/**"],
   },

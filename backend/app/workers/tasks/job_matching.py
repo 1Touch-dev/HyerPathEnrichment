@@ -407,13 +407,28 @@ def send_match_digest(user_id: str) -> dict[str, int]:
 
 
 async def _send_match_digest_async(user_id: str) -> dict[str, int]:
-    """Send a digest email for unnotified matches, then mark them notified.
+    """Send a digest notification for unnotified matches via every channel the
+    candidate has actually enabled, then mark them notified.
 
-    Per Decision 6: 'email' and 'webhook' channels are wired; 'sms' is accepted but
-    logged as a no-op, matching notify.py's fail-soft convention. Webhook delivery
-    additionally requires a candidate-configured `webhook_url` — without one, the
-    'webhook' channel is treated as a no-op just like 'sms'. 'push' delivery requires
-    at least one registered `PushSubscription` row; without one it's a no-op too.
+    Per Decision 6: 'email', 'webhook', and 'push' channels are wired; 'sms' is
+    accepted but logged as a no-op, matching notify.py's fail-soft convention.
+    Webhook delivery additionally requires a candidate-configured `webhook_url` —
+    without one, the 'webhook' channel is treated as a no-op just like 'sms'.
+    'push' delivery requires at least one registered `PushSubscription` row;
+    without one it's a no-op too.
+
+    Each channel below is gated independently on its own membership in
+    `prefs.notification_channels` — a candidate who only enabled "webhook" (or
+    only "push"), having unchecked "email", must still get that channel's
+    dispatch. The digest is only skipped up front when there's nothing to
+    notify about (`top_5` empty) or preferences/the user row are missing —
+    never based on which specific channel happens to be enabled.
+
+    If a candidate has no deliverable channel enabled at all (e.g. only "sms",
+    or none), the top-5 matches are still marked notified as "seen but not
+    delivered" rather than left to re-surface in every future digest forever —
+    the same fail-soft convention already used when a webhook/push delivery
+    itself fails (see the webhook/push failure tests below).
     """
     from app.clients.notify import notify_job_match
     from app.modules.job_matching import push
@@ -434,8 +449,6 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
 
         top_5 = unnotified[:5]
 
-        if "email" not in prefs.notification_channels:
-            return {"sent": 0}
         if "sms" in prefs.notification_channels:
             logger.info(
                 "SMS notification requested but not implemented (Decision 6) — skipping",
@@ -452,31 +465,31 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
             for m, p in top_5
         ]
 
-        # Fetch user email via auth module (read-only cross-module read of the User row —
-        # allowed per RULE.md: modules may read shared domain/auth records; no service coupling).
-        from app.auth.models import User
+        if "email" in prefs.notification_channels:
+            # Fetch user email via auth module (read-only cross-module read of the User row —
+            # allowed per RULE.md: modules may read shared domain/auth records; no service coupling).
+            from app.auth.models import User
 
-        user = await session.get(User, UUID(user_id))
-        if not user:
-            return {"sent": 0}
-
-        enqueue_email(
-            template="job_match_digest",
-            recipient=user.email,
-            context={
-                "matches": [
-                    {
-                        "title": p.title,
-                        "company": p.company,
-                        "location": p.location,
-                        "overall_score": m.overall_score,
-                        "explanation": m.explanation or "",
-                        "source_url": p.source_url or "",
-                    }
-                    for m, p in top_5
-                ],
-            },
-        )
+            user = await session.get(User, UUID(user_id))
+            if user:
+                enqueue_email(
+                    template="job_match_digest",
+                    recipient=user.email,
+                    context={
+                        "matches": [
+                            {
+                                "title": p.title,
+                                "company": p.company,
+                                "location": p.location,
+                                "overall_score": m.overall_score,
+                                "explanation": m.explanation or "",
+                                "source_url": p.source_url or "",
+                            }
+                            for m, p in top_5
+                        ],
+                    },
+                )
+                job_matching_digest_emails_sent_total.inc()
 
         if "webhook" in prefs.notification_channels and prefs.webhook_url:
             webhook_sent = await notify_job_match(
@@ -514,7 +527,6 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
                 )
 
         await repository.mark_notified(session, [m.id for m, _ in top_5])
-        job_matching_digest_emails_sent_total.inc()
         return {"sent": len(top_5)}
 
 

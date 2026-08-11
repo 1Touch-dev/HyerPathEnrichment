@@ -85,6 +85,12 @@ class TestScoreLocationFit:
     def test_remote_posting_satisfies_any_location_preference(self):
         assert score_location_fit(None, True, ["New York"], "hybrid") == 1.0
 
+    def test_remote_posting_satisfies_onsite_preference(self):
+        """Documents the current (intentional) behavior: a fully-remote posting
+        satisfies any stated remote_preference — including "onsite" — since the
+        posting itself imposes no location constraint on the candidate."""
+        assert score_location_fit(None, True, ["New York"], "onsite") == 1.0
+
     def test_matching_city_scores_perfect(self):
         assert score_location_fit("New York, NY", False, ["New York"], "onsite") == 1.0
 
