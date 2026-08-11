@@ -448,7 +448,7 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
                 extra={"user_id": user_id[:8]},
             )
 
-        await repository.mark_notified(session, [m.id for m, _ in unnotified])
+        await repository.mark_notified(session, [m.id for m, _ in top_5])
         job_matching_digest_emails_sent_total.inc()
         return {"sent": len(top_5)}
 
