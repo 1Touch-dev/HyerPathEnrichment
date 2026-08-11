@@ -155,13 +155,14 @@ class Settings(BaseSettings):
     litellm_fallbacks: str = Field(default="", alias="LITELLM_FALLBACKS")
 
     # Module 2: Tinder-Style Job Board + CV Management (portfolio public URL)
-    # NOTE: remaining Module 2 §7 settings (perplexity_*, outreach_*,
-    # cv_feedback_model) land with the chunks that actually consume them
-    # (Phase B/C) — portfolio_public_base_url and cv_chat_max_turns are added
-    # now because portfolio/service.py and cv_chat_service.py already read
+    # NOTE: remaining Module 2 §7 settings (perplexity_*, outreach_*) land
+    # with the chunks that actually consume them (Phase B/C) — the fields
+    # below are added now because portfolio/service.py, cv_chat_service.py,
+    # and feedback_generator.generate_cv_improvement() (§8.8) already read
     # them and need them to be non-blocking per the reviewer gate.
     portfolio_public_base_url: str = Field(default="", alias="PORTFOLIO_PUBLIC_BASE_URL")
     cv_chat_max_turns: int = Field(default=12, alias="CV_CHAT_MAX_TURNS")
+    cv_feedback_model: str = Field(default="gpt-4o-mini", alias="CV_FEEDBACK_MODEL")
 
     # OpenAI API (for CV extraction, embeddings, etc.)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
