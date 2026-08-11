@@ -15,6 +15,7 @@ from app.modules.job_matching.models import (
     JobMatch,
     JobPosting,
     JobPostingEmbedding,
+    PushSubscription,
 )
 from app.modules.sessions.models import PracticeSession, QuestionAttempt
 from app.modules.signals.models import SignalRecord
@@ -40,6 +41,7 @@ _ = (
     JobMatch,
     JobPosting,
     JobPostingEmbedding,
+    PushSubscription,
 )
 
 # Re-export for alembic env after patch
@@ -58,6 +60,7 @@ __all__ = [
     "OAuthAccount",
     "PhotoCacheRecord",
     "PracticeSession",
+    "PushSubscription",
     "QuestionAttempt",
     "RefreshToken",
     "SignalRecord",

@@ -16,6 +16,7 @@ from app.modules.job_matching.models import (
     JobMatch,
     JobPosting,
     JobPostingEmbedding,
+    PushSubscription,
 )
 from app.services.vector_search import cosine_similarity
 
@@ -250,6 +251,12 @@ async def mark_notified(db: AsyncSession, match_ids: list[UUID]) -> None:
         update(JobMatch).where(JobMatch.id.in_(match_ids)).values(notified_at=datetime.now(UTC))
     )
     await db.commit()
+
+
+async def list_subscriptions_for_user(db: AsyncSession, user_id: UUID) -> list[PushSubscription]:
+    """All push subscriptions registered for a candidate — feeds push digest fan-out."""
+    result = await db.execute(select(PushSubscription).where(PushSubscription.user_id == user_id))
+    return list(result.scalars().all())
 
 
 async def count_unread_matches(db: AsyncSession, user_id: UUID) -> int:

@@ -139,6 +139,12 @@ class Settings(BaseSettings):
     )
     notify_sms_enabled: bool = Field(default=False, alias="NOTIFY_SMS_ENABLED")
 
+    # Web push (browser notifications) — VAPID keypair, generate once via `vapid_gen_keys`
+    # or the `py-vapid` CLI (ops step, not committed with real values).
+    vapid_public_key: str = Field(default="", alias="VAPID_PUBLIC_KEY")
+    vapid_private_key: str = Field(default="", alias="VAPID_PRIVATE_KEY")
+    vapid_subject: str = Field(default="mailto:ops@example.com", alias="VAPID_SUBJECT")
+
     # LLM disambiguation
     disambiguation_threshold: float = Field(default=0.7, alias="DISAMBIGUATION_THRESHOLD")
     ollama_base_url: str = Field(default="", alias="OLLAMA_BASE_URL")

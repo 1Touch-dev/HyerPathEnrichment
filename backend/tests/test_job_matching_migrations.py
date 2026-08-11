@@ -32,6 +32,7 @@ REV_CANDIDATE_JOB_PREFERENCES = "020_candidate_job_preferences"
 REV_JOB_MATCHES = "021_job_matches"
 REV_WEBHOOK_URL_PREFERENCES = "022_webhook_url_preferences"
 REV_JOB_MATCH_EXPLANATION_STATUS = "023_job_match_explanation_status"
+REV_PUSH_SUBSCRIPTIONS = "024_push_subscriptions"
 
 
 @pytest.fixture
@@ -340,6 +341,73 @@ class TestJobMatchExplanationStatusSchema:
             "is_error",
             "retry_count",
         } <= cols_after_reupgrade.keys()
+
+
+class TestPushSubscriptionsSchema:
+    """Revision 024: push_subscriptions table for browser push notification delivery."""
+
+    def test_table_exists(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        names = table_names(sqlite_url)
+        assert "push_subscriptions" in names
+
+    def test_columns(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        cols = _columns(sqlite_url, "push_subscriptions")
+        expected = {
+            "id",
+            "user_id",
+            "endpoint",
+            "p256dh_key",
+            "auth_key",
+            "created_at",
+            "last_used_at",
+        }
+        assert expected <= cols.keys()
+        assert cols["user_id"]["nullable"] is False
+        assert cols["endpoint"]["nullable"] is False
+        assert cols["p256dh_key"]["nullable"] is False
+        assert cols["auth_key"]["nullable"] is False
+        assert cols["created_at"]["nullable"] is False
+        assert cols["last_used_at"]["nullable"] is True
+
+    def test_foreign_key_to_users(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        fks = _foreign_keys(sqlite_url, "push_subscriptions")
+        referred_tables = {fk["referred_table"] for fk in fks}
+        assert "users" in referred_tables
+        user_fk = next(fk for fk in fks if fk["referred_table"] == "users")
+        assert user_fk["constrained_columns"] == ["user_id"]
+
+    def test_indexes(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        indexes = {ix["name"]: ix for ix in _indexes(sqlite_url, "push_subscriptions")}
+        assert indexes["ix_push_subscriptions_user_id"]["column_names"] == ["user_id"]
+        endpoint_index = indexes["ix_push_subscriptions_endpoint"]
+        assert bool(endpoint_index["unique"])
+        assert endpoint_index["column_names"] == ["endpoint"]
+
+    def test_downgrade_drops_only_push_subscriptions(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        _downgrade_to(sqlite_url, REV_JOB_MATCH_EXPLANATION_STATUS)
+        names = table_names(sqlite_url)
+        assert "push_subscriptions" not in names
+        assert {
+            "job_postings",
+            "job_posting_embeddings",
+            "candidate_job_preferences",
+            "job_matches",
+        } <= names
+
+    def test_full_downgrade_then_reupgrade_is_clean(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        _downgrade_to(sqlite_url, REV_JOB_MATCH_EXPLANATION_STATUS)
+        names_after_downgrade = table_names(sqlite_url)
+        assert "push_subscriptions" not in names_after_downgrade
+
+        upgrade_head(sqlite_url)
+        names_after_reupgrade = table_names(sqlite_url)
+        assert "push_subscriptions" in names_after_reupgrade
 
 
 class TestDowngrades:
