@@ -42,7 +42,7 @@ class JobMatchingService:
             salary_max=prefs.salary_max,
             salary_currency=prefs.salary_currency,
             notification_channels=cast(
-                'list[Literal["email", "sms", "webhook"]]', prefs.notification_channels
+                'list[Literal["email", "sms", "webhook", "push"]]', prefs.notification_channels
             ),
             webhook_url=prefs.webhook_url,
             digest_frequency=cast('Literal["daily", "weekly", "off"]', prefs.digest_frequency),

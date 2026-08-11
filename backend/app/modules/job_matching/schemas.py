@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-_NotificationChannel = Literal["email", "sms", "webhook"]
+_NotificationChannel = Literal["email", "sms", "webhook", "push"]
 
 
 def _default_notification_channels() -> list[_NotificationChannel]:
@@ -80,3 +80,13 @@ class JobMatchFeedbackRequest(BaseModel):
 class ScanTriggerResponse(BaseModel):
     message: str
     scan_enqueued: bool
+
+
+class PushSubscriptionRequest(BaseModel):
+    endpoint: str = Field(max_length=2048)
+    p256dh: str
+    auth: str
+
+
+class PushUnsubscribeRequest(BaseModel):
+    endpoint: str = Field(max_length=2048)

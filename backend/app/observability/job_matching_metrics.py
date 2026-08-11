@@ -56,6 +56,12 @@ job_matching_webhook_notifications_total = Counter(
     ["status"],
 )
 
+job_matching_push_notifications_total = Counter(
+    "job_matching_push_notifications_total",
+    "Total job-match push notification delivery attempts",
+    ["status"],
+)
+
 job_matching_scan_duration_seconds = Histogram(
     "job_matching_scan_duration_seconds", "Duration of a single candidate scan"
 )

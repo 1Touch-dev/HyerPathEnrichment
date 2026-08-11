@@ -41,6 +41,7 @@ from app.modules.job_matching.models import (
     JobMatch,
     JobPosting,
     JobPostingEmbedding,
+    PushSubscription,
 )
 from app.modules.job_matching.scorer import compute_dedup_key
 from app.workers.tasks.job_matching import (
@@ -219,6 +220,22 @@ def _get_postings() -> list[JobPosting]:
         return list(session.execute(select(JobPosting)).scalars().all())
 
 
+def _create_push_subscription(user_id, **overrides) -> PushSubscription:
+    with SyncSessionLocal() as session:
+        fields = {
+            "user_id": user_id,
+            "endpoint": f"https://fcm.googleapis.com/fcm/send/{uuid.uuid4().hex}",
+            "p256dh_key": "fake-p256dh-key",
+            "auth_key": "fake-auth-key",
+        }
+        fields.update(overrides)
+        subscription = PushSubscription(**fields)
+        session.add(subscription)
+        session.commit()
+        session.refresh(subscription)
+        return subscription
+
+
 def _get_match(match_id) -> JobMatch | None:
     with SyncSessionLocal() as session:
         return session.execute(select(JobMatch).where(JobMatch.id == match_id)).scalar_one_or_none()
@@ -311,6 +328,21 @@ def _mock_notify_job_match(return_value: bool = True):
     return patch(
         "app.clients.notify.notify_job_match", new_callable=AsyncMock, return_value=return_value
     )
+
+
+def _mock_send_push_notification(return_value: bool = True, side_effect=None):
+    """Patch `send_push_notification` at its source module `app.modules.job_matching.push`.
+
+    Same rationale as `_mock_notify_job_match`: `_send_match_digest_async` does
+    `from app.modules.job_matching import push` *inside* the function body, so the
+    source attribute must be patched for the re-import to pick it up.
+    """
+    kwargs = {"new_callable": AsyncMock}
+    if side_effect is not None:
+        kwargs["side_effect"] = side_effect
+    else:
+        kwargs["return_value"] = return_value
+    return patch("app.modules.job_matching.push.send_push_notification", **kwargs)
 
 
 class TestBuildSearchTerm:
@@ -818,6 +850,95 @@ class TestSendMatchDigest:
 
         assert result == {"sent": 1}
         mock_notify.assert_called_once()
+
+        refreshed = _get_match(match.id)
+        assert refreshed is not None
+        assert refreshed.notified_at is not None
+
+    def test_calls_send_push_notification_when_push_channel_and_subscription_exist(self):
+        """Push dispatch fires with a correctly-shaped payload when both the 'push'
+        channel is selected AND at least one PushSubscription is registered."""
+        user = _create_user(email=f"push-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(user.id, notification_channels=["email", "push"])
+        posting = _create_posting(source_url="https://linkedin.com/jobs/12345")
+        _create_match(user.id, posting.id, notified_at=None)
+        subscription = _create_push_subscription(user.id)
+
+        with _mock_enqueue_email(), _mock_send_push_notification(return_value=True) as mock_push:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_push.assert_called_once()
+        args, _kwargs = mock_push.call_args
+        assert args[0].endpoint == subscription.endpoint
+        assert args[1]["candidate_id"] == str(user.id)
+        assert args[1]["matches"][0]["title"] == posting.title
+        assert args[1]["matches"][0]["company"] == posting.company
+        assert args[1]["matches"][0]["source_url"] == posting.source_url
+
+    def test_calls_send_push_notification_once_per_subscription(self):
+        """A candidate with multiple registered subscriptions (e.g. two browsers) gets a
+        push attempt fanned out to each one."""
+        user = _create_user(email=f"push-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(user.id, notification_channels=["email", "push"])
+        posting = _create_posting()
+        _create_match(user.id, posting.id, notified_at=None)
+        _create_push_subscription(user.id)
+        _create_push_subscription(user.id)
+
+        with _mock_enqueue_email(), _mock_send_push_notification(return_value=True) as mock_push:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        assert mock_push.call_count == 2
+
+    def test_skips_send_push_notification_when_push_channel_not_selected(self):
+        """No push attempt when 'push' isn't in notification_channels, even though a
+        subscription is registered."""
+        user = _create_user(email=f"push-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(user.id, notification_channels=["email"])
+        posting = _create_posting()
+        _create_match(user.id, posting.id, notified_at=None)
+        _create_push_subscription(user.id)
+
+        with _mock_enqueue_email(), _mock_send_push_notification() as mock_push:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_push.assert_not_called()
+
+    def test_skips_send_push_notification_when_no_subscriptions_registered(self):
+        """No push attempt when 'push' is selected but the candidate has no registered
+        PushSubscription rows."""
+        user = _create_user(email=f"push-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(user.id, notification_channels=["email", "push"])
+        posting = _create_posting()
+        _create_match(user.id, posting.id, notified_at=None)
+
+        with _mock_enqueue_email(), _mock_send_push_notification() as mock_push:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_push.assert_not_called()
+
+    def test_push_failure_is_fail_soft_and_still_sends_email(self):
+        """A failed push (send_push_notification returns False) must not raise and must
+        not prevent the email from being sent / the digest from completing."""
+        user = _create_user(email=f"push-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(user.id, notification_channels=["email", "push"])
+        posting = _create_posting()
+        match = _create_match(user.id, posting.id, notified_at=None)
+        _create_push_subscription(user.id)
+
+        with (
+            _mock_enqueue_email() as mock_enqueue,
+            _mock_send_push_notification(return_value=False) as mock_push,
+        ):
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_enqueue.assert_called_once()
+        mock_push.assert_called_once()
 
         refreshed = _get_match(match.id)
         assert refreshed is not None

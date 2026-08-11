@@ -9,13 +9,14 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from redis.exceptions import RedisError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.core.config import get_settings
 from app.main import app
 from app.modules.job_matching import events as job_matching_events
-from app.modules.job_matching.models import JobMatch, JobPosting
+from app.modules.job_matching.models import JobMatch, JobPosting, PushSubscription
 from tests.envelope_helpers import assert_error, assert_success
 
 
@@ -387,6 +388,143 @@ def test_trigger_scan_returns_enqueued(client: TestClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# POST/DELETE /api/job-matching/push-subscription
+# ---------------------------------------------------------------------------
+
+
+async def _get_subscription_by_endpoint(db: AsyncSession, endpoint: str) -> PushSubscription | None:
+    result = await db.execute(select(PushSubscription).where(PushSubscription.endpoint == endpoint))
+    return result.scalar_one_or_none()
+
+
+def test_create_push_subscription_success(client: TestClient, db: AsyncSession) -> None:
+    user_id = str(uuid4())
+    headers = _auth_headers(user_id)
+    endpoint = f"https://fcm.googleapis.com/fcm/send/{uuid4().hex}"
+
+    response = client.post(
+        "/api/job-matching/push-subscription",
+        headers=headers,
+        json={"endpoint": endpoint, "p256dh": "fake-p256dh", "auth": "fake-auth"},
+    )
+    assert response.status_code == 204
+
+
+async def test_create_push_subscription_persists_row(client: TestClient, db: AsyncSession) -> None:
+    user_id = str(uuid4())
+    headers = _auth_headers(user_id)
+    endpoint = f"https://fcm.googleapis.com/fcm/send/{uuid4().hex}"
+
+    client.post(
+        "/api/job-matching/push-subscription",
+        headers=headers,
+        json={"endpoint": endpoint, "p256dh": "fake-p256dh", "auth": "fake-auth"},
+    )
+
+    subscription = await _get_subscription_by_endpoint(db, endpoint)
+    assert subscription is not None
+    assert str(subscription.user_id) == user_id
+    assert subscription.p256dh_key == "fake-p256dh"
+    assert subscription.auth_key == "fake-auth"
+
+
+async def test_create_push_subscription_upserts_by_endpoint(
+    client: TestClient, db: AsyncSession
+) -> None:
+    """Re-subscribing with the same endpoint (e.g. browser re-registering) updates the
+    existing row's keys/user_id rather than creating a duplicate."""
+    endpoint = f"https://fcm.googleapis.com/fcm/send/{uuid4().hex}"
+    first_user_id = str(uuid4())
+    second_user_id = str(uuid4())
+
+    client.post(
+        "/api/job-matching/push-subscription",
+        headers=_auth_headers(first_user_id),
+        json={"endpoint": endpoint, "p256dh": "old-p256dh", "auth": "old-auth"},
+    )
+    response = client.post(
+        "/api/job-matching/push-subscription",
+        headers=_auth_headers(second_user_id),
+        json={"endpoint": endpoint, "p256dh": "new-p256dh", "auth": "new-auth"},
+    )
+    assert response.status_code == 204
+
+    subscription = await _get_subscription_by_endpoint(db, endpoint)
+    assert subscription is not None
+    assert str(subscription.user_id) == second_user_id
+    assert subscription.p256dh_key == "new-p256dh"
+    assert subscription.auth_key == "new-auth"
+
+
+def test_create_push_subscription_missing_fields_returns_422(client: TestClient) -> None:
+    response = client.post(
+        "/api/job-matching/push-subscription",
+        headers=_auth_headers(),
+        json={"endpoint": "https://fcm.googleapis.com/fcm/send/abc"},
+    )
+    assert response.status_code == 422
+
+
+async def test_delete_push_subscription_success(client: TestClient, db: AsyncSession) -> None:
+    user_id = str(uuid4())
+    headers = _auth_headers(user_id)
+    endpoint = f"https://fcm.googleapis.com/fcm/send/{uuid4().hex}"
+    client.post(
+        "/api/job-matching/push-subscription",
+        headers=headers,
+        json={"endpoint": endpoint, "p256dh": "fake-p256dh", "auth": "fake-auth"},
+    )
+
+    response = client.request(
+        "DELETE",
+        "/api/job-matching/push-subscription",
+        headers=headers,
+        json={"endpoint": endpoint},
+    )
+    assert response.status_code == 204
+
+    subscription = await _get_subscription_by_endpoint(db, endpoint)
+    assert subscription is None
+
+
+async def test_delete_push_subscription_scoped_to_user(
+    client: TestClient, db: AsyncSession
+) -> None:
+    """A user can't delete another user's push subscription."""
+    owner_id = str(uuid4())
+    other_id = str(uuid4())
+    endpoint = f"https://fcm.googleapis.com/fcm/send/{uuid4().hex}"
+    client.post(
+        "/api/job-matching/push-subscription",
+        headers=_auth_headers(owner_id),
+        json={"endpoint": endpoint, "p256dh": "fake-p256dh", "auth": "fake-auth"},
+    )
+
+    response = client.request(
+        "DELETE",
+        "/api/job-matching/push-subscription",
+        headers=_auth_headers(other_id),
+        json={"endpoint": endpoint},
+    )
+    assert response.status_code == 204
+
+    subscription = await _get_subscription_by_endpoint(db, endpoint)
+    assert subscription is not None
+    assert str(subscription.user_id) == owner_id
+
+
+def test_delete_push_subscription_bogus_endpoint_is_noop(client: TestClient) -> None:
+    """Deleting a non-existent subscription is a no-op, not an error."""
+    response = client.request(
+        "DELETE",
+        "/api/job-matching/push-subscription",
+        headers=_auth_headers(),
+        json={"endpoint": "https://fcm.googleapis.com/fcm/send/does-not-exist"},
+    )
+    assert response.status_code == 204
+
+
+# ---------------------------------------------------------------------------
 # Auth requirements (all endpoints)
 # ---------------------------------------------------------------------------
 
@@ -398,6 +536,16 @@ _UNAUTHENTICATED_REQUESTS = [
     ("POST", f"/api/job-matching/matches/{uuid4()}/feedback", {"feedback": "up"}),
     ("POST", "/api/job-matching/scan", None),
     ("GET", "/api/job-matching/events", None),
+    (
+        "POST",
+        "/api/job-matching/push-subscription",
+        {"endpoint": "https://fcm.googleapis.com/fcm/send/abc", "p256dh": "x", "auth": "y"},
+    ),
+    (
+        "DELETE",
+        "/api/job-matching/push-subscription",
+        {"endpoint": "https://fcm.googleapis.com/fcm/send/abc"},
+    ),
 ]
 
 

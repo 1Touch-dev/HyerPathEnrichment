@@ -9,12 +9,14 @@ from starlette.responses import StreamingResponse
 from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
-from app.modules.job_matching import events, repository
+from app.modules.job_matching import events, push, repository
 from app.modules.job_matching.schemas import (
     JobMatchFeedbackRequest,
     JobMatchListResponse,
     JobPreferencesRequest,
     JobPreferencesResponse,
+    PushSubscriptionRequest,
+    PushUnsubscribeRequest,
     ScanTriggerResponse,
 )
 from app.modules.job_matching.service import JobMatchingService
@@ -95,3 +97,21 @@ async def stream_unread_match_events(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/push-subscription", status_code=status.HTTP_204_NO_CONTENT)
+async def create_push_subscription(
+    payload: PushSubscriptionRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    await push.subscribe(db, current_user.id, payload.endpoint, payload.p256dh, payload.auth)
+
+
+@router.delete("/push-subscription", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_push_subscription(
+    payload: PushUnsubscribeRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    await push.unsubscribe(db, current_user.id, payload.endpoint)

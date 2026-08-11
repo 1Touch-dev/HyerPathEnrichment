@@ -47,6 +47,7 @@ from app.observability.job_matching_metrics import (
     job_matching_digest_emails_sent_total,
     job_matching_explanations_generated_total,
     job_matching_postings_scraped_total,
+    job_matching_push_notifications_total,
     job_matching_scan_duration_seconds,
     job_matching_scans_total,
     job_matching_webhook_notifications_total,
@@ -411,9 +412,11 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
     Per Decision 6: 'email' and 'webhook' channels are wired; 'sms' is accepted but
     logged as a no-op, matching notify.py's fail-soft convention. Webhook delivery
     additionally requires a candidate-configured `webhook_url` — without one, the
-    'webhook' channel is treated as a no-op just like 'sms'.
+    'webhook' channel is treated as a no-op just like 'sms'. 'push' delivery requires
+    at least one registered `PushSubscription` row; without one it's a no-op too.
     """
     from app.clients.notify import notify_job_match
+    from app.modules.job_matching import push
     from app.workers.queue import enqueue_email
 
     async with SessionLocal() as session:
@@ -489,6 +492,26 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
                 "Webhook notification requested but no webhook_url configured — skipping",
                 extra={"user_id": user_id[:8]},
             )
+
+        if "push" in prefs.notification_channels:
+            subscriptions = await repository.list_subscriptions_for_user(session, UUID(user_id))
+            if subscriptions:
+                push_payload = {
+                    "source": "hyrepath-job-matching",
+                    "event": "job_match_digest",
+                    "candidate_id": user_id,
+                    "matches": match_payload,
+                }
+                for subscription in subscriptions:
+                    push_sent = await push.send_push_notification(subscription, push_payload)
+                    job_matching_push_notifications_total.labels(
+                        status="success" if push_sent else "failed"
+                    ).inc()
+            else:
+                logger.info(
+                    "Push notification requested but no subscriptions registered — skipping",
+                    extra={"user_id": user_id[:8]},
+                )
 
         await repository.mark_notified(session, [m.id for m, _ in top_5])
         job_matching_digest_emails_sent_total.inc()
