@@ -240,14 +240,39 @@ def _mock_embeddings_client():
     return patch("app.clients.embeddings.get_embeddings_client", return_value=mock_client)
 
 
-def _mock_explainer(return_value: str = "This role matches your background well."):
+FAKE_EXPLANATION_TOKEN_USAGE = {"input_tokens": 123, "output_tokens": 45}
+
+
+def _mock_explainer(
+    explanation: str = "This role matches your background well.",
+    token_usage: dict[str, int] | None = None,
+):
     """Patch `generate_match_explanation` at its source module (imported locally, per-call,
-    inside `_generate_explanations_for_candidate_async`)."""
+    inside `_generate_explanations_for_candidate_async`).
+
+    Returns the `(explanation, token_usage)` tuple shape the real function returns.
+    """
     return patch(
         "app.modules.job_matching.explainer.generate_match_explanation",
         new_callable=AsyncMock,
-        return_value=return_value,
+        return_value=(explanation, token_usage or dict(FAKE_EXPLANATION_TOKEN_USAGE)),
     )
+
+
+def _mock_track_embedding_cost():
+    return patch("app.workers.tasks.job_matching.track_embedding_cost", new_callable=AsyncMock)
+
+
+def _mock_track_embedding_failure():
+    return patch("app.workers.tasks.job_matching.track_embedding_failure")
+
+
+def _mock_track_llm_cost():
+    return patch("app.workers.tasks.job_matching.track_llm_cost", new_callable=AsyncMock)
+
+
+def _mock_track_llm_failure():
+    return patch("app.workers.tasks.job_matching.track_llm_failure")
 
 
 def _mock_enqueue_email():
@@ -352,6 +377,8 @@ class TestScanJobsForCandidate:
             _mock_embeddings_client(),
             _mock_explainer(),
             _mock_enqueue_email(),
+            _mock_track_embedding_cost() as mock_track_embedding_cost,
+            _mock_track_llm_cost() as mock_track_llm_cost,
         ):
             stats = scan_jobs_for_candidate(str(user.id))
 
@@ -366,6 +393,49 @@ class TestScanJobsForCandidate:
         assert len(postings) == len(unique_rows)
         assert {p.title for p in postings} == expected_titles
         assert all(p.dedup_key for p in postings)
+
+        assert mock_track_embedding_cost.call_count == stats["new_postings"]
+        mock_track_embedding_cost.assert_any_call(
+            model="text-embedding-3-small", tokens=FAKE_TOKEN_COUNT, num_embeddings=1
+        )
+        if stats["explanations"]:
+            mock_track_llm_cost.assert_any_call(
+                model="gpt-4o-mini",
+                input_tokens=FAKE_EXPLANATION_TOKEN_USAGE["input_tokens"],
+                output_tokens=FAKE_EXPLANATION_TOKEN_USAGE["output_tokens"],
+                operation="job_match_explanation",
+            )
+
+    def test_embedding_failure_tracks_failure_and_propagates(self):
+        """When `generate_embedding` raises, `track_embedding_failure` fires before the
+        exception propagates out of `_scan_jobs_for_candidate_async` (no existing
+        try/except wrapped this call, so the new one added for instrumentation is the
+        minimal-footprint way to observe + still let the failure surface)."""
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+        unique_rows = [
+            {
+                **FAKE_JOBSPY_ROWS[0],
+                "title": f"{FAKE_JOBSPY_ROWS[0]['title']} {uuid.uuid4().hex[:8]}",
+            }
+        ]
+
+        mock_client = MagicMock()
+        mock_client.generate_embedding = AsyncMock(side_effect=RuntimeError("embedding API down"))
+
+        with (
+            _mock_jobspy_scrape(unique_rows),
+            patch("app.clients.embeddings.get_embeddings_client", return_value=mock_client),
+            _mock_track_embedding_failure() as mock_track_failure,
+            _mock_track_embedding_cost() as mock_track_cost,
+        ):
+            with pytest.raises(RuntimeError, match="embedding API down"):
+                scan_jobs_for_candidate(str(user.id))
+
+        mock_track_failure.assert_called_once_with(model="text-embedding-3-small")
+        mock_track_cost.assert_not_called()
 
     def test_skips_when_preferences_missing(self):
         user = _create_user()
@@ -432,7 +502,10 @@ class TestGenerateExplanationsForCandidate:
         posting = _create_posting()
         match = _create_match(user.id, posting.id, explanation=None)
 
-        with _mock_explainer(return_value="Great fit due to matching skills and salary range."):
+        with (
+            _mock_explainer(explanation="Great fit due to matching skills and salary range."),
+            _mock_track_llm_cost() as mock_track_cost,
+        ):
             result = generate_explanations_for_candidate(str(user.id))
 
         assert result == {"generated": 1}
@@ -441,6 +514,13 @@ class TestGenerateExplanationsForCandidate:
         assert refreshed is not None
         assert refreshed.explanation == "Great fit due to matching skills and salary range."
         assert refreshed.explanation_generated_at is not None
+
+        mock_track_cost.assert_called_once_with(
+            model="gpt-4o-mini",
+            input_tokens=FAKE_EXPLANATION_TOKEN_USAGE["input_tokens"],
+            output_tokens=FAKE_EXPLANATION_TOKEN_USAGE["output_tokens"],
+            operation="job_match_explanation",
+        )
 
     def test_continues_past_failing_match(self):
         user = _create_user()
@@ -452,12 +532,16 @@ class TestGenerateExplanationsForCandidate:
         async def _side_effect(match, posting, settings):
             if match.id == match_a.id:
                 raise ValueError("simulated explanation failure")
-            return "Solid match on relevant skills."
+            return "Solid match on relevant skills.", dict(FAKE_EXPLANATION_TOKEN_USAGE)
 
-        with patch(
-            "app.modules.job_matching.explainer.generate_match_explanation",
-            new_callable=AsyncMock,
-            side_effect=_side_effect,
+        with (
+            patch(
+                "app.modules.job_matching.explainer.generate_match_explanation",
+                new_callable=AsyncMock,
+                side_effect=_side_effect,
+            ),
+            _mock_track_llm_cost() as mock_track_cost,
+            _mock_track_llm_failure() as mock_track_failure,
         ):
             result = generate_explanations_for_candidate(str(user.id))
 
@@ -468,6 +552,16 @@ class TestGenerateExplanationsForCandidate:
         assert refreshed_a is not None and refreshed_a.explanation is None
         assert (
             refreshed_b is not None and refreshed_b.explanation == "Solid match on relevant skills."
+        )
+
+        mock_track_failure.assert_called_once_with(
+            model="gpt-4o-mini", operation="job_match_explanation"
+        )
+        mock_track_cost.assert_called_once_with(
+            model="gpt-4o-mini",
+            input_tokens=FAKE_EXPLANATION_TOKEN_USAGE["input_tokens"],
+            output_tokens=FAKE_EXPLANATION_TOKEN_USAGE["output_tokens"],
+            operation="job_match_explanation",
         )
 
     def test_no_unexplained_matches_generates_nothing(self):

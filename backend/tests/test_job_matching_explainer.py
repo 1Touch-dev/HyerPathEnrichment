@@ -90,6 +90,7 @@ async def test_generate_match_explanation_success():
                 }
             }
         ],
+        "usage": {"prompt_tokens": 321, "completion_tokens": 47},
     }
 
     with patch("httpx.AsyncClient") as mock_client_class:
@@ -103,7 +104,9 @@ async def test_generate_match_explanation_success():
 
         result = await generate_match_explanation(match, posting, settings)
 
-        assert result == "This matches because ..."
+        explanation, token_usage = result
+        assert explanation == "This matches because ..."
+        assert token_usage == {"input_tokens": 321, "output_tokens": 47}
 
         assert mock_client.post.called
         call_args = mock_client.post.call_args
