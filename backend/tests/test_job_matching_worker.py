@@ -621,6 +621,60 @@ class TestSendMatchDigest:
         assert refreshed is not None
         assert refreshed.notified_at is not None
 
+    def test_only_top_5_emailed_matches_are_marked_notified(self):
+        """Regression test for the "marks 30, emails 5" bug: with more than 5 unnotified
+        matches, only the top-5 (by overall_score, matching what's actually emailed) get
+        `notified_at` set. The rest must remain unnotified so they're still eligible for a
+        future digest via `list_matches_for_user`'s `notified_at IS NULL` filtering.
+        """
+        user = _create_user(email=f"digest-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(user.id, notification_channels=["email"])
+
+        # A match's (user_id, job_posting_id) pair is unique, so each of the 7 unnotified
+        # matches needs its own posting.
+        matches = [
+            _create_match(
+                user.id,
+                _create_posting(dedup_key=uuid.uuid4().hex).id,
+                notified_at=None,
+                overall_score=90.0 - i,
+            )
+            for i in range(7)
+        ]
+        top_5_ids = {m.id for m in matches[:5]}
+        remaining_ids = {m.id for m in matches[5:]}
+
+        with _mock_enqueue_email() as mock_enqueue:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 5}
+        mock_enqueue.assert_called_once()
+        _, kwargs = mock_enqueue.call_args
+        assert len(kwargs["context"]["matches"]) == 5
+
+        notified_ids = {m.id for m in matches if _get_match(m.id).notified_at is not None}
+        assert notified_ids == top_5_ids
+
+        for match_id in remaining_ids:
+            refreshed = _get_match(match_id)
+            assert refreshed is not None
+            assert refreshed.notified_at is None
+
+        # The still-unnotified matches must still surface via list_matches_for_user's
+        # notified_at IS NULL filtering, proving they're eligible for a future digest.
+        async def _list_still_unnotified() -> set:
+            from app.database.session import SessionLocal
+            from app.modules.job_matching import repository
+
+            async with SessionLocal() as session:
+                rows, _total = await repository.list_matches_for_user(
+                    session, user.id, limit=100, offset=0
+                )
+                return {m.id for m, _p in rows if m.notified_at is None}
+
+        still_unnotified = asyncio.run(_list_still_unnotified())
+        assert still_unnotified == remaining_ids
+
 
 class TestCheckWorkerHealth:
     def test_returns_true_when_redis_and_queue_are_healthy(self):
