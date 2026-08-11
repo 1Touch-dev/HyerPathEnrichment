@@ -21,14 +21,7 @@ from app.modules.outreach.schemas import (
     OutreachListResponse,
     OutreachMessageResponse,
 )
-from app.workers.queue import get_redis_connection
-
-# NOTE (deviation from phase2_module2.md §8.13): the spec imports QUEUE_OUTREACH
-# from app.workers.queue, but that constant is added to queue.py by a later
-# Phase C wiring chunk (queue.py is explicitly read-only for this chunk). Defined
-# locally here with the exact same value the spec assigns it in queue.py so the
-# two line up once Phase C adds the constant there.
-QUEUE_OUTREACH = "outreach_generation"
+from app.workers.queue import QUEUE_OUTREACH, get_redis_connection
 
 _UNSUBSCRIBE_FOOTER_TEMPLATE = (
     "\n\n---\n"
@@ -47,7 +40,9 @@ class OutreachService:
     async def request_draft(self, user_id: UUID, body: OutreachDraftRequest) -> dict[str, Any]:
         """Enqueue draft generation. Returns immediately with a job reference (async, per RULE.md conventions)."""
         if not self._settings.outreach_enabled:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Outreach feature is disabled")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Outreach feature is disabled"
+            )
 
         doc_result = await self.db.execute(
             select(CandidateDocument).where(
@@ -56,7 +51,9 @@ class OutreachService:
         )
         document = doc_result.scalar_one_or_none()
         if not document or document.processing_status != "completed":
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A processed CV is required")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="A processed CV is required"
+            )
 
         queue = Queue(QUEUE_OUTREACH, connection=self.redis_conn)
         rq_job = queue.enqueue(
@@ -74,19 +71,25 @@ class OutreachService:
         messages = await list_messages_for_user(self.db, user_id)
         return OutreachListResponse(messages=[self._to_response(m) for m in messages])
 
-    async def edit_draft(self, user_id: UUID, message_id: str, body: OutreachEditRequest) -> OutreachMessageResponse:
+    async def edit_draft(
+        self, user_id: UUID, message_id: str, body: OutreachEditRequest
+    ) -> OutreachMessageResponse:
         message = await get_owned_message(self.db, UUID(message_id), user_id)
         if not message:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
         if message.status != "draft":
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only drafts can be edited")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Only drafts can be edited"
+            )
         message.subject = body.subject
         message.body = body.body
         await self.db.commit()
         await self.db.refresh(message)
         return self._to_response(message)
 
-    async def send_message(self, user_id: UUID, message_id: str, sender_email: str, sender_name: str) -> OutreachMessageResponse:
+    async def send_message(
+        self, user_id: UUID, message_id: str, sender_email: str, sender_name: str
+    ) -> OutreachMessageResponse:
         """Append the mandatory disclosure footer and mark as sent (Decision 5, CAN-SPAM).
 
         This method does NOT actually transmit an email over SMTP in v1 — no email-sending
@@ -102,7 +105,9 @@ class OutreachService:
         if not message:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
         if message.status != "draft":
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Message already sent or discarded")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Message already sent or discarded"
+            )
 
         footer = _UNSUBSCRIBE_FOOTER_TEMPLATE.format(
             sender_name=sender_name, company_name=message.company_name, sender_email=sender_email
