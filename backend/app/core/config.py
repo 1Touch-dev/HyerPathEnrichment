@@ -159,6 +159,13 @@ class Settings(BaseSettings):
     litellm_model: str = Field(default="gpt-4o-mini", alias="LITELLM_MODEL")
     litellm_fallbacks: str = Field(default="", alias="LITELLM_FALLBACKS")
 
+    # Module 2: Tinder-Style Job Board + CV Management (portfolio public URL)
+    # NOTE: remaining Module 2 §7 settings (perplexity_*, outreach_*, cv_chat_*,
+    # cv_feedback_model) land with the chunks that actually consume them
+    # (Phase B/C) — this one is added now because portfolio/service.py already
+    # reads it and needs it to be non-blocking per the reviewer gate.
+    portfolio_public_base_url: str = Field(default="", alias="PORTFOLIO_PUBLIC_BASE_URL")
+
     # OpenAI API (for CV extraction, embeddings, etc.)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     enable_embeddings: bool = Field(default=True, alias="ENABLE_EMBEDDINGS")
