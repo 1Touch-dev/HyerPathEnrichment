@@ -53,8 +53,12 @@ Explain why this score makes sense, citing specific evidence from the descriptio
 
 async def generate_match_explanation(
     match: JobMatch, posting: JobPosting, settings: Settings
-) -> str:
+) -> tuple[str, dict[str, int]]:
     """Generate a grounded explanation for a pre-computed match score.
+
+    Returns:
+        Tuple of (explanation, token_usage).
+        token_usage dict has 'input_tokens' and 'output_tokens' keys.
 
     Raises:
         httpx.HTTPError: If the API request fails.
@@ -80,12 +84,17 @@ async def generate_match_explanation(
         response.raise_for_status()
         result = response.json()
         content = result["choices"][0]["message"]["content"]
+        usage = result.get("usage", {})
+        token_usage = {
+            "input_tokens": usage.get("prompt_tokens", 0),
+            "output_tokens": usage.get("completion_tokens", 0),
+        }
 
         try:
             data = json.loads(content)
             explanation = str(data.get("explanation", "")).strip()
             if not explanation:
                 raise ValueError("Empty explanation returned")
-            return explanation
+            return explanation, token_usage
         except (json.JSONDecodeError, KeyError) as exc:
             raise ValueError(f"Invalid explanation JSON: {exc}") from exc

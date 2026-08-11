@@ -37,6 +37,12 @@ from app.modules.job_matching.scorer import (
     compute_overall_score,
     compute_rule_score,
 )
+from app.observability.cost_tracking import (
+    track_embedding_cost,
+    track_embedding_failure,
+    track_llm_cost,
+    track_llm_failure,
+)
 from app.observability.job_matching_metrics import (
     job_matching_digest_emails_sent_total,
     job_matching_explanations_generated_total,
@@ -191,8 +197,15 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                 if description:
                     if await repository.has_posting_embedding(session, posting.id):
                         continue
-                    embedding, token_count = await embeddings_client.generate_embedding(
-                        f"{title}\n{company}\n{description[:4000]}"
+                    try:
+                        embedding, token_count = await embeddings_client.generate_embedding(
+                            f"{title}\n{company}\n{description[:4000]}"
+                        )
+                    except Exception:
+                        track_embedding_failure(model="text-embedding-3-small")
+                        raise
+                    await track_embedding_cost(
+                        model="text-embedding-3-small", tokens=token_count, num_embeddings=1
                     )
                     await repository.store_posting_embedding(
                         session, posting.id, embedding, token_count
@@ -346,11 +359,20 @@ async def _generate_explanations_for_candidate_async(user_id: str) -> dict[str, 
         )
         for match, posting in top_matches:
             try:
-                explanation = await generate_match_explanation(match, posting, settings)
+                explanation, token_usage = await generate_match_explanation(
+                    match, posting, settings
+                )
                 await repository.save_explanation(session, match.id, explanation)
+                await track_llm_cost(
+                    model="gpt-4o-mini",
+                    input_tokens=token_usage["input_tokens"],
+                    output_tokens=token_usage["output_tokens"],
+                    operation="job_match_explanation",
+                )
                 generated += 1
                 job_matching_explanations_generated_total.inc()
             except Exception:
+                track_llm_failure(model="gpt-4o-mini", operation="job_match_explanation")
                 logger.warning(
                     "Failed to generate match explanation",
                     exc_info=True,
