@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from sqlalchemy import inspect
+from sqlalchemy import text as sa_text
 
 from tests.migration_helpers import (
     alembic_config,
@@ -29,6 +30,8 @@ REV_JOB_POSTINGS = "018_job_postings"
 REV_JOB_POSTING_EMBEDDINGS = "019_job_posting_embeddings"
 REV_CANDIDATE_JOB_PREFERENCES = "020_candidate_job_preferences"
 REV_JOB_MATCHES = "021_job_matches"
+REV_WEBHOOK_URL_PREFERENCES = "022_webhook_url_preferences"
+REV_JOB_MATCH_EXPLANATION_STATUS = "023_job_match_explanation_status"
 
 
 @pytest.fixture
@@ -244,6 +247,99 @@ class TestJobMatchesSchema:
         unique_index = indexes["ix_job_matches_user_posting"]
         assert bool(unique_index["unique"])
         assert set(unique_index["column_names"]) == {"user_id", "job_posting_id"}
+
+
+class TestJobMatchExplanationStatusSchema:
+    """Revision 023: explanation retry state machine columns on job_matches."""
+
+    def test_columns_have_correct_types_and_defaults(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        cols = _columns(sqlite_url, "job_matches")
+        expected = {"explanation_status", "last_error", "is_error", "retry_count"}
+        assert expected <= cols.keys()
+
+        assert cols["explanation_status"]["nullable"] is False
+        assert cols["last_error"]["nullable"] is True
+        assert cols["is_error"]["nullable"] is False
+        assert cols["retry_count"]["nullable"] is False
+
+    def test_backfill_marks_preexisting_explained_rows(self, sqlite_url: str):
+        """A row inserted at revision 022 (before this column existed) with a non-null
+        `explanation` must come out of `upgrade()` with `explanation_status='explained'`."""
+        command.upgrade(alembic_config(sqlite_url), REV_WEBHOOK_URL_PREFERENCES)
+
+        engine = sync_engine_for(sqlite_url)
+        match_id = "11111111-1111-1111-1111-111111111111"
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    sa_text(
+                        """
+                        INSERT INTO job_matches (
+                            id, user_id, job_posting_id, similarity_score, rule_score,
+                            overall_score, score_breakdown, explanation,
+                            explanation_generated_at, created_at
+                        ) VALUES (
+                            :id, :user_id, :job_posting_id, 0.5, 0.5, 50.0, '{}',
+                            'Already explained before this migration existed.',
+                            NULL, CURRENT_TIMESTAMP
+                        )
+                        """
+                    ),
+                    {
+                        "id": match_id,
+                        "user_id": "22222222-2222-2222-2222-222222222222",
+                        "job_posting_id": "33333333-3333-3333-3333-333333333333",
+                    },
+                )
+        finally:
+            engine.dispose()
+
+        command.upgrade(alembic_config(sqlite_url), REV_JOB_MATCH_EXPLANATION_STATUS)
+
+        engine = sync_engine_for(sqlite_url)
+        try:
+            with engine.connect() as conn:
+                row = conn.execute(
+                    sa_text("SELECT explanation_status FROM job_matches WHERE id = :id"),
+                    {"id": match_id},
+                ).fetchone()
+        finally:
+            engine.dispose()
+
+        assert row is not None
+        assert row[0] == "explained"
+
+    def test_downgrade_drops_all_four_columns(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        _downgrade_to(sqlite_url, REV_WEBHOOK_URL_PREFERENCES)
+        cols = _columns(sqlite_url, "job_matches")
+        assert not {"explanation_status", "last_error", "is_error", "retry_count"} & cols.keys()
+        # The table itself, and its pre-existing columns, must survive.
+        assert "explanation" in cols
+
+    def test_full_downgrade_then_reupgrade_is_clean(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        _downgrade_to(sqlite_url, REV_WEBHOOK_URL_PREFERENCES)
+        cols_after_downgrade = _columns(sqlite_url, "job_matches")
+        assert (
+            not {
+                "explanation_status",
+                "last_error",
+                "is_error",
+                "retry_count",
+            }
+            & cols_after_downgrade.keys()
+        )
+
+        upgrade_head(sqlite_url)
+        cols_after_reupgrade = _columns(sqlite_url, "job_matches")
+        assert {
+            "explanation_status",
+            "last_error",
+            "is_error",
+            "retry_count",
+        } <= cols_after_reupgrade.keys()
 
 
 class TestDowngrades:

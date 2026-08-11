@@ -134,6 +134,9 @@ class Settings(BaseSettings):
     job_matching_inactive_after_days: int = Field(
         default=14, alias="JOB_MATCHING_INACTIVE_AFTER_DAYS"
     )
+    job_matching_explanation_max_retries: int = Field(
+        default=3, alias="JOB_MATCHING_EXPLANATION_MAX_RETRIES"
+    )
     notify_sms_enabled: bool = Field(default=False, alias="NOTIFY_SMS_ENABLED")
 
     # LLM disambiguation

@@ -135,6 +135,13 @@ class JobMatch(Base):
     explanation_generated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # "not_explained"|"processing"|"explained"|"failed" — enforced at app layer, not DB
+    explanation_status: Mapped[str] = mapped_column(
+        String(20), default="not_explained", nullable=False
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_error: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     feedback: Mapped[str | None] = mapped_column(String(10), nullable=True)

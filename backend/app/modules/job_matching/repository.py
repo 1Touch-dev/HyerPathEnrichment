@@ -169,18 +169,69 @@ async def get_top_unexplained_matches(
     result = await db.execute(
         select(JobMatch, JobPosting)
         .join(JobPosting, JobMatch.job_posting_id == JobPosting.id)
-        .where(JobMatch.user_id == user_id, JobMatch.explanation.is_(None))
+        .where(JobMatch.user_id == user_id, JobMatch.explanation_status == "not_explained")
         .order_by(JobMatch.overall_score.desc())
         .limit(top_n)
     )
     return [(m, p) for m, p in result.all()]
 
 
+async def claim_match_for_explanation(db: AsyncSession, match_id: UUID) -> bool:
+    """Atomically claim a match for explanation generation.
+
+    Race-guard: flips explanation_status 'not_explained' -> 'processing' only if it's
+    still 'not_explained'. Returns whether this call won the claim (single-worker-replica
+    today, same assumption find_similar_postings/mark_viewed already document elsewhere).
+    """
+    result = await db.execute(
+        update(JobMatch)
+        .where(JobMatch.id == match_id, JobMatch.explanation_status == "not_explained")
+        .values(explanation_status="processing")
+    )
+    await db.commit()
+    return bool(result.rowcount > 0)  # type: ignore[attr-defined]
+
+
 async def save_explanation(db: AsyncSession, match_id: UUID, explanation: str) -> None:
     await db.execute(
         update(JobMatch)
         .where(JobMatch.id == match_id)
-        .values(explanation=explanation, explanation_generated_at=datetime.now(UTC))
+        .values(
+            explanation=explanation,
+            explanation_generated_at=datetime.now(UTC),
+            explanation_status="explained",
+            is_error=False,
+            last_error=None,
+        )
+    )
+    await db.commit()
+
+
+async def record_explanation_failure(
+    db: AsyncSession, match_id: UUID, error_message: str, max_retries: int
+) -> None:
+    """Record a failed explanation attempt and either requeue or cap the match as 'failed'.
+
+    Read-then-write (not a single atomic UPDATE): this isn't a high-concurrency path,
+    same assumption claim_match_for_explanation's race-guard above already documents.
+    """
+    result = await db.execute(select(JobMatch).where(JobMatch.id == match_id))
+    match = result.scalar_one_or_none()
+    if match is None:
+        return
+
+    new_retry_count = match.retry_count + 1
+    new_status = "not_explained" if new_retry_count < max_retries else "failed"
+
+    await db.execute(
+        update(JobMatch)
+        .where(JobMatch.id == match_id)
+        .values(
+            retry_count=new_retry_count,
+            is_error=True,
+            last_error=error_message,
+            explanation_status=new_status,
+        )
     )
     await db.commit()
 
