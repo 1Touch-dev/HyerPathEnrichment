@@ -751,17 +751,25 @@ class TestSendMatchDigest:
         assert result == {"sent": 0}
         mock_enqueue.assert_not_called()
 
-    def test_returns_zero_sent_when_email_channel_not_enabled(self):
+    def test_marks_notified_without_dispatching_when_no_deliverable_channel_enabled(self):
+        """A candidate with only 'sms' enabled (unimplemented per Decision 6) — or no
+        deliverable channel at all — still gets their top-5 matches marked notified as
+        'seen but not delivered', rather than left to re-surface in every future digest
+        forever."""
         user = _create_user()
         _create_preferences(user.id, notification_channels=["sms"])
         posting = _create_posting()
-        _create_match(user.id, posting.id, notified_at=None)
+        match = _create_match(user.id, posting.id, notified_at=None)
 
         with _mock_enqueue_email() as mock_enqueue:
             result = send_match_digest(str(user.id))
 
-        assert result == {"sent": 0}
+        assert result == {"sent": 1}
         mock_enqueue.assert_not_called()
+
+        refreshed = _get_match(match.id)
+        assert refreshed is not None
+        assert refreshed.notified_at is not None
 
     def test_returns_zero_sent_when_preferences_missing(self):
         user = _create_user()
@@ -797,6 +805,35 @@ class TestSendMatchDigest:
         assert kwargs["matches"][0]["title"] == posting.title
         assert kwargs["matches"][0]["company"] == posting.company
         assert kwargs["matches"][0]["source_url"] == posting.source_url
+
+    def test_calls_notify_job_match_when_webhook_only_channel_enabled_no_email(self):
+        """A candidate who only enabled 'webhook' (having unchecked 'email') must still
+        get the webhook dispatched, and their matches must still be marked notified."""
+        user = _create_user(email=f"webhook-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(
+            user.id,
+            notification_channels=["webhook"],
+            webhook_url="https://hooks.example.com/job-matches",
+        )
+        posting = _create_posting(source_url="https://linkedin.com/jobs/12345")
+        match = _create_match(user.id, posting.id, notified_at=None)
+
+        with (
+            _mock_enqueue_email() as mock_enqueue,
+            _mock_notify_job_match(return_value=True) as mock_notify,
+        ):
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_enqueue.assert_not_called()
+        mock_notify.assert_called_once()
+        _, kwargs = mock_notify.call_args
+        assert kwargs["webhook_url"] == "https://hooks.example.com/job-matches"
+        assert kwargs["candidate_id"] == str(user.id)
+
+        refreshed = _get_match(match.id)
+        assert refreshed is not None
+        assert refreshed.notified_at is not None
 
     def test_skips_notify_job_match_when_webhook_channel_not_selected(self):
         """No webhook_url is dispatched to when 'webhook' isn't in notification_channels,
@@ -891,6 +928,32 @@ class TestSendMatchDigest:
 
         assert result == {"sent": 1}
         assert mock_push.call_count == 2
+
+    def test_calls_send_push_notification_when_push_only_channel_enabled_no_email(self):
+        """A candidate who only enabled 'push' (having unchecked 'email') must still get
+        push dispatched, and their matches must still be marked notified."""
+        user = _create_user(email=f"push-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(user.id, notification_channels=["push"])
+        posting = _create_posting(source_url="https://linkedin.com/jobs/12345")
+        match = _create_match(user.id, posting.id, notified_at=None)
+        subscription = _create_push_subscription(user.id)
+
+        with (
+            _mock_enqueue_email() as mock_enqueue,
+            _mock_send_push_notification(return_value=True) as mock_push,
+        ):
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_enqueue.assert_not_called()
+        mock_push.assert_called_once()
+        args, _kwargs = mock_push.call_args
+        assert args[0].endpoint == subscription.endpoint
+        assert args[1]["candidate_id"] == str(user.id)
+
+        refreshed = _get_match(match.id)
+        assert refreshed is not None
+        assert refreshed.notified_at is not None
 
     def test_skips_send_push_notification_when_push_channel_not_selected(self):
         """No push attempt when 'push' isn't in notification_channels, even though a
