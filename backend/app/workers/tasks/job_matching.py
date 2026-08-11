@@ -189,6 +189,8 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
 
                 # Embed new postings only (skip if embedding already exists is handled by upsert semantics).
                 if description:
+                    if await repository.has_posting_embedding(session, posting.id):
+                        continue
                     embedding, token_count = await embeddings_client.generate_embedding(
                         f"{title}\n{company}\n{description[:4000]}"
                     )
