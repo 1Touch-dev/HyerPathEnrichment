@@ -1,5 +1,8 @@
 import {
   CandidateJobPreferences,
+  CvChatSession,
+  CvCompleteness,
+  CvFeedbackReport,
   Dossier,
   EnrichmentInput,
   EnrichmentJob,
@@ -10,11 +13,16 @@ import {
   JobMatchListResponse,
   JobStatus,
   OptOutInput,
+  OutreachMessage,
+  PortfolioItem,
+  PortfolioProfile,
+  PublicPortfolioProfile,
   RequestedTier,
   DsarInput,
   DsarResponse,
   SignalListItem,
   SignalListResponse,
+  SwipeDeck,
 } from "@/src/lib/types";
 import type {
   BackendDossier,
@@ -400,4 +408,213 @@ export function hasIdentifier(input: EnrichmentInput): boolean {
     input.business ||
     input.jobSearch,
   );
+}
+
+// Module 2: Tinder-Style Job Board + CV Management (phase2_module2.md §11.3)
+//
+// The backend routes these adapt (CV completeness/chat/feedback, portfolio,
+// job swipe, outreach — phase2_module2.md §8) do not exist yet, so
+// `src/lib/generated/api-schemas.ts` has no generated schemas for them. The
+// `Raw*Response` interfaces below are hand-declared placeholders mirroring
+// §11.3's documented snake_case shapes; per this file's own convention
+// (see `Backend*Response` imports above), they must be deleted and replaced
+// with real `npm run openapi:gen` output once the backend routes exist —
+// do not let these placeholders become permanent hand-maintained duplicates.
+
+interface RawCvCompletenessResponse {
+  document_id: string;
+  completeness_score: number;
+  missing_fields: string[];
+  questions: { field: string; question: string }[];
+}
+
+interface RawCvChatMessageResponse {
+  id: string;
+  role: "assistant" | "user";
+  content: string;
+  created_at: string;
+}
+
+interface RawCvChatSessionResponse {
+  session_id: string;
+  status: "active" | "completed" | "abandoned";
+  missing_fields_at_start: string[];
+  fields_resolved: string[];
+  messages: RawCvChatMessageResponse[];
+}
+
+interface RawCvFeedbackReportResponse {
+  report_id: string;
+  document_id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  ats_score: number | null;
+  strengths: string[];
+  improvements: string[];
+  rewritten_bullets: { original: string; rewritten: string; rationale: string }[];
+  created_at: string;
+}
+
+interface RawPortfolioItemResponse {
+  item_id: string;
+  item_type: "github_repo" | "live_demo" | "case_study" | "other_link";
+  title: string;
+  description: string | null;
+  url: string;
+  display_order: number;
+}
+
+interface RawPortfolioProfileResponse {
+  profile_id: string;
+  slug: string;
+  headline: string | null;
+  summary: string | null;
+  is_published: boolean;
+  items: RawPortfolioItemResponse[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface RawPublicPortfolioProfileResponse {
+  slug: string;
+  headline: string | null;
+  summary: string | null;
+  items: RawPortfolioItemResponse[];
+}
+
+interface RawSwipeCardResponse {
+  match_id: string;
+  job_posting_id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
+  overall_score: number;
+  score_breakdown: Record<string, number>;
+  explanation: string | null;
+}
+
+interface RawSwipeDeckResponse {
+  cards: RawSwipeCardResponse[];
+}
+
+interface RawOutreachMessageResponse {
+  message_id: string;
+  job_posting_id: string | null;
+  company_name: string;
+  recipient_role: string | null;
+  subject: string;
+  body: string;
+  status: "draft" | "sent" | "failed";
+  company_context_source: "perplexity" | "none";
+  created_at: string;
+  sent_at: string | null;
+}
+
+export function adaptCvCompleteness(raw: RawCvCompletenessResponse): CvCompleteness {
+  return {
+    documentId: raw.document_id,
+    completenessScore: raw.completeness_score,
+    missingFields: raw.missing_fields,
+    questions: raw.questions,
+  };
+}
+
+export function adaptCvChatSession(raw: RawCvChatSessionResponse): CvChatSession {
+  return {
+    sessionId: raw.session_id,
+    status: raw.status,
+    missingFieldsAtStart: raw.missing_fields_at_start,
+    fieldsResolved: raw.fields_resolved,
+    messages: raw.messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      createdAt: m.created_at,
+    })),
+  };
+}
+
+export function adaptCvFeedbackReport(raw: RawCvFeedbackReportResponse): CvFeedbackReport {
+  return {
+    reportId: raw.report_id,
+    documentId: raw.document_id,
+    status: raw.status,
+    atsScore: raw.ats_score,
+    strengths: raw.strengths,
+    improvements: raw.improvements,
+    rewrittenBullets: raw.rewritten_bullets,
+    createdAt: raw.created_at,
+  };
+}
+
+function adaptPortfolioItem(raw: RawPortfolioItemResponse): PortfolioItem {
+  return {
+    itemId: raw.item_id,
+    itemType: raw.item_type,
+    title: raw.title,
+    description: raw.description,
+    url: raw.url,
+    displayOrder: raw.display_order,
+  };
+}
+
+export function adaptPortfolioProfile(raw: RawPortfolioProfileResponse): PortfolioProfile {
+  return {
+    profileId: raw.profile_id,
+    slug: raw.slug,
+    headline: raw.headline,
+    summary: raw.summary,
+    isPublished: raw.is_published,
+    items: raw.items.map(adaptPortfolioItem),
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+export function adaptPublicPortfolioProfile(
+  raw: RawPublicPortfolioProfileResponse,
+): PublicPortfolioProfile {
+  return {
+    slug: raw.slug,
+    headline: raw.headline,
+    summary: raw.summary,
+    items: raw.items.map(adaptPortfolioItem),
+  };
+}
+
+export function adaptSwipeDeck(raw: RawSwipeDeckResponse): SwipeDeck {
+  return {
+    cards: raw.cards.map((c) => ({
+      matchId: c.match_id,
+      jobPostingId: c.job_posting_id,
+      title: c.title,
+      company: c.company,
+      location: c.location,
+      remote: c.remote,
+      salaryMin: c.salary_min,
+      salaryMax: c.salary_max,
+      salaryCurrency: c.salary_currency,
+      overallScore: c.overall_score,
+      scoreBreakdown: c.score_breakdown,
+      explanation: c.explanation,
+    })),
+  };
+}
+
+export function adaptOutreachMessage(raw: RawOutreachMessageResponse): OutreachMessage {
+  return {
+    messageId: raw.message_id,
+    jobPostingId: raw.job_posting_id,
+    companyName: raw.company_name,
+    recipientRole: raw.recipient_role,
+    subject: raw.subject,
+    body: raw.body,
+    status: raw.status,
+    companyContextSource: raw.company_context_source,
+    createdAt: raw.created_at,
+    sentAt: raw.sent_at,
+  };
 }

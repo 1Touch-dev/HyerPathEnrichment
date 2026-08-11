@@ -6,6 +6,9 @@ import {
   SuccessEnvelope,
 } from "@/src/lib/api-envelope";
 import {
+  CvChatSession,
+  CvCompleteness,
+  CvFeedbackReport,
   DsarInput,
   DsarResponse,
   EnrichmentInput,
@@ -14,7 +17,14 @@ import {
   HealthStatus,
   JobListResponse,
   OptOutInput,
+  OutreachListResponse,
+  OutreachMessage,
+  PortfolioItem,
+  PortfolioProfile,
+  PublicPortfolioProfile,
   SignalListResponse,
+  SwipeDeck,
+  SwipeDirection,
 } from "@/src/lib/types";
 
 async function parseJsonBody(response: Response): Promise<unknown> {
@@ -172,4 +182,152 @@ export async function listSignals(
 
 export async function getHealth(): Promise<SuccessEnvelope<HealthStatus>> {
   return request<HealthStatus>("/api/health");
+}
+
+// Module 2: Tinder-Style Job Board + CV Management (phase2_module2.md §12.2)
+// Snake_case→camelCase adaptation already happens inside the BFF routes
+// (§11.4-11.7), so these functions only need the frontend-shaped types.
+
+// ── CV completeness + chat + feedback ──────────────────────────────
+
+export async function fetchCvCompleteness(
+  documentId: string,
+): Promise<SuccessEnvelope<CvCompleteness>> {
+  return request<CvCompleteness>(`/api/documents/${documentId}/completeness`);
+}
+
+export async function startCvChatSession(
+  documentId: string,
+): Promise<SuccessEnvelope<CvChatSession>> {
+  return request<CvChatSession>(`/api/documents/${documentId}/cv-chat/sessions`, {
+    method: "POST",
+  });
+}
+
+export async function postCvChatMessage(
+  sessionId: string,
+  content: string,
+): Promise<SuccessEnvelope<CvChatSession>> {
+  return request<CvChatSession>(`/api/cv-chat/sessions/${sessionId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function requestCvFeedback(
+  documentId: string,
+  targetRole?: string,
+): Promise<SuccessEnvelope<{ jobId: string }>> {
+  return request<{ jobId: string }>(`/api/documents/${documentId}/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ targetRole: targetRole ?? null }),
+  });
+}
+
+export async function fetchCvFeedback(
+  documentId: string,
+): Promise<SuccessEnvelope<CvFeedbackReport>> {
+  return request<CvFeedbackReport>(`/api/documents/${documentId}/feedback`);
+}
+
+export async function acceptCvBullet(
+  reportId: string,
+  bulletIndex: number,
+): Promise<SuccessEnvelope<{ accepted: boolean }>> {
+  return request<{ accepted: boolean }>(`/api/cv-feedback/${reportId}/accept-bullet`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bulletIndex }),
+  });
+}
+
+// ── Portfolio ───────────────────────────────────────────────────────
+
+export async function fetchPortfolioProfile(): Promise<SuccessEnvelope<PortfolioProfile>> {
+  return request<PortfolioProfile>("/api/portfolio/profile");
+}
+
+export async function savePortfolioProfile(
+  payload: Partial<PortfolioProfile> & { slug: string },
+): Promise<SuccessEnvelope<PortfolioProfile>> {
+  return request<PortfolioProfile>("/api/portfolio/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function addPortfolioItem(
+  payload: Omit<PortfolioItem, "itemId" | "displayOrder">,
+): Promise<SuccessEnvelope<PortfolioItem>> {
+  return request<PortfolioItem>("/api/portfolio/items", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePortfolioItem(
+  itemId: string,
+): Promise<SuccessEnvelope<{ deleted: boolean }>> {
+  return request<{ deleted: boolean }>(`/api/portfolio/items/${itemId}`, { method: "DELETE" });
+}
+
+/** Public — no auth cookie needed, but still routed through the BFF (§11.5) for consistency. */
+export async function fetchPublicPortfolio(
+  slug: string,
+): Promise<SuccessEnvelope<PublicPortfolioProfile>> {
+  return request<PublicPortfolioProfile>(`/api/portfolio/public/${slug}`);
+}
+
+// ── Job swipe ───────────────────────────────────────────────────────
+
+export async function fetchSwipeDeck(): Promise<SuccessEnvelope<SwipeDeck>> {
+  return request<SwipeDeck>("/api/matches/swipe-deck");
+}
+
+export async function submitSwipe(
+  matchId: string,
+  direction: SwipeDirection,
+): Promise<SuccessEnvelope<{ direction: SwipeDirection }>> {
+  return request<{ direction: SwipeDirection }>(`/api/matches/${matchId}/swipe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ direction }),
+  });
+}
+
+// ── Outreach ────────────────────────────────────────────────────────
+
+export async function fetchOutreachMessages(): Promise<SuccessEnvelope<OutreachListResponse>> {
+  return request<OutreachListResponse>("/api/outreach");
+}
+
+export async function draftOutreach(
+  jobPostingId: string,
+  documentId?: string,
+): Promise<SuccessEnvelope<OutreachMessage>> {
+  return request<OutreachMessage>("/api/outreach/drafts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jobPostingId, documentId: documentId ?? null }),
+  });
+}
+
+export async function editOutreachDraft(
+  messageId: string,
+  subject: string,
+  body: string,
+): Promise<SuccessEnvelope<OutreachMessage>> {
+  return request<OutreachMessage>(`/api/outreach/${messageId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subject, body }),
+  });
+}
+
+export async function sendOutreach(messageId: string): Promise<SuccessEnvelope<OutreachMessage>> {
+  return request<OutreachMessage>(`/api/outreach/${messageId}/send`, { method: "POST" });
 }
