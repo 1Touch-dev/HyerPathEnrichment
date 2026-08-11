@@ -50,23 +50,23 @@ def main() -> None:
             if settings.worker_queue_mode == "per_tier":
                 # Tier-specific worker: must listen to exactly one assigned queue.
                 if not settings.worker_target_queue:
-                    raise ValueError(
-                        "WORKER_TARGET_QUEUE required when WORKER_QUEUE_MODE=per_tier"
-                    )
+                    raise ValueError("WORKER_TARGET_QUEUE required when WORKER_QUEUE_MODE=per_tier")
                 queues = [Queue(settings.worker_target_queue, connection=connection)]
                 logger.info(f"Worker configured for tier queue: {settings.worker_target_queue}")
             else:
                 # General-purpose worker: listen to feedback, document processing, and default queues
                 from app.workers.queue import (
-                    QUEUE_FEEDBACK,
+                    QUEUE_CV_EXTRACTION,
                     QUEUE_DOCUMENT,
                     QUEUE_EMBEDDING,
-                    QUEUE_CV_EXTRACTION,
+                    QUEUE_FEEDBACK,
                     QUEUE_NAME,
+                    QUEUE_OUTREACH,  # NEW
                 )
 
                 queues = [
                     Queue(QUEUE_FEEDBACK, connection=connection),  # Week 2: Interview feedback
+                    Queue(QUEUE_OUTREACH, connection=connection),  # NEW — Module 2
                     Queue(QUEUE_DOCUMENT, connection=connection),  # Week 1: Document processing
                     Queue(QUEUE_EMBEDDING, connection=connection),  # Week 1: Embeddings
                     Queue(QUEUE_CV_EXTRACTION, connection=connection),  # Week 1: CV extraction

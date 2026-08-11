@@ -23,12 +23,16 @@ QUEUE_AUDIO_CLEANUP = "audio_cleanup"
 # Module 1: AI Job Matching & Notifications
 QUEUE_JOB_MATCHING = "job_matching"
 
+# Module 2: Tinder-Style Job Board + CV Management (outreach drafting, §8.15)
+QUEUE_OUTREACH = "outreach_generation"
+
 # Queue priorities (higher = processed first)
 QUEUE_PRIORITIES = {
     QUEUE_EMAIL: 10,  # Highest (user-facing)
     QUEUE_CV_EXTRACTION: 8,  # High (user-facing)
     QUEUE_FEEDBACK: 7,  # High (user-facing feedback)
     QUEUE_JOB_MATCHING: 6,  # Between feedback (7) and document (5) — user-facing but async
+    QUEUE_OUTREACH: 6,  # NEW — user-facing but not time-critical; below feedback, above document/embedding
     QUEUE_DOCUMENT: 5,  # Medium (async)
     QUEUE_EMBEDDING: 3,  # Low (batch)
     QUEUE_NAME: 2,  # Low (existing enrichment)

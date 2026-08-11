@@ -82,3 +82,6 @@ blob-report/
 
 # Agent local session notes (not for org repo)
 memory/
+
+# Orchestrator-managed git worktrees (kept inside workspace for file-write approval scoping)
+.worktrees-m2/
