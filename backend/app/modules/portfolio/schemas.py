@@ -13,8 +13,11 @@ PORTFOLIO_SLUG_PATTERN = re.compile(
 )  # RFC 1035 label charset (Decision 4)
 
 
+PortfolioItemType = Literal["github", "live_demo", "case_study", "other"]
+
+
 class PortfolioItemRequest(BaseModel):
-    item_type: Literal["github", "live_demo", "case_study", "other"]
+    item_type: PortfolioItemType
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
     url: str = Field(..., min_length=1, max_length=2048)

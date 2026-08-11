@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import cast
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
@@ -18,6 +19,7 @@ from app.modules.portfolio.repository import (
 from app.modules.portfolio.schemas import (
     PortfolioItemRequest,
     PortfolioItemResponse,
+    PortfolioItemType,
     PortfolioProfileRequest,
     PortfolioProfileResponse,
     PublicPortfolioResponse,
@@ -135,7 +137,7 @@ class PortfolioService:
     def _item_to_response(self, item: PortfolioItem) -> PortfolioItemResponse:
         return PortfolioItemResponse(
             item_id=str(item.id),
-            item_type=item.item_type,
+            item_type=cast(PortfolioItemType, item.item_type),
             title=item.title,
             description=item.description,
             url=item.url,
