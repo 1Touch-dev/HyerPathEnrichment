@@ -155,11 +155,16 @@ class Settings(BaseSettings):
     litellm_fallbacks: str = Field(default="", alias="LITELLM_FALLBACKS")
 
     # Module 2: Tinder-Style Job Board + CV Management (portfolio public URL)
-    # NOTE: remaining Module 2 §7 settings (perplexity_*, outreach_*, cv_chat_*,
-    # cv_feedback_model) land with the chunks that actually consume them
-    # (Phase B/C) — this one is added now because portfolio/service.py already
-    # reads it and needs it to be non-blocking per the reviewer gate.
+    # NOTE: remaining Module 2 §7 settings (cv_chat_*, cv_feedback_model) land
+    # with the chunks that actually consume them (Phase B/C).
     portfolio_public_base_url: str = Field(default="", alias="PORTFOLIO_PUBLIC_BASE_URL")
+
+    # Module 2 §5.9/§8.12: Perplexity Sonar client + outreach drafting (Decision 5/7)
+    # — added here because app/clients/perplexity.py and modules/outreach/service.py
+    # already read these and need them to be non-blocking.
+    perplexity_api_key: str = Field(default="", alias="PERPLEXITY_API_KEY")
+    perplexity_api_base: str = Field(default="https://api.perplexity.ai", alias="PERPLEXITY_API_BASE")
+    outreach_enabled: bool = Field(default=True, alias="OUTREACH_ENABLED")
 
     # OpenAI API (for CV extraction, embeddings, etc.)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
