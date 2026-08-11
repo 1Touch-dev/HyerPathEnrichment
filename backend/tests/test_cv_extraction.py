@@ -206,7 +206,7 @@ async def test_extract_cv_data_malformed_response():
 
     with patch("app.services.cv_extractor.httpx.AsyncClient") as mock_client:
         mock_response_obj = AsyncMock()
-        mock_response_obj.json = AsyncMock(return_value=mock_response)
+        mock_response_obj.json = Mock(return_value=mock_response)
         mock_response_obj.raise_for_status = lambda: None
 
         mock_post = AsyncMock(return_value=mock_response_obj)

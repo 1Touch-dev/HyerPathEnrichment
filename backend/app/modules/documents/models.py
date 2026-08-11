@@ -121,3 +121,71 @@ class DocumentEmbedding(Base):
                 self._embedding_json = value
             else:
                 self._embedding_json = json.dumps(value)
+
+
+class CvChatSession(Base):
+    """CV-completeness chatbot conversation state (Decision 1/2)."""
+
+    __tablename__ = "cv_chat_sessions"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("candidate_documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    missing_fields_at_start: Mapped[list[str]] = mapped_column(
+        JsonDoc, default=list, nullable=False
+    )
+    fields_resolved: Mapped[list[str]] = mapped_column(JsonDoc, default=list, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CvChatMessage(Base):
+    """Single turn in a CV-completeness chat session."""
+
+    __tablename__ = "cv_chat_messages"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("cv_chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String(10), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    field_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    tool_call_result: Mapped[dict[str, Any] | None] = mapped_column(JsonDoc, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class CvFeedbackReport(Base):
+    """AI-generated CV improvement suggestions (Decision 3)."""
+
+    __tablename__ = "cv_feedback_reports"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("candidate_documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_role: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ats_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    strengths: Mapped[list[str]] = mapped_column(JsonDoc, default=list, nullable=False)
+    improvements: Mapped[list[str]] = mapped_column(JsonDoc, default=list, nullable=False)
+    rewritten_bullets: Mapped[list[dict[str, Any]]] = mapped_column(
+        JsonDoc, default=list, nullable=False
+    )
+    accepted_bullet_indices: Mapped[list[int]] = mapped_column(
+        JsonDoc, default=list, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
