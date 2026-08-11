@@ -28,11 +28,15 @@ from app.services.audio_analysis import (
 )
 from app.services.audio_storage import (
     MAX_AUDIO_FILE_SIZE_BYTES as STORAGE_MAX_FILE_SIZE,
+)
+from app.services.audio_storage import (
     AudioStorageClient,
     AudioStorageError,
     generate_audio_storage_key,
-    validate_audio_file_size as storage_validate_file_size,
     validate_audio_mime_type,
+)
+from app.services.audio_storage import (
+    validate_audio_file_size as storage_validate_file_size,
 )
 
 
@@ -281,7 +285,7 @@ class TestAudioAnalysis:
     def test_count_filler_words_multi_word_fillers(self) -> None:
         """Test detection of multi-word fillers (you know, basically)."""
         text = "You know, basically, I think we should, you know, proceed."
-        count, fillers = count_filler_words(text)
+        count, _fillers = count_filler_words(text)
 
         assert count >= 3  # "you know" appears twice, "basically" once
 

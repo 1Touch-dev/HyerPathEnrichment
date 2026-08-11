@@ -22,9 +22,9 @@ class DocumentProcessor:
 
     def __init__(self) -> None:
         """Initialize document processor with lazy imports."""
-        self._fitz = None  # PyMuPDF
-        self._docx = None  # python-docx
-        self._tiktoken = None
+        self._fitz: Any = None  # PyMuPDF
+        self._docx: Any = None  # python-docx
+        self._tiktoken: Any = None
 
     def _import_fitz(self) -> Any:
         """Lazy import PyMuPDF for PDF processing."""

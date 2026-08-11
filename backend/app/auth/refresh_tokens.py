@@ -16,6 +16,19 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 
+def _ensure_aware(dt: datetime) -> datetime:
+    """
+    Normalize a datetime to be timezone-aware (UTC).
+
+    SQLite does not persist tzinfo even for DateTime(timezone=True) columns,
+    so values read back from the DB come back naive. Treat naive values as UTC
+    to allow safe comparison against datetime.now(UTC).
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt
+
+
 async def create_refresh_token(
     db: AsyncSession,
     user_id: UUID,
@@ -80,7 +93,7 @@ async def validate_refresh_token(
         return None, None
 
     # Check if expired
-    if refresh_token.expires_at < datetime.now(UTC):
+    if _ensure_aware(refresh_token.expires_at) < datetime.now(UTC):
         logger.info(f"Refresh token expired for user {refresh_token.user_id}")
         return None, None
 
@@ -145,7 +158,7 @@ async def revoke_token_family(
     result = await db.execute(
         select(RefreshToken).where(
             RefreshToken.user_id == user_id,
-            RefreshToken.used == False,  # noqa: E712
+            ~RefreshToken.used,
         )
     )
     tokens_to_revoke = result.scalars().all()

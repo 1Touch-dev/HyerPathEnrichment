@@ -29,10 +29,10 @@ if _env.exists():
         value = value.strip().strip('"').strip("'")
         os.environ.setdefault(key, value)
 
-from app.domain.enrichment import EnrichmentRequest
-from app.domain.dossier import SocialHandle
+from app.clients.llm import litellm_compare
 from app.core.config import Settings, get_settings
-from app.clients.llm import LLMDecision, litellm_compare
+from app.domain.dossier import SocialHandle
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.pipeline import Pipeline
 
 
@@ -43,7 +43,11 @@ def _mask(value: str) -> str:
 
 
 async def _openai_direct(settings: Settings) -> None:
-    key = settings.openai_key if hasattr(settings, "openai_key") else os.environ.get("OPENAI_API_KEY", "")
+    key = (
+        settings.openai_key
+        if hasattr(settings, "openai_key")
+        else os.environ.get("OPENAI_API_KEY", "")
+    )
     # Settings may not expose OPENAI — read from env
     key = os.environ.get("OPENAI_API_KEY", "").strip()
     print("\n[1] OpenAI direct chat completions")

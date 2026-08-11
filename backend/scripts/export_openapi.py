@@ -24,8 +24,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    from app.main import app
     from app.core.openapi import apply_envelope_openapi
+    from app.main import app
 
     schema = apply_envelope_openapi(app.openapi())
     payload = json.dumps(schema, indent=2, sort_keys=True)

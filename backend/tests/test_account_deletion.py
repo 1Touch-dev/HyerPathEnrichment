@@ -5,11 +5,24 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import LoggedOutToken, User
 from app.auth.password import hash_password
+
+
+@pytest.fixture(autouse=True)
+async def _clean_users_table(db: AsyncSession) -> None:
+    """Ensure a clean users table before each test.
+
+    Tests in this module use fixed emails (e.g. "active@example.com") and
+    assert exact counts of active users, which requires isolation from the
+    shared session-scoped SQLite database used across the test suite.
+    """
+    await db.execute(delete(LoggedOutToken))
+    await db.execute(delete(User))
+    await db.commit()
 
 
 @pytest.fixture
@@ -176,7 +189,10 @@ async def test_multiple_delete_operations_idempotent(db: AsyncSession, active_us
     await db.refresh(active_user)
 
     # Verify user still deleted with updated timestamp
-    assert active_user.deleted_at == second_delete_time
+    stored_deleted_at = active_user.deleted_at
+    if stored_deleted_at is not None and stored_deleted_at.tzinfo is None:
+        stored_deleted_at = stored_deleted_at.replace(tzinfo=UTC)
+    assert stored_deleted_at == second_delete_time
 
 
 @pytest.mark.asyncio

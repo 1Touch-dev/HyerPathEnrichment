@@ -202,11 +202,7 @@ class Tier1ApiCanary:
                 f"{row.status:4}  {row.category:14} {row.slug:24} "
                 f"expect_photo={row.expect_photo} {row.detail}"
             )
-            if (
-                first_photo_pass is None
-                and row.status == "PASS"
-                and profile.expect_photo
-            ):
+            if first_photo_pass is None and row.status == "PASS" and profile.expect_photo:
                 first_photo_pass = profile
 
         if not skip_cache_recheck and first_photo_pass is not None:

@@ -60,8 +60,9 @@ async def setup_test_database():
     For PostgreSQL: Disposes and recreates the engine to ensure it binds to the test event loop.
     For SQLite: Just ensures proper cleanup.
     """
-    from app.database import session as db_session_module
     from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.database import session as db_session_module
 
     # Check if using PostgreSQL (which has the event loop issue)
     db_url = get_settings().database_url
@@ -80,7 +81,7 @@ async def setup_test_database():
         )
 
         # Recreate SessionLocal with new engine
-        from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
         db_session_module.SessionLocal = async_sessionmaker(
             db_session_module.engine, expire_on_commit=False, class_=AsyncSession
@@ -159,8 +160,12 @@ class FakeRedis:
         lst = self._lists.get(key, [])
         return lst.pop() if lst else None
 
-    def exists(self, key: str) -> int:
-        """Check if key exists (for RQ compatibility)."""
+    async def exists(self, key: str) -> int:
+        """Check if key exists (matches redis.asyncio.Redis.exists)."""
+        return 1 if key in self._kv or key in self._lists or key in self._sets else 0
+
+    def _exists_sync(self, key: str) -> int:
+        """Sync helper for internal RQ-compatibility methods."""
         return 1 if key in self._kv or key in self._lists or key in self._sets else 0
 
     def hset(self, name: str, key: str, value: str) -> int:
@@ -174,13 +179,13 @@ class FakeRedis:
         prefix = f"{name}:"
         return {k.removeprefix(prefix): v for k, v in self._kv.items() if k.startswith(prefix)}
 
-    def setex(self, key: str, time: int, value: str) -> bool:
-        """Set with expiry (for RQ compatibility)."""
+    async def setex(self, key: str, time: int, value: str) -> bool:
+        """Set with expiry (matches redis.asyncio.Redis.setex)."""
         self._kv[key] = value
         return True
 
-    def sadd(self, key: str, *values: str) -> int:
-        """Add members to set (sync version for RQ)."""
+    async def sadd(self, key: str, *values: str) -> int:
+        """Add members to set (async, matches redis.asyncio.Redis.sadd)."""
         members = self._sets.setdefault(key, set())
         added = len([value for value in values if value not in members])
         members.update(values)
@@ -215,7 +220,7 @@ class FakeRedis:
 
     def ttl(self, key: str) -> int:
         """Time to live (for RQ - always return -1 for no expiry)."""
-        return -1 if self.exists(key) else -2
+        return -1 if self._exists_sync(key) else -2
 
     def zadd(self, name: str, mapping: dict) -> int:
         """Add to sorted set (stub for RQ)."""
@@ -243,11 +248,9 @@ class FakeRedis:
 
     def watch(self, *keys: str):
         """Watch keys (no-op for fake)."""
-        pass
 
     def multi(self):
         """Start transaction (no-op for fake)."""
-        pass
 
 
 @pytest.fixture(autouse=True)
@@ -279,6 +282,9 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     monkeypatch.setattr(job_events, "_get_events_redis_client", lambda: fake)
     # Patch workers.queue.get_redis_connection for document service
     monkeypatch.setattr("app.workers.queue.get_redis_connection", lambda: fake)
+    # Patch auth router's Redis usage (token blacklisting on logout/delete)
+    monkeypatch.setattr("app.auth.router.get_redis_client", lambda: fake)
+    monkeypatch.setattr("app.auth.dependencies.get_redis_client", lambda: fake)
 
     # Mock RQ Queue for document processing tests
     class FakeRQJob:
@@ -299,8 +305,8 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
 
         def enqueue(self, func, *args, job_timeout=None, **kwargs):
             """Enqueue and immediately process job synchronously."""
-            import uuid
             import importlib
+            import uuid
 
             job_id = str(uuid.uuid4())
             job = FakeRQJob(job_id)
@@ -309,10 +315,10 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
             # Try to actually process the job synchronously if it's a string path
             if isinstance(func, str):
                 try:
-                    # Import and call the function
+                    # Verify the target function is importable before marking queued
                     module_path, func_name = func.rsplit(".", 1)
                     module = importlib.import_module(module_path)
-                    worker_func = getattr(module, func_name)
+                    getattr(module, func_name)
                     # Call it in the background (don't block)
                     # For now, just mark as queued - the test will need to handle this
                     job.status = "queued"

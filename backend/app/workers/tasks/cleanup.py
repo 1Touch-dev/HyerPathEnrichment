@@ -1,7 +1,7 @@
 """Background cleanup tasks for job maintenance."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +33,7 @@ async def cleanup_orphaned_jobs(max_age_minutes: int = 15) -> int:
     """
     async with AsyncSession(engine, expire_on_commit=False) as db:
         # Find stuck jobs
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
+        cutoff = datetime.now(UTC) - timedelta(minutes=max_age_minutes)
         stmt = select(JobRecord).where(
             JobRecord.status.in_(["running", "queued"]),
             JobRecord.updated_at == JobRecord.created_at,
@@ -55,7 +55,7 @@ async def cleanup_orphaned_jobs(max_age_minutes: int = 15) -> int:
         for job in stuck_jobs:
             original_status = job.status
             job.status = "failed"
-            job.updated_at = datetime.now(timezone.utc)
+            job.updated_at = datetime.now(UTC)
 
             # Update progress metadata with error info
             if not job.progress_metadata:
@@ -64,7 +64,7 @@ async def cleanup_orphaned_jobs(max_age_minutes: int = 15) -> int:
                 f"Job orphaned - stuck in '{original_status}' for >{max_age_minutes} minutes "
                 "with no worker progress. Likely enqueue failure or worker crash."
             )
-            job.progress_metadata["cleanup_timestamp"] = datetime.now(timezone.utc).isoformat()
+            job.progress_metadata["cleanup_timestamp"] = datetime.now(UTC).isoformat()
             job.progress_metadata["original_status"] = original_status
 
             logger.info(
@@ -72,8 +72,7 @@ async def cleanup_orphaned_jobs(max_age_minutes: int = 15) -> int:
                 extra={
                     "job_id": job.id,
                     "original_status": original_status,
-                    "age_minutes": (datetime.now(timezone.utc) - job.created_at).total_seconds()
-                    / 60,
+                    "age_minutes": (datetime.now(UTC) - job.created_at).total_seconds() / 60,
                 },
             )
 

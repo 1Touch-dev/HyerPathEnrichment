@@ -2,21 +2,22 @@
 
 from __future__ import annotations
 
+import sys
 from logging.config import fileConfig
 from pathlib import Path
-import sys
 
-from alembic import context
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Connection
+
+from alembic import context
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
-from app.core.config import get_settings  # noqa: E402
-from app.database.base import Base  # noqa: E402
-from app.database.orm_registry import (  # noqa: E402
+from app.core.config import get_settings
+from app.database.base import Base
+from app.database.orm_registry import (
     AuditLog,
     DsarRecord,
     JobRecord,

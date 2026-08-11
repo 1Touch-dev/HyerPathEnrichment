@@ -183,7 +183,7 @@ class DocumentService:
             )
             # Mark job as failed
             job.status = "failed"
-            job.error = f"Failed to enqueue: {str(e)}"
+            job.error = f"Failed to enqueue: {e!s}"
             await self.db.commit()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

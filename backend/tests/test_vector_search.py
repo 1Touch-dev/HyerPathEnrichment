@@ -1,14 +1,15 @@
 """Tests for vector similarity search with pgvector and SQLite fallback."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
+
 from app.services.vector_search import (
     cosine_similarity,
-    store_embeddings,
-    similarity_search,
     delete_document_embeddings,
+    similarity_search,
+    store_embeddings,
 )
 
 

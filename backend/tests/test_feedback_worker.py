@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.database.base import Base
 from app.modules.sessions.models import QuestionAttempt
-from app.workers.tasks.feedback import _generate_feedback_async, generate_feedback_job
+from app.workers.tasks.feedback import _generate_feedback_sync, generate_feedback_job
 
 
 @pytest.fixture
@@ -61,8 +61,7 @@ def mock_feedback():
     )
 
 
-@pytest.mark.asyncio
-async def test_generate_feedback_async_success(in_memory_db, sample_attempt, mock_feedback):
+def test_generate_feedback_sync_success(in_memory_db, sample_attempt, mock_feedback):
     """Feedback generation updates attempt with scores and feedback."""
     with patch(
         "app.workers.tasks.feedback.generate_interview_feedback",
@@ -71,7 +70,7 @@ async def test_generate_feedback_async_success(in_memory_db, sample_attempt, moc
         mock_generate.return_value = mock_feedback
 
         with patch("app.workers.tasks.feedback.track_llm_cost", new_callable=AsyncMock):
-            await _generate_feedback_async(str(sample_attempt.id), in_memory_db)
+            _generate_feedback_sync(str(sample_attempt.id), in_memory_db)
 
             # Refresh from DB
             in_memory_db.refresh(sample_attempt)
@@ -90,8 +89,7 @@ async def test_generate_feedback_async_success(in_memory_db, sample_attempt, moc
             )
 
 
-@pytest.mark.asyncio
-async def test_generate_feedback_async_no_text_response(in_memory_db, sample_attempt):
+def test_generate_feedback_sync_no_text_response(in_memory_db, sample_attempt):
     """Empty text response skips feedback generation."""
     sample_attempt.text_response = None
     in_memory_db.commit()
@@ -100,21 +98,19 @@ async def test_generate_feedback_async_no_text_response(in_memory_db, sample_att
         "app.workers.tasks.feedback.generate_interview_feedback",
         new_callable=AsyncMock,
     ) as mock_generate:
-        await _generate_feedback_async(str(sample_attempt.id), in_memory_db)
+        _generate_feedback_sync(str(sample_attempt.id), in_memory_db)
 
         # Should not call feedback service
         mock_generate.assert_not_called()
 
 
-@pytest.mark.asyncio
-async def test_generate_feedback_async_invalid_uuid(in_memory_db):
+def test_generate_feedback_sync_invalid_uuid(in_memory_db):
     """Invalid UUID raises ValueError."""
     with pytest.raises(ValueError, match="Attempt not found"):
-        await _generate_feedback_async(str(uuid4()), in_memory_db)
+        _generate_feedback_sync(str(uuid4()), in_memory_db)
 
 
-@pytest.mark.asyncio
-async def test_generate_feedback_async_tracks_cost(in_memory_db, sample_attempt, mock_feedback):
+def test_generate_feedback_sync_tracks_cost(in_memory_db, sample_attempt, mock_feedback):
     """Cost tracking is called with correct parameters."""
     with patch(
         "app.workers.tasks.feedback.generate_interview_feedback",
@@ -125,7 +121,7 @@ async def test_generate_feedback_async_tracks_cost(in_memory_db, sample_attempt,
         with patch(
             "app.workers.tasks.feedback.track_llm_cost", new_callable=AsyncMock
         ) as mock_track:
-            await _generate_feedback_async(str(sample_attempt.id), in_memory_db)
+            _generate_feedback_sync(str(sample_attempt.id), in_memory_db)
 
             # Verify cost tracking was called
             mock_track.assert_called_once_with(
@@ -139,7 +135,7 @@ async def test_generate_feedback_async_tracks_cost(in_memory_db, sample_attempt,
 
 def test_generate_feedback_job_sync_wrapper(sample_attempt, mock_feedback):
     """Sync wrapper runs async logic successfully."""
-    with patch("app.workers.tasks.feedback.SessionLocal") as mock_session_local:
+    with patch("app.workers.tasks.feedback.SyncSessionLocal") as mock_session_local:
         mock_db = MagicMock(spec=Session)
         mock_session_local.return_value = mock_db
 
@@ -163,20 +159,22 @@ def test_generate_feedback_job_sync_wrapper(sample_attempt, mock_feedback):
 
 def test_generate_feedback_job_invalid_uuid():
     """Invalid UUID format is handled gracefully."""
-    with patch("app.workers.tasks.feedback.SessionLocal") as mock_session_local:
+    with patch("app.workers.tasks.feedback.SyncSessionLocal") as mock_session_local:
         mock_db = MagicMock(spec=Session)
         mock_session_local.return_value = mock_db
 
         # Should not raise - error is logged
         generate_feedback_job("not-a-uuid")
 
-        # DB session should still be closed
-        mock_db.close.assert_called_once()
+        # UUID parsing fails before a DB session is ever opened, so no
+        # session is created and there is nothing to close.
+        mock_session_local.assert_not_called()
+        mock_db.close.assert_not_called()
 
 
 def test_generate_feedback_job_attempt_not_found():
     """Non-existent attempt is handled gracefully."""
-    with patch("app.workers.tasks.feedback.SessionLocal") as mock_session_local:
+    with patch("app.workers.tasks.feedback.SyncSessionLocal") as mock_session_local:
         mock_db = MagicMock(spec=Session)
         mock_session_local.return_value = mock_db
 
@@ -192,7 +190,7 @@ def test_generate_feedback_job_attempt_not_found():
 
 def test_generate_feedback_job_api_failure_stores_error(sample_attempt):
     """API failure is stored in attempt metadata."""
-    with patch("app.workers.tasks.feedback.SessionLocal") as mock_session_local:
+    with patch("app.workers.tasks.feedback.SyncSessionLocal") as mock_session_local:
         mock_db = MagicMock(spec=Session)
         mock_session_local.return_value = mock_db
 
@@ -220,7 +218,7 @@ def test_generate_feedback_job_api_failure_stores_error(sample_attempt):
 
 def test_generate_feedback_job_tracks_failure():
     """Failed jobs track failure metric."""
-    with patch("app.workers.tasks.feedback.SessionLocal") as mock_session_local:
+    with patch("app.workers.tasks.feedback.SyncSessionLocal") as mock_session_local:
         mock_db = MagicMock(spec=Session)
         mock_session_local.return_value = mock_db
 
@@ -235,8 +233,7 @@ def test_generate_feedback_job_tracks_failure():
             mock_track_failure.assert_called_once_with(model="gpt-4o-mini", operation="feedback")
 
 
-@pytest.mark.asyncio
-async def test_generate_feedback_uses_question_from_metadata(in_memory_db):
+def test_generate_feedback_uses_question_from_metadata(in_memory_db):
     """Question text is extracted from attempt attempt_metadata."""
     attempt = QuestionAttempt(
         id=uuid4(),
@@ -272,7 +269,7 @@ async def test_generate_feedback_uses_question_from_metadata(in_memory_db):
         mock_generate.return_value = mock_feedback
 
         with patch("app.workers.tasks.feedback.track_llm_cost", new_callable=AsyncMock):
-            await _generate_feedback_async(str(attempt.id), in_memory_db)
+            _generate_feedback_sync(str(attempt.id), in_memory_db)
 
             # Verify correct question was passed
             call_kwargs = mock_generate.call_args.kwargs

@@ -106,12 +106,13 @@ class DocumentEmbedding(Base):
         # SQLite fallback - store as JSON text array
         _embedding_json: Mapped[str] = mapped_column("embedding", Text, nullable=False)
 
-        @property
+        @property  # type: ignore[no-redef]
         def embedding(self) -> list[float]:
             """Get embedding as list of floats."""
             if isinstance(self._embedding_json, list):
                 return self._embedding_json
-            return json.loads(self._embedding_json)
+            result: list[float] = json.loads(self._embedding_json)
+            return result
 
         @embedding.setter
         def embedding(self, value: list[float]) -> None:

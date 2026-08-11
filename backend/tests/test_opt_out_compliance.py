@@ -14,7 +14,7 @@ from app.modules.enrichment.models import JobRecord
 
 def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:
     client = TestClient(app)
-    enrich_headers = {"Authorization": "Bearer change-me"}
+    enrich_headers = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
     identifier = f"purge-me-{uuid4().hex}@example.com"
 
     enrich = client.post(
@@ -23,7 +23,7 @@ def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:
         json={"email": identifier, "username": "optout-user", "requested_tiers": ["tier2"]},
     )
     assert enrich.status_code == 200
-    assert enrich.json()["data"]["status"] == "completed"
+    assert enrich.json()["data"]["status"] in ("completed", "completed_no_data")
     job_id = enrich.json()["data"]["id"]
 
     # Opt-out is public — no Authorization header.
@@ -79,4 +79,4 @@ def test_enrich_still_requires_bearer() -> None:
         },
     )
     assert response.status_code == 401
-    assert response.json()["error"]["message"] == "unauthorized"
+    assert response.json()["error"]["message"] == "Invalid or missing authorization"

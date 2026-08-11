@@ -1,17 +1,18 @@
 """Tests for cost tracking observability."""
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.observability.cost_tracking import (
-    track_embedding_cost,
+    EMBEDDING_COSTS,
     get_daily_cost,
     get_monthly_cost,
     get_total_cost,
+    track_embedding_cost,
     track_embedding_failure,
     update_queue_size,
-    EMBEDDING_COSTS,
 )
 
 

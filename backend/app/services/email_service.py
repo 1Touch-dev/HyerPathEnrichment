@@ -535,7 +535,7 @@ def enqueue_email(
         subject: Optional custom subject
         delay_seconds: Optional delay before sending
     """
-    from datetime import datetime, timedelta
+    from datetime import UTC, datetime, timedelta
 
     from redis import Redis
     from rq import Queue
@@ -547,7 +547,7 @@ def enqueue_email(
     queue = Queue("email", connection=redis_conn)
 
     if delay_seconds > 0:
-        scheduled_time = datetime.utcnow() + timedelta(seconds=delay_seconds)
+        scheduled_time = datetime.now(UTC) + timedelta(seconds=delay_seconds)
         queue.enqueue_at(
             scheduled_time,
             send_email_task,

@@ -64,13 +64,13 @@ async def test_list_jobs_includes_internal_when_requested(db: AsyncSession):
     await db.commit()
 
     # List jobs with include_internal=True
-    jobs, total = await repo.list(limit=100, offset=0, include_internal=True)
+    _jobs, total = await repo.list(limit=100, offset=0, include_internal=True)
 
     # Should contain 3 more jobs than before (1 parent + 2 children)
     assert total == initial_all + 3
 
     # List jobs with include_internal=False
-    jobs_external, total_external = await repo.list(limit=100, offset=0, include_internal=False)
+    _jobs_external, total_external = await repo.list(limit=100, offset=0, include_internal=False)
 
     # Should contain 1 more job than before (just parent)
     assert total_external == initial_external + 1

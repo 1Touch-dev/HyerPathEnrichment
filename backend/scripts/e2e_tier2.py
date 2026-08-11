@@ -30,14 +30,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
+from app.clients.sidecar import SidecarClient
 from app.core.config import get_settings
+from app.domain.dossier import SocialHandle
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.maigret import MaigretEnricher
+from app.enrichers.pipeline import Pipeline
 from app.enrichers.sherlock import SherlockEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher, extract_social_analyzer_candidates
-from app.domain.enrichment import EnrichmentRequest
-from app.domain.dossier import SocialHandle
-from app.clients.sidecar import SidecarClient
-from app.enrichers.pipeline import Pipeline
 
 RESULTS_DIR = ROOT / ".e2e-results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -83,7 +83,8 @@ class Tier2Probe:
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "username": USERNAME,
             "checks": [
-                {"name": r.name, "ok": r.ok, "detail": r.detail, "data": r.data} for r in self.results
+                {"name": r.name, "ok": r.ok, "detail": r.detail, "data": r.data}
+                for r in self.results
             ],
             "passed": sum(1 for r in self.results if r.ok),
             "failed": sum(1 for r in self.results if not r.ok),
@@ -198,7 +199,9 @@ class Tier2Probe:
             self.record("api_sync_tier2", False, str(exc))
             return
 
-        (RESULTS_DIR / "tier2-sync.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        (RESULTS_DIR / "tier2-sync.json").write_text(
+            json.dumps(payload, indent=2), encoding="utf-8"
+        )
         dossier = payload.get("dossier") or {}
         sources = set(dossier.get("sources") or [])
         handles = dossier.get("handles") or []
@@ -209,7 +212,9 @@ class Tier2Probe:
         }
         confidences = [float(h.get("confidence", 0)) for h in handles if isinstance(h, dict)]
 
-        has_sherlock_band = any(abs(c - 0.75) < 0.001 for c in confidences) or "Sherlock" in providers
+        has_sherlock_band = (
+            any(abs(c - 0.75) < 0.001 for c in confidences) or "Sherlock" in providers
+        )
         has_maigret_band = any(abs(c - 0.85) < 0.001 for c in confidences) or "Maigret" in providers
 
         ok = (
@@ -236,7 +241,9 @@ class Tier2Probe:
         body = {"username": USERNAME, "requested_tiers": ["tier2"]}
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                enqueue = await client.post(f"{self.base_url}/enrich", headers=self.headers, json=body)
+                enqueue = await client.post(
+                    f"{self.base_url}/enrich", headers=self.headers, json=body
+                )
             if enqueue.status_code != 202:
                 self.record("api_async_tier2", False, f"enqueue status={enqueue.status_code}")
                 return
@@ -245,7 +252,9 @@ class Tier2Probe:
             final: dict[str, Any] = {}
             async with httpx.AsyncClient(timeout=30.0) as client:
                 for _ in range(90):
-                    poll = await client.get(f"{self.base_url}/enrich/{job_id}", headers=self.headers)
+                    poll = await client.get(
+                        f"{self.base_url}/enrich/{job_id}", headers=self.headers
+                    )
                     final = poll.json()
                     if final.get("status") not in {"queued", "running"}:
                         break
@@ -257,7 +266,11 @@ class Tier2Probe:
         dossier = final.get("dossier") or {}
         handles = dossier.get("handles") or []
         sources = set(dossier.get("sources") or [])
-        ok = final.get("status") == "completed" and bool(handles) and bool(sources & REQUIRED_SOURCES)
+        ok = (
+            final.get("status") == "completed"
+            and bool(handles)
+            and bool(sources & REQUIRED_SOURCES)
+        )
         self.record(
             "api_async_tier2",
             ok,
@@ -314,7 +327,10 @@ class Tier2Probe:
             return
 
         names = {(h.platform, h.username) for h in kept}
-        ok = ("GitHub", "jane-doe") in names and ("GitHub", "totally-unrelated-bot-xyz-999") not in names
+        ok = ("GitHub", "jane-doe") in names and (
+            "GitHub",
+            "totally-unrelated-bot-xyz-999",
+        ) not in names
         self.record(
             "litellm_disambiguation",
             ok,

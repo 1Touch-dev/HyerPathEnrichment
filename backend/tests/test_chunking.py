@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from app.utils.text_chunking import chunk_document
 
 

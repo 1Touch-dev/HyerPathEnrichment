@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from prometheus_client import Counter, Gauge, Histogram
 from redis import Redis
@@ -178,7 +179,7 @@ async def track_embedding_cost(
         )
 
 
-async def get_daily_cost(date: str | None = None) -> dict:
+async def get_daily_cost(date: str | None = None) -> dict[str, Any]:
     """Get embedding costs for a specific date.
 
     Args:
@@ -207,7 +208,7 @@ async def get_daily_cost(date: str | None = None) -> dict:
         return {"tokens": 0, "embeddings": 0, "cost_usd": 0.0}
 
 
-async def get_monthly_cost(month: str | None = None) -> dict:
+async def get_monthly_cost(month: str | None = None) -> dict[str, Any]:
     """Get embedding costs for a specific month.
 
     Args:
@@ -236,7 +237,7 @@ async def get_monthly_cost(month: str | None = None) -> dict:
         return {"tokens": 0, "embeddings": 0, "cost_usd": 0.0}
 
 
-async def get_total_cost() -> dict:
+async def get_total_cost() -> dict[str, Any]:
     """Get all-time embedding costs.
 
     Returns:
@@ -306,9 +307,7 @@ async def track_llm_cost(
     total_cost_usd = input_cost_usd + output_cost_usd
 
     # Update Prometheus metrics
-    LLM_TOKENS_TOTAL.labels(model=model, token_type="input", operation=operation).inc(
-        input_tokens
-    )
+    LLM_TOKENS_TOTAL.labels(model=model, token_type="input", operation=operation).inc(input_tokens)
     LLM_TOKENS_TOTAL.labels(model=model, token_type="output", operation=operation).inc(
         output_tokens
     )
@@ -381,7 +380,7 @@ def track_llm_failure(model: str, operation: str = "feedback") -> None:
     LLM_REQUESTS_TOTAL.labels(model=model, operation=operation, status="failure").inc()
 
 
-async def get_daily_llm_cost(date: str | None = None) -> dict:
+async def get_daily_llm_cost(date: str | None = None) -> dict[str, Any]:
     """Get LLM costs for a specific date.
 
     Args:
@@ -410,7 +409,7 @@ async def get_daily_llm_cost(date: str | None = None) -> dict:
         return {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
 
 
-async def get_monthly_llm_cost(month: str | None = None) -> dict:
+async def get_monthly_llm_cost(month: str | None = None) -> dict[str, Any]:
     """Get LLM costs for a specific month.
 
     Args:
@@ -439,7 +438,7 @@ async def get_monthly_llm_cost(month: str | None = None) -> dict:
         return {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
 
 
-async def get_user_costs(limit: int = 10) -> list[dict]:
+async def get_user_costs(limit: int = 10) -> list[dict[str, Any]]:
     """Get top users by cost.
 
     Args:
@@ -452,9 +451,10 @@ async def get_user_costs(limit: int = 10) -> list[dict]:
         redis = get_redis()
         user_keys = redis.keys("llm:cost:user:*")
 
-        user_costs = []
+        user_costs: list[dict[str, Any]] = []
         for key in user_keys:
-            user_id = key.decode().split(":")[-1]
+            key_str = key.decode() if isinstance(key, bytes) else key
+            user_id = key_str.split(":")[-1]
             data = redis.hgetall(key)
 
             if data:
@@ -468,7 +468,7 @@ async def get_user_costs(limit: int = 10) -> list[dict]:
                 )
 
         # Sort by cost descending
-        user_costs.sort(key=lambda x: x["cost_usd"], reverse=True)
+        user_costs.sort(key=lambda x: float(x["cost_usd"]), reverse=True)
         return user_costs[:limit]
 
     except Exception as e:

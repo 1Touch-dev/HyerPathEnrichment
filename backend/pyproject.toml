@@ -77,6 +77,7 @@ include = ["app*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["."]
+testpaths = ["tests"]
 markers = [
   "postgres: requires TEST_DATABASE_URL pointing at PostgreSQL",
 ]
@@ -95,10 +96,16 @@ ignore = [
   "SIM102",  # Nested if statements are sometimes clearer
   "SIM103",  # Explicit if-else is sometimes clearer than returning condition directly
   "SIM117",  # Nested with statements are sometimes clearer
+  "B008",    # FastAPI's Depends()/Query() in argument defaults is the framework's idiomatic pattern
+  "TRY004",  # ValueError is intentionally used for request/schema validation errors, not just TypeError
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/conftest.py" = ["E402"]  # Imports must come after environment setup
+"tests/*" = [
+  "TRY002",   # Tests intentionally raise generic Exception to simulate arbitrary failures
+  "ASYNC230", # Blocking `open()` on small local test fixtures inside async tests is acceptable
+]
 
 [tool.mypy]
 python_version = "3.12"

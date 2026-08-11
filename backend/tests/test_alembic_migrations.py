@@ -68,8 +68,14 @@ def test_upgrade_head_sqlite_idempotent(sqlite_url: str) -> None:
             conn.execute(
                 text(
                     """
-                    INSERT INTO jobs (id, status, request_payload, dossier_payload, identifier_hashes)
-                    VALUES ('job_t1', 'queued', '{}', '{}', '[]')
+                    INSERT INTO jobs (
+                        id, status, request_payload, dossier_payload, identifier_hashes,
+                        created_at, updated_at
+                    )
+                    VALUES (
+                        'job_t1', 'queued', '{}', '{}', '[]',
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
                     """
                 )
             )
@@ -110,6 +116,36 @@ def test_legacy_pre_alembic_bootstrap_sqlite(sqlite_url: str) -> None:
         reason: Mapped[str] = mapped_column(Text, nullable=False)
         created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    class LegacyAuditLog(LegacyBase):
+        __tablename__ = "audit_logs"
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+        identifier_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+        job_id: Mapped[str | None] = mapped_column(String(64))
+        details: Mapped[dict] = mapped_column(JSON, nullable=False)
+        created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    class LegacyDsarRequest(LegacyBase):
+        __tablename__ = "dsar_requests"
+        id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        identifier_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+        request_type: Mapped[str] = mapped_column(String(32), nullable=False)
+        status: Mapped[str] = mapped_column(String(32), nullable=False)
+        details: Mapped[dict] = mapped_column(JSON, nullable=False)
+        created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+        completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    class LegacyPhotoCache(LegacyBase):
+        __tablename__ = "photo_cache"
+        slug_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+        slug: Mapped[str] = mapped_column(String(255), nullable=False)
+        asset_key: Mapped[str] = mapped_column(String(512), nullable=False)
+        asset_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+        extraction_method: Mapped[str] = mapped_column(String(64), nullable=False)
+        content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+        uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+        expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     engine = sync_engine_for(sqlite_url)
     try:
         LegacyBase.metadata.create_all(engine)
@@ -117,8 +153,11 @@ def test_legacy_pre_alembic_bootstrap_sqlite(sqlite_url: str) -> None:
             conn.execute(
                 text(
                     """
-                    INSERT INTO jobs (id, status, request_payload, dossier_payload)
-                    VALUES ('job_legacy', 'completed', '{"email":"a@b.com"}', '{"handles":[]}')
+                    INSERT INTO jobs (id, status, request_payload, dossier_payload, created_at, updated_at)
+                    VALUES (
+                        'job_legacy', 'completed', '{"email":"a@b.com"}', '{"handles":[]}',
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
                     """
                 )
             )

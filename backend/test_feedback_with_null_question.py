@@ -8,7 +8,6 @@ This script:
 4. Monitors the job execution
 """
 
-import asyncio
 import logging
 import sys
 from uuid import uuid4
@@ -17,10 +16,10 @@ from redis import Redis
 from rq import Queue
 from sqlalchemy import select
 
+from app.auth.models import User
 from app.core.config import get_settings
 from app.database.session import SyncSessionLocal
 from app.modules.sessions.models import PracticeSession, QuestionAttempt
-from app.modules.users.models import User
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -45,7 +44,8 @@ def create_test_attempt() -> str:
             user = User(
                 id=uuid4(),
                 email="test-feedback@example.com",
-                full_name="Feedback Test User",
+                first_name="Feedback",
+                last_name="Test User",
                 hashed_password="test-password-hash",
             )
             db.add(user)
@@ -126,7 +126,7 @@ def enqueue_feedback_job(attempt_id: str) -> None:
 
     for i in range(60):  # Monitor for up to 60 seconds
         job.refresh()
-        logger.info(f"[{i+1}s] Job status: {job.get_status()}")
+        logger.info(f"[{i + 1}s] Job status: {job.get_status()}")
 
         if job.is_finished:
             logger.info("✅ Job completed successfully!")
