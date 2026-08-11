@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from app.core.config import get_settings
 from app.observability.cost_tracking import (
@@ -83,7 +84,7 @@ async def check_monthly_burn_rate() -> None:
         send_budget_alert("monthly_threshold_exceeded", alert_details)
 
 
-def send_budget_alert(alert_type: str, details: dict) -> None:
+def send_budget_alert(alert_type: str, details: dict[str, Any]) -> None:
     """Send budget alert notification.
 
     Currently logs alert. Can be extended to send emails, Slack messages, etc.

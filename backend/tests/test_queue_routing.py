@@ -127,12 +127,15 @@ def test_get_worker_queue_per_tier_mode_missing_target_raises(
 
 
 def test_default_queue_mode_is_single(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Default WORKER_QUEUE_MODE should be 'single' for backward compatibility."""
-    # Clear any environment override
-    monkeypatch.delenv("WORKER_QUEUE_MODE", raising=False)
-    get_settings.cache_clear()
-    settings = get_settings()
-    assert settings.worker_queue_mode == "single"
+    """Default WORKER_QUEUE_MODE should be 'single' for backward compatibility.
+
+    This checks the Pydantic field default directly rather than going through
+    get_settings(), since local dev .env files may set WORKER_QUEUE_MODE=per_tier
+    for docker-compose and would otherwise leak into this "no override" case.
+    """
+    from app.core.config import Settings
+
+    assert Settings.model_fields["worker_queue_mode"].default == "single"
 
 
 def test_should_split_into_children_per_tier_mode_mixed_tiers(

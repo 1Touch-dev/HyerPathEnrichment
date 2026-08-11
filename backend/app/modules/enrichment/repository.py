@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import builtins
 from datetime import UTC, datetime
-from typing import Any, List
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -106,7 +107,7 @@ class JobRepository:
         self,
         parent_job: JobRecord,
         request: EnrichmentRequest,
-        tier_assignment: List[str],
+        tier_assignment: builtins.list[str],
     ) -> JobRecord:
         """Create a child job linked to parent."""
         child = JobRecord(
@@ -130,11 +131,11 @@ class JobRepository:
 
         return child
 
-    async def get_children(self, parent_job_id: str) -> List[JobRecord]:
+    async def get_children(self, parent_job_id: str) -> builtins.list[JobRecord]:
         """Get all child jobs for a parent."""
         statement = select(JobRecord).where(JobRecord.parent_job_id == parent_job_id)
         result = await self.db.execute(statement)
-        children: List[JobRecord] = list(result.scalars().all())
+        children: list[JobRecord] = list(result.scalars().all())
         return children
 
     async def get_parent(self, child_job: JobRecord) -> JobRecord | None:
@@ -145,7 +146,7 @@ class JobRepository:
 
     async def all_children_complete(self, parent_job_id: str) -> bool:
         """Check if all child jobs are in terminal status."""
-        children: List[JobRecord] = await self.get_children(parent_job_id)
+        children: list[JobRecord] = await self.get_children(parent_job_id)
         if not children:
             return False
 

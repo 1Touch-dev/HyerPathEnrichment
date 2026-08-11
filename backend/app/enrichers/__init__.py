@@ -12,16 +12,16 @@ from app.enrichers.social_analyzer import SocialAnalyzerEnricher
 from app.enrichers.theharvester import TheHarvesterEnricher
 
 __all__ = [
-    "Enricher",
-    "LinkedInPhotoEnricher",
-    "SherlockEnricher",
-    "MaigretEnricher",
-    "SocialAnalyzerEnricher",
-    "GitReconEnricher",
-    "TheHarvesterEnricher",
+    "CrossLinkedEnricher",
     "EmailDiscoverEnricher",
     "EmailVerifyEnricher",
-    "CrossLinkedEnricher",
+    "Enricher",
+    "GitReconEnricher",
     "JobSpyEnricher",
+    "LinkedInPhotoEnricher",
     "LocalBusinessEnricher",
+    "MaigretEnricher",
+    "SherlockEnricher",
+    "SocialAnalyzerEnricher",
+    "TheHarvesterEnricher",
 ]

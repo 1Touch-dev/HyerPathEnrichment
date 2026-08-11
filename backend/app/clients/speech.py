@@ -116,7 +116,7 @@ class WhisperClient:
                 logger.info(
                     "Calling Whisper API",
                     extra={
-                        "filename": filename[:32],
+                        "audio_filename": filename[:32],
                         "file_size": file_size,
                         "audio_format": audio_format,
                     },
@@ -139,7 +139,7 @@ class WhisperClient:
                 logger.info(
                     "Transcription successful",
                     extra={
-                        "filename": filename[:32],
+                        "audio_filename": filename[:32],
                         "text_length": len(text),
                         "language": result.get("language"),
                     },

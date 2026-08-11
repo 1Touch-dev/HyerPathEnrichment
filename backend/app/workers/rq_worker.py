@@ -9,7 +9,6 @@ from rq.worker import BaseWorker
 
 # Import ORM registry FIRST to register all models with SQLAlchemy
 import app.database.orm_registry  # noqa: F401
-
 from app.core.config import get_settings, validate_tier1_settings
 from app.core.logging import configure_logging
 from app.observability.error_tracking import init_error_tracking
@@ -50,18 +49,16 @@ def main() -> None:
             if settings.worker_queue_mode == "per_tier":
                 # Tier-specific worker: must listen to exactly one assigned queue.
                 if not settings.worker_target_queue:
-                    raise ValueError(
-                        "WORKER_TARGET_QUEUE required when WORKER_QUEUE_MODE=per_tier"
-                    )
+                    raise ValueError("WORKER_TARGET_QUEUE required when WORKER_QUEUE_MODE=per_tier")
                 queues = [Queue(settings.worker_target_queue, connection=connection)]
                 logger.info(f"Worker configured for tier queue: {settings.worker_target_queue}")
             else:
                 # General-purpose worker: listen to feedback, document processing, and default queues
                 from app.workers.queue import (
-                    QUEUE_FEEDBACK,
+                    QUEUE_CV_EXTRACTION,
                     QUEUE_DOCUMENT,
                     QUEUE_EMBEDDING,
-                    QUEUE_CV_EXTRACTION,
+                    QUEUE_FEEDBACK,
                     QUEUE_NAME,
                 )
 

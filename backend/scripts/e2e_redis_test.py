@@ -36,7 +36,9 @@ def check_api() -> None:
         r = httpx.get(f"{BASE}/health", timeout=5)
         r.raise_for_status()
     except httpx.HTTPError as exc:
-        raise SystemExit(f"API not reachable at {BASE} — start: uvicorn app.main:app --reload --port 8000\n{exc}") from exc
+        raise SystemExit(
+            f"API not reachable at {BASE} — start: uvicorn app.main:app --reload --port 8000\n{exc}"
+        ) from exc
 
 
 def test_health() -> None:

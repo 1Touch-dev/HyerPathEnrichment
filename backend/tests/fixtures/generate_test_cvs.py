@@ -1,9 +1,10 @@
 """Generate test CV fixtures for document processing tests."""
 
 from pathlib import Path
+
+from docx import Document
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from docx import Document
 
 FIXTURES_DIR = Path(__file__).parent
 
@@ -13,7 +14,7 @@ def generate_sample_cv_pdf():
     pdf_path = FIXTURES_DIR / "sample_cv.pdf"
 
     c = canvas.Canvas(str(pdf_path), pagesize=letter)
-    width, height = letter
+    _width, height = letter
 
     # Page 1
     y = height - 50
@@ -103,7 +104,7 @@ def generate_minimal_cv_pdf():
     pdf_path = FIXTURES_DIR / "sample_cv_minimal.pdf"
 
     c = canvas.Canvas(str(pdf_path), pagesize=letter)
-    width, height = letter
+    _width, height = letter
 
     y = height - 50
     c.setFont("Helvetica-Bold", 16)

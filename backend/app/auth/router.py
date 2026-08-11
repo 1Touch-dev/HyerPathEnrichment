@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
 from jose import JWTError, jwt
@@ -99,7 +99,7 @@ async def log_auth_event(
     success: bool,
     ip_address: str,
     user_agent: str | None = None,
-    user_id: str | None = None,
+    user_id: UUID | None = None,
     email_attempted: str | None = None,
     failure_reason: str | None = None,
 ) -> None:
@@ -168,7 +168,7 @@ async def register(
         True,
         get_client_ip(request),
         request.headers.get("User-Agent"),
-        str(user.id),
+        user.id,
         user.email,
     )
 
@@ -208,7 +208,7 @@ async def login(
     # Verify password
     if not verify_password(credentials.password, user.hashed_password):
         await log_auth_event(
-            db, "login", False, ip, user_agent, str(user.id), credentials.email, "Invalid password"
+            db, "login", False, ip, user_agent, user.id, credentials.email, "Invalid password"
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -218,7 +218,7 @@ async def login(
     # Check if account is deleted
     if user.deleted_at is not None:
         await log_auth_event(
-            db, "login", False, ip, user_agent, str(user.id), credentials.email, "Account deleted"
+            db, "login", False, ip, user_agent, user.id, credentials.email, "Account deleted"
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -228,7 +228,7 @@ async def login(
     # Check if account is active
     if not user.is_active:
         await log_auth_event(
-            db, "login", False, ip, user_agent, str(user.id), credentials.email, "Account inactive"
+            db, "login", False, ip, user_agent, user.id, credentials.email, "Account inactive"
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -236,7 +236,7 @@ async def login(
         )
 
     # Create access token
-    access_token, jti = create_access_token(str(user.id), user.email)
+    access_token, _jti = create_access_token(str(user.id), user.email)
 
     # Create refresh token
     refresh_token_value, _ = await create_refresh_token(db, user.id)
@@ -265,7 +265,7 @@ async def login(
     )
 
     # Log successful login
-    await log_auth_event(db, "login", True, ip, user_agent, str(user.id), user.email)
+    await log_auth_event(db, "login", True, ip, user_agent, user.id, user.email)
 
     return LoginResponse(
         user=UserRead.model_validate(user),
@@ -328,7 +328,7 @@ async def logout(
         True,
         get_client_ip(request),
         request.headers.get("User-Agent"),
-        str(current_user.id),
+        current_user.id,
         current_user.email,
     )
 
@@ -389,7 +389,7 @@ async def refresh_token(
             False,
             ip,
             user_agent,
-            str(user.id),
+            user.id,
             user.email,
             "Refresh token reuse - family revoked",
         )
@@ -407,7 +407,7 @@ async def refresh_token(
             False,
             ip,
             user_agent,
-            str(user.id),
+            user.id,
             user.email,
             "Account deleted",
         )
@@ -424,7 +424,7 @@ async def refresh_token(
             False,
             ip,
             user_agent,
-            str(user.id),
+            user.id,
             user.email,
             "Account inactive",
         )
@@ -443,7 +443,7 @@ async def refresh_token(
             False,
             ip,
             user_agent,
-            str(user.id),
+            user.id,
             user.email,
             "Token rotation failed",
         )
@@ -453,7 +453,7 @@ async def refresh_token(
         )
 
     # Create new access token
-    new_access_token, jti = create_access_token(str(user.id), user.email)
+    new_access_token, _jti = create_access_token(str(user.id), user.email)
 
     # Set new cookies
     response.set_cookie(
@@ -484,7 +484,7 @@ async def refresh_token(
         True,
         ip,
         user_agent,
-        str(user.id),
+        user.id,
         user.email,
     )
 
@@ -545,7 +545,7 @@ async def delete_account(
         True,
         get_client_ip(request),
         request.headers.get("User-Agent"),
-        str(current_user.id),
+        current_user.id,
         current_user.email,
     )
 
@@ -596,7 +596,7 @@ async def verify_email(
         True,
         get_client_ip(http_request),
         http_request.headers.get("User-Agent"),
-        str(user.id),
+        user.id,
         user.email,
     )
 

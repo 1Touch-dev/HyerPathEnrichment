@@ -9,17 +9,18 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from rq import Queue
+from sqlalchemy import text
+from sqlalchemy import update as sa_update
+from sqlalchemy.ext.asyncio import AsyncSession
+
 # Import ORM registry FIRST to register all models
 import app.database.orm_registry  # noqa: F401
-
 from app.database.session import SessionLocal, engine
 from app.infrastructure.redis import close_redis
 from app.modules.documents.models import CandidateDocument
-from app.services.document_processor import DocumentProcessor, DocumentProcessingError
+from app.services.document_processor import DocumentProcessingError, DocumentProcessor
 from app.storage.document_storage import DocumentStorageError
-from rq import Queue
-from sqlalchemy import text, update as sa_update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -182,9 +183,7 @@ async def _process_document_job(
                             f"Failed to chain to embedding queue (attempt {chain_attempt}/{max_chain_attempts}), retrying",
                             extra={"document_id": document_id, "error": str(chain_exc)},
                         )
-                        import time
-
-                        time.sleep(1)
+                        await asyncio.sleep(1)
 
     except (DocumentProcessingError, DocumentStorageError, ValueError) as exc:
         logger.error(

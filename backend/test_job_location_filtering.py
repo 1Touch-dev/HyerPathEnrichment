@@ -12,9 +12,9 @@ from pathlib import Path
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from app.enrichers.jobspy import JobSpyEnricher
 from app.domain.enrichment import EnrichmentRequest
 from app.domain.enums import RequestedTier
+from app.enrichers.jobspy import JobSpyEnricher
 
 
 async def test_job_location_filtering():
@@ -32,7 +32,7 @@ async def test_job_location_filtering():
         job_title="Software Engineer",
         job_location="San Francisco, CA",
         job_country="USA",
-        requested_tiers=[RequestedTier.tier4]
+        requested_tiers=[RequestedTier.tier4],
     )
 
     valid_us = await enricher.validate(request_us)
@@ -55,7 +55,7 @@ async def test_job_location_filtering():
         job_title="Backend Developer",
         job_location="Berlin",
         job_country="Germany",
-        requested_tiers=[RequestedTier.tier4]
+        requested_tiers=[RequestedTier.tier4],
     )
 
     valid_de = await enricher.validate(request_de)
@@ -75,8 +75,7 @@ async def test_job_location_filtering():
     print("\n\nTest 3: Search without location (baseline)")
     print("-" * 80)
     request_no_loc = EnrichmentRequest(
-        job_title="Data Scientist",
-        requested_tiers=[RequestedTier.tier4]
+        job_title="Data Scientist", requested_tiers=[RequestedTier.tier4]
     )
 
     valid_no_loc = await enricher.validate(request_no_loc)
@@ -112,5 +111,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n\nError during testing: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

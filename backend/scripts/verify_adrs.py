@@ -110,7 +110,9 @@ def _check_adr_content(path: Path) -> list[CheckResult]:
     name = path.name
     results: list[CheckResult] = []
 
-    if not STATUS_ACCEPTED_RE.search(text):
+    is_superseded = bool(re.search(r"\*\*Status:\*\*\s+Superseded\b", text))
+
+    if not is_superseded and not STATUS_ACCEPTED_RE.search(text):
         results.append(CheckResult(f"{name}:status", False, "Status must be Accepted"))
     else:
         results.append(CheckResult(f"{name}:status", True))

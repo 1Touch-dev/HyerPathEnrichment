@@ -19,6 +19,7 @@ from pathlib import Path
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
+
 def test_pdf_parsing():
     pdf_path = FIXTURES_DIR / "sample_cv.pdf"
     result = document_processor.process(pdf_path)

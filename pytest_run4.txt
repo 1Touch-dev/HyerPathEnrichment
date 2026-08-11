@@ -1,0 +1,694 @@
+﻿..........................sss................s.......s.................. [ 10%]
+.....................F.................................................. [ 21%]
+........................................................................ [ 31%]
+..............................................................ssssssssss [ 42%]
+sss............................EEEEEEEEE................................ [ 52%]
+..................ss.s................................EEEEEE............ [ 63%]
+........................................................................ [ 73%]
+........................................................................ [ 84%]
+........................................................................ [ 94%]
+...................................                                      [100%]
+=================================== ERRORS ====================================
+____________ ERROR at setup of test_job_with_data_shows_completed _____________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py, line 13
+  @pytest.mark.asyncio
+  async def test_job_with_data_shows_completed(db_session: AsyncSession) -> None:
+      """Job that finds enrichment data should have status 'completed'."""
+      pipeline = Pipeline(db_session)
+
+      # Mock enricher that returns photo data
+      original_dispatch = pipeline._dispatch
+
+      async def mock_dispatch_with_data(request, sync_mode=False):
+          return [
+              {
+                  "photo": {
+                      "source": "test-source",
+                      "asset_url": "https://example.com/photo.jpg",
+                      "captured_at": "2026-07-24T10:00:00Z",
+                      "confidence": 0.9,
+                  },
+                  "sources": ["test-source"],
+              }
+          ]
+
+      pipeline._dispatch = mock_dispatch_with_data
+
+      request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+      job = await pipeline.run(request)
+
+      assert job.status == JobStatus.completed.value
+      assert job.dossier_payload is not None
+      assert job.dossier_payload.get("photo") is not None
+      assert "test-source" in job.dossier_payload.get("sources", [])
+
+      pipeline._dispatch = original_dispatch
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py:13
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+_______ ERROR at setup of test_job_with_no_data_shows_completed_no_data _______
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py, line 47
+  @pytest.mark.asyncio
+  async def test_job_with_no_data_shows_completed_no_data(db_session: AsyncSession) -> None:
+      """Job that finds no enrichment data should have status 'completed_no_data'."""
+      pipeline = Pipeline(db_session)
+
+      # Mock enricher that returns empty data
+      original_dispatch = pipeline._dispatch
+
+      async def mock_dispatch_no_data(request, sync_mode=False):
+          return [{}]
+
+      pipeline._dispatch = mock_dispatch_no_data
+
+      request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+      job = await pipeline.run(request)
+
+      assert job.status == JobStatus.completed_no_data.value
+      assert job.dossier_payload is not None
+      assert job.dossier_payload.get("photo") is None
+      assert len(job.dossier_payload.get("handles", [])) == 0
+      assert len(job.dossier_payload.get("emails", [])) == 0
+      assert len(job.dossier_payload.get("sources", [])) == 0
+
+      pipeline._dispatch = original_dispatch
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py:47
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+___________ ERROR at setup of test_job_with_handles_shows_completed ___________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py, line 73
+  @pytest.mark.asyncio
+  async def test_job_with_handles_shows_completed(db_session: AsyncSession) -> None:
+      """Job that finds social handles should have status 'completed'."""
+      pipeline = Pipeline(db_session)
+
+      original_dispatch = pipeline._dispatch
+
+      async def mock_dispatch_with_handles(request, sync_mode=False):
+          return [
+              {
+                  "handles": [
+                      {
+                          "platform": "twitter",
+                          "username": "testuser",
+                          "profile_url": "https://twitter.com/testuser",
+                          "confidence": 0.8,
+                      }
+                  ],
+                  "sources": ["test-source"],
+              }
+          ]
+
+      pipeline._dispatch = mock_dispatch_with_handles
+
+      request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+      job = await pipeline.run(request)
+
+      assert job.status == JobStatus.completed.value
+      assert len(job.dossier_payload.get("handles", [])) > 0
+
+      pipeline._dispatch = original_dispatch
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py:73
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+___________ ERROR at setup of test_job_with_emails_shows_completed ____________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py, line 106
+  @pytest.mark.asyncio
+  async def test_job_with_emails_shows_completed(db_session: AsyncSession) -> None:
+      """Job that finds emails should have status 'completed'."""
+      pipeline = Pipeline(db_session)
+
+      original_dispatch = pipeline._dispatch
+
+      async def mock_dispatch_with_emails(request, sync_mode=False):
+          return [{"emails": ["test@example.com"], "sources": ["test-source"]}]
+
+      pipeline._dispatch = mock_dispatch_with_emails
+
+      request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+      job = await pipeline.run(request)
+
+      assert job.status == JobStatus.completed.value
+      assert len(job.dossier_payload.get("emails", [])) > 0
+
+      pipeline._dispatch = original_dispatch
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py:106
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+_______ ERROR at setup of test_job_with_verified_emails_shows_completed _______
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py, line 127
+  @pytest.mark.asyncio
+  async def test_job_with_verified_emails_shows_completed(db_session: AsyncSession) -> None:
+      """Job that finds verified emails should have status 'completed'."""
+      pipeline = Pipeline(db_session)
+
+      original_dispatch = pipeline._dispatch
+
+      async def mock_dispatch_with_verified_emails(request, sync_mode=False):
+          return [
+              {
+                  "verified_emails": [
+                      {
+                          "value": "verified@example.com",
+                          "status": "valid",
+                          "confidence": 0.95,
+                          "source": "test-source",
+                      }
+                  ],
+                  "sources": ["test-source"],
+              }
+          ]
+
+      pipeline._dispatch = mock_dispatch_with_verified_emails
+
+      request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+      job = await pipeline.run(request)
+
+      assert job.status == JobStatus.completed.value
+      assert len(job.dossier_payload.get("verified_emails", [])) > 0
+
+      pipeline._dispatch = original_dispatch
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py:127
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+__________ ERROR at setup of test_job_with_business_shows_completed ___________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py, line 160
+  @pytest.mark.asyncio
+  async def test_job_with_business_shows_completed(db_session: AsyncSession) -> None:
+      """Job that finds business profile should have status 'completed'."""
+      pipeline = Pipeline(db_session)
+
+      original_dispatch = pipeline._dispatch
+
+      async def mock_dispatch_with_business(request, sync_mode=False):
+          return [
+              {
+                  "business": {
+                      "name": "Test Company",
+                      "address": "123 Test St",
+                      "website": "https://test.com",
+                      "rating": 4.5,
+                      "phone": "+1234567890",
+                  },
+                  "sources": ["test-source"],
+              }
+          ]
+
+      pipeline._dispatch = mock_dispatch_with_business
+
+      request = EnrichmentRequest(business="Test Company")
+      job = await pipeline.run(request)
+
+      assert job.status == JobStatus.completed.value
+      assert job.dossier_payload.get("business") is not None
+
+      pipeline._dispatch = original_dispatch
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py:160
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+________ ERROR at setup of test_job_with_only_sources_shows_completed _________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py, line 192
+  @pytest.mark.asyncio
+  async def test_job_with_only_sources_shows_completed(db_session: AsyncSession) -> None:
+      """Job that only has sources (no other data) should still show 'completed'."""
+      pipeline = Pipeline(db_session)
+
+      original_dispatch = pipeline._dispatch
+
+      async def mock_dispatch_with_sources_only(request, sync_mode=False):
+          return [{"sources": ["test-source"]}]
+
+      pipeline._dispatch = mock_dispatch_with_sources_only
+
+      request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+      job = await pipeline.run(request)
+
+      assert job.status == JobStatus.completed.value
+      assert len(job.dossier_payload.get("sources", [])) > 0
+
+      pipeline._dispatch = original_dispatch
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py:192
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+___ ERROR at setup of test_multiple_enrichers_one_succeeds_shows_completed ____
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py, line 213
+  @pytest.mark.asyncio
+  async def test_multiple_enrichers_one_succeeds_shows_completed(db_session: AsyncSession) -> None:
+      """If one enricher finds data and others don't, job should be 'completed'."""
+      pipeline = Pipeline(db_session)
+
+      original_dispatch = pipeline._dispatch
+
+      async def mock_dispatch_mixed(request, sync_mode=False):
+          return [
+              {},  # First enricher found nothing
+              {"sources": ["enricher2"], "emails": ["found@example.com"]},  # Second found data
+              {},  # Third found nothing
+          ]
+
+      pipeline._dispatch = mock_dispatch_mixed
+
+      request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+      job = await pipeline.run(request)
+
+      assert job.status == JobStatus.completed.value
+      assert len(job.dossier_payload.get("emails", [])) > 0
+
+      pipeline._dispatch = original_dispatch
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py:213
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+_____________ ERROR at setup of test_suppressed_job_not_affected ______________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py, line 238
+  @pytest.mark.asyncio
+  async def test_suppressed_job_not_affected(db_session: AsyncSession) -> None:
+      """Suppressed jobs should still show 'suppressed' status, not affected by data check."""
+      pipeline = Pipeline(db_session)
+
+      # First create an opt-out to trigger suppression
+      from app.compliance.suppression import add_suppression
+
+      await add_suppression(db_session, "https://linkedin.com/in/optedout", "user request")
+
+      request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/optedout")
+      job = await pipeline.run(request)
+
+      assert job.status == JobStatus.suppressed.value
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_job_status_clarity.py:238
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+______________ ERROR at setup of test_all_tiers_run_in_parallel _______________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py, line 15
+  @pytest.mark.asyncio
+  async def test_all_tiers_run_in_parallel(db_session: AsyncSession):
+      """Verify all tiers execute simultaneously rather than sequentially"""
+      pipeline = Pipeline(db_session)
+      request = EnrichmentRequest(
+          username="test-user",
+          linkedin_url="https://linkedin.com/in/test-user",
+          company="TestCorp",
+          requested_tiers=[
+              RequestedTier.tier1,
+              RequestedTier.tier2,
+              RequestedTier.tier3,
+              RequestedTier.tier4,
+          ],
+      )
+
+      # Mock each tier to take a specific amount of time
+      async def mock_tier1(req):
+          await asyncio.sleep(0.2)  # 200ms
+          return {"payloads": [{"photo": "test1.jpg"}], "duration": 0.2}
+
+      async def mock_tier2(req):
+          await asyncio.sleep(0.1)  # 100ms
+          return {"payloads": [{"handles": []}], "duration": 0.1}
+
+      async def mock_tier3(req):
+          await asyncio.sleep(0.3)  # 300ms (longest)
+          return {"payloads": [{"emails": []}], "duration": 0.3}
+
+      async def mock_tier4(req):
+          await asyncio.sleep(0.15)  # 150ms
+          return {"payloads": [{"jobs": []}], "duration": 0.15}
+
+      with (
+          patch.object(pipeline, "_run_tier1_task", side_effect=mock_tier1),
+          patch.object(pipeline, "_run_tier2_task", side_effect=mock_tier2),
+          patch.object(pipeline, "_run_tier3_task", side_effect=mock_tier3),
+          patch.object(pipeline, "_run_tier4_task", side_effect=mock_tier4),
+      ):
+          start = time.time()
+          payloads = await pipeline._dispatch(request, sync_mode=False)
+          elapsed = time.time() - start
+
+          # If parallel: elapsed should be ~max(0.2, 0.1, 0.3, 0.15) = ~0.3s
+          # If sequential: elapsed would be 0.2 + 0.1 + 0.3 + 0.15 = 0.75s
+          # Allow some overhead, so check elapsed < 0.5s
+          assert elapsed < 0.5, f"Tiers ran sequentially (took {elapsed}s), expected parallel (<0.5s)"
+          assert len(payloads) == 4, "Should have payloads from all 4 tiers"
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py:15
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+_________ ERROR at setup of test_partial_tier_failure_returns_results _________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py, line 65
+  @pytest.mark.asyncio
+  async def test_partial_tier_failure_returns_results(db_session: AsyncSession):
+      """Verify partial results returned when some tiers fail"""
+      pipeline = Pipeline(db_session)
+      request = EnrichmentRequest(
+          username="test-user",
+          requested_tiers=[
+              RequestedTier.tier1,
+              RequestedTier.tier2,
+              RequestedTier.tier3,
+          ],
+      )
+
+      async def mock_tier1_success(req):
+          return {"payloads": [{"photo": "success.jpg"}], "duration": 0.1}
+
+      async def mock_tier2_failure(req):
+          raise ConnectionError("Tier 2 network error")
+
+      async def mock_tier3_success(req):
+          return {"payloads": [{"emails": ["test@example.com"]}], "duration": 0.2}
+
+      with (
+          patch.object(pipeline, "_run_tier1_task", side_effect=mock_tier1_success),
+          patch.object(pipeline, "_run_tier2_task", side_effect=mock_tier2_failure),
+          patch.object(pipeline, "_run_tier3_task", side_effect=mock_tier3_success),
+      ):
+          payloads = await pipeline._dispatch(request, sync_mode=False)
+
+          # Should have results from tier1 and tier3, but not tier2
+          assert len(payloads) == 2, "Should have payloads from 2 successful tiers"
+
+          # Check metadata includes failed tiers
+          if payloads and payloads[0].get("metadata"):
+              failed_tiers = payloads[0]["metadata"]["tier_execution"]["failed_tiers"]
+              assert "tier2" in failed_tiers, "Failed tier should be tracked in metadata"
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py:65
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+___________ ERROR at setup of test_retry_logic_on_transient_failure ___________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py, line 103
+  @pytest.mark.asyncio
+  async def test_retry_logic_on_transient_failure(db_session: AsyncSession):
+      """Verify transient failures trigger retries with exponential backoff"""
+      pipeline = Pipeline(db_session)
+
+      # Mock enricher that fails twice then succeeds
+      mock_enricher = Mock()
+      mock_enricher.source_name = "test-enricher"
+
+      call_count = 0
+
+      async def mock_invoke_enricher(enricher, request):
+          nonlocal call_count
+          call_count += 1
+          if call_count <= 2:
+              raise TimeoutError("Temporary timeout")
+          return {"result": "success"}
+
+      with patch.object(pipeline, "_invoke_enricher", side_effect=mock_invoke_enricher):
+          result = await pipeline._invoke_enricher_with_retry(
+              mock_enricher, EnrichmentRequest(username="test")
+          )
+
+          assert call_count == 3, "Should attempt 3 times (2 failures + 1 success)"
+          assert result == {"result": "success"}, "Should return success on third attempt"
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py:103
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+______________ ERROR at setup of test_permanent_failure_no_retry ______________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py, line 130
+  @pytest.mark.asyncio
+  async def test_permanent_failure_no_retry(db_session: AsyncSession):
+      """Verify permanent errors fail immediately without retry"""
+      pipeline = Pipeline(db_session)
+
+      mock_enricher = Mock()
+      mock_enricher.source_name = "test-enricher"
+
+      call_count = 0
+
+      async def mock_invoke_enricher(enricher, request):
+          nonlocal call_count
+          call_count += 1
+          raise ValueError("Permanent validation error")
+
+      with patch.object(pipeline, "_invoke_enricher", side_effect=mock_invoke_enricher):
+          result = await pipeline._invoke_enricher_with_retry(
+              mock_enricher, EnrichmentRequest(username="test")
+          )
+
+          assert call_count == 1, "Should only attempt once for permanent errors"
+          assert result == {}, "Should return empty dict on permanent failure"
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py:130
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+____________ ERROR at setup of test_tier_execution_metadata_added _____________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py, line 154
+  @pytest.mark.asyncio
+  async def test_tier_execution_metadata_added(db_session: AsyncSession):
+      """Verify execution metadata is added to payloads"""
+      pipeline = Pipeline(db_session)
+      request = EnrichmentRequest(
+          username="test-user",
+          requested_tiers=[RequestedTier.tier2, RequestedTier.tier4],
+      )
+
+      async def mock_tier2(req):
+          return {"payloads": [{"handles": []}], "duration": 0.15}
+
+      async def mock_tier4(req):
+          return {"payloads": [{"jobs": []}], "duration": 0.25}
+
+      with (
+          patch.object(pipeline, "_run_tier2_task", side_effect=mock_tier2),
+          patch.object(pipeline, "_run_tier4_task", side_effect=mock_tier4),
+      ):
+          payloads = await pipeline._dispatch(request, sync_mode=False)
+
+          # Check metadata exists
+          assert len(payloads) > 0
+          assert "metadata" in payloads[0]
+
+          tier_execution = payloads[0]["metadata"]["tier_execution"]
+          assert tier_execution["parallel"] is True
+          assert "tier2" in tier_execution["timings"]
+          assert "tier4" in tier_execution["timings"]
+          assert tier_execution["timings"]["tier2"] == 0.15
+          assert tier_execution["timings"]["tier4"] == 0.25
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py:154
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+________________ ERROR at setup of test_sync_mode_skips_tier1 _________________
+file G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py, line 187
+  @pytest.mark.asyncio
+  async def test_sync_mode_skips_tier1(db_session: AsyncSession):
+      """Verify sync mode excludes tier1 (browser-based)"""
+      pipeline = Pipeline(db_session)
+      request = EnrichmentRequest(
+          username="test-user",
+          requested_tiers=[
+              RequestedTier.tier1,
+              RequestedTier.tier2,
+          ],
+      )
+
+      tier1_called = False
+      tier2_called = False
+
+      async def mock_tier1(req):
+          nonlocal tier1_called
+          tier1_called = True
+          return {"payloads": [{"photo": "test.jpg"}], "duration": 0.1}
+
+      async def mock_tier2(req):
+          nonlocal tier2_called
+          tier2_called = True
+          return {"payloads": [{"handles": []}], "duration": 0.1}
+
+      with (
+          patch.object(pipeline, "_run_tier1_task", side_effect=mock_tier1),
+          patch.object(pipeline, "_run_tier2_task", side_effect=mock_tier2),
+      ):
+          await pipeline._dispatch(request, sync_mode=True)
+
+          assert not tier1_called, "Tier 1 should not be called in sync mode"
+          assert tier2_called, "Tier 2 should be called in sync mode"
+E       fixture 'db_session' not found
+>       available fixtures: _asyncio_loop_factory, _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, cov, db, doctest_namespace, ensure_db_schema, event_loop, event_loop_policy, fake_redis, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, no_cover, override_auth_for_tests, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, setup_test_database, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+G:\ThunderMarketingCorp\HyerEnrichment\backend\tests\test_parallel_tiers.py:187
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+================================== FAILURES ===================================
+_____________________ test_list_jobs_excludes_child_jobs ______________________
+
+db = <sqlalchemy.ext.asyncio.session.AsyncSession object at 0x000001101246C230>
+
+    @pytest.mark.asyncio
+    async def test_list_jobs_excludes_child_jobs(db: AsyncSession):
+        """Test that child jobs are excluded from list by default"""
+        repo = JobRepository(db)
+
+        # Create a parent job
+        parent_request = EnrichmentRequest(
+            linkedin_url="https://linkedin.com/in/test",
+            username="testuser",
+            requested_tiers=[RequestedTier.tier1, RequestedTier.tier2],
+        )
+        parent_job = await repo.create(parent_request, JobStatus.queued)
+
+        # Create two child jobs
+        child1 = await repo.create_child_job(parent_job, parent_request, [RequestedTier.tier1.value])
+        child2 = await repo.create_child_job(parent_job, parent_request, [RequestedTier.tier2.value])
+
+        await db.commit()
+
+        # List jobs (default: exclude internal)
+        jobs, total = await repo.list(limit=10, offset=0)
+
+        # Should only contain parent job
+>       assert total == 1
+E       assert 3 == 1
+
+tests\test_child_job_visibility.py:35: AssertionError
+---------------------------- Captured stdout setup ----------------------------
+[TEST CONFIG] Using FakeRedis (mocked)
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  G:\ThunderMarketingCorp\HyerEnrichment\backend\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_api_envelopes.py::test_unhandled_exception_envelope
+  G:\ThunderMarketingCorp\HyerEnrichment\backend\app\observability\error_tracking.py:83: DeprecationWarning: sentry_sdk.push_scope is deprecated and will be removed in the next major version. Please consult our migration guide to learn how to migrate to the new API: https://docs.sentry.io/platforms/python/migration/1.x-to-2.x#scope-pushing
+    with sentry_sdk.push_scope() as scope:
+
+tests/test_auth_e2e.py: 6 warnings
+tests/test_session_integration.py: 11 warnings
+  G:\ThunderMarketingCorp\HyerEnrichment\backend\.venv\Lib\site-packages\httpx\_client.py:1859: DeprecationWarning: Setting per-request cookies=<...> is being deprecated, because the expected behaviour on cookie persistence is ambiguous. Set cookies directly on the client instance instead.
+    return await self.request(
+
+tests/test_feedback_worker.py::test_generate_feedback_sync_success
+tests/test_feedback_worker.py::test_generate_feedback_sync_no_text_response
+tests/test_feedback_worker.py::test_generate_feedback_sync_tracks_cost
+tests/test_feedback_worker.py::test_generate_feedback_job_sync_wrapper
+tests/test_feedback_worker.py::test_generate_feedback_job_api_failure_stores_error
+tests/test_feedback_worker.py::test_generate_feedback_uses_question_from_metadata
+  G:\ThunderMarketingCorp\HyerEnrichment\backend\.venv\Lib\site-packages\sqlalchemy\sql\schema.py:3623: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    return util.wrap_callable(lambda ctx: fn(), fn)  # type: ignore
+
+tests/test_question_bank.py::TestQuestionSelector::test_select_questions_basic
+tests/test_question_bank.py::TestQuestionSelector::test_select_questions_basic
+tests/test_question_bank.py::TestQuestionSelector::test_select_questions_basic
+tests/test_question_bank.py::TestQuestionSelector::test_select_questions_filters_recent
+tests/test_question_bank.py::TestQuestionSelector::test_select_questions_filters_recent
+tests/test_question_bank.py::TestQuestionSelector::test_select_questions_filters_recent
+tests/test_question_bank.py::TestQuestionSelector::test_select_questions_by_difficulty
+tests/test_question_bank.py::TestQuestionSelector::test_select_questions_by_difficulty
+tests/test_question_bank.py::TestQuestionSelector::test_select_questions_by_difficulty
+  G:\ThunderMarketingCorp\HyerEnrichment\backend\.venv\Lib\site-packages\aiosqlite\core.py:63: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    result = function()
+
+tests/test_session_integration.py: 10 warnings
+  G:\ThunderMarketingCorp\HyerEnrichment\backend\.venv\Lib\site-packages\httpx\_client.py:1933: DeprecationWarning: Setting per-request cookies=<...> is being deprecated, because the expected behaviour on cookie persistence is ambiguous. Set cookies directly on the client instance instead.
+    return await self.request(
+
+tests/test_session_integration.py::test_complete_session_flow
+tests/test_session_integration.py::test_complete_session_flow
+tests/test_session_integration.py::test_session_ownership_verification
+tests/test_session_integration.py::test_invalid_session_id_format
+tests/test_session_integration.py::test_session_not_found
+tests/test_session_integration.py::test_session_list_pagination
+tests/test_session_integration.py::test_session_list_pagination
+tests/test_session_integration.py::test_session_list_pagination
+  G:\ThunderMarketingCorp\HyerEnrichment\backend\.venv\Lib\site-packages\httpx\_client.py:1768: DeprecationWarning: Setting per-request cookies=<...> is being deprecated, because the expected behaviour on cookie persistence is ambiguous. Set cookies directly on the client instance instead.
+    return await self.request(
+
+tests/test_session_tracking.py::TestQuestionAttempts::test_add_text_attempt
+tests/test_session_tracking.py::TestQuestionAttempts::test_add_attempt_updates_session_metrics
+tests/test_session_tracking.py::TestQuestionAttempts::test_add_attempt_transitions_to_in_progress
+tests/test_session_tracking.py::TestQuestionAttempts::test_add_attempt_without_score_does_not_increment_completed
+tests/test_session_tracking.py::TestEdgeCases::test_session_with_score_breakdown
+tests/test_session_tracking.py::TestEdgeCases::test_multiple_attempts_per_session
+  G:\ThunderMarketingCorp\HyerEnrichment\backend\.venv\Lib\site-packages\rq\queue.py:1219: RuntimeWarning: coroutine 'FakeRedis.sadd' was never awaited
+    pipe.sadd(self.redis_queues_keys, self.key)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_vector_search.py::test_store_embeddings
+tests/test_vector_search.py::test_store_embeddings_empty
+  G:\ThunderMarketingCorp\HyerEnrichment\backend\app\services\vector_search.py:129: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    session.add_all(embeddings)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_child_job_visibility.py::test_list_jobs_excludes_child_jobs
+ERROR tests/test_job_status_clarity.py::test_job_with_data_shows_completed
+ERROR tests/test_job_status_clarity.py::test_job_with_no_data_shows_completed_no_data
+ERROR tests/test_job_status_clarity.py::test_job_with_handles_shows_completed
+ERROR tests/test_job_status_clarity.py::test_job_with_emails_shows_completed
+ERROR tests/test_job_status_clarity.py::test_job_with_verified_emails_shows_completed
+ERROR tests/test_job_status_clarity.py::test_job_with_business_shows_completed
+ERROR tests/test_job_status_clarity.py::test_job_with_only_sources_shows_completed
+ERROR tests/test_job_status_clarity.py::test_multiple_enrichers_one_succeeds_shows_completed
+ERROR tests/test_job_status_clarity.py::test_suppressed_job_not_affected
+ERROR tests/test_parallel_tiers.py::test_all_tiers_run_in_parallel
+ERROR tests/test_parallel_tiers.py::test_partial_tier_failure_returns_results
+ERROR tests/test_parallel_tiers.py::test_retry_logic_on_transient_failure
+ERROR tests/test_parallel_tiers.py::test_permanent_failure_no_retry
+ERROR tests/test_parallel_tiers.py::test_tier_execution_metadata_added
+ERROR tests/test_parallel_tiers.py::test_sync_mode_skips_tier1
+1 failed, 646 passed, 21 skipped, 60 warnings, 15 errors in 241.19s (0:04:01)
+python.exe : Sentry is attempting to send 3 pending events
+At C:\Users\AZIZ\AppData\Local\Temp\ps-script-2314ed33-565c-497c-bf71-0ed9577f5ea0.ps1:110 char:52
++ ... hment\backend; & .\.venv\Scripts\python.exe -m pytest -q 2>&1 | Out-F ...
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Sentry is attem... pending events:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+Waiting up to 2 seconds
+Press Ctrl-Break to quit

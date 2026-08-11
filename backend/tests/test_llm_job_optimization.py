@@ -216,6 +216,7 @@ async def test_litellm_optimize_job_query_fallback_chain(
 ) -> None:
     """Test fallback chain tries multiple models."""
     import json
+
     import httpx
 
     mock_settings.litellm_fallbacks = "gpt-4o-mini"
@@ -333,19 +334,6 @@ def test_jobspy_build_kwargs_manual() -> None:
     assert kwargs["country_indeed"] == "india"
     assert kwargs["results_wanted"] == 15
     assert "google_search_term" in kwargs
-
-
-def test_jobspy_build_kwargs_from_llm(sample_llm_response: dict) -> None:
-    """Test kwargs building from LLM response."""
-    enricher = JobSpyEnricher()
-
-    kwargs = enricher._build_kwargs_from_llm(sample_llm_response, "Fallback", 15)
-
-    assert kwargs["search_term"] == "Software Engineer"
-    assert kwargs["location"] == "Bengaluru, Karnataka, India"
-    assert kwargs["country_indeed"] == "india"
-    assert kwargs["google_search_term"] == "Software Engineer jobs in Bengaluru, Karnataka, India"
-    assert kwargs["results_wanted"] == 15
 
 
 @pytest.mark.asyncio

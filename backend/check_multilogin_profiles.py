@@ -13,7 +13,7 @@ from app.core.config import get_settings
 
 async def main():
     settings = get_settings()
-    print(f"Multilogin Configuration:")
+    print("Multilogin Configuration:")
     print(f"  Email: {settings.multilogin_email}")
     print(f"  Folder ID: {settings.multilogin_folder_id}")
     print(f"  Workspace ID: {settings.multilogin_workspace_id}")
@@ -46,6 +46,7 @@ async def main():
     except Exception as e:
         print(f"✗ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
 

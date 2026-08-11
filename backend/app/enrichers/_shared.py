@@ -49,7 +49,7 @@ def urls_to_handles(
     handles: list[dict[str, Any]] = []
     for url in urls:
         host = urlsplit(url).netloc.lower()
-        platform = host[4:] if host.startswith("www.") else host
+        platform = host.removeprefix("www.")
         platform = platform.split(".")[0].capitalize() if platform else "Unknown"
         handles.append(
             {
