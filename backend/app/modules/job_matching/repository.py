@@ -87,6 +87,13 @@ async def upsert_job_posting(
     return posting
 
 
+async def has_posting_embedding(db: AsyncSession, job_posting_id: UUID) -> bool:
+    result = await db.execute(
+        select(JobPostingEmbedding).where(JobPostingEmbedding.job_posting_id == job_posting_id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 async def store_posting_embedding(
     db: AsyncSession, job_posting_id: UUID, embedding: list[float], token_count: int
 ) -> None:

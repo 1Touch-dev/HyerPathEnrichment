@@ -36,7 +36,13 @@ from app.auth.models import User
 from app.database.session import SyncSessionLocal
 from app.database.session import engine as _async_engine
 from app.modules.documents.models import CandidateDocument, DocumentEmbedding
-from app.modules.job_matching.models import CandidateJobPreferences, JobMatch, JobPosting
+from app.modules.job_matching.models import (
+    CandidateJobPreferences,
+    JobMatch,
+    JobPosting,
+    JobPostingEmbedding,
+)
+from app.modules.job_matching.scorer import compute_dedup_key
 from app.workers.tasks.job_matching import (
     _build_search_term,
     check_worker_health,
@@ -180,6 +186,14 @@ def _create_posting(**overrides) -> JobPosting:
         session.commit()
         session.refresh(posting)
         return posting
+
+
+def _create_posting_embedding(job_posting_id, embedding: list[float] | None = None) -> None:
+    with SyncSessionLocal() as session:
+        emb = JobPostingEmbedding(job_posting_id=job_posting_id, token_count=FAKE_TOKEN_COUNT)
+        emb.embedding = list(embedding if embedding is not None else FAKE_EMBEDDING)
+        session.add(emb)
+        session.commit()
 
 
 def _create_match(user_id, job_posting_id, **overrides) -> JobMatch:
@@ -366,6 +380,53 @@ class TestScanJobsForCandidate:
         assert len(postings) == len(unique_rows)
         assert {p.title for p in postings} == expected_titles
         assert all(p.dedup_key for p in postings)
+
+    def test_skips_embedding_when_posting_already_has_stored_embedding(self):
+        """A posting scraped in this scan that already has a `JobPostingEmbedding` row
+        from a prior scan must not trigger another `generate_embedding` call, and must
+        not be counted in `stats["new_postings"]` (Phase 2: stop paying for duplicate
+        embeddings — `has_posting_embedding` short-circuits before the OpenAI call).
+        """
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+
+        unique_rows = [
+            {**row, "title": f"{row['title']} {uuid.uuid4().hex[:8]}"} for row in FAKE_JOBSPY_ROWS
+        ]
+        already_embedded_row, fresh_row = unique_rows
+
+        dedup_key = compute_dedup_key(
+            already_embedded_row["title"], already_embedded_row["location"], "linkedin"
+        )
+        existing_posting = _create_posting(
+            dedup_key=dedup_key,
+            title=already_embedded_row["title"],
+            company=already_embedded_row["company"],
+            location=already_embedded_row["location"],
+            remote=True,
+            source="linkedin",
+            sources_seen=["linkedin"],
+        )
+        _create_posting_embedding(existing_posting.id)
+
+        with (
+            _mock_jobspy_scrape(unique_rows),
+            _mock_embeddings_client() as mock_get_client,
+            _mock_explainer(),
+            _mock_enqueue_email(),
+        ):
+            stats = scan_jobs_for_candidate(str(user.id))
+
+        mock_client = mock_get_client.return_value
+        assert mock_client.generate_embedding.call_count == 1
+        called_text = mock_client.generate_embedding.call_args[0][0]
+        assert fresh_row["title"] in called_text
+        assert already_embedded_row["title"] not in called_text
+
+        assert stats["scraped"] == len(unique_rows)
+        assert stats["new_postings"] == 1
 
     def test_skips_when_preferences_missing(self):
         user = _create_user()

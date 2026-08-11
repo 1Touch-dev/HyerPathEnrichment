@@ -188,6 +188,15 @@ class TestPostingEmbeddingRepository:
         assert list(rows[0].embedding) == [0.4, 0.5, 0.6]
         assert rows[0].token_count == 20
 
+    async def test_has_posting_embedding_returns_false_when_missing(self, db: AsyncSession):
+        posting = await _make_posting(db)
+        assert await repository.has_posting_embedding(db, posting.id) is False
+
+    async def test_has_posting_embedding_returns_true_after_store(self, db: AsyncSession):
+        posting = await _make_posting(db)
+        await repository.store_posting_embedding(db, posting.id, [0.1, 0.2, 0.3], token_count=42)
+        assert await repository.has_posting_embedding(db, posting.id) is True
+
     async def test_embedding_getter_parses_json_string_on_sqlite(self, db: AsyncSession):
         """Guards against a latent AttributeError in the SQLite-fallback `embedding`
         property getter (§ audit item 3): force a genuine DB round-trip so the row
