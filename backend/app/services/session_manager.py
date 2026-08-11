@@ -32,6 +32,20 @@ VALID_TRANSITIONS = {
 }
 
 
+def _coerce_uuid(user_id: UUID) -> UUID:
+    """Coerce ``user_id`` to a real ``uuid.UUID`` instance.
+
+    ``user_id`` is typed as ``UUID`` throughout this module, but is coerced
+    defensively at every entry point: the ORM columns bound against it
+    (``practice_sessions.user_id``, ``question_attempts.user_id``) are
+    ``postgresql.UUID(as_uuid=True)``, which requires a real ``uuid.UUID``
+    instance — binding a ``str`` raises
+    ``StatementError: 'str' object has no attribute 'hex'``.
+    See phase2_module2.md §2.1 Bug 2.
+    """
+    return user_id if isinstance(user_id, UUID) else UUID(str(user_id))
+
+
 class SessionManager:
     """Manages practice session lifecycle and state transitions."""
 
@@ -40,9 +54,10 @@ class SessionManager:
 
     async def create_session(self, request: SessionCreateRequest, user_id: UUID) -> SessionResponse:
         """Create a new practice session."""
+        user_id = _coerce_uuid(user_id)
         session = PracticeSession(
-            id=str(uuid4()),
-            user_id=str(user_id),
+            id=uuid4(),
+            user_id=user_id,
             session_type=request.session_type,
             status="pending",
             started_at=datetime.utcnow(),
@@ -65,6 +80,7 @@ class SessionManager:
 
     async def get_session(self, session_id: UUID, user_id: UUID) -> SessionResponse:
         """Get a session by ID with all attempts."""
+        user_id = _coerce_uuid(user_id)
         stmt = (
             select(PracticeSession)
             .where(PracticeSession.id == session_id, PracticeSession.user_id == user_id)
@@ -82,6 +98,7 @@ class SessionManager:
         self, user_id: UUID, limit: int = 20, offset: int = 0
     ) -> SessionListResponse:
         """List sessions for a user."""
+        user_id = _coerce_uuid(user_id)
         # Get total count
         count_stmt = select(func.count(PracticeSession.id)).where(
             PracticeSession.user_id == user_id
@@ -112,6 +129,7 @@ class SessionManager:
         self, session_id: UUID, request: SessionUpdateRequest, user_id: UUID
     ) -> SessionResponse:
         """Update session with state machine validation."""
+        user_id = _coerce_uuid(user_id)
         stmt = select(PracticeSession).where(
             PracticeSession.id == session_id, PracticeSession.user_id == user_id
         )
@@ -156,6 +174,7 @@ class SessionManager:
 
     async def delete_session(self, session_id: UUID, user_id: UUID) -> None:
         """Delete a session and all its attempts."""
+        user_id = _coerce_uuid(user_id)
         stmt = select(PracticeSession).where(
             PracticeSession.id == session_id, PracticeSession.user_id == user_id
         )
@@ -174,6 +193,7 @@ class SessionManager:
         self, session_id: UUID, request: QuestionAttemptRequest, user_id: UUID
     ) -> QuestionAttemptResponse:
         """Add a question attempt to a session."""
+        user_id = _coerce_uuid(user_id)
         # Verify session exists and belongs to user
         stmt = select(PracticeSession).where(
             PracticeSession.id == session_id, PracticeSession.user_id == user_id
@@ -189,15 +209,13 @@ class SessionManager:
 
         # Create attempt
         attempt = QuestionAttempt(
-            id=str(uuid4()),
-            session_id=str(session_id),
-            user_id=str(user_id),
-            question_id=str(request.question_id) if request.question_id else None,
+            id=uuid4(),
+            session_id=session_id,
+            user_id=user_id,
+            question_id=request.question_id,
             response_type=request.response_type,
             text_response=request.text_response,
-            audio_recording_id=str(request.audio_recording_id)
-            if request.audio_recording_id
-            else None,
+            audio_recording_id=request.audio_recording_id,
             ai_score=request.ai_score,
             score_breakdown=request.score_breakdown,
             ai_feedback=request.ai_feedback,
