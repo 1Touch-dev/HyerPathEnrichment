@@ -278,3 +278,143 @@ async def generate_interview_feedback(
         except (KeyError, IndexError) as e:
             logger.error("Invalid OpenAI API response structure", exc_info=True)
             raise ValueError(f"Invalid API response format: {e}") from e
+
+
+class CvImprovementResult(TypedDict):
+    """Structured CV improvement suggestions (Decision 3)."""
+
+    ats_score: int  # 0-100
+    strengths: list[str]
+    improvements: list[str]
+    rewritten_bullets: list[dict[str, str]]  # [{original, rewritten, rationale}]
+
+
+CV_IMPROVEMENT_SYSTEM_PROMPT = """
+You are an expert resume coach and ATS (Applicant Tracking System) specialist.
+
+Review the candidate's CV text and provide improvement suggestions. Focus on:
+- ATS optimization: keyword alignment, standard section headers, no tables/columns that break parsers
+- Impact quantification: rewrite vague bullets to include a measurable outcome where the source text
+  supports it (do not invent numbers the candidate did not provide or imply)
+- Clarity and action-verb-led phrasing
+
+Return JSON with exactly these fields:
+{
+  "ats_score": <int 0-100>,
+  "strengths": [<2-4 short strings>],
+  "improvements": [<2-4 short, actionable strings>],
+  "rewritten_bullets": [
+    {"original": <exact text from the CV>, "rewritten": <improved version>, "rationale": <one sentence why>}
+  ]
+}
+
+Only include bullets that genuinely benefit from rewriting (up to 5). Never fabricate metrics, employers,
+or dates not present in the source text. If the CV text is too short or malformed to assess meaningfully,
+return an ats_score of 0 and explain why in "improvements".
+""".strip()
+
+
+def _parse_cv_improvement_response(content: str) -> CvImprovementResult:
+    try:
+        start = content.index("{")
+        end = content.rindex("}") + 1
+        data = json.loads(content[start:end])
+
+        ats_score = max(0, min(100, int(data.get("ats_score", 0))))
+        strengths = data.get("strengths", [])
+        improvements = data.get("improvements", [])
+        rewritten_bullets = data.get("rewritten_bullets", [])
+
+        if not isinstance(strengths, list):
+            strengths = []
+        if not isinstance(improvements, list):
+            improvements = []
+        if not isinstance(rewritten_bullets, list):
+            rewritten_bullets = []
+
+        cleaned_bullets = [
+            {
+                "original": str(b.get("original", "")),
+                "rewritten": str(b.get("rewritten", "")),
+                "rationale": str(b.get("rationale", "")),
+            }
+            for b in rewritten_bullets
+            if isinstance(b, dict) and b.get("original") and b.get("rewritten")
+        ][:5]
+
+        return CvImprovementResult(
+            ats_score=ats_score,
+            strengths=strengths[:4],
+            improvements=improvements[:4],
+            rewritten_bullets=cleaned_bullets,
+        )
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+        logger.warning("Failed to parse CV improvement response", exc_info=True)
+        return CvImprovementResult(
+            ats_score=0,
+            strengths=[],
+            improvements=["Unable to generate CV feedback. Please try again."],
+            rewritten_bullets=[],
+        )
+
+
+async def generate_cv_improvement(
+    cv_text: str,
+    target_role: str | None,
+    settings: Settings,
+) -> tuple[CvImprovementResult, dict[str, int]]:
+    """Generate AI CV-improvement suggestions using GPT-4o-mini (Decision 3).
+
+    Mirrors generate_interview_feedback()'s exact calling convention: JSON-mode
+    chat completion via raw httpx, response.json() called synchronously.
+
+    Args:
+        cv_text: Raw extracted CV text (CandidateDocument.raw_text)
+        target_role: Optional role the candidate is optimizing for
+        settings: App settings with OpenAI API key
+
+    Returns:
+        Tuple of (result, token_usage)
+    """
+    if not cv_text.strip():
+        return (
+            CvImprovementResult(ats_score=0, strengths=[], improvements=["No CV text available."], rewritten_bullets=[]),
+            {"input_tokens": 0, "output_tokens": 0},
+        )
+
+    api_key = settings.openai_api_key.strip()
+    if not api_key:
+        raise ValueError("OpenAI API key not configured")
+
+    role_line = f"\n\nTarget role: {target_role}" if target_role else ""
+    user_content = f"CV text:\n{cv_text[:12000]}{role_line}"  # truncate defensively; GPT-4o-mini context is ample but bounded cost
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": settings.cv_feedback_model,
+                "messages": [
+                    {"role": "system", "content": CV_IMPROVEMENT_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.3,
+            },
+        )
+        response.raise_for_status()
+        result = response.json()  # synchronous — see §2.1 Bug 1
+        content = result["choices"][0]["message"]["content"]
+        usage = result.get("usage", {})
+        token_usage = {
+            "input_tokens": usage.get("prompt_tokens", 0),
+            "output_tokens": usage.get("completion_tokens", 0),
+        }
+        parsed = _parse_cv_improvement_response(content)
+
+        logger.info(
+            "Generated CV improvement",
+            extra={"ats_score": parsed["ats_score"], "input_tokens": token_usage["input_tokens"]},
+        )
+        return parsed, token_usage
