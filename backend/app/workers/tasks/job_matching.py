@@ -346,7 +346,15 @@ def generate_explanations_for_candidate(user_id: str) -> dict[str, int]:
 
 
 async def _generate_explanations_for_candidate_async(user_id: str) -> dict[str, int]:
-    """Per Decision 1/3: only the top-N unexplained matches get an LLM call."""
+    """Per Decision 1/3: only the top-N unexplained matches get an LLM call.
+
+    Claim/save/record-failure state machine: each match is atomically claimed
+    (explanation_status 'not_explained' -> 'processing') before the LLM call, so a
+    match already claimed by a concurrent pass is skipped rather than double-processed.
+    On success the match is saved as 'explained'; on failure the attempt is recorded
+    and the match is requeued ('not_explained') or capped ('failed') once
+    `job_matching_explanation_max_retries` is reached.
+    """
     from app.core.config import get_settings
     from app.modules.job_matching.explainer import generate_match_explanation
 
@@ -358,6 +366,10 @@ async def _generate_explanations_for_candidate_async(user_id: str) -> dict[str, 
             session, UUID(user_id), settings.job_matching_top_n_explanations
         )
         for match, posting in top_matches:
+            claimed = await repository.claim_match_for_explanation(session, match.id)
+            if not claimed:
+                continue
+
             try:
                 explanation, token_usage = await generate_match_explanation(
                     match, posting, settings
@@ -371,12 +383,18 @@ async def _generate_explanations_for_candidate_async(user_id: str) -> dict[str, 
                 )
                 generated += 1
                 job_matching_explanations_generated_total.inc()
-            except Exception:
+            except Exception as exc:
                 track_llm_failure(model="gpt-4o-mini", operation="job_match_explanation")
                 logger.warning(
                     "Failed to generate match explanation",
                     exc_info=True,
                     extra={"match_id": str(match.id), "user_id": user_id[:8]},
+                )
+                await repository.record_explanation_failure(
+                    session,
+                    match.id,
+                    error_message=str(exc),
+                    max_retries=settings.job_matching_explanation_max_retries,
                 )
 
     return {"generated": generated}

@@ -628,13 +628,60 @@ class TestGenerateExplanationsForCandidate:
     def test_no_unexplained_matches_generates_nothing(self):
         user = _create_user()
         posting = _create_posting()
-        _create_match(user.id, posting.id, explanation="Already explained.")
+        _create_match(
+            user.id,
+            posting.id,
+            explanation="Already explained.",
+            explanation_status="explained",
+        )
 
         with _mock_explainer() as mock_explain:
             result = generate_explanations_for_candidate(str(user.id))
 
         assert result == {"generated": 0}
         mock_explain.assert_not_called()
+
+    def test_repeated_failures_cap_retry_count_and_mark_failed(self):
+        """Simulates `job_matching_explanation_max_retries` (default 3) consecutive scan
+        passes where the LLM call always raises. Each pass re-claims the match (since the
+        prior failure requeued it to 'not_explained'), until the retry cap is hit and the
+        match transitions to 'failed' — after which it must never be re-selected."""
+        from app.core.config import get_settings
+
+        user = _create_user()
+        posting = _create_posting()
+        match = _create_match(user.id, posting.id, explanation=None)
+
+        max_retries = get_settings().job_matching_explanation_max_retries
+
+        async def _always_raise(match, posting, settings):
+            raise ValueError("simulated persistent explanation failure")
+
+        with patch(
+            "app.modules.job_matching.explainer.generate_match_explanation",
+            new_callable=AsyncMock,
+            side_effect=_always_raise,
+        ):
+            for _ in range(max_retries):
+                result = generate_explanations_for_candidate(str(user.id))
+                assert result == {"generated": 0}
+
+        refreshed = _get_match(match.id)
+        assert refreshed is not None
+        assert refreshed.explanation_status == "failed"
+        assert refreshed.retry_count == max_retries
+        assert refreshed.is_error is True
+        assert refreshed.explanation is None
+
+        with patch(
+            "app.modules.job_matching.explainer.generate_match_explanation",
+            new_callable=AsyncMock,
+            side_effect=_always_raise,
+        ) as mock_explain_again:
+            result_after_failed = generate_explanations_for_candidate(str(user.id))
+
+        assert result_after_failed == {"generated": 0}
+        mock_explain_again.assert_not_called()
 
 
 class TestSendMatchDigest:

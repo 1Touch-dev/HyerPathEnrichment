@@ -423,6 +423,96 @@ class TestJobMatchRepository:
         assert refreshed.feedback == "up"
 
 
+class TestClaimMatchForExplanation:
+    async def test_claim_succeeds_once_then_loses_the_race_on_second_call(
+        self, db: AsyncSession, test_user: User
+    ):
+        posting = await _make_posting(db)
+        match = await repository.upsert_match(
+            db,
+            test_user.id,
+            posting.id,
+            similarity_score=0.5,
+            rule_score=0.5,
+            overall_score=50.0,
+            score_breakdown={},
+        )
+
+        first_claim = await repository.claim_match_for_explanation(db, match.id)
+        assert first_claim is True
+
+        second_claim = await repository.claim_match_for_explanation(db, match.id)
+        assert second_claim is False
+
+        result = await db.execute(
+            select(repository.JobMatch).where(repository.JobMatch.id == match.id)
+        )
+        refreshed = result.scalar_one()
+        assert refreshed.explanation_status == "processing"
+
+    async def test_claim_returns_false_for_nonexistent_match(self, db: AsyncSession):
+        assert await repository.claim_match_for_explanation(db, uuid.uuid4()) is False
+
+
+class TestRecordExplanationFailure:
+    async def test_requeues_as_not_explained_while_under_max_retries(
+        self, db: AsyncSession, test_user: User
+    ):
+        posting = await _make_posting(db)
+        match = await repository.upsert_match(
+            db,
+            test_user.id,
+            posting.id,
+            similarity_score=0.5,
+            rule_score=0.5,
+            overall_score=50.0,
+            score_breakdown={},
+        )
+        await repository.claim_match_for_explanation(db, match.id)
+
+        await repository.record_explanation_failure(
+            db, match.id, error_message="LLM timeout", max_retries=3
+        )
+
+        result = await db.execute(
+            select(repository.JobMatch).where(repository.JobMatch.id == match.id)
+        )
+        refreshed = result.scalar_one()
+        assert refreshed.explanation_status == "not_explained"
+        assert refreshed.retry_count == 1
+        assert refreshed.is_error is True
+        assert refreshed.last_error == "LLM timeout"
+
+    async def test_transitions_to_failed_once_max_retries_reached(
+        self, db: AsyncSession, test_user: User
+    ):
+        posting = await _make_posting(db)
+        match = await repository.upsert_match(
+            db,
+            test_user.id,
+            posting.id,
+            similarity_score=0.5,
+            rule_score=0.5,
+            overall_score=50.0,
+            score_breakdown={},
+        )
+
+        for _ in range(3):
+            await repository.claim_match_for_explanation(db, match.id)
+            await repository.record_explanation_failure(
+                db, match.id, error_message="LLM timeout", max_retries=3
+            )
+
+        result = await db.execute(
+            select(repository.JobMatch).where(repository.JobMatch.id == match.id)
+        )
+        refreshed = result.scalar_one()
+        assert refreshed.explanation_status == "failed"
+        assert refreshed.retry_count == 3
+        assert refreshed.is_error is True
+        assert refreshed.last_error == "LLM timeout"
+
+
 class TestCountUnreadMatches:
     async def test_returns_zero_for_user_with_no_matches(self, db: AsyncSession, test_user: User):
         count = await repository.count_unread_matches(db, test_user.id)
