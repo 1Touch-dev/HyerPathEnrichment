@@ -6,6 +6,7 @@ export {
   useTriggerScan,
 } from "./hooks/useMatches";
 export { useUnreadMatchEvents } from "./hooks/useUnreadMatchEvents";
+export { usePushSubscription } from "./hooks/usePushSubscription";
 export { MatchCard } from "./components/MatchCard";
 export { PreferencesForm } from "./components/PreferencesForm";
 export { jobMatchingKeys } from "./api/keys";

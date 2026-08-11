@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { PreferencesForm } from "./PreferencesForm";
 import * as usePreferencesHooks from "../hooks/usePreferences";
+import * as usePushSubscriptionHooks from "../hooks/usePushSubscription";
 import type { CandidateJobPreferences } from "@/src/lib/types";
 import type { UseQueryResult } from "@tanstack/react-query";
 
@@ -31,6 +32,8 @@ const samplePreferences: CandidateJobPreferences = {
 };
 
 const mutateMock = vi.fn();
+const pushSubscribeMock = vi.fn();
+const pushUnsubscribeMock = vi.fn();
 
 function mockUsePreferences(overrides: Partial<UseQueryResult<CandidateJobPreferences>> = {}) {
   vi.spyOn(usePreferencesHooks, "usePreferences").mockReturnValue({
@@ -40,13 +43,29 @@ function mockUsePreferences(overrides: Partial<UseQueryResult<CandidateJobPrefer
   } as UseQueryResult<CandidateJobPreferences>);
 }
 
+function mockUsePushSubscription(
+  overrides: Partial<ReturnType<typeof usePushSubscriptionHooks.usePushSubscription>> = {},
+) {
+  vi.spyOn(usePushSubscriptionHooks, "usePushSubscription").mockReturnValue({
+    isSupported: true,
+    isSubscribed: false,
+    subscribe: pushSubscribeMock,
+    unsubscribe: pushUnsubscribeMock,
+    error: null,
+    ...overrides,
+  });
+}
+
 beforeEach(() => {
   vi.restoreAllMocks();
   mutateMock.mockReset();
+  pushSubscribeMock.mockReset().mockResolvedValue(undefined);
+  pushUnsubscribeMock.mockReset().mockResolvedValue(undefined);
   vi.spyOn(usePreferencesHooks, "useUpdatePreferences").mockReturnValue({
     mutate: mutateMock,
     isPending: false,
   } as unknown as ReturnType<typeof usePreferencesHooks.useUpdatePreferences>);
+  mockUsePushSubscription();
 });
 
 describe("PreferencesForm", () => {
@@ -187,5 +206,68 @@ describe("PreferencesForm", () => {
     expect(mutateMock).toHaveBeenCalledWith(
       expect.objectContaining({ webhookUrl: "https://example.com/hook" }),
     );
+  });
+
+  it("renders an enabled push checkbox when push is supported", () => {
+    mockUsePreferences({ data: samplePreferences, isLoading: false });
+    render(<PreferencesForm />, { wrapper });
+
+    const pushCheckbox = screen.getByLabelText("Push");
+    expect(pushCheckbox).not.toBeDisabled();
+  });
+
+  it("renders the push option as disabled when the browser is unsupported", () => {
+    mockUsePreferences({ data: samplePreferences, isLoading: false });
+    mockUsePushSubscription({ isSupported: false });
+    render(<PreferencesForm />, { wrapper });
+
+    const pushLabel = screen.getByText("Push notifications");
+    const container = pushLabel.closest("div.flex");
+    const pushSwitch = container?.querySelector("button[role='switch']");
+    expect(pushSwitch).toBeDisabled();
+    expect(screen.getByText("Not supported in this browser.")).toBeInTheDocument();
+  });
+
+  it("subscribes and checks the push box on success, including it on submit", async () => {
+    mockUsePreferences({
+      data: { ...samplePreferences, notificationChannels: [] },
+      isLoading: false,
+    });
+    render(<PreferencesForm />, { wrapper });
+
+    const pushCheckbox = screen.getByLabelText("Push");
+    fireEvent.click(pushCheckbox);
+
+    await waitFor(() => expect(pushSubscribeMock).toHaveBeenCalled());
+    await waitFor(() => expect(pushCheckbox).toHaveAttribute("data-state", "checked"));
+
+    const form = screen.getByText("Save preferences").closest("form");
+    form!.requestSubmit();
+
+    expect(mutateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationChannels: ["push"] }),
+    );
+  });
+
+  it("shows an inline error and leaves the push box unchecked when subscribe fails", async () => {
+    pushSubscribeMock.mockRejectedValue(new Error("Notification permission was denied."));
+    mockUsePreferences({
+      data: { ...samplePreferences, notificationChannels: [] },
+      isLoading: false,
+    });
+    render(<PreferencesForm />, { wrapper });
+
+    const pushCheckbox = screen.getByLabelText("Push");
+    fireEvent.click(pushCheckbox);
+
+    await waitFor(() =>
+      expect(screen.getByText("Notification permission was denied.")).toBeInTheDocument(),
+    );
+    expect(pushCheckbox).toHaveAttribute("data-state", "unchecked");
+
+    const form = screen.getByText("Save preferences").closest("form");
+    form!.requestSubmit();
+
+    expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({ notificationChannels: [] }));
   });
 });

@@ -14,12 +14,19 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { usePreferences, useUpdatePreferences } from "../hooks/usePreferences";
+import { usePushSubscription } from "../hooks/usePushSubscription";
 
 const NOTIFICATION_CHANNELS = [
   { value: "email", label: "Email", enabled: true },
   { value: "sms", label: "SMS", enabled: false },
   { value: "webhook", label: "Webhook", enabled: true },
+  { value: "push", label: "Push", enabled: true },
 ] as const;
+
+const DISABLED_CHANNEL_REASON: Record<string, string> = {
+  sms: "Coming soon.",
+  push: "Not supported in this browser.",
+};
 
 function splitCommaSeparated(value: string): string[] {
   return value
@@ -31,6 +38,7 @@ function splitCommaSeparated(value: string): string[] {
 export function PreferencesForm() {
   const { data: preferences, isLoading } = usePreferences();
   const updateMutation = useUpdatePreferences();
+  const pushSubscription = usePushSubscription();
 
   const [salaryMin, setSalaryMin] = useState(preferences?.salaryMin?.toString() ?? "");
   const [salaryMax, setSalaryMax] = useState(preferences?.salaryMax?.toString() ?? "");
@@ -45,6 +53,7 @@ export function PreferencesForm() {
   );
   const [webhookUrl, setWebhookUrl] = useState(preferences?.webhookUrl ?? "");
   const [digestFrequency, setDigestFrequency] = useState(preferences?.digestFrequency ?? "daily");
+  const [pushError, setPushError] = useState<string | null>(null);
 
   if (isLoading) return <div className="animate-pulse h-64 rounded-lg bg-muted" />;
 
@@ -52,6 +61,27 @@ export function PreferencesForm() {
     setNotificationChannels((prev) =>
       checked ? [...new Set([...prev, channel])] : prev.filter((c) => c !== channel),
     );
+  }
+
+  async function handlePushToggle(checked: boolean) {
+    setPushError(null);
+
+    if (!checked) {
+      toggleChannel("push", false);
+      try {
+        await pushSubscription.unsubscribe();
+      } catch {
+        // Best-effort — the box is already unchecked regardless of cleanup outcome.
+      }
+      return;
+    }
+
+    try {
+      await pushSubscription.subscribe();
+      toggleChannel("push", true);
+    } catch (err) {
+      setPushError(err instanceof Error ? err.message : "Failed to enable push notifications.");
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -64,7 +94,7 @@ export function PreferencesForm() {
       remotePreference: remotePreference
         ? (remotePreference as "remote" | "hybrid" | "onsite")
         : null,
-      notificationChannels: notificationChannels as ("email" | "sms" | "webhook")[],
+      notificationChannels: notificationChannels as ("email" | "sms" | "webhook" | "push")[],
       webhookUrl: webhookUrl.trim() ? webhookUrl.trim() : null,
       digestFrequency: digestFrequency as "daily" | "weekly" | "off",
       isScanEnabled,
@@ -149,35 +179,50 @@ export function PreferencesForm() {
 
       <div className="space-y-2">
         <Label>Notification channels</Label>
-        {NOTIFICATION_CHANNELS.map((channel) => (
-          <div
-            key={channel.value}
-            className={
-              channel.enabled
-                ? "flex items-center gap-2"
-                : "flex items-center justify-between rounded-lg border border-dashed p-4 opacity-60"
-            }
-          >
-            {channel.enabled ? (
-              <>
-                <Checkbox
-                  id={`channel-${channel.value}`}
-                  checked={notificationChannels.includes(channel.value)}
-                  onCheckedChange={(checked) => toggleChannel(channel.value, checked === true)}
-                />
-                <Label htmlFor={`channel-${channel.value}`}>{channel.label}</Label>
-              </>
-            ) : (
-              <>
-                <div>
-                  <Label>{channel.label} notifications</Label>
-                  <p className="text-sm text-muted-foreground">Coming soon.</p>
-                </div>
-                <Switch disabled checked={false} />
-              </>
-            )}
-          </div>
-        ))}
+        {NOTIFICATION_CHANNELS.map((channel) => {
+          const isPush = channel.value === "push";
+          const isEnabled = isPush
+            ? channel.enabled && pushSubscription.isSupported
+            : channel.enabled;
+
+          return (
+            <div key={channel.value}>
+              <div
+                className={
+                  isEnabled
+                    ? "flex items-center gap-2"
+                    : "flex items-center justify-between rounded-lg border border-dashed p-4 opacity-60"
+                }
+              >
+                {isEnabled ? (
+                  <>
+                    <Checkbox
+                      id={`channel-${channel.value}`}
+                      checked={notificationChannels.includes(channel.value)}
+                      onCheckedChange={(checked) =>
+                        isPush
+                          ? handlePushToggle(checked === true)
+                          : toggleChannel(channel.value, checked === true)
+                      }
+                    />
+                    <Label htmlFor={`channel-${channel.value}`}>{channel.label}</Label>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <Label>{channel.label} notifications</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {DISABLED_CHANNEL_REASON[channel.value] ?? "Coming soon."}
+                      </p>
+                    </div>
+                    <Switch disabled checked={false} />
+                  </>
+                )}
+              </div>
+              {isPush && pushError && <p className="pl-6 text-sm text-destructive">{pushError}</p>}
+            </div>
+          );
+        })}
 
         {notificationChannels.includes("webhook") && (
           <div className="pl-6">

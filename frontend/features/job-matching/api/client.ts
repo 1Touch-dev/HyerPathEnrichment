@@ -47,3 +47,25 @@ export async function triggerScan(): Promise<{ scanEnqueued: boolean }> {
   const json = await res.json();
   return { scanEnqueued: json.data.scanEnqueued };
 }
+
+export async function subscribeToPush(subscription: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}): Promise<void> {
+  const res = await fetch("/api/job-matching/push-subscription", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(subscription),
+  });
+  if (!res.ok) throw new Error(`Failed to subscribe to push notifications: ${res.status}`);
+}
+
+export async function unsubscribeFromPush(endpoint: string): Promise<void> {
+  const res = await fetch("/api/job-matching/push-subscription", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ endpoint }),
+  });
+  if (!res.ok) throw new Error(`Failed to unsubscribe from push notifications: ${res.status}`);
+}
