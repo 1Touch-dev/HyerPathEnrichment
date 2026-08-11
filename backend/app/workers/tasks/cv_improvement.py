@@ -11,13 +11,15 @@ import logging
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from sqlalchemy import select
+from sqlalchemy import update as sa_update
+
 import app.database.orm_registry  # noqa: F401  (registers all ORM models with SQLAlchemy first)
 from app.core.config import get_settings
 from app.database.session import SessionLocal, engine
 from app.infrastructure.redis import close_redis
 from app.modules.documents.models import CandidateDocument, CvFeedbackReport, DocumentJob
 from app.services.feedback_generator import generate_cv_improvement
-from sqlalchemy import select, update as sa_update
 
 logger = logging.getLogger(__name__)
 
