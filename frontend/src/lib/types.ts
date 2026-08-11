@@ -272,3 +272,104 @@ export type JobMatchListResponse = {
 export type UnreadMatchCountEvent = {
   unreadCount: number;
 };
+
+// Module 2: Tinder-Style Job Board + CV Management (phase2_module2.md §11.2)
+
+export interface CvCompleteness {
+  documentId: string;
+  completenessScore: number;
+  missingFields: string[];
+  questions: { field: string; question: string }[];
+}
+
+export interface CvChatMessage {
+  id: string;
+  role: "assistant" | "user";
+  content: string;
+  createdAt: string;
+}
+
+export interface CvChatSession {
+  sessionId: string;
+  status: "active" | "completed" | "abandoned";
+  missingFieldsAtStart: string[];
+  fieldsResolved: string[];
+  messages: CvChatMessage[];
+}
+
+export interface CvFeedbackReport {
+  reportId: string;
+  documentId: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  atsScore: number | null;
+  strengths: string[];
+  improvements: string[];
+  rewrittenBullets: { original: string; rewritten: string; rationale: string }[];
+  createdAt: string;
+}
+
+export interface PortfolioItem {
+  itemId: string;
+  itemType: "github_repo" | "live_demo" | "case_study" | "other_link";
+  title: string;
+  description: string | null;
+  url: string;
+  displayOrder: number;
+}
+
+export interface PortfolioProfile {
+  profileId: string;
+  slug: string;
+  headline: string | null;
+  summary: string | null;
+  isPublished: boolean;
+  items: PortfolioItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicPortfolioProfile {
+  slug: string;
+  headline: string | null;
+  summary: string | null;
+  items: PortfolioItem[];
+  // Deliberately no profileId/userId/timestamps — public response never leaks internal IDs (§9.6).
+}
+
+export interface SwipeCard {
+  matchId: string;
+  jobPostingId: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+  overallScore: number;
+  scoreBreakdown: Record<string, number>;
+  explanation: string | null;
+}
+
+export interface SwipeDeck {
+  cards: SwipeCard[];
+}
+
+export type SwipeDirection = "left" | "right" | "up";
+
+export interface OutreachMessage {
+  messageId: string;
+  jobPostingId: string | null;
+  companyName: string;
+  recipientRole: string | null;
+  subject: string;
+  body: string;
+  status: "draft" | "sent" | "failed";
+  companyContextSource: "perplexity" | "none";
+  createdAt: string;
+  sentAt: string | null;
+}
+
+export interface OutreachListResponse {
+  messages: OutreachMessage[];
+}
