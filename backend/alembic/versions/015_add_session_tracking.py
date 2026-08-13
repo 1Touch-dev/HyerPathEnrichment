@@ -5,16 +5,18 @@ Revises: 014_document_embeddings
 Create Date: 2026-08-06
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
+
 revision: str = "015_add_session_tracking"
-down_revision: Union[str, None] = "014_document_embeddings"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "014_document_embeddings"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -30,7 +32,9 @@ def upgrade() -> None:
     op.create_table(
         "practice_sessions",
         sa.Column("id", uuid_type, primary_key=True, nullable=False),
-        sa.Column("user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("session_type", sa.String(50), nullable=False),
         sa.Column(
             "started_at",
@@ -72,7 +76,9 @@ def upgrade() -> None:
             sa.ForeignKey("practice_sessions.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("question_id", uuid_type, nullable=True),
         sa.Column("response_type", sa.String(20), nullable=False),
         sa.Column("text_response", sa.Text(), nullable=True),

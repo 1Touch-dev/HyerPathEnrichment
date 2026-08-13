@@ -8,18 +8,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from uuid import UUID
+
+from rq import Queue
+from sqlalchemy import select
+from sqlalchemy import update as sa_update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import ORM registry FIRST to register all models
 import app.database.orm_registry  # noqa: F401
-
 from app.database.session import SessionLocal, engine
 from app.infrastructure.redis import close_redis
 from app.modules.documents.models import CandidateDocument
-from app.services.document_processor import DocumentProcessor, DocumentProcessingError
+from app.services.document_processor import DocumentProcessingError, DocumentProcessor
 from app.storage.document_storage import DocumentStorageError
-from rq import Queue
-from sqlalchemy import text, update as sa_update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -52,21 +54,21 @@ async def _process_document_job(
 
     try:
         async with SessionLocal() as session:
-            # Validate document exists
-            result = await session.execute(
-                text(
-                    "SELECT id, user_id, storage_path, document_type "
-                    "FROM candidate_documents WHERE id = :doc_id"
-                ),
-                {"doc_id": document_id},
+            # Validate document exists. Use the ORM (not a raw text() query) so the
+            # Uuid-typed id column gets proper bind-parameter coercion — document_id
+            # arrives here as a hyphenated str (from str(document.id) at enqueue time),
+            # which does not match SQLite's non-hyphenated stored hex representation
+            # under a raw string comparison.
+            doc_result = await session.execute(
+                select(CandidateDocument).where(CandidateDocument.id == UUID(document_id))
             )
-            doc_row = result.fetchone()
+            doc_row = doc_result.scalar_one_or_none()
 
-            if not doc_row:
+            if doc_row is None:
                 raise ValueError(f"Document {document_id} not found in database")
 
-            user_id = str(doc_row[1])
-            document_type = str(doc_row[3])
+            user_id = str(doc_row.user_id)
+            document_type = str(doc_row.document_type)
 
             logger.info(
                 "Processing document",
@@ -114,7 +116,7 @@ async def _process_document_job(
             # Update database with extracted content
             await session.execute(
                 sa_update(CandidateDocument)
-                .where(CandidateDocument.id == document_id)
+                .where(CandidateDocument.id == UUID(document_id))
                 .values(
                     raw_text=extraction_result["text"],
                     extracted_data={
@@ -182,9 +184,7 @@ async def _process_document_job(
                             f"Failed to chain to embedding queue (attempt {chain_attempt}/{max_chain_attempts}), retrying",
                             extra={"document_id": document_id, "error": str(chain_exc)},
                         )
-                        import time
-
-                        time.sleep(1)
+                        await asyncio.sleep(1)
 
     except (DocumentProcessingError, DocumentStorageError, ValueError) as exc:
         logger.error(
@@ -201,7 +201,7 @@ async def _process_document_job(
             async with SessionLocal() as recovery_session:
                 await recovery_session.execute(
                     sa_update(CandidateDocument)
-                    .where(CandidateDocument.id == document_id)
+                    .where(CandidateDocument.id == UUID(document_id))
                     .values(processing_status="failed"),
                 )
                 await recovery_session.commit()

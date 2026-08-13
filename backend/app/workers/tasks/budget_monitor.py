@@ -6,12 +6,10 @@ import asyncio
 import logging
 
 from app.observability.budget_alerts import check_budget_threshold, check_monthly_burn_rate
-from app.workers.queue import queue
 
 logger = logging.getLogger(__name__)
 
 
-@queue.job("budget_check", timeout=30)
 def check_budget_job() -> None:
     """Run budget checks (daily and monthly thresholds).
 

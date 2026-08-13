@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -63,7 +63,9 @@ async def _cleanup_expired_audio_async(db: Session) -> dict[str, int]:
 
     # Query expired recordings (limit batch size for memory)
     batch_limit = 1000
-    now = datetime.utcnow()
+    # Naive UTC timestamp: matches raw-SQL comparison against expires_at, which
+    # may be stored without tzinfo on SQLite.
+    now = datetime.now(UTC).replace(tzinfo=None)
 
     # Get expired recordings
     query = text("""
@@ -120,7 +122,7 @@ async def _cleanup_expired_audio_async(db: Session) -> dict[str, int]:
                         "recording_id": str(recording_id),
                         "user_id": str(user_id),
                         "storage_path": storage_path,
-                        "deleted_at": datetime.utcnow().isoformat(),
+                        "deleted_at": datetime.now(UTC).isoformat(),
                         "reason": "expired_retention_period",
                         "deletion_type": "storage_and_db",
                     },

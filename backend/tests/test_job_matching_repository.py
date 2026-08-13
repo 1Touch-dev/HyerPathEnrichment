@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import User
 from app.auth.password import hash_password
 from app.modules.job_matching import repository
-from app.modules.job_matching.models import JobPosting, JobPostingEmbedding
+from app.modules.job_matching.models import PGVECTOR_AVAILABLE, JobPosting, JobPostingEmbedding
 from app.modules.job_matching.scorer import compute_dedup_key
 
 
@@ -197,6 +197,18 @@ class TestPostingEmbeddingRepository:
         await repository.store_posting_embedding(db, posting.id, [0.1, 0.2, 0.3], token_count=42)
         assert await repository.has_posting_embedding(db, posting.id) is True
 
+    @pytest.mark.skipif(
+        PGVECTOR_AVAILABLE,
+        reason=(
+            "Exercises the SQLite-JSON-fallback `embedding` property on "
+            "JobPostingEmbedding, which is only compiled in when the `pgvector` "
+            "package is NOT importable (see models.py's PGVECTOR_AVAILABLE branch). "
+            "This environment has pgvector installed, so the ORM uses the real "
+            "Vector(1536) column instead and `_embedding_json` never exists — "
+            "run with pgvector uninstalled (or in an environment without it) to "
+            "actually exercise this fallback path."
+        ),
+    )
     async def test_embedding_getter_parses_json_string_on_sqlite(self, db: AsyncSession):
         """Guards against a latent AttributeError in the SQLite-fallback `embedding`
         property getter (§ audit item 3): force a genuine DB round-trip so the row

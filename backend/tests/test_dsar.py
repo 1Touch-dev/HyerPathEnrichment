@@ -7,10 +7,14 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
+def _auth_headers() -> dict[str, str]:
+    return {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+
+
 def test_dsar_access_returns_full_enriched_data() -> None:
     """Test that DSAR access returns complete enriched data."""
     client = TestClient(app)
-    enrich_headers = {"Authorization": "Bearer change-me"}
+    enrich_headers = _auth_headers()
     identifier = f"dsar-access-{uuid4().hex}@example.com"
 
     enrich_response = client.post(
@@ -23,6 +27,7 @@ def test_dsar_access_returns_full_enriched_data() -> None:
 
     response = client.post(
         "/api/dsar",
+        headers=enrich_headers,
         json={"identifier": identifier, "request_type": "access"},
     )
     assert response.status_code == 201
@@ -37,14 +42,14 @@ def test_dsar_access_returns_full_enriched_data() -> None:
     assert summary["first_job_at"] is not None
     assert summary["last_job_at"] is not None
 
-    fetched = client.get(f"/api/dsar/{payload['id']}")
+    fetched = client.get(f"/api/dsar/{payload['id']}", headers=enrich_headers)
     assert fetched.status_code == 200
     assert fetched.json()["data"]["id"] == payload["id"]
 
 
 def test_dsar_deletion_suppresses_and_purges() -> None:
     client = TestClient(app)
-    enrich_headers = {"Authorization": "Bearer change-me"}
+    enrich_headers = _auth_headers()
     identifier = f"dsar-delete-{uuid4().hex}@example.com"
 
     enrich = client.post(
@@ -57,6 +62,7 @@ def test_dsar_deletion_suppresses_and_purges() -> None:
 
     response = client.post(
         "/api/dsar",
+        headers=enrich_headers,
         json={"identifier": identifier, "request_type": "deletion"},
     )
     assert response.status_code == 201
@@ -80,7 +86,7 @@ def test_dsar_deletion_suppresses_and_purges() -> None:
 def test_dsar_access_merges_multiple_jobs() -> None:
     """Test that DSAR access merges data from multiple enrichment jobs."""
     client = TestClient(app)
-    enrich_headers = {"Authorization": "Bearer change-me"}
+    enrich_headers = _auth_headers()
     identifier = f"dsar-merge-{uuid4().hex}@example.com"
 
     enrich1 = client.post(
@@ -99,6 +105,7 @@ def test_dsar_access_merges_multiple_jobs() -> None:
 
     response = client.post(
         "/api/dsar",
+        headers=enrich_headers,
         json={"identifier": identifier, "request_type": "access"},
     )
     assert response.status_code == 201
@@ -117,6 +124,7 @@ def test_dsar_access_with_no_jobs() -> None:
 
     response = client.post(
         "/api/dsar",
+        headers=_auth_headers(),
         json={"identifier": identifier, "request_type": "access"},
     )
     assert response.status_code == 201

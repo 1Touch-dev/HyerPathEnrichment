@@ -26,9 +26,10 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 _env_root = os.environ.get("E2E_BACKEND_ROOT")
 ROOT = Path(_env_root) if _env_root else Path(__file__).resolve().parents[1]
@@ -37,6 +38,7 @@ if str(ROOT) not in sys.path:
 os.chdir(ROOT)
 
 from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.base import Enricher
 from app.enrichers.crosslinked import CrossLinkedEnricher
 from app.enrichers.email_discover import EmailDiscoverEnricher
@@ -48,7 +50,6 @@ from app.enrichers.maigret import MaigretEnricher
 from app.enrichers.sherlock import SherlockEnricher
 from app.enrichers.social_analyzer import SocialAnalyzerEnricher
 from app.enrichers.theharvester import TheHarvesterEnricher
-from app.domain.enrichment import EnrichmentRequest
 
 RESULTS_DIR = ROOT / ".e2e-results"
 
@@ -369,7 +370,9 @@ def audit_prerequisites() -> list[PrereqRow]:
 
     jobspy_ok = importlib.util.find_spec("jobspy") is not None
     if jobspy_ok and sys.platform == "win32":
-        jobspy_detail = "package installed (runtime probe skipped on native Windows unless --include-jobspy)"
+        jobspy_detail = (
+            "package installed (runtime probe skipped on native Windows unless --include-jobspy)"
+        )
     elif jobspy_ok:
         jobspy_detail = "import jobspy OK"
     else:
@@ -481,6 +484,7 @@ print(json.dumps(asyncio.run(_run())))
             text=True,
             timeout=JOBSPY_SUBPROCESS_TIMEOUT,
             cwd=str(ROOT),
+            check=False,
         )
     except subprocess.TimeoutExpired:
         return "CRASH", {}, f"JobSpy subprocess timed out after {JOBSPY_SUBPROCESS_TIMEOUT:.0f}s"
@@ -577,9 +581,7 @@ async def probe_enrichers(
         if only and slug not in only:
             continue
         if slug in skip:
-            rows.append(
-                ProbeRow(name=name, tier=tier, status="SKIP", note="excluded via --skip")
-            )
+            rows.append(ProbeRow(name=name, tier=tier, status="SKIP", note="excluded via --skip"))
             continue
         rows.append(
             await probe_one(
@@ -814,8 +816,16 @@ async def main() -> int:
     parser.add_argument("--json", action="store_true", help="Write JSON report to .e2e-results/")
     args = parser.parse_args()
 
-    only = {_slug(part.strip()) for part in args.only.split(",") if part.strip()} if args.only else None
-    skip = {_slug(part.strip()) for part in args.skip.split(",") if part.strip()} if args.skip else None
+    only = (
+        {_slug(part.strip()) for part in args.only.split(",") if part.strip()}
+        if args.only
+        else None
+    )
+    skip = (
+        {_slug(part.strip()) for part in args.skip.split(",") if part.strip()}
+        if args.skip
+        else None
+    )
 
     prereqs = audit_prerequisites()
     print_prereqs(prereqs)
@@ -823,7 +833,11 @@ async def main() -> int:
     if args.prereqs:
         return 0
 
-    if sys.platform == "win32" and not args.include_jobspy and (only is None or "jobspy" in (only or set())):
+    if (
+        sys.platform == "win32"
+        and not args.include_jobspy
+        and (only is None or "jobspy" in (only or set()))
+    ):
         print("\nNote: JobSpy auto-skipped on native Windows (use --include-jobspy or Docker/WSL).")
 
     if args.canary:

@@ -14,23 +14,23 @@ import asyncio
 import json
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import get_settings
 from app.services.question_generator import (
-    generate_questions,
     JobRole,
     QuestionCategory,
     QuestionDifficulty,
+    generate_questions,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -46,9 +46,7 @@ async def check_existing_questions(session: AsyncSession) -> int:
     Returns:
         Count of existing questions
     """
-    result = await session.execute(
-        text("SELECT COUNT(*) FROM interview_questions")
-    )
+    result = await session.execute(text("SELECT COUNT(*) FROM interview_questions"))
     count = result.scalar() or 0
     return count
 
@@ -66,7 +64,7 @@ async def insert_question(
         dialect_name: Database dialect (postgresql or sqlite)
     """
     question_id = uuid4()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if dialect_name == "postgresql":
         # PostgreSQL: use native array and JSONB types
@@ -166,9 +164,7 @@ async def seed_questions() -> None:
         for role in job_roles:
             for category in categories:
                 for difficulty in difficulties:
-                    logger.info(
-                        f"Generating questions: {role} / {category} / {difficulty}"
-                    )
+                    logger.info(f"Generating questions: {role} / {category} / {difficulty}")
 
                     try:
                         # Generate 5 questions per combination

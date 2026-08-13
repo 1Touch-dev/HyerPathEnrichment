@@ -5033,10 +5033,7 @@ export interface operations {
     };
     create_dsar_api_dsar_post: {
         parameters: {
-            query: {
-                args: unknown;
-                kwargs: unknown;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: {
@@ -5151,10 +5148,7 @@ export interface operations {
     };
     read_dsar_api_dsar__dsar_id__get: {
         parameters: {
-            query: {
-                args: unknown;
-                kwargs: unknown;
-            };
+            query?: never;
             header?: never;
             path: {
                 dsar_id: string;

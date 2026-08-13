@@ -1,14 +1,15 @@
 """Tests for OpenAI embeddings client with retry logic and cost tracking."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from app.clients.embeddings import (
+    DEFAULT_DIMENSIONS,
+    DEFAULT_MODEL,
+    MAX_RETRIES,
     EmbeddingsClient,
     get_embeddings_client,
-    DEFAULT_MODEL,
-    DEFAULT_DIMENSIONS,
-    MAX_RETRIES,
 )
 
 
@@ -75,7 +76,7 @@ async def test_generate_embedding_retry_logic(embeddings_client, mock_openai_res
             mock_openai_response,
         ]
 
-        embedding, token_count = await embeddings_client.generate_embedding("test text")
+        embedding, _token_count = await embeddings_client.generate_embedding("test text")
 
         assert len(embedding) == DEFAULT_DIMENSIONS
         assert mock_create.call_count == 3
@@ -94,9 +95,7 @@ async def test_generate_embedding_max_retries_exceeded(embeddings_client):
 
         mock_request = MagicMock()
 
-        mock_create.side_effect = APIError(
-            "Persistent error", request=mock_request, body={}
-        )
+        mock_create.side_effect = APIError("Persistent error", request=mock_request, body={})
 
         with pytest.raises(APIError):
             await embeddings_client.generate_embedding("test text")
@@ -212,26 +211,24 @@ def test_count_tokens(embeddings_client):
     assert token_count < 20  # Simple sentence shouldn't have too many tokens
 
 
-@pytest.mark.asyncio
-async def test_get_embeddings_client_factory():
+def test_get_embeddings_client_factory():
     """Test factory function with settings."""
     with patch("app.clients.embeddings.get_settings") as mock_settings:
         mock_settings.return_value.openai_api_key = "test-api-key"
 
-        client = await get_embeddings_client()
+        client = get_embeddings_client()
 
         assert isinstance(client, EmbeddingsClient)
         assert client.model == DEFAULT_MODEL
         assert client.dimensions == DEFAULT_DIMENSIONS
 
 
-@pytest.mark.asyncio
-async def test_get_embeddings_client_custom_params():
+def test_get_embeddings_client_custom_params():
     """Test factory function with custom parameters."""
     with patch("app.clients.embeddings.get_settings") as mock_settings:
         mock_settings.return_value.openai_api_key = "test-api-key"
 
-        client = await get_embeddings_client(model="text-embedding-3-large", dimensions=3072)
+        client = get_embeddings_client(model="text-embedding-3-large", dimensions=3072)
 
         assert client.model == "text-embedding-3-large"
         assert client.dimensions == 3072

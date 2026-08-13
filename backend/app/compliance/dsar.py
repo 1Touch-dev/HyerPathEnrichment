@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -19,6 +20,8 @@ from app.enrichers.pipeline import Pipeline
 from app.modules.enrichment.models import JobRecord
 from app.storage.models import PhotoCacheRecord
 from app.storage.photo_cache import slug_hash
+
+logger = logging.getLogger(__name__)
 
 
 async def process_dsar(db: AsyncSession, request: DsarRequest, user_id: UUID) -> DsarResponse:
@@ -217,6 +220,7 @@ def _merge_job_dossiers(jobs: list[JobRecord]) -> Dossier | None:
         try:
             dossier = Dossier.model_validate(job.dossier_payload or {})
         except Exception:
+            logger.warning("Skipping invalid dossier payload for job %s", job.id, exc_info=True)
             continue
 
         if dossier.photo and merged.photo is None:

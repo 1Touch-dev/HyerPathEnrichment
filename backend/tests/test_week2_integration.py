@@ -1,19 +1,18 @@
 """Integration tests for Week 2 foundation features."""
 
 
-
 def test_import_all_week2_modules():
     """Verify all Week 2 modules can be imported without errors."""
     # Session tracking
-    from app.services.session_manager import SessionManager
+    from app.modules.admin.router import router as admin_router
     from app.modules.sessions.router import router as sessions_router
-
-    # Feedback generation
-    from app.services.feedback_generator import generate_interview_feedback
 
     # Cost monitoring
     from app.observability.cost_tracking import track_llm_cost
-    from app.modules.admin.router import router as admin_router
+
+    # Feedback generation
+    from app.services.feedback_generator import generate_interview_feedback
+    from app.services.session_manager import SessionManager
 
     # All imports successful
     assert SessionManager is not None
@@ -26,8 +25,8 @@ def test_import_all_week2_modules():
 
 def test_week2_models_loaded():
     """Verify all Week 2 database models are loaded."""
-    from app.modules.sessions.models import PracticeSession, QuestionAttempt
     from app.auth.models import User
+    from app.modules.sessions.models import PracticeSession, QuestionAttempt
 
     # Check relationships exist
     assert hasattr(PracticeSession, "user")

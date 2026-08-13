@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete
 
@@ -15,7 +15,7 @@ from app.database.session import SessionLocal, init_db
 
 async def main() -> None:
     settings = get_settings()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.audit_log_retention_years * 365)
+    cutoff = datetime.now(UTC) - timedelta(days=settings.audit_log_retention_years * 365)
 
     await init_db()
     async with SessionLocal() as session:

@@ -41,7 +41,7 @@ if not _API_TOKEN_FROM_ENV:
                 if line.strip().startswith("API_TOKEN="):
                     _API_TOKEN_FROM_ENV = line.split("=", 1)[1].strip()
                     break
-        except Exception:
+        except Exception:  # noqa: S110 - best-effort env file parsing at import time
             pass
 
 API_TOKEN = _API_TOKEN_FROM_ENV or "change-me"
@@ -197,7 +197,9 @@ def main() -> None:
     final: dict | None = None
     while time.time() < deadline:
         try:
-            poll = requests.get(f"{BASE_URL}/enrich/{job_id}", headers=auth_headers(), timeout=TIMEOUT)
+            poll = requests.get(
+                f"{BASE_URL}/enrich/{job_id}", headers=auth_headers(), timeout=TIMEOUT
+            )
         except requests.RequestException as exc:
             fail(f"/enrich/{job_id} poll unreachable: {exc}")
         if poll.status_code != 200:

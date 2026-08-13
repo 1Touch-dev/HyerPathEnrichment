@@ -44,8 +44,8 @@ class PracticeSession(Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="practice_sessions")
-    attempts: Mapped[list["QuestionAttempt"]] = relationship(
+    user: Mapped[User] = relationship("User", back_populates="practice_sessions")
+    attempts: Mapped[list[QuestionAttempt]] = relationship(
         "QuestionAttempt", back_populates="session", cascade="all, delete-orphan"
     )
 
@@ -93,13 +93,18 @@ class QuestionAttempt(Base):
     score_breakdown: Mapped[dict[str, Any] | None] = mapped_column(JsonDoc, nullable=True)
     ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     time_taken_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    attempt_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JsonDoc,
+        nullable=False,
+        default=dict,
+    )
     attempted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=datetime.utcnow
     )
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="question_attempts")
-    session: Mapped["PracticeSession"] = relationship("PracticeSession", back_populates="attempts")
+    user: Mapped[User] = relationship("User", back_populates="question_attempts")
+    session: Mapped[PracticeSession] = relationship("PracticeSession", back_populates="attempts")
 
     __table_args__ = (
         CheckConstraint(

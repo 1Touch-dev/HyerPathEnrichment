@@ -7227,22 +7227,6 @@
         "operationId": "create_dsar_api_dsar_post",
         "parameters": [
           {
-            "in": "query",
-            "name": "args",
-            "required": true,
-            "schema": {
-              "title": "Args"
-            }
-          },
-          {
-            "in": "query",
-            "name": "kwargs",
-            "required": true,
-            "schema": {
-              "title": "Kwargs"
-            }
-          },
-          {
             "in": "cookie",
             "name": "access_token",
             "required": false,
@@ -7423,22 +7407,6 @@
             "schema": {
               "title": "Dsar Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "args",
-            "required": true,
-            "schema": {
-              "title": "Args"
-            }
-          },
-          {
-            "in": "query",
-            "name": "kwargs",
-            "required": true,
-            "schema": {
-              "title": "Kwargs"
             }
           },
           {

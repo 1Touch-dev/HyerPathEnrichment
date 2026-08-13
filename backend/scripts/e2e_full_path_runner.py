@@ -25,7 +25,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,7 +127,6 @@ def run_stage(
     name: str,
     script_name: str,
 ) -> StageResult:
-    skip_reason: str | None = None
     if name == "compose_test" and os.environ.get("E2E_SKIP_COMPOSE", "0") == "1":
         print(f"SKIP  {name} (E2E_SKIP_COMPOSE=1)", flush=True)
         return StageResult(
@@ -168,7 +167,7 @@ def write_report(mode: str, stages: list[StageResult]) -> dict:
     failed = sum(1 for s in stages if not s.ok and not s.skipped)
     skipped = sum(1 for s in stages if s.skipped)
     report = {
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "mode": mode,
         "stages": [
             {
@@ -200,7 +199,9 @@ def write_report(mode: str, stages: list[StageResult]) -> dict:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run full-path backend E2E stages.")
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--ci", action="store_true", help="CI-safe compose + fake sidecars (default)")
+    group.add_argument(
+        "--ci", action="store_true", help="CI-safe compose + fake sidecars (default)"
+    )
     group.add_argument("--live", action="store_true", help="Live sidecar + tier probes")
     group.add_argument("--all", action="store_true", help="Run CI then live stages")
     return parser.parse_args(argv)

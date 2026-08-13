@@ -98,7 +98,22 @@ def main() -> None:
     # for both job_matching_fan_out_daily and audio_cleanup_daily, so exactly
     # one process registers them, regardless of how many generic workers run.
     register_scheduled_jobs()
-    worker.work(with_scheduler=True)
+
+    # RQ's scheduler runs as a forked subprocess (rq.scheduler.RQScheduler._process).
+    # On Windows, multiprocessing has no fork and falls back to spawn, which pickles
+    # the target object graph — including this worker's Redis connection, which holds
+    # an unpicklable `_thread.lock` — causing `TypeError: cannot pickle '_thread.lock'
+    # object` and crashing the whole worker. Same os.fork() check as the Worker/
+    # SimpleWorker split above: disable the in-process scheduler on Windows so job
+    # processing still works, at the cost of the daily cron jobs (job_matching_fan_out_daily,
+    # audio_cleanup_daily) not auto-firing in native Windows dev; Linux production is
+    # unaffected.
+    if not hasattr(os, "fork"):
+        logger.warning(
+            "RQ scheduler disabled on Windows (multiprocessing spawn can't pickle the "
+            "Redis connection) — scheduled jobs won't auto-fire; queue processing still works"
+        )
+    worker.work(with_scheduler=hasattr(os, "fork"))
 
 
 if __name__ == "__main__":

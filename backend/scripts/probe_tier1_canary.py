@@ -23,7 +23,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.integrations.linkedin.browser_facade import LinkedInBrowserClient, LinkedInPhotoError, extract_linkedin_slug
+from app.integrations.linkedin.browser_facade import (
+    LinkedInBrowserClient,
+    LinkedInPhotoError,
+    extract_linkedin_slug,
+)
 from app.integrations.multilogin.profile_pool import ProfilePool
 from app.storage.photo_cache import PhotoCache
 
@@ -49,7 +53,6 @@ async def run_canary(path: Path) -> list[CanaryRow]:
 
     browser = LinkedInBrowserClient()
     cache = PhotoCache()
-    pool = ProfilePool()
     rows: list[CanaryRow] = []
 
     for entry in entries:

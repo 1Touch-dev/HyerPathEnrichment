@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID, uuid4
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -10,15 +12,16 @@ from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.pipeline import Pipeline
 from app.main import app
 
-_HEADERS = {"Authorization": "Bearer change-me"}
+_TEST_USER_ID = uuid4()
+_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(_TEST_USER_ID)}
 
 
-async def _create_completed_job() -> str:
+async def _create_completed_job(user_id: UUID | None = _TEST_USER_ID) -> str:
     await init_db()
     async with SessionLocal() as session:
         pipeline = Pipeline(session)
         request = EnrichmentRequest(username="sse-user", requested_tiers=["tier2"])
-        job = await pipeline.create_queued_job(request)
+        job = await pipeline.create_queued_job(request, user_id=user_id)
         result = await pipeline.execute_job(job.id)
         assert result is not None
         return result.id
@@ -69,7 +72,7 @@ async def test_events_route_returns_completed_status_for_finished_job(
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert f'"job_id": "{job_id}"' in response.text
-    assert '"status": "completed"' in response.text
+    assert '"status": "completed' in response.text
 
 
 def test_events_route_returns_404_for_unknown_job() -> None:

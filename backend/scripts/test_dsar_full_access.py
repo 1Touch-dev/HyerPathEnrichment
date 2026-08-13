@@ -11,7 +11,6 @@ from app.compliance.identifiers import hash_identifier
 from app.database.session import SessionLocal
 from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.pipeline import Pipeline
-from app.modules.enrichment.models import JobRecord
 
 
 async def main() -> None:
@@ -22,7 +21,7 @@ async def main() -> None:
     async with SessionLocal() as db:
         pipeline = Pipeline(db)
 
-        print(f"\n=== Testing DSAR Full Data Access ===\n")
+        print("\n=== Testing DSAR Full Data Access ===\n")
         print(f"1. Creating test enrichment job for {test_email}...")
 
         request = EnrichmentRequest(
@@ -35,11 +34,11 @@ async def main() -> None:
         print(f"   ✓ Job created: {job.id}")
         print(f"   Status: {job.status}")
 
-        print(f"\n2. Submitting DSAR access request...")
+        print("\n2. Submitting DSAR access request...")
         identifier_hash = hash_identifier(test_email)
         summary = await build_access_summary(db, identifier_hash, test_email)
 
-        print(f"\n3. DSAR Access Summary:")
+        print("\n3. DSAR Access Summary:")
         print(f"   Identifier: {summary.get('identifier_provided')}")
         print(f"   Job count: {summary.get('job_count')}")
         print(f"   Photo cached: {summary.get('photo_cached')}")
@@ -48,7 +47,7 @@ async def main() -> None:
 
         enriched_data = summary.get("enriched_data")
         if enriched_data:
-            print(f"\n4. Enriched Data Found:")
+            print("\n4. Enriched Data Found:")
             if enriched_data.get("photo"):
                 print(f"   ✓ Photo: {enriched_data['photo'].get('source')}")
             if enriched_data.get("emails"):
@@ -66,9 +65,9 @@ async def main() -> None:
                 business = enriched_data["business"]
                 print(f"   ✓ Business: {business.get('name')}")
         else:
-            print(f"\n4. No enriched data available")
+            print("\n4. No enriched data available")
 
-        print(f"\n=== Test completed successfully! ===\n")
+        print("\n=== Test completed successfully! ===\n")
 
 
 if __name__ == "__main__":
