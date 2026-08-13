@@ -21,8 +21,17 @@ class PortfolioItemRequest(BaseModel):
     display_order: int = 0
 
 
-class PortfolioItemResponse(PortfolioItemRequest):
+class PortfolioItemResponse(BaseModel):
+    """Not inheriting PortfolioItemRequest: item_type is a plain str here (DB column is Mapped[str],
+    validated on write, not on read) — same convention as job_swipe/schemas.py's SwipeActionResponse,
+    which independently redeclares `direction: str` instead of inheriting SwipeActionRequest's Literal."""
+
     item_id: str
+    item_type: str
+    title: str
+    description: str | None
+    url: str
+    display_order: int
     created_at: datetime
 
 
