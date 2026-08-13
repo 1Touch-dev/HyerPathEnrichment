@@ -56,7 +56,6 @@ const baseCard: SwipeCardData = {
   salaryMax: null,
   salaryCurrency: null,
   overallScore: 88,
-  scoreBreakdown: {},
   explanation: "Great fit for your skills.",
 };
 

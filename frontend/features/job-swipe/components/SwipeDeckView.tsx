@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/console/EmptyState";
 import { useDraftOutreachForMatch } from "@/features/outreach";
 import type { SwipeDirection } from "@/src/lib/types";
@@ -10,13 +11,30 @@ import { SwipeCard } from "./SwipeCard";
 const MAX_STACKED_CARDS = 3;
 
 export function SwipeDeckView() {
-  const { data, isLoading, isError } = useSwipeDeck();
+  const { data, isLoading, isError, refetch, isRefetching } = useSwipeDeck();
   const submitSwipe = useSubmitSwipe();
   const draftOutreach = useDraftOutreachForMatch();
 
   if (isLoading) return <div className="animate-pulse h-[32rem] rounded-2xl bg-muted" />;
   if (isError) return <EmptyState title="Couldn't load your deck" description="Please try again shortly." />;
   if (!data || data.cards.length === 0) {
+    // `hasMore` reflects the backend's unswiped-match count at the time of the last fetch
+    // (backend/app/modules/job_swipe/service.py's `_DECK_PAGE_SIZE` paging) — once the visible
+    // page is exhausted client-side, refetching naturally returns the next page since already-
+    // swiped matches are excluded server-side (no offset/cursor needed).
+    if (data?.hasMore) {
+      return (
+        <EmptyState
+          title="You're caught up on this page"
+          description="There are more matches waiting — load the next batch."
+          action={
+            <Button onClick={() => refetch()} disabled={isRefetching}>
+              {isRefetching ? "Loading..." : "Load more"}
+            </Button>
+          }
+        />
+      );
+    }
     return (
       <EmptyState
         title="No new matches to review"

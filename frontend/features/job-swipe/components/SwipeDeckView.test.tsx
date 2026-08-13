@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { SwipeDeckView } from "./SwipeDeckView";
@@ -68,10 +68,20 @@ describe("SwipeDeckView", () => {
     expect(screen.getByText("Couldn't load your deck")).toBeInTheDocument();
   });
 
-  it("renders an empty state when there are no cards", () => {
-    mockUseSwipeDeck({ data: { cards: [] } as SwipeDeck });
+  it("renders an empty state when there are no cards and hasMore is false", () => {
+    mockUseSwipeDeck({ data: { cards: [], hasMore: false } as SwipeDeck });
     render(<SwipeDeckView />, { wrapper });
     expect(screen.getByText("No new matches to review")).toBeInTheDocument();
+  });
+
+  it('shows a "Load more" affordance when there are no cards but hasMore is true', () => {
+    const refetchMock = vi.fn();
+    mockUseSwipeDeck({ data: { cards: [], hasMore: true } as SwipeDeck, refetch: refetchMock });
+    render(<SwipeDeckView />, { wrapper });
+    expect(screen.getByText("You're caught up on this page")).toBeInTheDocument();
+    const loadMoreButton = screen.getByRole("button", { name: "Load more" });
+    fireEvent.click(loadMoreButton);
+    expect(refetchMock).toHaveBeenCalled();
   });
 
   it("renders at most MAX_STACKED_CARDS cards, with exactly one isTop=true", () => {
@@ -86,10 +96,9 @@ describe("SwipeDeckView", () => {
       salaryMax: null,
       salaryCurrency: null,
       overallScore: 80,
-      scoreBreakdown: {},
       explanation: null,
     }));
-    mockUseSwipeDeck({ data: { cards } as SwipeDeck });
+    mockUseSwipeDeck({ data: { cards, hasMore: false } as SwipeDeck });
     render(<SwipeDeckView />, { wrapper });
 
     const rendered = screen.getAllByTestId("swipe-card");
@@ -111,11 +120,10 @@ describe("SwipeDeckView", () => {
         salaryMax: null,
         salaryCurrency: null,
         overallScore: 80,
-        scoreBreakdown: {},
         explanation: null,
       },
     ];
-    mockUseSwipeDeck({ data: { cards } as SwipeDeck });
+    mockUseSwipeDeck({ data: { cards, hasMore: false } as SwipeDeck });
     render(<SwipeDeckView />, { wrapper });
 
     lastOnSwiped?.("right");
