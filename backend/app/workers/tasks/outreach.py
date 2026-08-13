@@ -43,7 +43,9 @@ async def _generate_outreach_draft_job(
 ) -> None:
     try:
         async with SessionLocal() as session:
-            doc_result = await session.execute(select(CandidateDocument).where(CandidateDocument.id == document_id))
+            doc_result = await session.execute(
+                select(CandidateDocument).where(CandidateDocument.id == UUID(document_id))
+            )
             document = doc_result.scalar_one_or_none()
             if not document:
                 raise ValueError(f"Document {document_id} not found")
