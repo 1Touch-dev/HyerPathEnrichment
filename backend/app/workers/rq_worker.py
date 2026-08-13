@@ -104,7 +104,18 @@ def main() -> None:
         # cast satisfies both older mypy (which flags the assignment) and newer
         # mypy 2.3+ (which flags unused type: ignore comments).
         worker.death_penalty_class = cast(type[UnixSignalDeathPenalty], _NoOpDeathPenalty)
-    worker.work(with_scheduler=True)
+    # RQ's scheduler runs as a forked subprocess (rq.scheduler.RQScheduler._process).
+    # On Windows, multiprocessing has no fork and falls back to spawn, which pickles
+    # the target object graph — including this worker's Redis connection, which holds
+    # an unpicklable `_thread.lock` — causing `TypeError: cannot pickle '_thread.lock'
+    # object` and crashing the whole worker. Same os.fork() check as the Worker/
+    # SimpleWorker split above.
+    if not hasattr(os, "fork"):
+        logger.warning(
+            "RQ scheduler disabled on Windows (multiprocessing spawn can't pickle the "
+            "Redis connection) — scheduled jobs won't auto-fire; queue processing still works"
+        )
+    worker.work(with_scheduler=hasattr(os, "fork"))
 
 
 if __name__ == "__main__":
