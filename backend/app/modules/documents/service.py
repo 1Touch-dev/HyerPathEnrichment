@@ -109,13 +109,15 @@ class DocumentService:
                     "existing_doc_id": str(existing_doc.id),
                 },
             )
-            # Create a job record with status="duplicate" for tracking
+            # Create a job record with status="duplicate" for tracking.
+            # progress is a 0.0-1.0 fraction (JobStatusResponse.progress has
+            # ge=0.0, le=1.0) — not a percentage.
             job = DocumentJob(
                 user_id=user_id,
                 document_id=existing_doc.id,
                 job_type="upload",
                 status="duplicate",
-                progress=100.0,
+                progress=1.0,
             )
             self.db.add(job)
             await self.db.commit()

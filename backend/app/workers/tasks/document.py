@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.database.orm_registry  # noqa: F401
 from app.database.session import SessionLocal, engine
 from app.infrastructure.redis import close_redis
-from app.modules.documents.models import CandidateDocument
+from app.modules.documents.models import CandidateDocument, DocumentJob
 from app.services.document_processor import DocumentProcessingError, DocumentProcessor
 from app.storage.document_storage import DocumentStorageError
 
@@ -129,6 +129,20 @@ async def _process_document_job(
                     processing_status="completed",
                 ),
             )
+            # Mirror the terminal state onto the DocumentJob row the client is
+            # actually polling (GET /api/documents/jobs/{job_id}) — without this,
+            # that endpoint shows "pending" forever even after the document itself
+            # finishes processing, since it reads DocumentJob.status, not
+            # CandidateDocument.processing_status. progress is a 0.0-1.0 fraction
+            # (JobStatusResponse.progress has ge=0.0, le=1.0) — not a percentage.
+            await session.execute(
+                sa_update(DocumentJob)
+                .where(
+                    DocumentJob.document_id == UUID(document_id),
+                    DocumentJob.status == "pending",
+                )
+                .values(status="completed", progress=1.0)
+            )
             await session.commit()
 
             logger.info(
@@ -203,6 +217,14 @@ async def _process_document_job(
                     sa_update(CandidateDocument)
                     .where(CandidateDocument.id == UUID(document_id))
                     .values(processing_status="failed"),
+                )
+                await recovery_session.execute(
+                    sa_update(DocumentJob)
+                    .where(
+                        DocumentJob.document_id == UUID(document_id),
+                        DocumentJob.status == "pending",
+                    )
+                    .values(status="failed", error=str(exc))
                 )
                 await recovery_session.commit()
         except Exception:
