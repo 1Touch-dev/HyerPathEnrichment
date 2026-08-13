@@ -497,10 +497,13 @@ interface RawPortfolioItemResponse {
 
 interface RawPortfolioProfileResponse {
   profile_id: string;
+  user_id: string;
   slug: string;
+  display_name: string | null;
   headline: string | null;
   bio: string | null;
   is_published: boolean;
+  public_url: string;
   items: RawPortfolioItemResponse[];
   created_at: string;
   updated_at: string;
@@ -508,11 +511,18 @@ interface RawPortfolioProfileResponse {
 
 interface RawPublicPortfolioProfileResponse {
   slug: string;
+  display_name: string | null;
   headline: string | null;
   bio: string | null;
   items: RawPortfolioItemResponse[];
 }
 
+/**
+ * Mirrors the backend's real `SwipeableMatchResponse` (backend/app/modules/job_swipe/schemas.py)
+ * — that schema has no `score_breakdown` field (unlike Module 1's `JobMatch`, which does have
+ * one from a different backend model). Nothing in `frontend/features/job-swipe/` renders a score
+ * breakdown, so it is intentionally omitted here rather than kept as a dead optional field.
+ */
 interface RawSwipeCardResponse {
   match_id: string;
   job_posting_id: string;
@@ -524,12 +534,12 @@ interface RawSwipeCardResponse {
   salary_max: number | null;
   salary_currency: string | null;
   overall_score: number;
-  score_breakdown: Record<string, number>;
   explanation: string | null;
 }
 
 interface RawSwipeDeckResponse {
   cards: RawSwipeCardResponse[];
+  has_more: boolean;
 }
 
 interface RawOutreachMessageResponse {
@@ -571,10 +581,12 @@ export function adaptCvFeedbackReport(raw: RawCvFeedbackReportResponse): CvFeedb
   return {
     reportId: raw.report_id,
     documentId: raw.document_id,
+    targetRole: raw.target_role,
     atsScore: raw.ats_score,
     strengths: raw.strengths,
     improvements: raw.improvements,
     rewrittenBullets: raw.rewritten_bullets,
+    acceptedBulletIndices: raw.accepted_bullet_indices,
     createdAt: raw.created_at,
   };
 }
@@ -640,10 +652,13 @@ export function adaptPortfolioItem(raw: RawPortfolioItemResponse): PortfolioItem
 export function adaptPortfolioProfile(raw: RawPortfolioProfileResponse): PortfolioProfile {
   return {
     profileId: raw.profile_id,
+    userId: raw.user_id,
     slug: raw.slug,
+    displayName: raw.display_name,
     headline: raw.headline,
     summary: raw.bio,
     isPublished: raw.is_published,
+    publicUrl: raw.public_url,
     items: raw.items.map(adaptPortfolioItem),
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
@@ -655,6 +670,7 @@ export function adaptPublicPortfolioProfile(
 ): PublicPortfolioProfile {
   return {
     slug: raw.slug,
+    displayName: raw.display_name,
     headline: raw.headline,
     summary: raw.bio,
     items: raw.items.map(adaptPortfolioItem),
@@ -674,9 +690,9 @@ export function adaptSwipeDeck(raw: RawSwipeDeckResponse): SwipeDeck {
       salaryMax: c.salary_max,
       salaryCurrency: c.salary_currency,
       overallScore: c.overall_score,
-      scoreBreakdown: c.score_breakdown,
       explanation: c.explanation,
     })),
+    hasMore: raw.has_more,
   };
 }
 

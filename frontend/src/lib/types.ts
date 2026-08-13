@@ -307,10 +307,13 @@ export interface CvChatSession {
 export interface CvFeedbackReport {
   reportId: string;
   documentId: string;
+  targetRole: string | null;
   atsScore: number;
   strengths: string[];
   improvements: string[];
   rewrittenBullets: { original: string; rewritten: string; rationale: string }[];
+  /** Indices into `rewrittenBullets` the user has already accepted (backend's `accepted_bullet_indices`). */
+  acceptedBulletIndices: number[];
   createdAt: string;
 }
 
@@ -344,10 +347,14 @@ export interface PortfolioItem {
 
 export interface PortfolioProfile {
   profileId: string;
+  userId: string;
   slug: string;
+  displayName: string | null;
   headline: string | null;
   summary: string | null;
   isPublished: boolean;
+  /** Absolute or root-relative URL to the public /p/{slug} page (backend's `PortfolioProfileResponse.public_url`). */
+  publicUrl: string;
   items: PortfolioItem[];
   createdAt: string;
   updatedAt: string;
@@ -355,10 +362,12 @@ export interface PortfolioProfile {
 
 export interface PublicPortfolioProfile {
   slug: string;
+  displayName: string | null;
   headline: string | null;
   summary: string | null;
   items: PortfolioItem[];
-  // Deliberately no profileId/userId/timestamps — public response never leaks internal IDs (§9.6).
+  // Deliberately no profileId/userId/publicUrl/timestamps — public response never leaks
+  // internal IDs (§9.6), and the visitor is already on the public URL so it isn't needed.
 }
 
 export interface SwipeCard {
@@ -372,12 +381,13 @@ export interface SwipeCard {
   salaryMax: number | null;
   salaryCurrency: string | null;
   overallScore: number;
-  scoreBreakdown: Record<string, number>;
   explanation: string | null;
 }
 
 export interface SwipeDeck {
   cards: SwipeCard[];
+  /** Whether more unswiped matches exist beyond this page (backend's `SwipeDeckResponse.has_more`). */
+  hasMore: boolean;
 }
 
 export type SwipeDirection = "left" | "right" | "up";
