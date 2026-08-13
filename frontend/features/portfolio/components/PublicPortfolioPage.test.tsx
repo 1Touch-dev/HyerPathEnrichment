@@ -5,6 +5,7 @@ import type { PublicPortfolioProfile } from "@/src/lib/types";
 
 const baseProfile: PublicPortfolioProfile = {
   slug: "jane-doe",
+  displayName: "Jane Doe",
   headline: "Backend Engineer",
   summary: "I build things.",
   items: [
