@@ -167,6 +167,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/cv-chat/sessions/{session_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Cv Chat Message
+         * @description One turn-based (non-streamed, Decision 2) chatbot exchange.
+         */
+        post: operations["post_cv_chat_message_api_documents_cv_chat_sessions__session_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -320,6 +340,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/{document_id}/completeness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Completeness
+         * @description Missing-field completeness check (Decision 1). Drives the 'let's finish your CV' prompt.
+         */
+        get: operations["get_completeness_api_documents__document_id__completeness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{document_id}/cv-chat/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Cv Chat Session
+         * @description Start (or resume) the missing-info chatbot for a document.
+         */
+        post: operations["start_cv_chat_session_api_documents__document_id__cv_chat_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{document_id}/cv-data": {
         parameters: {
             query?: never;
@@ -347,6 +407,50 @@ export interface paths {
         get: operations["get_cv_data_api_documents__document_id__cv_data_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{document_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Cv Feedback
+         * @description Latest CV-improvement report for a document.
+         */
+        get: operations["get_cv_feedback_api_documents__document_id__feedback_get"];
+        put?: never;
+        /**
+         * Request Cv Feedback
+         * @description Enqueue AI CV-improvement generation (Decision 3).
+         */
+        post: operations["request_cv_feedback_api_documents__document_id__feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{document_id}/feedback/{report_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Cv Feedback Bullet
+         * @description Explicitly accept one rewritten bullet — the only way a suggestion is endorsed (Decision 3).
+         */
+        post: operations["accept_cv_feedback_bullet_api_documents__document_id__feedback__report_id__accept_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -554,6 +658,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/job-matching/push-subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Push Subscription */
+        post: operations["create_push_subscription_api_job_matching_push_subscription_post"];
+        /** Delete Push Subscription */
+        delete: operations["delete_push_subscription_api_job_matching_push_subscription_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/job-matching/scan": {
         parameters: {
             query?: never;
@@ -565,6 +687,46 @@ export interface paths {
         put?: never;
         /** Trigger Scan */
         post: operations["trigger_scan_api_job_matching_scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/matches/swipe-deck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Swipe Deck
+         * @description Next batch of unswiped matches, highest score first.
+         */
+        get: operations["get_swipe_deck_api_matches_swipe_deck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/matches/{match_id}/swipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Swipe Match
+         * @description Record (or overwrite) a swipe decision on one match.
+         */
+        post: operations["swipe_match_api_matches__match_id__swipe_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -597,6 +759,149 @@ export interface paths {
         };
         /** Check Opt Out */
         get: operations["check_opt_out_api_opt_out_check_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outreach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Messages */
+        get: operations["list_messages_api_outreach_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outreach/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request Draft */
+        post: operations["request_draft_api_outreach_drafts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outreach/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit Draft */
+        patch: operations["edit_draft_api_outreach__message_id__patch"];
+        trace?: never;
+    };
+    "/api/outreach/{message_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Message
+         * @description Appends the mandatory disclosure footer (Decision 5) and marks the draft as sent.
+         */
+        post: operations["send_message_api_outreach__message_id__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portfolio/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Item */
+        post: operations["add_item_api_portfolio_items_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portfolio/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Item */
+        delete: operations["delete_item_api_portfolio_items__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portfolio/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Profile */
+        get: operations["get_my_profile_api_portfolio_profile_get"];
+        /** Upsert Profile */
+        put: operations["upsert_profile_api_portfolio_profile_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portfolio/public/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Profile
+         * @description Unauthenticated — no CurrentUser dependency. This is the endpoint the public /p/{slug} page calls.
+         */
+        get: operations["get_public_profile_api_portfolio_public__slug__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1038,6 +1343,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcceptBulletRequest */
+        AcceptBulletRequest: {
+            /** Bullet Index */
+            bullet_index: number;
+        };
         /** Body_upload_document_api_documents_upload_post */
         Body_upload_document_api_documents_upload_post: {
             /**
@@ -1213,6 +1523,87 @@ export interface components {
              * @description Total tokens processed
              */
             tokens: number;
+        };
+        /** CvChatMessageRequest */
+        CvChatMessageRequest: {
+            /** Content */
+            content: string;
+        };
+        /** CvChatMessageResponse */
+        CvChatMessageResponse: {
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Field Name */
+            field_name: string | null;
+            /** Id */
+            id: string;
+            /** Role */
+            role: string;
+        };
+        /** CvChatSessionResponse */
+        CvChatSessionResponse: {
+            /** Document Id */
+            document_id: string;
+            /** Fields Resolved */
+            fields_resolved: string[];
+            /** Messages */
+            messages: components["schemas"]["CvChatMessageResponse"][];
+            /** Missing Fields At Start */
+            missing_fields_at_start: string[];
+            /** Session Id */
+            session_id: string;
+            /** Status */
+            status: string;
+        };
+        /** CvChatTurnResponse */
+        CvChatTurnResponse: {
+            assistant_message: components["schemas"]["CvChatMessageResponse"];
+            session: components["schemas"]["CvChatSessionResponse"];
+        };
+        /** CvCompletenessResponse */
+        CvCompletenessResponse: {
+            /** Completeness Score */
+            completeness_score: number;
+            /** Document Id */
+            document_id: string;
+            /** Has Active Chat Session */
+            has_active_chat_session: boolean;
+            /** Missing Fields */
+            missing_fields: string[];
+        };
+        /** CvFeedbackRequest */
+        CvFeedbackRequest: {
+            /** Target Role */
+            target_role?: string | null;
+        };
+        /** CvFeedbackResponse */
+        CvFeedbackResponse: {
+            /** Accepted Bullet Indices */
+            accepted_bullet_indices: number[];
+            /** Ats Score */
+            ats_score: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Document Id */
+            document_id: string;
+            /** Improvements */
+            improvements: string[];
+            /** Report Id */
+            report_id: string;
+            /** Rewritten Bullets */
+            rewritten_bullets: components["schemas"]["RewrittenBullet"][];
+            /** Strengths */
+            strengths: string[];
+            /** Target Role */
+            target_role: string | null;
         };
         /**
          * DailyCostResponse
@@ -1597,7 +1988,7 @@ export interface components {
              */
             is_scan_enabled: boolean;
             /** Notification Channels */
-            notification_channels?: ("email" | "sms" | "webhook")[];
+            notification_channels?: ("email" | "sms" | "webhook" | "push")[];
             /** Remote Preference */
             remote_preference?: ("remote" | "hybrid" | "onsite") | null;
             /**
@@ -1637,7 +2028,7 @@ export interface components {
             /** Last Scanned At */
             last_scanned_at: string | null;
             /** Notification Channels */
-            notification_channels?: ("email" | "sms" | "webhook")[];
+            notification_channels?: ("email" | "sms" | "webhook" | "push")[];
             /** Remote Preference */
             remote_preference?: ("remote" | "hybrid" | "onsite") | null;
             /**
@@ -1765,6 +2156,51 @@ export interface components {
             /** Total Cost Usd */
             total_cost_usd: number;
         };
+        /** OutreachDraftRequest */
+        OutreachDraftRequest: {
+            /** Company Name */
+            company_name: string;
+            /** Document Id */
+            document_id: string;
+            /** Job Match Id */
+            job_match_id?: string | null;
+            /** Recipient Role Title */
+            recipient_role_title?: string | null;
+        };
+        /** OutreachEditRequest */
+        OutreachEditRequest: {
+            /** Body */
+            body: string;
+            /** Subject */
+            subject: string;
+        };
+        /** OutreachListResponse */
+        OutreachListResponse: {
+            /** Messages */
+            messages: components["schemas"]["OutreachMessageResponse"][];
+        };
+        /** OutreachMessageResponse */
+        OutreachMessageResponse: {
+            /** Body */
+            body: string;
+            /** Company Name */
+            company_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Message Id */
+            message_id: string;
+            /** Recipient Role Title */
+            recipient_role_title: string | null;
+            /** Sent At */
+            sent_at: string | null;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+        };
         /** PhotoAsset */
         PhotoAsset: {
             /** Asset Url */
@@ -1778,6 +2214,130 @@ export interface components {
             confidence: number;
             /** Source */
             source: string;
+        };
+        /** PortfolioItemRequest */
+        PortfolioItemRequest: {
+            /** Description */
+            description?: string | null;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /**
+             * Item Type
+             * @enum {string}
+             */
+            item_type: "github" | "live_demo" | "case_study" | "other";
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /**
+         * PortfolioItemResponse
+         * @description Not inheriting PortfolioItemRequest: item_type is a plain str here (DB column is Mapped[str],
+         *     validated on write, not on read) — same convention as job_swipe/schemas.py's SwipeActionResponse,
+         *     which independently redeclares `direction: str` instead of inheriting SwipeActionRequest's Literal.
+         */
+        PortfolioItemResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Display Order */
+            display_order: number;
+            /** Item Id */
+            item_id: string;
+            /** Item Type */
+            item_type: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** PortfolioProfileRequest */
+        PortfolioProfileRequest: {
+            /** Bio */
+            bio?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Headline */
+            headline?: string | null;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /** Slug */
+            slug: string;
+        };
+        /** PortfolioProfileResponse */
+        PortfolioProfileResponse: {
+            /** Bio */
+            bio?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Name */
+            display_name?: string | null;
+            /** Headline */
+            headline?: string | null;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /** Items */
+            items: components["schemas"]["PortfolioItemResponse"][];
+            /** Profile Id */
+            profile_id: string;
+            /** Public Url */
+            public_url: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** User Id */
+            user_id: string;
+        };
+        /**
+         * PublicPortfolioResponse
+         * @description What an unauthenticated visitor to /p/{slug} sees — no user_id, no internal IDs beyond item_id.
+         */
+        PublicPortfolioResponse: {
+            /** Bio */
+            bio: string | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Headline */
+            headline: string | null;
+            /** Items */
+            items: components["schemas"]["PortfolioItemResponse"][];
+            /** Slug */
+            slug: string;
+        };
+        /** PushSubscriptionRequest */
+        PushSubscriptionRequest: {
+            /** Auth */
+            auth: string;
+            /** Endpoint */
+            endpoint: string;
+            /** P256Dh */
+            p256dh: string;
+        };
+        /** PushUnsubscribeRequest */
+        PushUnsubscribeRequest: {
+            /** Endpoint */
+            endpoint: string;
         };
         /**
          * QuestionAttemptRequest
@@ -1865,6 +2425,15 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /** RewrittenBullet */
+        RewrittenBullet: {
+            /** Original */
+            original: string;
+            /** Rationale */
+            rationale: string;
+            /** Rewritten */
+            rewritten: string;
         };
         /** ScanTriggerResponse */
         ScanTriggerResponse: {
@@ -2096,6 +2665,66 @@ export interface components {
             identifier: string;
             /** Reason */
             reason?: string | null;
+        };
+        /** SwipeActionRequest */
+        SwipeActionRequest: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "right" | "left" | "up";
+        };
+        /** SwipeActionResponse */
+        SwipeActionResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Direction */
+            direction: string;
+            /** Match Id */
+            match_id: string;
+        };
+        /** SwipeDeckResponse */
+        SwipeDeckResponse: {
+            /** Cards */
+            cards: components["schemas"]["SwipeableMatchResponse"][];
+            /** Has More */
+            has_more: boolean;
+        };
+        /**
+         * SwipeableMatchResponse
+         * @description One card in the swipe deck — same shape as Module 1's JobMatchResponse, re-exposed here for this UI.
+         */
+        SwipeableMatchResponse: {
+            /** Company */
+            company: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Explanation */
+            explanation: string | null;
+            /** Job Posting Id */
+            job_posting_id: string;
+            /** Location */
+            location: string | null;
+            /** Match Id */
+            match_id: string;
+            /** Overall Score */
+            overall_score: number;
+            /** Remote */
+            remote: boolean;
+            /** Salary Currency */
+            salary_currency: string | null;
+            /** Salary Max */
+            salary_max: number | null;
+            /** Salary Min */
+            salary_min: number | null;
+            /** Title */
+            title: string;
         };
         /**
          * TestEmailRequest
@@ -2924,6 +3553,123 @@ export interface operations {
             };
         };
     };
+    post_cv_chat_message_api_documents_cv_chat_sessions__session_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CvChatMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CvChatTurnResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
     get_job_status_api_documents_jobs__job_id__get: {
         parameters: {
             query?: never;
@@ -3485,6 +4231,232 @@ export interface operations {
             };
         };
     };
+    get_completeness_api_documents__document_id__completeness_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CvCompletenessResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    start_cv_chat_session_api_documents__document_id__cv_chat_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CvChatSessionResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
     get_cv_data_api_documents__document_id__cv_data_get: {
         parameters: {
             query?: never;
@@ -3506,6 +4478,354 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["CVDataResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    get_cv_feedback_api_documents__document_id__feedback_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CvFeedbackResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    request_cv_feedback_api_documents__document_id__feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CvFeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["DocumentUploadResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    accept_cv_feedback_bullet_api_documents__document_id__feedback__report_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                report_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptBulletRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CvFeedbackResponse"];
                         message?: string | null;
                         meta?: {
                             [key: string]: unknown;
@@ -4721,6 +6041,216 @@ export interface operations {
             };
         };
     };
+    create_push_subscription_api_job_matching_push_subscription_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    delete_push_subscription_api_job_matching_push_subscription_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushUnsubscribeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
     trigger_scan_api_job_matching_scan_post: {
         parameters: {
             query?: never;
@@ -4740,6 +6270,234 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["ScanTriggerResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    get_swipe_deck_api_matches_swipe_deck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["SwipeDeckResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    swipe_match_api_matches__match_id__swipe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                match_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SwipeActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["SwipeActionResponse"];
                         message?: string | null;
                         meta?: {
                             [key: string]: unknown;
@@ -4967,6 +6725,1020 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["SuppressionCheckResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    list_messages_api_outreach_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["OutreachListResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    request_draft_api_outreach_drafts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutreachDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Response Request Draft Api Outreach Drafts Post */
+                        data: {
+                            [key: string]: unknown;
+                        };
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    edit_draft_api_outreach__message_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutreachEditRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["OutreachMessageResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    send_message_api_outreach__message_id__send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["OutreachMessageResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    add_item_api_portfolio_items_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioItemRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PortfolioItemResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    delete_item_api_portfolio_items__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    get_my_profile_api_portfolio_profile_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PortfolioProfileResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    upsert_profile_api_portfolio_profile_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PortfolioProfileResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    get_public_profile_api_portfolio_public__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PublicPortfolioResponse"];
                         message?: string | null;
                         meta?: {
                             [key: string]: unknown;
