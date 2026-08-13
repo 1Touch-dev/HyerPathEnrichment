@@ -80,16 +80,6 @@ async def worker_document(db: AsyncSession, worker_user: User) -> CandidateDocum
     return doc
 
 
-_KNOWN_SQLITE_UUID_BUG_REASON = (
-    "app/workers/tasks/outreach.py:46 filters CandidateDocument.id == document_id using the raw "
-    "str argument instead of UUID(document_id) (the conversion every other query site in this "
-    "codebase applies before filtering, e.g. documents/service.py). SQLAlchemy's generic Uuid "
-    "column type requires a real uuid.UUID instance to bind on SQLite, so every real invocation "
-    "of this worker task raises `AttributeError: 'str' object has no attribute 'hex'` against "
-    "this repo's default SQLite database. Real implementation bug, not a test issue."
-)
-
-
 async def test_generate_outreach_draft_job_success(
     db: AsyncSession, worker_user: User, worker_document: CandidateDocument
 ) -> None:
