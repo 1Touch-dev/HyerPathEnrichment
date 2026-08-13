@@ -99,17 +99,19 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
           </p>
         )}
 
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDraftOutreach(card.matchId, card.company);
-          }}
-          className="mt-2"
-        >
-          Draft outreach
-        </Button>
+        {isTop && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDraftOutreach(card.matchId, card.company);
+            }}
+            className="mt-2"
+          >
+            Draft outreach
+          </Button>
+        )}
       </div>
     </motion.div>
   );
