@@ -95,18 +95,6 @@ async def worker_job(db: AsyncSession, worker_user: User, worker_document: Candi
     return job
 
 
-_KNOWN_SQLITE_UUID_BUG_REASON = (
-    "app/workers/tasks/cv_improvement.py compares CandidateDocument.id/DocumentJob.id directly "
-    "against the raw str document_id/job_id instead of UUID(document_id) (the conversion every "
-    "other query site in this codebase, e.g. documents/service.py, applies before filtering). "
-    "SQLAlchemy's generic Uuid column type requires a real uuid.UUID instance to bind on SQLite "
-    "(character_based_uuid path calls value.hex), so every real invocation of this worker task "
-    "raises `AttributeError: 'str' object has no attribute 'hex'` against this repo's default "
-    "SQLite database. Real implementation bug, not a test issue — see the two `.where(...)` call "
-    "sites and the DocumentJob update in the except-handler."
-)
-
-
 async def test_generate_cv_improvement_job_success(
     db: AsyncSession, worker_document: CandidateDocument, worker_job: DocumentJob
 ) -> None:
