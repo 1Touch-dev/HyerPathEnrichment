@@ -87,22 +87,31 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
         <div>
           <h3 className="text-sm font-semibold">Suggested rewrites</h3>
           <div className="mt-2 space-y-3">
-            {report.rewrittenBullets.map((bullet, index) => (
-              <div key={index} className="rounded-lg border p-3">
-                <p className="text-sm text-muted-foreground line-through">{bullet.original}</p>
-                <p className="mt-1 text-sm font-medium">{bullet.rewritten}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{bullet.rationale}</p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-2"
-                  onClick={() => acceptBullet.mutate({ reportId: report.reportId, bulletIndex: index })}
-                  disabled={acceptBullet.isPending}
-                >
-                  Use this version
-                </Button>
-              </div>
-            ))}
+            {report.rewrittenBullets.map((bullet, index) => {
+              const isAccepted = report.acceptedBulletIndices.includes(index);
+              return (
+                <div key={index} className="rounded-lg border p-3">
+                  <p className="text-sm text-muted-foreground line-through">{bullet.original}</p>
+                  <p className="mt-1 text-sm font-medium">{bullet.rewritten}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{bullet.rationale}</p>
+                  {isAccepted ? (
+                    <Badge variant="outline" className="mt-2 gap-1 text-green-700">
+                      ✓ Applied
+                    </Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => acceptBullet.mutate({ reportId: report.reportId, bulletIndex: index })}
+                      disabled={acceptBullet.isPending}
+                    >
+                      Use this version
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
