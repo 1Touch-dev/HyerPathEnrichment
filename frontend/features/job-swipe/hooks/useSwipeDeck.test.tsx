@@ -26,7 +26,6 @@ const sampleDeck: SwipeDeck = {
       salaryMax: null,
       salaryCurrency: null,
       overallScore: 88,
-      scoreBreakdown: {},
       explanation: null,
     },
     {
@@ -40,10 +39,10 @@ const sampleDeck: SwipeDeck = {
       salaryMax: null,
       salaryCurrency: null,
       overallScore: 75,
-      scoreBreakdown: {},
       explanation: null,
     },
   ],
+  hasMore: false,
 };
 
 describe("useSwipeDeck", () => {

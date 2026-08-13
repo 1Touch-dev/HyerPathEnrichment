@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchSwipeDeck, submitSwipe } from "@/src/lib/api-client";
-import type { SwipeDirection } from "@/src/lib/types";
+import type { SwipeDeck, SwipeDirection } from "@/src/lib/types";
 import { jobSwipeKeys } from "../api/keys";
 
 export function useSwipeDeck() {
@@ -20,8 +20,8 @@ export function useSubmitSwipe() {
     // already dismissed, which is more confusing than leaving it gone and retrying silently.
     onMutate: async ({ matchId }) => {
       const previous = queryClient.getQueryData(jobSwipeKeys.deck());
-      queryClient.setQueryData(jobSwipeKeys.deck(), (old: { cards: { matchId: string }[] } | undefined) =>
-        old ? { cards: old.cards.filter((c) => c.matchId !== matchId) } : old,
+      queryClient.setQueryData(jobSwipeKeys.deck(), (old: SwipeDeck | undefined) =>
+        old ? { ...old, cards: old.cards.filter((c) => c.matchId !== matchId) } : old,
       );
       return { previous };
     },
