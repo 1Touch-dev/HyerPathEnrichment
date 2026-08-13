@@ -90,7 +90,6 @@ _KNOWN_SQLITE_UUID_BUG_REASON = (
 )
 
 
-@pytest.mark.xfail(reason=_KNOWN_SQLITE_UUID_BUG_REASON, strict=True)
 async def test_generate_outreach_draft_job_success(
     db: AsyncSession, worker_user: User, worker_document: CandidateDocument
 ) -> None:
@@ -118,7 +117,6 @@ async def test_generate_outreach_draft_job_success(
     assert message.company_context_used == {"summary": "Acme builds widgets", "source": "perplexity", "citations": []}
 
 
-@pytest.mark.xfail(reason=_KNOWN_SQLITE_UUID_BUG_REASON, strict=True)
 async def test_generate_outreach_draft_job_missing_document_raises(db: AsyncSession, worker_user: User) -> None:
     with (
         _patched_worker_session(db),

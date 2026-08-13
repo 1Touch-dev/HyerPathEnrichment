@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy import update as sa_update
@@ -32,7 +32,9 @@ def generate_cv_improvement_job(document_id: str, job_id: str, target_role: str 
 async def _generate_cv_improvement_job(document_id: str, job_id: str, target_role: str | None) -> None:
     try:
         async with SessionLocal() as session:
-            result = await session.execute(select(CandidateDocument).where(CandidateDocument.id == document_id))
+            result = await session.execute(
+                select(CandidateDocument).where(CandidateDocument.id == UUID(document_id))
+            )
             document = result.scalar_one_or_none()
             if not document or not document.raw_text:
                 raise ValueError(f"Document {document_id} not found or has no extracted text")
@@ -56,7 +58,7 @@ async def _generate_cv_improvement_job(document_id: str, job_id: str, target_rol
 
             await session.execute(
                 sa_update(DocumentJob)
-                .where(DocumentJob.id == job_id)
+                .where(DocumentJob.id == UUID(job_id))
                 .values(status="completed", progress=100.0, result={"report_id": str(report.id)})
             )
             await session.commit()
@@ -76,7 +78,9 @@ async def _generate_cv_improvement_job(document_id: str, job_id: str, target_rol
         try:
             async with SessionLocal() as recovery_session:
                 await recovery_session.execute(
-                    sa_update(DocumentJob).where(DocumentJob.id == job_id).values(status="failed", error=str(exc))
+                    sa_update(DocumentJob)
+                    .where(DocumentJob.id == UUID(job_id))
+                    .values(status="failed", error=str(exc))
                 )
                 await recovery_session.commit()
         except Exception:

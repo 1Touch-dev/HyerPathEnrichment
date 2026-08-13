@@ -107,7 +107,6 @@ _KNOWN_SQLITE_UUID_BUG_REASON = (
 )
 
 
-@pytest.mark.xfail(reason=_KNOWN_SQLITE_UUID_BUG_REASON, strict=True)
 async def test_generate_cv_improvement_job_success(
     db: AsyncSession, worker_document: CandidateDocument, worker_job: DocumentJob
 ) -> None:
@@ -142,7 +141,6 @@ async def test_generate_cv_improvement_job_success(
     assert worker_job.result == {"report_id": str(report.id)}
 
 
-@pytest.mark.xfail(reason=_KNOWN_SQLITE_UUID_BUG_REASON, strict=True)
 async def test_generate_cv_improvement_job_missing_document_marks_job_failed(
     db: AsyncSession, worker_job: DocumentJob
 ) -> None:
@@ -160,7 +158,6 @@ async def test_generate_cv_improvement_job_missing_document_marks_job_failed(
     assert worker_job.error is not None
 
 
-@pytest.mark.xfail(reason=_KNOWN_SQLITE_UUID_BUG_REASON, strict=True)
 async def test_generate_cv_improvement_job_generation_failure_marks_job_failed(
     db: AsyncSession, worker_document: CandidateDocument, worker_job: DocumentJob
 ) -> None:
