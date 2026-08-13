@@ -28,6 +28,7 @@ export const mainNav: NavSection = {
   title: "Main",
   items: [
     { href: "/app/enrich", label: "Look up", icon: Search },
+    { href: "/app/documents", label: "My CV", icon: Sparkles },
     { href: "/app/history", label: "History", icon: History },
     { href: "/app/signals", label: "Signals", icon: Bell },
     { href: "/app/matches", label: "Matches", icon: Sparkles },
