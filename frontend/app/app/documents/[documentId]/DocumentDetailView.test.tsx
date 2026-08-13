@@ -34,10 +34,12 @@ const activeSession: CvChatSession = {
 const pendingFeedback: CvFeedbackReport = {
   reportId: "r1",
   documentId: "doc1",
+  targetRole: null,
   atsScore: 0,
   strengths: [],
   improvements: [],
   rewrittenBullets: [],
+  acceptedBulletIndices: [],
   createdAt: "2026-01-01T00:00:00Z",
 };
 

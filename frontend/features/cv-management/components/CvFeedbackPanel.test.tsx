@@ -117,4 +117,18 @@ describe("CvFeedbackPanel", () => {
       expect(apiClient.acceptCvBullet).toHaveBeenCalledWith("doc1", "r1", 0),
     );
   });
+
+  it("shows an 'Applied' state instead of the Accept button for bullets already in acceptedBulletIndices", async () => {
+    const reportWithAcceptedBullet = adaptCvFeedbackReport({
+      ...rawCompletedReport,
+      accepted_bullet_indices: [0],
+    });
+    vi.spyOn(apiClient, "fetchCvFeedback").mockResolvedValue(envelope(reportWithAcceptedBullet));
+
+    render(<CvFeedbackPanel documentId="doc1" />, { wrapper });
+
+    await screen.findByText("Built backend systems serving 1M+ users");
+    expect(screen.queryByRole("button", { name: "Use this version" })).not.toBeInTheDocument();
+    expect(screen.getByText("✓ Applied")).toBeInTheDocument();
+  });
 });
