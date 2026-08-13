@@ -20,10 +20,7 @@ const incompleteData: CvCompleteness = {
   documentId: "doc1",
   completenessScore: 0.6,
   missingFields: ["phone", "location"],
-  questions: [
-    { field: "phone", question: "What is your phone number?" },
-    { field: "location", question: "Where are you located?" },
-  ],
+  hasActiveChatSession: false,
 };
 
 describe("CompletenessBanner", () => {

@@ -279,7 +279,7 @@ export interface CvCompleteness {
   documentId: string;
   completenessScore: number;
   missingFields: string[];
-  questions: { field: string; question: string }[];
+  hasActiveChatSession: boolean;
 }
 
 export interface CvChatMessage {
@@ -297,14 +297,39 @@ export interface CvChatSession {
   messages: CvChatMessage[];
 }
 
+/**
+ * Mirrors the backend's `CvFeedbackResponse` (backend/app/modules/documents/schemas.py) —
+ * a `CvFeedbackReport` row is only ever created once generation is fully complete (see
+ * `backend/app/workers/tasks/cv_improvement.py`), so there is no "pending" shape of this
+ * type. "Is generation still running?" is answered separately, via `DocumentJobStatus`
+ * (the real `job_id` returned by `requestCvFeedback`), not by a field on this type.
+ */
 export interface CvFeedbackReport {
   reportId: string;
   documentId: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  atsScore: number | null;
+  atsScore: number;
   strengths: string[];
   improvements: string[];
   rewrittenBullets: { original: string; rewritten: string; rationale: string }[];
+  createdAt: string;
+}
+
+/** Mirrors the backend's `JobStatusResponse` (backend/app/modules/documents/schemas.py). */
+export interface DocumentJobStatus {
+  jobId: string;
+  status: string;
+  progress: number;
+  documentId: string | null;
+  error: string | null;
+}
+
+/** Mirrors the backend's `DocumentMetadata` (backend/app/modules/documents/schemas.py). */
+export interface DocumentSummary {
+  documentId: string;
+  documentType: string;
+  originalFilename: string;
+  fileSizeBytes: number;
+  processingStatus: string;
   createdAt: string;
 }
 

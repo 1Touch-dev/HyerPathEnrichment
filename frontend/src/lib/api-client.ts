@@ -9,6 +9,8 @@ import {
   CvChatSession,
   CvCompleteness,
   CvFeedbackReport,
+  DocumentJobStatus,
+  DocumentSummary,
   DsarInput,
   DsarResponse,
   EnrichmentInput,
@@ -231,6 +233,23 @@ export async function fetchCvFeedback(
   documentId: string,
 ): Promise<SuccessEnvelope<CvFeedbackReport>> {
   return request<CvFeedbackReport>(`/api/documents/${documentId}/feedback`);
+}
+
+/**
+ * Polls the real job-status endpoint (`GET /api/documents/jobs/{job_id}` — backend's
+ * `JobStatusResponse`) for the async CV-feedback-generation job enqueued by
+ * `requestCvFeedback`. There is no interim "pending" `CvFeedbackReport` row (see
+ * backend/app/workers/tasks/cv_improvement.py), so this job record is the only real
+ * signal that generation is still running vs. done vs. failed.
+ */
+export async function fetchDocumentJobStatus(
+  jobId: string,
+): Promise<SuccessEnvelope<DocumentJobStatus>> {
+  return request<DocumentJobStatus>(`/api/documents/jobs/${jobId}`);
+}
+
+export async function fetchDocuments(): Promise<SuccessEnvelope<DocumentSummary[]>> {
+  return request<DocumentSummary[]>("/api/documents");
 }
 
 export async function acceptCvBullet(

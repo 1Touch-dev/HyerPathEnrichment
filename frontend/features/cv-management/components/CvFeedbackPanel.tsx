@@ -1,43 +1,76 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useAcceptCvBullet, useCvFeedback, useRequestCvFeedback } from "../hooks/useCvFeedback";
+import { cvManagementKeys } from "../api/keys";
+import {
+  useAcceptCvBullet,
+  useCvFeedback,
+  useCvFeedbackJobStatus,
+  useRequestCvFeedback,
+} from "../hooks/useCvFeedback";
 
 interface CvFeedbackPanelProps {
   documentId: string;
 }
 
 export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
-  const { data: report, isLoading } = useCvFeedback(documentId, { poll: true });
+  const queryClient = useQueryClient();
+  const [pendingJobId, setPendingJobId] = useState<string | null>(null);
+
+  const { data: report, isLoading } = useCvFeedback(documentId);
+  const jobStatus = useCvFeedbackJobStatus(pendingJobId);
   const requestFeedback = useRequestCvFeedback(documentId);
   const acceptBullet = useAcceptCvBullet(documentId);
 
+  const isGenerating =
+    requestFeedback.isPending ||
+    (pendingJobId !== null && jobStatus.data?.status !== "completed" && jobStatus.data?.status !== "failed");
+
+  // Once the real job reaches a terminal state, stop tracking it and refetch the
+  // report (on success) so the UI updates without a manual page reload.
+  useEffect(() => {
+    if (!jobStatus.data) return;
+    if (jobStatus.data.status === "completed") {
+      void queryClient.invalidateQueries({ queryKey: cvManagementKeys.feedback(documentId) });
+      setPendingJobId(null);
+    } else if (jobStatus.data.status === "failed") {
+      setPendingJobId(null);
+    }
+  }, [jobStatus.data, queryClient, documentId]);
+
   if (isLoading) return <div className="animate-pulse h-48 rounded-lg bg-muted" />;
 
-  if (!report || report.status === "failed") {
+  if (isGenerating) {
+    return <p className="text-sm text-muted-foreground">Analyzing your CV...</p>;
+  }
+
+  if (!report) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">No feedback generated yet.</p>
-        <Button onClick={() => requestFeedback.mutate(undefined)} disabled={requestFeedback.isPending}>
+        <Button
+          onClick={() =>
+            requestFeedback.mutate(undefined, {
+              onSuccess: (data) => setPendingJobId(data.jobId),
+            })
+          }
+          disabled={requestFeedback.isPending}
+        >
           {requestFeedback.isPending ? "Requesting..." : "Get AI feedback"}
         </Button>
       </div>
     );
   }
 
-  if (report.status === "pending" || report.status === "processing") {
-    return <p className="text-sm text-muted-foreground">Analyzing your CV...</p>;
-  }
-
   return (
     <div className="space-y-6">
-      {report.atsScore !== null && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">ATS score</span>
-          <Badge>{report.atsScore}/100</Badge>
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">ATS score</span>
+        <Badge>{report.atsScore}/100</Badge>
+      </div>
 
       {report.strengths.length > 0 && (
         <div>

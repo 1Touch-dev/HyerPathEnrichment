@@ -20,7 +20,7 @@ const incompleteCompleteness: CvCompleteness = {
   documentId: "doc1",
   completenessScore: 0.5,
   missingFields: ["phone"],
-  questions: [{ field: "phone", question: "What is your phone number?" }],
+  hasActiveChatSession: false,
 };
 
 const activeSession: CvChatSession = {
@@ -34,8 +34,7 @@ const activeSession: CvChatSession = {
 const pendingFeedback: CvFeedbackReport = {
   reportId: "r1",
   documentId: "doc1",
-  status: "pending",
-  atsScore: null,
+  atsScore: 0,
   strengths: [],
   improvements: [],
   rewrittenBullets: [],
