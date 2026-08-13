@@ -7,13 +7,8 @@ import {
   bffValidationError,
   handleBackendJson,
 } from "@/src/lib/bff-response";
-import { BackendPortfolioProfile, toRawPortfolioProfile } from "@/features/portfolio/lib/backend-shapes";
 
 export const dynamic = "force-dynamic";
-
-function mapProfile(raw: BackendPortfolioProfile) {
-  return adaptPortfolioProfile(toRawPortfolioProfile(raw));
-}
 
 export async function GET() {
   let backendResponse: Response;
@@ -22,7 +17,7 @@ export async function GET() {
   } catch {
     return bffServiceUnavailable();
   }
-  return handleBackendJson(backendResponse, mapProfile);
+  return handleBackendJson(backendResponse, adaptPortfolioProfile);
 }
 
 export async function PUT(request: NextRequest) {
@@ -48,5 +43,5 @@ export async function PUT(request: NextRequest) {
     return bffServiceUnavailable();
   }
   if (!backendResponse.ok) return backendFailureResponse(backendResponse);
-  return handleBackendJson(backendResponse, mapProfile);
+  return handleBackendJson(backendResponse, adaptPortfolioProfile);
 }

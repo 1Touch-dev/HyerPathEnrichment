@@ -10,10 +10,8 @@ export const dynamic = "force-dynamic";
 // (backend/app/modules/documents/router.py), which is nested under document_id and
 // returns the full CvFeedbackResponse — not a flat `{accepted: true}`. Reconciled here to
 // call the real backend route and to expose the shape `acceptCvBullet()` in
-// src/lib/api-client.ts already expects. See final report: `documentId` is read from the
-// JSON body defensively, but src/lib/api-client.ts's `acceptCvBullet(reportId, bulletIndex)`
-// does not currently send one — this is a gap in that foundation function, flagged rather
-// than fixed here per scope.
+// src/lib/api-client.ts already expects. `acceptCvBullet(documentId, reportId, bulletIndex)`
+// now sends `documentId` in its JSON body, matching what this route reads below.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ reportId: string }> },

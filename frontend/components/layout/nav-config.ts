@@ -7,6 +7,8 @@ import {
   Bell,
   Search,
   Sparkles,
+  User,
+  Mail,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -29,6 +31,8 @@ export const mainNav: NavSection = {
     { href: "/app/history", label: "History", icon: History },
     { href: "/app/signals", label: "Signals", icon: Bell },
     { href: "/app/matches", label: "Matches", icon: Sparkles },
+    { href: "/app/portfolio", label: "Portfolio", icon: User },
+    { href: "/app/outreach", label: "Outreach", icon: Mail },
   ],
 };
 

@@ -359,17 +359,26 @@ export type SwipeDirection = "left" | "right" | "up";
 
 export interface OutreachMessage {
   messageId: string;
-  jobPostingId: string | null;
   companyName: string;
-  recipientRole: string | null;
+  recipientRoleTitle: string | null;
   subject: string;
   body: string;
-  status: "draft" | "sent" | "failed";
-  companyContextSource: "perplexity" | "none";
+  status: "draft" | "sent";
   createdAt: string;
   sentAt: string | null;
 }
 
 export interface OutreachListResponse {
   messages: OutreachMessage[];
+}
+
+/**
+ * `POST /api/outreach/drafts` is async — it enqueues an RQ job and returns this
+ * immediately; the actual `OutreachMessage` row only exists once the worker finishes
+ * and shows up later via `GET /api/outreach` (backend/app/modules/outreach/service.py's
+ * `request_draft`). There is no `OutreachMessage` to return synchronously.
+ */
+export interface OutreachDraftAccepted {
+  rqJobId: string;
+  message: string;
 }

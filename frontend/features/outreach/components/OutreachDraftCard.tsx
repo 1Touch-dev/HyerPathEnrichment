@@ -26,18 +26,11 @@ export function OutreachDraftCard({ message }: OutreachDraftCardProps) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-medium">{message.companyName}</h3>
-          {message.recipientRole && (
-            <p className="text-sm text-muted-foreground">{message.recipientRole}</p>
+          {message.recipientRoleTitle && (
+            <p className="text-sm text-muted-foreground">{message.recipientRoleTitle}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {message.companyContextSource === "none" && (
-            <Badge variant="outline" title="No live company research was available for this draft.">
-              Generic draft
-            </Badge>
-          )}
-          <Badge variant={message.status === "sent" ? "default" : "outline"}>{message.status}</Badge>
-        </div>
+        <Badge variant={message.status === "sent" ? "default" : "outline"}>{message.status}</Badge>
       </div>
 
       <Input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!canEdit} />

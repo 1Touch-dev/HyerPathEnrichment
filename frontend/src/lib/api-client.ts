@@ -18,6 +18,7 @@ import {
   JobListResponse,
   OptOutInput,
   OutreachListResponse,
+  OutreachDraftAccepted,
   OutreachMessage,
   PortfolioItem,
   PortfolioProfile,
@@ -233,13 +234,14 @@ export async function fetchCvFeedback(
 }
 
 export async function acceptCvBullet(
+  documentId: string,
   reportId: string,
   bulletIndex: number,
 ): Promise<SuccessEnvelope<{ accepted: boolean }>> {
   return request<{ accepted: boolean }>(`/api/cv-feedback/${reportId}/accept-bullet`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bulletIndex }),
+    body: JSON.stringify({ documentId, bulletIndex }),
   });
 }
 
@@ -305,14 +307,21 @@ export async function fetchOutreachMessages(): Promise<SuccessEnvelope<OutreachL
   return request<OutreachListResponse>("/api/outreach");
 }
 
-export async function draftOutreach(
-  jobPostingId: string,
-  documentId?: string,
-): Promise<SuccessEnvelope<OutreachMessage>> {
-  return request<OutreachMessage>("/api/outreach/drafts", {
+export async function draftOutreach(payload: {
+  companyName: string;
+  documentId: string;
+  recipientRoleTitle?: string;
+  jobMatchId?: string;
+}): Promise<SuccessEnvelope<OutreachDraftAccepted>> {
+  return request<OutreachDraftAccepted>("/api/outreach/drafts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jobPostingId, documentId: documentId ?? null }),
+    body: JSON.stringify({
+      companyName: payload.companyName,
+      documentId: payload.documentId,
+      recipientRoleTitle: payload.recipientRoleTitle ?? null,
+      jobMatchId: payload.jobMatchId ?? null,
+    }),
   });
 }
 
