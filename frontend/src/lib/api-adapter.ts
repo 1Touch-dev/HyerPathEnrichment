@@ -4,6 +4,8 @@ import {
   CvCompleteness,
   CvFeedbackReport,
   Dossier,
+  DocumentJobStatus,
+  DocumentSummary,
   EnrichmentInput,
   EnrichmentJob,
   HealthStatus,
@@ -425,7 +427,7 @@ interface RawCvCompletenessResponse {
   document_id: string;
   completeness_score: number;
   missing_fields: string[];
-  questions: { field: string; question: string }[];
+  has_active_chat_session: boolean;
 }
 
 interface RawCvChatMessageResponse {
@@ -443,14 +445,44 @@ interface RawCvChatSessionResponse {
   messages: RawCvChatMessageResponse[];
 }
 
+/**
+ * Mirrors the backend's real `CvFeedbackResponse` (backend/app/modules/documents/schemas.py)
+ * — no `status` field exists on this response; a `CvFeedbackReport` row only exists once
+ * generation is fully complete (backend/app/workers/tasks/cv_improvement.py never inserts
+ * an interim "pending" row). "Is generation still running?" is answered by polling the real
+ * job-status endpoint (`GET /api/documents/jobs/{job_id}`), not by a fake status on this type.
+ */
 interface RawCvFeedbackReportResponse {
   report_id: string;
   document_id: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  ats_score: number | null;
+  target_role: string | null;
+  ats_score: number;
   strengths: string[];
   improvements: string[];
   rewritten_bullets: { original: string; rewritten: string; rationale: string }[];
+  accepted_bullet_indices: number[];
+  created_at: string;
+}
+
+/** Mirrors the backend's `JobStatusResponse` (backend/app/modules/documents/schemas.py). */
+interface RawJobStatusResponse {
+  job_id: string;
+  status: string;
+  progress: number;
+  document_id: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Mirrors the backend's `DocumentMetadata` (backend/app/modules/documents/schemas.py). */
+interface RawDocumentMetadataResponse {
+  document_id: string;
+  document_type: string;
+  original_filename: string;
+  file_size_bytes: number;
+  processing_status: string;
   created_at: string;
 }
 
@@ -516,7 +548,7 @@ export function adaptCvCompleteness(raw: RawCvCompletenessResponse): CvCompleten
     documentId: raw.document_id,
     completenessScore: raw.completeness_score,
     missingFields: raw.missing_fields,
-    questions: raw.questions,
+    hasActiveChatSession: raw.has_active_chat_session,
   };
 }
 
@@ -539,11 +571,31 @@ export function adaptCvFeedbackReport(raw: RawCvFeedbackReportResponse): CvFeedb
   return {
     reportId: raw.report_id,
     documentId: raw.document_id,
-    status: raw.status,
     atsScore: raw.ats_score,
     strengths: raw.strengths,
     improvements: raw.improvements,
     rewrittenBullets: raw.rewritten_bullets,
+    createdAt: raw.created_at,
+  };
+}
+
+export function adaptDocumentJobStatus(raw: RawJobStatusResponse): DocumentJobStatus {
+  return {
+    jobId: raw.job_id,
+    status: raw.status,
+    progress: raw.progress,
+    documentId: raw.document_id,
+    error: raw.error,
+  };
+}
+
+export function adaptDocumentSummary(raw: RawDocumentMetadataResponse): DocumentSummary {
+  return {
+    documentId: raw.document_id,
+    documentType: raw.document_type,
+    originalFilename: raw.original_filename,
+    fileSizeBytes: raw.file_size_bytes,
+    processingStatus: raw.processing_status,
     createdAt: raw.created_at,
   };
 }
