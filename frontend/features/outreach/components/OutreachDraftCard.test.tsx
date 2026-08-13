@@ -13,13 +13,11 @@ function wrapper({ children }: { children: ReactNode }) {
 
 const draftMessage: OutreachMessage = {
   messageId: "msg1",
-  jobPostingId: "jp1",
   companyName: "Acme",
-  recipientRole: "Hiring Manager",
+  recipientRoleTitle: "Hiring Manager",
   subject: "Excited about the role",
   body: "Hello there",
   status: "draft",
-  companyContextSource: "perplexity",
   createdAt: "2026-01-01T00:00:00Z",
   sentAt: null,
 };
@@ -71,15 +69,5 @@ describe("OutreachDraftCard", () => {
 
     fireEvent.click(screen.getByText("Save changes"));
     await waitFor(() => expect(apiClient.editOutreachDraft).toHaveBeenCalled());
-  });
-
-  it('shows the "Generic draft" badge only when companyContextSource is "none"', () => {
-    render(<OutreachDraftCard message={{ ...draftMessage, companyContextSource: "none" }} />, { wrapper });
-    expect(screen.getByText("Generic draft")).toBeInTheDocument();
-  });
-
-  it('hides the "Generic draft" badge when companyContextSource is "perplexity"', () => {
-    render(<OutreachDraftCard message={draftMessage} />, { wrapper });
-    expect(screen.queryByText("Generic draft")).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,8 @@
 "use client";
 
+import { toast } from "sonner";
 import { EmptyState } from "@/components/console/EmptyState";
+import { useDraftOutreachForMatch } from "@/features/outreach";
 import type { SwipeDirection } from "@/src/lib/types";
 import { useSubmitSwipe, useSwipeDeck } from "../hooks/useSwipeDeck";
 import { SwipeCard } from "./SwipeCard";
@@ -10,6 +12,7 @@ const MAX_STACKED_CARDS = 3;
 export function SwipeDeckView() {
   const { data, isLoading, isError } = useSwipeDeck();
   const submitSwipe = useSubmitSwipe();
+  const draftOutreach = useDraftOutreachForMatch();
 
   if (isLoading) return <div className="animate-pulse h-[32rem] rounded-2xl bg-muted" />;
   if (isError) return <EmptyState title="Couldn't load your deck" description="Please try again shortly." />;
@@ -28,6 +31,16 @@ export function SwipeDeckView() {
     submitSwipe.mutate({ matchId, direction });
   }
 
+  function handleDraftOutreach(matchId: string, companyName: string) {
+    draftOutreach.mutate(
+      { companyName, jobMatchId: matchId },
+      {
+        onSuccess: () => toast.success("Drafting outreach...", { description: "Your draft will appear on the Outreach page shortly." }),
+        onError: (error) => toast.error("Couldn't start drafting outreach", { description: error.message }),
+      },
+    );
+  }
+
   return (
     <div className="relative mx-auto h-[32rem] w-full max-w-sm">
       {visibleCards
@@ -41,6 +54,7 @@ export function SwipeDeckView() {
               card={card}
               isTop={index === 0}
               onSwiped={(direction) => handleSwipe(card.matchId, direction)}
+              onDraftOutreach={handleDraftOutreach}
             />
           );
         })}

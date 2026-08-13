@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { CvFeedbackPanel } from "./CvFeedbackPanel";
 import * as apiClient from "@/src/lib/api-client";
-import * as localClient from "../api/client";
 import type { CvFeedbackReport } from "@/src/lib/types";
 import type { SuccessEnvelope } from "@/src/lib/api-envelope";
 
@@ -66,7 +65,7 @@ describe("CvFeedbackPanel", () => {
 
   it("calls acceptBullet with correct reportId and bulletIndex on click", async () => {
     vi.spyOn(apiClient, "fetchCvFeedback").mockResolvedValue(envelope(completedReport));
-    vi.spyOn(localClient, "acceptCvFeedbackBullet").mockResolvedValue({ accepted: true });
+    vi.spyOn(apiClient, "acceptCvBullet").mockResolvedValue(envelope({ accepted: true }));
 
     render(<CvFeedbackPanel documentId="doc1" />, { wrapper });
 
@@ -74,7 +73,7 @@ describe("CvFeedbackPanel", () => {
     fireEvent.click(useButton);
 
     await waitFor(() =>
-      expect(localClient.acceptCvFeedbackBullet).toHaveBeenCalledWith("doc1", "r1", 0),
+      expect(apiClient.acceptCvBullet).toHaveBeenCalledWith("doc1", "r1", 0),
     );
   });
 });

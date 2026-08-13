@@ -456,7 +456,7 @@ interface RawCvFeedbackReportResponse {
 
 interface RawPortfolioItemResponse {
   item_id: string;
-  item_type: "github_repo" | "live_demo" | "case_study" | "other_link";
+  item_type: "github" | "live_demo" | "case_study" | "other";
   title: string;
   description: string | null;
   url: string;
@@ -467,7 +467,7 @@ interface RawPortfolioProfileResponse {
   profile_id: string;
   slug: string;
   headline: string | null;
-  summary: string | null;
+  bio: string | null;
   is_published: boolean;
   items: RawPortfolioItemResponse[];
   created_at: string;
@@ -477,7 +477,7 @@ interface RawPortfolioProfileResponse {
 interface RawPublicPortfolioProfileResponse {
   slug: string;
   headline: string | null;
-  summary: string | null;
+  bio: string | null;
   items: RawPortfolioItemResponse[];
 }
 
@@ -502,15 +502,13 @@ interface RawSwipeDeckResponse {
 
 interface RawOutreachMessageResponse {
   message_id: string;
-  job_posting_id: string | null;
   company_name: string;
-  recipient_role: string | null;
+  recipient_role_title: string | null;
   subject: string;
   body: string;
-  status: "draft" | "sent" | "failed";
-  company_context_source: "perplexity" | "none";
-  created_at: string;
+  status: "draft" | "sent";
   sent_at: string | null;
+  created_at: string;
 }
 
 export function adaptCvCompleteness(raw: RawCvCompletenessResponse): CvCompleteness {
@@ -550,10 +548,36 @@ export function adaptCvFeedbackReport(raw: RawCvFeedbackReportResponse): CvFeedb
   };
 }
 
-function adaptPortfolioItem(raw: RawPortfolioItemResponse): PortfolioItem {
+const PORTFOLIO_ITEM_TYPE_FROM_BACKEND: Record<RawPortfolioItemResponse["item_type"], PortfolioItem["itemType"]> = {
+  github: "github_repo",
+  live_demo: "live_demo",
+  case_study: "case_study",
+  other: "other_link",
+};
+
+const PORTFOLIO_ITEM_TYPE_TO_BACKEND: Record<PortfolioItem["itemType"], RawPortfolioItemResponse["item_type"]> = {
+  github_repo: "github",
+  live_demo: "live_demo",
+  case_study: "case_study",
+  other_link: "other",
+};
+
+/**
+ * Backend's `PortfolioItemRequest.item_type` is `"github"|"live_demo"|"case_study"|"other"`
+ * (backend/app/modules/portfolio/schemas.py); the frontend-facing `PortfolioItem.itemType`
+ * uses `"github_repo"|"live_demo"|"case_study"|"other_link"` instead. Used by the outgoing
+ * `POST /api/portfolio/items` BFF route to translate the request body.
+ */
+export function toBackendPortfolioItemType(
+  itemType: PortfolioItem["itemType"],
+): RawPortfolioItemResponse["item_type"] {
+  return PORTFOLIO_ITEM_TYPE_TO_BACKEND[itemType] ?? "other";
+}
+
+export function adaptPortfolioItem(raw: RawPortfolioItemResponse): PortfolioItem {
   return {
     itemId: raw.item_id,
-    itemType: raw.item_type,
+    itemType: PORTFOLIO_ITEM_TYPE_FROM_BACKEND[raw.item_type] ?? "other_link",
     title: raw.title,
     description: raw.description,
     url: raw.url,
@@ -566,7 +590,7 @@ export function adaptPortfolioProfile(raw: RawPortfolioProfileResponse): Portfol
     profileId: raw.profile_id,
     slug: raw.slug,
     headline: raw.headline,
-    summary: raw.summary,
+    summary: raw.bio,
     isPublished: raw.is_published,
     items: raw.items.map(adaptPortfolioItem),
     createdAt: raw.created_at,
@@ -580,7 +604,7 @@ export function adaptPublicPortfolioProfile(
   return {
     slug: raw.slug,
     headline: raw.headline,
-    summary: raw.summary,
+    summary: raw.bio,
     items: raw.items.map(adaptPortfolioItem),
   };
 }
@@ -607,13 +631,11 @@ export function adaptSwipeDeck(raw: RawSwipeDeckResponse): SwipeDeck {
 export function adaptOutreachMessage(raw: RawOutreachMessageResponse): OutreachMessage {
   return {
     messageId: raw.message_id,
-    jobPostingId: raw.job_posting_id,
     companyName: raw.company_name,
-    recipientRole: raw.recipient_role,
+    recipientRoleTitle: raw.recipient_role_title,
     subject: raw.subject,
     body: raw.body,
     status: raw.status,
-    companyContextSource: raw.company_context_source,
     createdAt: raw.created_at,
     sentAt: raw.sent_at,
   };

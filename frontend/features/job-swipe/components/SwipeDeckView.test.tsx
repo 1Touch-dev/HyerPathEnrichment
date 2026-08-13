@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { SwipeDeckView } from "./SwipeDeckView";
 import * as useSwipeDeckModule from "../hooks/useSwipeDeck";
+import * as outreachModule from "@/features/outreach";
 import type { SwipeDeck } from "@/src/lib/types";
 
 let lastOnSwiped: ((direction: "left" | "right" | "up") => void) | undefined;
@@ -17,6 +18,7 @@ vi.mock("./SwipeCard", () => ({
     card: { matchId: string };
     isTop: boolean;
     onSwiped: (direction: "left" | "right" | "up") => void;
+    onDraftOutreach: (matchId: string, companyName: string) => void;
   }) => {
     lastOnSwiped = onSwiped;
     return <div data-testid="swipe-card" data-match-id={card.matchId} data-is-top={String(isTop)} />;
@@ -29,6 +31,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 const mutateMock = vi.fn();
+const draftOutreachMutateMock = vi.fn();
 
 function mockUseSwipeDeck(overrides: Partial<ReturnType<typeof useSwipeDeckModule.useSwipeDeck>>) {
   vi.spyOn(useSwipeDeckModule, "useSwipeDeck").mockReturnValue({
@@ -43,10 +46,14 @@ describe("SwipeDeckView", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     mutateMock.mockReset();
+    draftOutreachMutateMock.mockReset();
     lastOnSwiped = undefined;
     vi.spyOn(useSwipeDeckModule, "useSubmitSwipe").mockReturnValue({
       mutate: mutateMock,
     } as unknown as ReturnType<typeof useSwipeDeckModule.useSubmitSwipe>);
+    vi.spyOn(outreachModule, "useDraftOutreachForMatch").mockReturnValue({
+      mutate: draftOutreachMutateMock,
+    } as unknown as ReturnType<typeof outreachModule.useDraftOutreachForMatch>);
   });
 
   it("renders a loading skeleton", () => {

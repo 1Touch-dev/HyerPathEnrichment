@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchCvFeedback, requestCvFeedback } from "@/src/lib/api-client";
-import { acceptCvFeedbackBullet } from "../api/client";
+import { acceptCvBullet, fetchCvFeedback, requestCvFeedback } from "@/src/lib/api-client";
 import { cvManagementKeys } from "../api/keys";
 
 export function useCvFeedback(documentId: string, options: { poll?: boolean } = {}) {
@@ -28,7 +27,7 @@ export function useAcceptCvBullet(documentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ reportId, bulletIndex }: { reportId: string; bulletIndex: number }) =>
-      acceptCvFeedbackBullet(documentId, reportId, bulletIndex),
+      acceptCvBullet(documentId, reportId, bulletIndex),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: cvManagementKeys.feedback(documentId) }),
   });
 }

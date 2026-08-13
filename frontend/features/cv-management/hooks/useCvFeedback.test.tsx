@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useAcceptCvBullet, useCvFeedback, useRequestCvFeedback } from "./useCvFeedback";
 import * as apiClient from "@/src/lib/api-client";
-import * as localClient from "../api/client";
 import type { CvFeedbackReport } from "@/src/lib/types";
 import type { SuccessEnvelope } from "@/src/lib/api-envelope";
 
@@ -70,13 +69,13 @@ describe("useRequestCvFeedback", () => {
 });
 
 describe("useAcceptCvBullet", () => {
-  it("calls the local accept-bullet client with documentId, reportId, and bulletIndex", async () => {
-    vi.spyOn(localClient, "acceptCvFeedbackBullet").mockResolvedValue({ accepted: true });
+  it("calls the shared acceptCvBullet client with documentId, reportId, and bulletIndex", async () => {
+    vi.spyOn(apiClient, "acceptCvBullet").mockResolvedValue(envelope({ accepted: true }));
 
     const { result } = renderHook(() => useAcceptCvBullet("doc1"), { wrapper });
     result.current.mutate({ reportId: "r1", bulletIndex: 0 });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(localClient.acceptCvFeedbackBullet).toHaveBeenCalledWith("doc1", "r1", 0);
+    expect(apiClient.acceptCvBullet).toHaveBeenCalledWith("doc1", "r1", 0);
   });
 });

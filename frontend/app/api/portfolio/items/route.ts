@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { adaptPortfolioItem, toBackendPortfolioItemType } from "@/src/lib/api-adapter";
 import { backendFetch } from "@/src/lib/backend-client";
 import {
   backendFailureResponse,
@@ -6,7 +7,6 @@ import {
   bffValidationError,
   handleBackendJson,
 } from "@/src/lib/bff-response";
-import { BackendPortfolioItem, adaptBackendPortfolioItem, itemTypeToBackend } from "@/features/portfolio/lib/backend-shapes";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         // Backend's PortfolioItemRequest.item_type is "github"|"live_demo"|"case_study"|"other";
         // the frontend PortfolioItem.itemType uses "github_repo"/"other_link" instead.
-        item_type: itemTypeToBackend(body.itemType),
+        item_type: toBackendPortfolioItemType(body.itemType),
         title: body.title,
         description: body.description ?? null,
         url: body.url,
@@ -34,9 +34,5 @@ export async function POST(request: NextRequest) {
     return bffServiceUnavailable();
   }
   if (!backendResponse.ok) return backendFailureResponse(backendResponse);
-  return handleBackendJson(
-    backendResponse,
-    (raw: BackendPortfolioItem) => adaptBackendPortfolioItem(raw),
-    201,
-  );
+  return handleBackendJson(backendResponse, adaptPortfolioItem, 201);
 }

@@ -2,11 +2,13 @@
 
 import { motion, useMotionValue, useTransform, type PanInfo } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { SwipeCard as SwipeCardData, SwipeDirection } from "@/src/lib/types";
 
 interface SwipeCardProps {
   card: SwipeCardData;
   onSwiped: (direction: SwipeDirection) => void;
+  onDraftOutreach: (matchId: string, companyName: string) => void;
   isTop: boolean;
 }
 
@@ -20,7 +22,7 @@ function formatSalary(min: number | null, max: number | null, currency: string |
   return `${cur} ${(min ?? max)!.toLocaleString()}+`;
 }
 
-export function SwipeCard({ card, onSwiped, isTop }: SwipeCardProps) {
+export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardProps) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-15, 15]);
@@ -96,6 +98,18 @@ export function SwipeCard({ card, onSwiped, isTop }: SwipeCardProps) {
             {card.explanation}
           </p>
         )}
+
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDraftOutreach(card.matchId, card.company);
+          }}
+          className="mt-2"
+        >
+          Draft outreach
+        </Button>
       </div>
     </motion.div>
   );

@@ -18,13 +18,11 @@ function wrapper({ children }: { children: ReactNode }) {
 
 const sampleMessage: OutreachMessage = {
   messageId: "msg1",
-  jobPostingId: "jp1",
   companyName: "Acme",
-  recipientRole: "Hiring Manager",
+  recipientRoleTitle: "Hiring Manager",
   subject: "Excited about the role",
   body: "Hello there",
   status: "draft",
-  companyContextSource: "perplexity",
   createdAt: "2026-01-01T00:00:00Z",
   sentAt: null,
 };
@@ -44,13 +42,16 @@ describe("useOutreachMessages", () => {
 
 describe("useDraftOutreach", () => {
   it("calls draftOutreach with the correct arguments and invalidates the list on success", async () => {
-    vi.spyOn(apiClient, "draftOutreach").mockResolvedValue({ success: true, data: sampleMessage });
+    vi.spyOn(apiClient, "draftOutreach").mockResolvedValue({
+      success: true,
+      data: { rqJobId: "rq1", message: "Outreach draft generation started" },
+    });
 
     const { result } = renderHook(() => useDraftOutreach(), { wrapper });
-    result.current.mutate({ jobPostingId: "jp1", documentId: "doc1" });
+    result.current.mutate({ companyName: "Acme", documentId: "doc1" });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(apiClient.draftOutreach).toHaveBeenCalledWith("jp1", "doc1");
+    expect(apiClient.draftOutreach).toHaveBeenCalledWith({ companyName: "Acme", documentId: "doc1" });
   });
 });
 

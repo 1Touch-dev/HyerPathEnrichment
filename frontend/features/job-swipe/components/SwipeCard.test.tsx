@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import type { PanInfo } from "framer-motion";
 import { SwipeCard } from "./SwipeCard";
 import type { SwipeCard as SwipeCardData } from "@/src/lib/types";
@@ -76,7 +76,7 @@ describe("SwipeCard", () => {
   });
 
   it("renders the card content", () => {
-    render(<SwipeCard card={baseCard} onSwiped={() => {}} isTop />);
+    render(<SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={() => {}} isTop />);
     expect(screen.getByText("Senior Engineer")).toBeInTheDocument();
     expect(screen.getByText("Acme")).toBeInTheDocument();
     expect(screen.getByText("Great fit for your skills.")).toBeInTheDocument();
@@ -85,46 +85,53 @@ describe("SwipeCard", () => {
 
   it('calls onSwiped("right") when dragged right past the x threshold', () => {
     const onSwiped = vi.fn();
-    render(<SwipeCard card={baseCard} onSwiped={onSwiped} isTop />);
+    render(<SwipeCard card={baseCard} onSwiped={onSwiped} onDraftOutreach={() => {}} isTop />);
     capturedOnDragEnd?.(undefined, makePanInfo(150, 0));
     expect(onSwiped).toHaveBeenCalledWith("right");
   });
 
   it('calls onSwiped("left") when dragged left past the x threshold', () => {
     const onSwiped = vi.fn();
-    render(<SwipeCard card={baseCard} onSwiped={onSwiped} isTop />);
+    render(<SwipeCard card={baseCard} onSwiped={onSwiped} onDraftOutreach={() => {}} isTop />);
     capturedOnDragEnd?.(undefined, makePanInfo(-150, 0));
     expect(onSwiped).toHaveBeenCalledWith("left");
   });
 
   it('calls onSwiped("up") when dragged up past the y threshold', () => {
     const onSwiped = vi.fn();
-    render(<SwipeCard card={baseCard} onSwiped={onSwiped} isTop />);
+    render(<SwipeCard card={baseCard} onSwiped={onSwiped} onDraftOutreach={() => {}} isTop />);
     capturedOnDragEnd?.(undefined, makePanInfo(0, -150));
     expect(onSwiped).toHaveBeenCalledWith("up");
   });
 
   it("calls neither when below both thresholds", () => {
     const onSwiped = vi.fn();
-    render(<SwipeCard card={baseCard} onSwiped={onSwiped} isTop />);
+    render(<SwipeCard card={baseCard} onSwiped={onSwiped} onDraftOutreach={() => {}} isTop />);
     capturedOnDragEnd?.(undefined, makePanInfo(50, -20));
     expect(onSwiped).not.toHaveBeenCalled();
   });
 
   it('calls onSwiped("right"), not "up", when both thresholds are crossed but |y| < |x|', () => {
     const onSwiped = vi.fn();
-    render(<SwipeCard card={baseCard} onSwiped={onSwiped} isTop />);
+    render(<SwipeCard card={baseCard} onSwiped={onSwiped} onDraftOutreach={() => {}} isTop />);
     capturedOnDragEnd?.(undefined, makePanInfo(130, -110));
     expect(onSwiped).toHaveBeenCalledWith("right");
     expect(onSwiped).not.toHaveBeenCalledWith("up");
   });
 
   it("only enables drag on the top card", () => {
-    render(<SwipeCard card={baseCard} onSwiped={() => {}} isTop />);
+    render(<SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={() => {}} isTop />);
     expect(capturedDragProps).toContain(true);
 
     capturedDragProps = [];
-    render(<SwipeCard card={baseCard} onSwiped={() => {}} isTop={false} />);
+    render(<SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={() => {}} isTop={false} />);
     expect(capturedDragProps).toContain(false);
+  });
+
+  it('calls onDraftOutreach with the matchId and company when "Draft outreach" is clicked', () => {
+    const onDraftOutreach = vi.fn();
+    render(<SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={onDraftOutreach} isTop />);
+    fireEvent.click(screen.getByRole("button", { name: "Draft outreach" }));
+    expect(onDraftOutreach).toHaveBeenCalledWith("m1", "Acme");
   });
 });
