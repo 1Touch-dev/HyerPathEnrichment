@@ -18,6 +18,7 @@ from app.modules.portfolio.schemas import (
 from app.modules.portfolio.service import PortfolioService
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"], route_class=EnvelopeAPIRoute)
+public_router = APIRouter(prefix="/api/portfolio", tags=["portfolio-public"], route_class=EnvelopeAPIRoute)
 
 
 @router.put("/profile", response_model=PortfolioProfileResponse)
@@ -52,7 +53,7 @@ async def delete_item(
     await PortfolioService(db).delete_item(current_user.id, item_id)
 
 
-@router.get("/public/{slug}", response_model=PublicPortfolioResponse)
+@public_router.get("/public/{slug}", response_model=PublicPortfolioResponse)
 async def get_public_profile(
     slug: str, db: AsyncSession = Depends(get_db_session)
 ) -> PublicPortfolioResponse:
