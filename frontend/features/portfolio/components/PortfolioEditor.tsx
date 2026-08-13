@@ -7,6 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   useAddPortfolioItem,
   useDeletePortfolioItem,
   usePortfolioProfile,
@@ -53,6 +59,30 @@ export function PortfolioEditor() {
 
   return (
     <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Portfolio</h2>
+        {profile ? (
+          <Button asChild size="sm" variant="outline">
+            <a href={profile.publicUrl} target="_blank" rel="noopener noreferrer">
+              View public page
+            </a>
+          </Button>
+        ) : (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button size="sm" variant="outline" disabled>
+                    View public page
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Save your profile to get a public link.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
+
       <form onSubmit={handleSave} className="space-y-4">
         <SlugField value={slug} onChange={setSlug} />
         <div>

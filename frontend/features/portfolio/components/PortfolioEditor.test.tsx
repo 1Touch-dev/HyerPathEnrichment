@@ -14,10 +14,13 @@ function wrapper({ children }: { children: ReactNode }) {
 
 const sampleProfile: PortfolioProfile = {
   profileId: "p1",
+  userId: "u1",
   slug: "jane-doe",
+  displayName: "Jane Doe",
   headline: "Backend Engineer",
   summary: "I build things.",
   isPublished: true,
+  publicUrl: "/p/jane-doe",
   items: [
     {
       itemId: "i1",
@@ -65,6 +68,22 @@ beforeEach(() => {
 });
 
 describe("PortfolioEditor", () => {
+  it("shows a disabled 'View public page' button when no profile exists yet", () => {
+    mockUsePortfolioProfile({ data: undefined, isLoading: false });
+    render(<PortfolioEditor />, { wrapper });
+
+    expect(screen.getByRole("button", { name: "View public page" })).toBeDisabled();
+  });
+
+  it("shows an enabled 'View public page' link pointing at publicUrl once a profile exists", () => {
+    mockUsePortfolioProfile({ data: sampleProfile, isLoading: false });
+    render(<PortfolioEditor />, { wrapper });
+
+    const link = screen.getByRole("link", { name: "View public page" });
+    expect(link).toHaveAttribute("href", "/p/jane-doe");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
   it("disables the save button while the slug is shorter than 3 characters", () => {
     mockUsePortfolioProfile({ data: undefined, isLoading: false });
     render(<PortfolioEditor />, { wrapper });

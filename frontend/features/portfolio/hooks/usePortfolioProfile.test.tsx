@@ -19,10 +19,13 @@ function wrapper({ children }: { children: ReactNode }) {
 
 const sampleProfile: PortfolioProfile = {
   profileId: "p1",
+  userId: "u1",
   slug: "jane-doe",
+  displayName: "Jane Doe",
   headline: "Backend Engineer",
   summary: "I build things.",
   isPublished: true,
+  publicUrl: "/p/jane-doe",
   items: [],
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
