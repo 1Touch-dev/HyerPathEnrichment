@@ -196,8 +196,13 @@ def test_list_questions_stops_personalizing_after_daily_limit(
         mock_generate.return_value = (
             [
                 {
+                    # category/job_role deliberately avoid colliding with
+                    # test_question_bank.py's "nothing matches" empty-list
+                    # assumption (devops_engineer + system_design) - this call
+                    # persists a REAL row into the shared test sqlite file
+                    # (session.commit(), not rolled back across test files).
                     "question_text": "Explain how you'd design a rate limiter.",
-                    "category": "system_design",
+                    "category": "behavioral",
                     "difficulty": "medium",
                     "job_roles": ["devops_engineer"],
                     "technologies": ["redis"],

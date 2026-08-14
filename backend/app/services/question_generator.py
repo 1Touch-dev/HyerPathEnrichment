@@ -148,8 +148,11 @@ Each question should be distinct and realistic for actual interviews.
 
     if candidate_context is not None:
         details = [
-            f"Tailor this question to a candidate with these skills: {candidate_context.skills}. "
-            "Prefer technologies and scenarios from this list where relevant to the category."
+            (
+                f"Tailor this question to a candidate with these skills: "
+                f"{candidate_context.skills}. Prefer technologies and scenarios from "
+                "this list where relevant to the category."
+            )
         ]
         if candidate_context.target_role:
             details.append(f"Target role: {candidate_context.target_role}.")
