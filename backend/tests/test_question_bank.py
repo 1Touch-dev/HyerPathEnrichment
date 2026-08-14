@@ -23,7 +23,7 @@ from app.services.question_generator import (
     _parse_generation_response,
     generate_questions,
 )
-from app.services.question_selector import select_questions
+from app.services.question_selector import get_question_stats, select_questions
 
 
 # Override DB setup fixture for this module
@@ -504,6 +504,107 @@ class TestQuestionSelector:
         assert len(results) == 1
         assert results[0]["id"] == str(medium_q)
         assert all(r["difficulty"] == "medium" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_select_questions_by_category(self, db: AsyncSession):
+        """Test filtering by question category."""
+        await _ensure_interview_attempts_table(db)
+
+        behavioral_q = uuid.uuid4()
+        technical_q = uuid.uuid4()
+
+        await _insert_question(
+            db, question_id=behavioral_q, category="behavioral", job_roles=["product_manager"]
+        )
+        await _insert_question(
+            db, question_id=technical_q, category="technical", job_roles=["product_manager"]
+        )
+
+        results = await select_questions(
+            db,
+            user_id=uuid.uuid4(),
+            job_role="product_manager",
+            category="behavioral",
+            count=5,
+        )
+
+        assert len(results) == 1
+        assert results[0]["id"] == str(behavioral_q)
+        assert results[0]["category"] == "behavioral"
+
+    @pytest.mark.asyncio
+    async def test_select_questions_returns_empty_list_when_nothing_matches(self, db: AsyncSession):
+        """No questions match the requested job role -> empty list, no error."""
+        await _ensure_interview_attempts_table(db)
+
+        results = await select_questions(
+            db,
+            user_id=uuid.uuid4(),
+            job_role="devops_engineer",
+            category="system_design",
+            count=5,
+        )
+
+        assert results == []
+
+
+class TestQuestionStats:
+    """Test question bank statistics."""
+
+    @pytest.mark.asyncio
+    async def test_get_question_stats_totals_by_category_and_difficulty(self, db: AsyncSession):
+        await _ensure_interview_attempts_table(db)
+
+        await _insert_question(
+            db,
+            question_id=uuid.uuid4(),
+            category="technical",
+            difficulty="easy",
+            job_roles=["software_engineer"],
+        )
+        await _insert_question(
+            db,
+            question_id=uuid.uuid4(),
+            category="behavioral",
+            difficulty="medium",
+            job_roles=["software_engineer"],
+        )
+
+        stats = await get_question_stats(db)
+
+        assert stats["total"] >= 2
+        assert stats["technical"] >= 1
+        assert stats["behavioral"] >= 1
+        assert stats["easy"] >= 1
+        assert stats["medium"] >= 1
+        assert set(stats.keys()) == {
+            "total",
+            "behavioral",
+            "technical",
+            "system_design",
+            "easy",
+            "medium",
+            "hard",
+        }
+
+    @pytest.mark.asyncio
+    async def test_get_question_stats_filters_by_job_role(self, db: AsyncSession):
+        await _ensure_interview_attempts_table(db)
+
+        await _insert_question(
+            db,
+            question_id=uuid.uuid4(),
+            category="technical",
+            difficulty="hard",
+            job_roles=["data_scientist"],
+        )
+
+        stats = await get_question_stats(db, job_role="data_scientist")
+        assert stats["total"] >= 1
+
+        stats_unrelated = await get_question_stats(db, job_role="product_manager")
+        # A brand-new, unrelated role filter shouldn't pick up the data_scientist-only row.
+        assert stats_unrelated["hard"] == 0 or stats_unrelated["total"] < stats["total"]
 
 
 class TestSeedScript:
