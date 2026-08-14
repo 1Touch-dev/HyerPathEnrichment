@@ -7,9 +7,10 @@ tests/test_error_tracking.py's `test_worker_path_captures_and_reraises`.
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import httpx
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -193,6 +194,56 @@ async def test_draft_with_llm_calls_openai_and_parses_response(
     sent_payload = mock_client.post.call_args.kwargs["json"]
     user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
     assert "We need a Python expert." in user_message
+
+
+async def test_draft_with_llm_retries_transient_error_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """First OpenAI call's raise_for_status() raises a transient 503; with_transient_retry
+    should retry and succeed on the second attempt without _draft_with_llm itself raising —
+    proving raise_for_status() runs inside the retried closure, so HTTP status errors (not
+    just network exceptions) trigger a retry."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(
+        current_role="Engineer", technical_skills=["python", "go"], total_years_experience=5.0
+    )
+
+    failing_response = AsyncMock()
+    failing_response.raise_for_status = MagicMock(
+        side_effect=httpx.HTTPStatusError(
+            "Service Unavailable", request=MagicMock(), response=MagicMock(status_code=503)
+        )
+    )
+
+    success_response = AsyncMock()
+    success_response.raise_for_status = lambda: None
+    success_response.json = lambda: {
+        "choices": [{"message": {"content": '{"subject": "Hi Acme", "body": "Custom body"}'}}]
+    }
+
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(side_effect=[failing_response, success_response])
+    mock_client_cm = AsyncMock()
+    mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client_cm.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm),
+        patch("app.clients.retry.asyncio.sleep", new=AsyncMock()),
+    ):
+        subject, body = await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "Acme context",
+            "We need a Python expert.",
+            settings,
+        )
+
+    assert mock_client.post.call_count == 2
+    assert subject == "Hi Acme"
+    assert body == "Custom body"
 
 
 async def test_get_job_description_returns_none_without_job_match_id(db: AsyncSession) -> None:
