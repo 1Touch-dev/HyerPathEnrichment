@@ -1,4 +1,6 @@
 import {
+  AudioRecordingStatus,
+  AudioUploadResult,
   CandidateJobPreferences,
   CvChatSession,
   CvCompleteness,
@@ -9,6 +11,7 @@ import {
   EnrichmentInput,
   EnrichmentJob,
   HealthStatus,
+  InterviewQuestion,
   JobListItem,
   JobListResponse,
   JobMatch,
@@ -18,7 +21,11 @@ import {
   OutreachMessage,
   PortfolioItem,
   PortfolioProfile,
+  PracticeAttempt,
+  PracticeSession,
+  PracticeSessionListResult,
   PublicPortfolioProfile,
+  QuestionListResult,
   RequestedTier,
   DsarInput,
   DsarResponse,
@@ -27,6 +34,8 @@ import {
   SwipeDeck,
 } from "@/src/lib/types";
 import type {
+  BackendAudioStatusResponse,
+  BackendAudioUploadResponse,
   BackendDossier,
   BackendDsarResponse,
   BackendHealthResponse,
@@ -36,11 +45,18 @@ import type {
   BackendJobMatchResponse,
   BackendJobPreferencesResponse,
   BackendJobResponse,
+  BackendQuestionAttemptResponse,
+  BackendQuestionItem,
+  BackendQuestionListResponse,
+  BackendSessionListResponse,
+  BackendSessionResponse,
   BackendSignalListItem,
   BackendSignalListResponse,
 } from "@/src/lib/generated/api-schemas";
 
 export type {
+  BackendAudioStatusResponse,
+  BackendAudioUploadResponse,
   BackendDsarResponse,
   BackendHealthResponse,
   BackendJobListResponse,
@@ -48,6 +64,10 @@ export type {
   BackendJobMatchResponse,
   BackendJobPreferencesResponse,
   BackendJobResponse,
+  BackendQuestionAttemptResponse,
+  BackendQuestionListResponse,
+  BackendSessionListResponse,
+  BackendSessionResponse,
   BackendSignalListResponse,
 } from "@/src/lib/generated/api-schemas";
 
@@ -712,5 +732,95 @@ export function adaptOutreachMessage(raw: RawOutreachMessageResponse): OutreachM
     status: raw.status,
     createdAt: raw.created_at,
     sentAt: raw.sent_at,
+  };
+}
+
+export function mapBackendQuestionItem(raw: BackendQuestionItem): InterviewQuestion {
+  return {
+    id: raw.id,
+    questionText: raw.question_text,
+    category: raw.category,
+    difficulty: raw.difficulty,
+    jobRoles: raw.job_roles,
+    technologies: raw.technologies,
+    isPersonalized: raw.is_personalized,
+  };
+}
+
+export function mapBackendQuestionListResponse(
+  raw: BackendQuestionListResponse,
+): QuestionListResult {
+  return {
+    questions: raw.questions.map(mapBackendQuestionItem),
+    source: raw.source,
+  };
+}
+
+export function mapBackendQuestionAttempt(raw: BackendQuestionAttemptResponse): PracticeAttempt {
+  return {
+    id: raw.id,
+    sessionId: raw.session_id,
+    userId: raw.user_id,
+    questionId: raw.question_id,
+    // Backend's response_type is an unconstrained str; narrowed here since the
+    // DB CheckConstraint (check_response_type) guarantees only these two values exist.
+    responseType: raw.response_type as PracticeAttempt["responseType"],
+    textResponse: raw.text_response,
+    audioRecordingId: raw.audio_recording_id,
+    aiScore: raw.ai_score,
+    scoreBreakdown: raw.score_breakdown,
+    aiFeedback: raw.ai_feedback,
+    timeTakenSeconds: raw.time_taken_seconds,
+    attemptedAt: raw.attempted_at,
+  };
+}
+
+export function mapBackendPracticeSession(raw: BackendSessionResponse): PracticeSession {
+  return {
+    id: raw.id,
+    sessionType: raw.session_type,
+    // Backend's status is an unconstrained str; narrowed since the DB
+    // CheckConstraint (check_session_status) guarantees only these values exist.
+    status: raw.status as PracticeSession["status"],
+    questionsAttempted: raw.questions_attempted,
+    questionsCompleted: raw.questions_completed,
+    overallScore: raw.overall_score,
+    startedAt: raw.started_at,
+    completedAt: raw.completed_at,
+    attempts: (raw.attempts ?? []).map(mapBackendQuestionAttempt),
+  };
+}
+
+export function mapBackendPracticeSessionList(
+  raw: BackendSessionListResponse,
+): PracticeSessionListResult {
+  return {
+    sessions: raw.sessions.map(mapBackendPracticeSession),
+    total: raw.total,
+    limit: raw.limit,
+    offset: raw.offset,
+  };
+}
+
+export function mapBackendAudioUploadResponse(raw: BackendAudioUploadResponse): AudioUploadResult {
+  return {
+    id: raw.id,
+    practiceSessionId: raw.practice_session_id,
+    fileSizeBytes: raw.file_size_bytes,
+    transcriptionStatus: raw.transcription_status,
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendAudioStatusResponse(
+  raw: BackendAudioStatusResponse,
+): AudioRecordingStatus {
+  return {
+    id: raw.id,
+    transcriptionStatus: raw.transcription_status as AudioRecordingStatus["transcriptionStatus"],
+    transcription: raw.transcription,
+    analysisData: raw.analysis_data as AudioRecordingStatus["analysisData"],
+    voiceToneSignals: raw.voice_tone_signals,
+    durationSeconds: raw.duration_seconds,
   };
 }

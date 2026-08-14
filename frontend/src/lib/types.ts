@@ -417,3 +417,69 @@ export interface OutreachDraftAccepted {
   rqJobId: string;
   message: string;
 }
+
+export interface InterviewQuestion {
+  id: string;
+  questionText: string;
+  category: "behavioral" | "technical" | "system_design";
+  difficulty: "easy" | "medium" | "hard";
+  jobRoles: string[];
+  technologies: string[];
+  isPersonalized: boolean;
+}
+
+export interface QuestionListResult {
+  questions: InterviewQuestion[];
+  source: "question_bank" | "generated" | "mixed";
+}
+
+export interface PracticeAttempt {
+  id: string;
+  sessionId: string;
+  userId: string;
+  questionId: string | null;
+  responseType: "text" | "audio";
+  textResponse: string | null;
+  audioRecordingId: string | null;
+  aiScore: number | null;
+  scoreBreakdown: Record<string, unknown> | null;
+  aiFeedback: string | null;
+  timeTakenSeconds: number | null;
+  attemptedAt: string;
+}
+
+export interface PracticeSession {
+  id: string;
+  sessionType: string;
+  status: "pending" | "in_progress" | "completed" | "failed" | "abandoned";
+  questionsAttempted: number;
+  questionsCompleted: number;
+  overallScore: number | null;
+  startedAt: string;
+  completedAt: string | null;
+  attempts: PracticeAttempt[];
+}
+
+export interface PracticeSessionListResult {
+  sessions: PracticeSession[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AudioUploadResult {
+  id: string;
+  practiceSessionId: string;
+  fileSizeBytes: number;
+  transcriptionStatus: string;
+  createdAt: string;
+}
+
+export interface AudioRecordingStatus {
+  id: string;
+  transcriptionStatus: "pending" | "processing" | "completed" | "failed" | string;
+  transcription: string | null;
+  analysisData: { fillerWordCount?: number; wordsPerMinute?: number; clarityScore?: number } | null;
+  voiceToneSignals: Record<string, unknown> | null;
+  durationSeconds: number | null;
+}
