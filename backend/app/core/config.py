@@ -183,6 +183,14 @@ class Settings(BaseSettings):
     # OpenAI API (for CV extraction, embeddings, etc.)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     enable_embeddings: bool = Field(default=True, alias="ENABLE_EMBEDDINGS")
+
+    # Interview practice (Phase 2, Module 3) — question generation + voice tone.
+    hume_api_key: str = Field(default="", alias="HUME_API_KEY")
+    hume_prosody_timeout_seconds: int = Field(default=30, alias="HUME_PROSODY_TIMEOUT_SECONDS")
+    question_generation_daily_limit_per_user: int = Field(
+        default=10, alias="QUESTION_GENERATION_DAILY_LIMIT_PER_USER"
+    )
+    practice_audio_max_upload_mb: int = Field(default=25, alias="PRACTICE_AUDIO_MAX_UPLOAD_MB")
     embedding_chunk_size: int = Field(
         default=512,
         alias="EMBEDDING_CHUNK_SIZE",
