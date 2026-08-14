@@ -18,6 +18,7 @@ class PortfolioItemRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
     url: str = Field(..., min_length=1, max_length=2048)
+    image_url: str | None = Field(default=None, max_length=2048)
     display_order: int = 0
 
 
@@ -31,6 +32,7 @@ class PortfolioItemResponse(BaseModel):
     title: str
     description: str | None
     url: str
+    image_url: str | None = Field(default=None, max_length=2048)
     display_order: int
     created_at: datetime
 

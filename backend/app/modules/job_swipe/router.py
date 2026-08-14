@@ -31,3 +31,11 @@ async def swipe_match(
 ) -> SwipeActionResponse:
     """Record (or overwrite) a swipe decision on one match."""
     return await JobSwipeService(db).swipe(current_user.id, match_id, body)
+
+
+@router.delete("/swipe/undo", response_model=SwipeActionResponse)
+async def undo_swipe(
+    current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> SwipeActionResponse:
+    """Undo the candidate's most recent swipe decision, restoring it to the deck."""
+    return await JobSwipeService(db).undo_last_swipe(current_user.id)

@@ -23,6 +23,29 @@ REQUIRED_FIELDS: list[str] = [
     "remote_preference",
 ]
 
+# Contact/skills fields drive discoverability the most, so they carry more
+# weight in completeness_score() than lower-value preference fields. Sums to
+# 1.0. compute_missing_fields() intentionally stays unweighted/binary (see
+# that function's docstring) — only the score below uses these weights.
+FIELD_WEIGHTS: dict[str, float] = {
+    "email": 0.15,
+    "phone": 0.15,
+    "linkedin_url": 0.15,
+    "technical_skills": 0.20,
+    "total_years_experience": 0.15,
+    "desired_roles": 0.08,
+    "desired_locations": 0.07,
+    "remote_preference": 0.05,
+}
+
+# List-type fields where a single entry is only partial signal — a richness
+# factor (see completeness_score()) rewards candidates who provide several
+# entries over just one.
+_LIST_RICHNESS_FIELDS: frozenset[str] = frozenset(
+    {"technical_skills", "desired_roles", "desired_locations"}
+)
+_RICHNESS_TARGET_COUNT = 3
+
 FIELD_QUESTIONS: dict[str, str] = {
     "email": "What's the best email address for recruiters to reach you?",
     "phone": "What's a good phone number to include?",
@@ -53,9 +76,27 @@ def compute_missing_fields(cv_data: CVData) -> list[str]:
 
 
 def completeness_score(cv_data: CVData) -> float:
-    """0.0-1.0 fraction of REQUIRED_FIELDS that are populated."""
+    """0.0-1.0 weighted completeness score using FIELD_WEIGHTS.
+
+    Missing fields (per `compute_missing_fields()`) contribute 0. For the
+    list-type fields in `_LIST_RICHNESS_FIELDS`, a present-but-present field's
+    weight contribution is scaled by a richness factor
+    `min(1.0, len(value) / _RICHNESS_TARGET_COUNT)` so a single-item list
+    scores partial credit rather than the full weight.
+    """
     missing = compute_missing_fields(cv_data)
-    return round(1.0 - (len(missing) / len(REQUIRED_FIELDS)), 4)
+    score = 0.0
+    for field_name in REQUIRED_FIELDS:
+        if field_name in missing:
+            continue
+        weight = FIELD_WEIGHTS[field_name]
+        if field_name in _LIST_RICHNESS_FIELDS:
+            value = getattr(cv_data, field_name)
+            richness = min(1.0, len(value) / _RICHNESS_TARGET_COUNT)
+            score += weight * richness
+        else:
+            score += weight
+    return round(score, 4)
 
 
 def question_for_field(field_name: str) -> str:

@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.llm_tools import RECORD_CV_ANSWER_TOOL, build_chat_system_prompt
+from app.clients.retry import with_transient_retry
 from app.core.config import get_settings
 from app.domain.candidate import CVData
 from app.domain.cv_completeness import compute_missing_fields, question_for_field
@@ -101,27 +102,37 @@ class CvChatService:
         """Process one candidate reply: call the LLM, apply the tool call (if any), advance to next question."""
         session = await self._get_owned_session(session_id, user_id)
         if session.status != "active":
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Chat session is not active")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Chat session is not active"
+            )
 
         turn_count = await self._count_messages(session.id)
         if turn_count >= self._settings.cv_chat_max_turns * 2:
             session.status = "abandoned"
             session.completed_at = datetime.now(UTC)
             await self.db.commit()
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Chat session reached its turn limit")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Chat session reached its turn limit"
+            )
 
         remaining = [f for f in session.missing_fields_at_start if f not in session.fields_resolved]
         if not remaining:
             session.status = "completed"
             session.completed_at = datetime.now(UTC)
             await self.db.commit()
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Chat session already completed")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Chat session already completed"
+            )
 
         current_field = remaining[0]
         question = question_for_field(current_field)
 
         user_message = CvChatMessage(
-            id=uuid4(), session_id=session.id, role="user", content=content, created_at=datetime.now(UTC)
+            id=uuid4(),
+            session_id=session.id,
+            role="user",
+            content=content,
+            created_at=datetime.now(UTC),
         )
         self.db.add(user_message)
         await self.db.flush()
@@ -134,7 +145,9 @@ class CvChatService:
             session.fields_resolved = [*session.fields_resolved, field_name]
             await self.db.commit()
 
-            next_remaining = [f for f in session.missing_fields_at_start if f not in session.fields_resolved]
+            next_remaining = [
+                f for f in session.missing_fields_at_start if f not in session.fields_resolved
+            ]
             if next_remaining:
                 next_question = question_for_field(next_remaining[0])
                 assistant_msg = CvChatMessage(
@@ -201,8 +214,16 @@ class CvChatService:
         }
         headers = {"Authorization": f"Bearer {self._settings.openai_api_key}"}
         try:
-            response = await self._client.post(_OPENAI_CHAT_URL, json=payload, headers=headers)
-            response.raise_for_status()
+            # raise_for_status() must run *inside* the retried operation, not after
+            # with_transient_retry returns — httpx doesn't raise on 4xx/5xx by itself,
+            # so calling it outside would mean status-code errors (429/502/503/504)
+            # never actually trigger a retry, only network-level failures would.
+            async def _do_post() -> httpx.Response:
+                resp = await self._client.post(_OPENAI_CHAT_URL, json=payload, headers=headers)
+                resp.raise_for_status()
+                return resp
+
+            response = await with_transient_retry(_do_post)
             data = response.json()  # httpx.Response.json() is synchronous — see the §2.1 Bug 1 fix
         except (httpx.HTTPError, KeyError, ValueError) as exc:
             logger.warning("CV chat LLM call failed", extra={"error": str(exc)})
@@ -216,7 +237,13 @@ class CvChatService:
 
                 try:
                     args = _json.loads(call["function"]["arguments"])
-                    return str(args["field_name"]), str(args["value"])
+                    field_name = str(args["field_name"])
+                    values = args.get("values")
+                    if isinstance(values, list) and values:
+                        value = ", ".join(str(v) for v in values)
+                    else:
+                        value = str(args.get("value"))
+                    return field_name, value
                 except (KeyError, ValueError):
                     continue
         return None
@@ -245,20 +272,28 @@ class CvChatService:
 
     async def _get_owned_session(self, session_id: str, user_id: UUID) -> CvChatSession:
         result = await self.db.execute(
-            select(CvChatSession).where(CvChatSession.id == UUID(session_id), CvChatSession.user_id == user_id)
+            select(CvChatSession).where(
+                CvChatSession.id == UUID(session_id), CvChatSession.user_id == user_id
+            )
         )
         session = result.scalar_one_or_none()
         if not session:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found"
+            )
         return session
 
     async def _count_messages(self, session_id: UUID) -> int:
-        result = await self.db.execute(select(CvChatMessage).where(CvChatMessage.session_id == session_id))
+        result = await self.db.execute(
+            select(CvChatMessage).where(CvChatMessage.session_id == session_id)
+        )
         return len(result.all())
 
     async def _session_response(self, session: CvChatSession) -> CvChatSessionResponse:
         messages_result = await self.db.execute(
-            select(CvChatMessage).where(CvChatMessage.session_id == session.id).order_by(CvChatMessage.created_at)
+            select(CvChatMessage)
+            .where(CvChatMessage.session_id == session.id)
+            .order_by(CvChatMessage.created_at)
         )
         messages = messages_result.scalars().all()
         return CvChatSessionResponse(
@@ -269,7 +304,11 @@ class CvChatService:
             fields_resolved=session.fields_resolved,
             messages=[
                 CvChatMessageResponse(
-                    id=str(m.id), role=m.role, content=m.content, field_name=m.field_name, created_at=m.created_at
+                    id=str(m.id),
+                    role=m.role,
+                    content=m.content,
+                    field_name=m.field_name,
+                    created_at=m.created_at,
                 )
                 for m in messages
             ],
