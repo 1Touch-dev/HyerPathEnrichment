@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, func, select, update
+from sqlalchemy import ColumnElement, and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,8 @@ async def select_questions(
         >>> for q in questions:
         ...     print(f"{q['difficulty']}: {q['question_text'][:50]}...")
     """
-    from app.models import InterviewAttempt, InterviewQuestion
+    from app.models import InterviewQuestion
+    from app.modules.sessions.models import QuestionAttempt
 
     # Build base query with job role filter
     dialect_name = session.bind.dialect.name if session.bind else "sqlite"
@@ -88,17 +89,26 @@ async def select_questions(
     cutoff_date = datetime.now(UTC) - timedelta(days=exclude_recent_days)
 
     recent_attempts_subquery = (
-        select(InterviewAttempt.question_id)
+        select(QuestionAttempt.question_id)
         .where(
             and_(
-                InterviewAttempt.user_id == user_id,
-                InterviewAttempt.created_at >= cutoff_date,
+                QuestionAttempt.user_id == user_id,
+                QuestionAttempt.attempted_at >= cutoff_date,
+                QuestionAttempt.question_id.isnot(None),
             )
         )
         .scalar_subquery()
     )
 
     base_conditions.append(InterviewQuestion.id.notin_(recent_attempts_subquery))
+    # §5.1 leak guard: a candidate must never draw another candidate's
+    # personalized-for-them questions into their own rotation.
+    base_conditions.append(
+        or_(
+            InterviewQuestion.personalized_for_user_id.is_(None),
+            InterviewQuestion.personalized_for_user_id == user_id,
+        )
+    )
 
     # Build final query: order by usage_count ASC (prioritize less-used), then random
     query = (

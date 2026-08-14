@@ -20,6 +20,9 @@ QUEUE_CV_EXTRACTION = "cv_extraction"
 QUEUE_FEEDBACK = "feedback"
 QUEUE_AUDIO_CLEANUP = "audio_cleanup"
 
+# Phase 2, Module 3 (interview practice — personalized question pre-generation)
+QUEUE_QUESTION_GENERATION = "question_generation"
+
 # Module 1: AI Job Matching & Notifications
 QUEUE_JOB_MATCHING = "job_matching"
 
@@ -34,6 +37,7 @@ QUEUE_PRIORITIES = {
     QUEUE_JOB_MATCHING: 6,  # Between feedback (7) and document (5) — user-facing but async
     QUEUE_OUTREACH: 6,  # NEW — user-facing but not time-critical; below feedback, above document/embedding
     QUEUE_DOCUMENT: 5,  # Medium (async)
+    QUEUE_QUESTION_GENERATION: 4,  # Below feedback: not user-blocking, above batch embedding
     QUEUE_EMBEDDING: 3,  # Low (batch)
     QUEUE_NAME: 2,  # Low (existing enrichment)
     QUEUE_CLEANUP: 1,  # Lowest (maintenance)
@@ -191,6 +195,42 @@ def enqueue_feedback(attempt_id: str) -> None:
             f"Failed to enqueue feedback job for attempt {attempt_id}",
             extra={
                 "attempt_id": attempt_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+            exc_info=True,
+        )
+        raise
+
+
+def enqueue_question_generation(user_id: str, job_role: str, count: int = 5) -> None:
+    """Enqueue personalized question pre-generation. Fire-and-forget: failures are
+    logged and cost-tracked inside the task itself, never raised back to a request
+    path that has no reason to block on this.
+
+    Args:
+        user_id: UUID string of the candidate to generate questions for
+        job_role: Target job role to generate questions for
+        count: Number of questions to pre-generate
+
+    Raises:
+        Exception: On enqueue failure
+    """
+    from app.workers.tasks.question_generation import generate_personalized_questions_job
+
+    connection = get_redis_connection()
+
+    try:
+        queue = Queue(QUEUE_QUESTION_GENERATION, connection=connection)
+        queue.enqueue(
+            generate_personalized_questions_job, user_id, job_role, count, job_timeout=120
+        )
+        logger.info(f"Enqueued question generation job for user: {user_id[:8]}")
+    except Exception as e:
+        logger.error(
+            "Failed to enqueue question generation job",
+            extra={
+                "user_id": user_id[:8],
                 "error": str(e),
                 "error_type": type(e).__name__,
             },

@@ -120,23 +120,43 @@ def sample_multi_question_response():
     }
 
 
-async def _ensure_interview_attempts_table(db: AsyncSession) -> None:
-    """Create interview_attempts table if the migration hasn't (SQLite test DB).
+async def _insert_attempt(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    question_id: uuid.UUID,
+    created_at: datetime | None = None,
+) -> None:
+    """Insert a question_attempts row via raw SQL, using the ORM's hex UUID format.
 
-    No migration currently creates this table (see models.py InterviewAttempt),
-    so tests create it via raw DDL as suggested by the task description.
+    Writes to the real ``question_attempts`` table (migration 015), matching
+    what ``session_manager.add_attempt()`` writes in production and what
+    ``question_selector.py``'s recency-exclusion query reads from after the
+    fix for phase2_module3.md §4.4/§4.6 (previously it read from the
+    never-written ``interview_attempts`` table, making the exclusion a
+    permanent no-op). ``session_id`` is an arbitrary UUID with no matching
+    ``practice_sessions`` row — safe here because SQLite FK enforcement is
+    off by default in this app (see app/database/session.py), and this test
+    only exercises the recency query, not session-level joins.
     """
     await db.execute(
         text(
             """
-            CREATE TABLE IF NOT EXISTS interview_attempts (
-                id TEXT NOT NULL PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                question_id TEXT NOT NULL,
-                created_at DATETIME NOT NULL
+            INSERT INTO question_attempts (
+                id, session_id, user_id, question_id, response_type, attempted_at
+            ) VALUES (
+                :id, :session_id, :user_id, :question_id, :response_type, :attempted_at
             )
             """
-        )
+        ),
+        {
+            "id": uuid.uuid4().hex,
+            "session_id": uuid.uuid4().hex,
+            "user_id": user_id.hex,
+            "question_id": question_id.hex,
+            "response_type": "text",
+            "attempted_at": created_at or datetime.now(UTC),
+        },
     )
 
 
@@ -182,30 +202,6 @@ async def _insert_question(
             "source": "test",
             "usage_count": usage_count,
             "created_at": datetime.now(UTC),
-        },
-    )
-
-
-async def _insert_attempt(
-    db: AsyncSession,
-    *,
-    user_id: uuid.UUID,
-    question_id: uuid.UUID,
-    created_at: datetime | None = None,
-) -> None:
-    """Insert an attempt row via raw SQL, using the ORM's hex UUID format."""
-    await db.execute(
-        text(
-            """
-            INSERT INTO interview_attempts (id, user_id, question_id, created_at)
-            VALUES (:id, :user_id, :question_id, :created_at)
-            """
-        ),
-        {
-            "id": uuid.uuid4().hex,
-            "user_id": user_id.hex,
-            "question_id": question_id.hex,
-            "created_at": created_at or datetime.now(UTC),
         },
     )
 
@@ -399,7 +395,6 @@ class TestQuestionSelector:
     @pytest.mark.asyncio
     async def test_select_questions_basic(self, db: AsyncSession):
         """Test basic question selection against a real (SQLite) database."""
-        await _ensure_interview_attempts_table(db)
 
         q1 = uuid.uuid4()
         q2 = uuid.uuid4()
@@ -445,7 +440,6 @@ class TestQuestionSelector:
     @pytest.mark.asyncio
     async def test_select_questions_filters_recent(self, db: AsyncSession):
         """Test that selector excludes questions attempted in the last N days."""
-        await _ensure_interview_attempts_table(db)
 
         user_id = uuid.uuid4()
         recent_question = uuid.uuid4()
@@ -477,7 +471,6 @@ class TestQuestionSelector:
     @pytest.mark.asyncio
     async def test_select_questions_by_difficulty(self, db: AsyncSession):
         """Test filtering by difficulty level."""
-        await _ensure_interview_attempts_table(db)
 
         easy_q = uuid.uuid4()
         medium_q = uuid.uuid4()
@@ -508,7 +501,6 @@ class TestQuestionSelector:
     @pytest.mark.asyncio
     async def test_select_questions_by_category(self, db: AsyncSession):
         """Test filtering by question category."""
-        await _ensure_interview_attempts_table(db)
 
         behavioral_q = uuid.uuid4()
         technical_q = uuid.uuid4()
@@ -535,7 +527,6 @@ class TestQuestionSelector:
     @pytest.mark.asyncio
     async def test_select_questions_returns_empty_list_when_nothing_matches(self, db: AsyncSession):
         """No questions match the requested job role -> empty list, no error."""
-        await _ensure_interview_attempts_table(db)
 
         results = await select_questions(
             db,
@@ -553,8 +544,6 @@ class TestQuestionStats:
 
     @pytest.mark.asyncio
     async def test_get_question_stats_totals_by_category_and_difficulty(self, db: AsyncSession):
-        await _ensure_interview_attempts_table(db)
-
         await _insert_question(
             db,
             question_id=uuid.uuid4(),
@@ -589,8 +578,6 @@ class TestQuestionStats:
 
     @pytest.mark.asyncio
     async def test_get_question_stats_filters_by_job_role(self, db: AsyncSession):
-        await _ensure_interview_attempts_table(db)
-
         await _insert_question(
             db,
             question_id=uuid.uuid4(),

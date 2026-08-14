@@ -61,10 +61,14 @@ def main() -> None:
                     QUEUE_FEEDBACK,
                     QUEUE_NAME,
                     QUEUE_OUTREACH,  # NEW
+                    QUEUE_QUESTION_GENERATION,
                 )
 
                 queues = [
                     Queue(QUEUE_FEEDBACK, connection=connection),  # Week 2: Interview feedback
+                    Queue(
+                        QUEUE_QUESTION_GENERATION, connection=connection
+                    ),  # Week 2 Module 3: question pre-gen
                     Queue(QUEUE_OUTREACH, connection=connection),  # NEW — Module 2
                     Queue(QUEUE_DOCUMENT, connection=connection),  # Week 1: Document processing
                     Queue(QUEUE_EMBEDDING, connection=connection),  # Week 1: Embeddings

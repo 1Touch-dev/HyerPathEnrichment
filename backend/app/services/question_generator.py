@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 import httpx
 
+from app.clients.retry import with_transient_retry
 from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,19 @@ JobRole = Literal["software_engineer", "data_scientist", "product_manager", "dev
 QuestionCategory = Literal["behavioral", "technical", "system_design"]
 
 QuestionDifficulty = Literal["easy", "medium", "hard"]
+
+
+@dataclass(slots=True)
+class CandidateContext:
+    """Optional personalization input (phase2_module3.md §3 Decision 1). All
+    fields optional - partial résumé data (e.g. skills but no
+    years_experience) still helps.
+    """
+
+    skills: list[str]
+    target_role: str | None = None
+    years_experience: int | None = None
+    recent_job_titles: list[str] | None = None
 
 
 class QuestionData(TypedDict):
@@ -84,6 +99,7 @@ def _build_generation_messages(
     category: QuestionCategory,
     difficulty: QuestionDifficulty,
     count: int = 1,
+    candidate_context: CandidateContext | None = None,
 ) -> list[dict[str, str]]:
     """Build chat messages for question generation.
 
@@ -92,6 +108,10 @@ def _build_generation_messages(
         category: Question category
         difficulty: Question difficulty
         count: Number of questions to generate
+        candidate_context: Optional personalization input (§3 Decision 1). When
+            provided, an extra paragraph is appended to the user prompt so the
+            question is tailored to the candidate's résumé data. When None,
+            the prompt content is byte-identical to the non-personalized path.
 
     Returns:
         List of message dicts for OpenAI chat API
@@ -125,6 +145,19 @@ Difficulty: {difficulty} ({difficulty_hints[difficulty]})
 Each question should be distinct and realistic for actual interviews.
 {"Return a JSON array with " + str(count) + " question objects." if count > 1 else "Return a single JSON object."}
 """.strip()
+
+    if candidate_context is not None:
+        details = [
+            f"Tailor this question to a candidate with these skills: {candidate_context.skills}. "
+            "Prefer technologies and scenarios from this list where relevant to the category."
+        ]
+        if candidate_context.target_role:
+            details.append(f"Target role: {candidate_context.target_role}.")
+        if candidate_context.years_experience is not None:
+            details.append(f"Years of experience: {candidate_context.years_experience}.")
+        if candidate_context.recent_job_titles:
+            details.append(f"Recent job titles: {candidate_context.recent_job_titles}.")
+        user_content += "\n\n" + " ".join(details)
 
     return [
         {"role": "system", "content": GENERATION_SYSTEM_PROMPT},
@@ -202,6 +235,7 @@ async def generate_questions(
     difficulty: QuestionDifficulty,
     settings: Settings,
     count: int = 1,
+    candidate_context: CandidateContext | None = None,
 ) -> tuple[list[QuestionData], dict[str, int]]:
     """Generate interview questions using GPT-4o-mini.
 
@@ -211,6 +245,10 @@ async def generate_questions(
         difficulty: Question difficulty (easy, medium, hard)
         settings: App settings with OpenAI API key
         count: Number of questions to generate (default 1, max 5 per call)
+        candidate_context: Optional personalization input (§3 Decision 1). When
+            provided, the generated question is tailored toward the
+            candidate's résumé data (skills/target role/experience). Defaults
+            to None, which preserves today's non-personalized behavior exactly.
 
     Returns:
         Tuple of (questions, token_usage)
@@ -240,12 +278,13 @@ async def generate_questions(
         logger.error("OpenAI API key not configured")
         raise ValueError("OpenAI API key not configured")
 
-    messages = _build_generation_messages(job_role, category, difficulty, count)
+    messages = _build_generation_messages(job_role, category, difficulty, count, candidate_context)
 
     # Call OpenAI API with JSON mode
     async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            response = await client.post(
+
+        async def _do_post() -> httpx.Response:
+            resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
@@ -258,7 +297,11 @@ async def generate_questions(
                     "temperature": 0.8,  # Higher temperature for variety
                 },
             )
-            response.raise_for_status()
+            resp.raise_for_status()
+            return resp
+
+        try:
+            response = await with_transient_retry(_do_post)
 
             result = response.json()
             content = result["choices"][0]["message"]["content"]

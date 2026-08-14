@@ -233,8 +233,9 @@ async def generate_interview_feedback(
 
     # Call OpenAI API with JSON mode
     async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            response = await client.post(
+
+        async def _do_post() -> httpx.Response:
+            resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
@@ -247,7 +248,11 @@ async def generate_interview_feedback(
                     "temperature": 0.3,  # Lower temperature for consistent scoring
                 },
             )
-            response.raise_for_status()
+            resp.raise_for_status()
+            return resp
+
+        try:
+            response = await with_transient_retry(_do_post)
 
             result = response.json()
             content = result["choices"][0]["message"]["content"]
