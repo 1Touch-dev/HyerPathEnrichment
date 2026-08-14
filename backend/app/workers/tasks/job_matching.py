@@ -297,6 +297,7 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
 
     finally:
         await close_redis()
+        await events.close_job_matching_events_redis()
         await engine.dispose()
 
 
