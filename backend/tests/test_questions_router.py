@@ -172,3 +172,57 @@ def test_list_questions_personalizes_when_document_exists(
         assert response.status_code == 200
         mock_generate.assert_called_once()
         assert mock_generate.call_args.kwargs["candidate_context"] is not None
+
+
+def test_list_questions_stops_personalizing_after_daily_limit(
+    client: TestClient,
+    processed_candidate_document: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """QUESTION_GENERATION_DAILY_LIMIT_PER_USER caps personalized generation
+    per candidate per day (.env.example's cost-control guard) - once reached,
+    generation still happens (for the shared, non-personalized pool) but
+    candidate_context is dropped rather than raising or silently bypassing
+    the limit forever.
+    """
+    monkeypatch.setattr(get_settings(), "openai_api_key", "test-key-for-personalization")
+    monkeypatch.setattr(get_settings(), "question_generation_daily_limit_per_user", 1)
+    user_id = processed_candidate_document["user_id"]
+    headers = _auth_headers(str(user_id))
+
+    with patch(
+        "app.modules.questions.service.generate_questions", new_callable=AsyncMock
+    ) as mock_generate:
+        mock_generate.return_value = (
+            [
+                {
+                    "question_text": "Explain how you'd design a rate limiter.",
+                    "category": "system_design",
+                    "difficulty": "medium",
+                    "job_roles": ["devops_engineer"],
+                    "technologies": ["redis"],
+                    "sample_answer": "A token bucket...",
+                    "scoring_rubric": {"clarity": "clear"},
+                }
+            ],
+            {"input_tokens": 10, "output_tokens": 10},
+        )
+        # First call: under the limit (0 generated today) -> personalizes and
+        # persists one personalized_for_user_id row, consuming the day's quota.
+        first = client.post(
+            "/api/questions",
+            headers=headers,
+            json={"job_role": "devops_engineer", "count": 10, "personalize": True},
+        )
+        assert first.status_code == 200
+        assert mock_generate.call_args.kwargs["candidate_context"] is not None
+
+        # Second call: quota now exhausted (1 personalized row already exists
+        # for this user in the last 24h) -> candidate_context must be dropped.
+        second = client.post(
+            "/api/questions",
+            headers=headers,
+            json={"job_role": "devops_engineer", "count": 10, "personalize": True},
+        )
+        assert second.status_code == 200
+        assert mock_generate.call_args.kwargs["candidate_context"] is None

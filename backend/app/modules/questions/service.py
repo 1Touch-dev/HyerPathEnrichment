@@ -9,10 +9,11 @@ enrichers/pipeline.py, workers/, or compliance/, per RULE.md layer ownership.
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -32,6 +33,22 @@ from app.services.question_selector import select_questions
 logger = logging.getLogger(__name__)
 
 MIN_BANK_RESULTS_BEFORE_GENERATING = 3
+
+
+async def _personalized_generation_count_today(db: AsyncSession, user_id: UUID) -> int:
+    """Count this user's personalized questions generated in the last 24h.
+
+    Cost-control guard for QUESTION_GENERATION_DAILY_LIMIT_PER_USER (mirrors
+    DAILY_COST_THRESHOLD_USD's intent, scoped to this one feature — see
+    .env.example). A rolling 24h window (not calendar-day) since InterviewQuestion
+    has no per-user request log, only the rows it already persists.
+    """
+    since = datetime.now(UTC) - timedelta(days=1)
+    stmt = select(func.count()).where(
+        InterviewQuestion.personalized_for_user_id == user_id,
+        InterviewQuestion.created_at >= since,
+    )
+    return (await db.execute(stmt)).scalar_one()
 
 
 async def _load_candidate_context(db: AsyncSession, user_id: UUID) -> CandidateContext | None:
@@ -109,6 +126,20 @@ async def get_questions(
             extra={"user_id": str(user_id)[:8], "shortfall": shortfall},
         )
         return QuestionListResponse(questions=items, source="question_bank")
+
+    if candidate_context is not None:
+        generated_today = await _personalized_generation_count_today(db, user_id)
+        if generated_today >= settings.question_generation_daily_limit_per_user:
+            logger.info(
+                "Personalized question generation daily limit reached; "
+                "generating from the shared (non-personalized) pool instead",
+                extra={
+                    "user_id": str(user_id)[:8],
+                    "generated_today": generated_today,
+                    "limit": settings.question_generation_daily_limit_per_user,
+                },
+            )
+            candidate_context = None
 
     try:
         generated, token_usage = await generate_questions(
