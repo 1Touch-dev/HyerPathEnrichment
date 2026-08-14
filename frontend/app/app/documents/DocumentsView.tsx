@@ -22,10 +22,14 @@ export function DocumentsView() {
 
   if (isLoading) return <div className="animate-pulse h-96 rounded-lg bg-muted" />;
   if (isError) {
-    return <EmptyState title="Couldn't load your documents" description="Please try again shortly." />;
+    return (
+      <EmptyState title="Couldn't load your documents" description="Please try again shortly." />
+    );
   }
   if (!data || data.length === 0) {
-    return <EmptyState title="No CV uploaded yet" description="Upload a PDF or DOCX to get started." />;
+    return (
+      <EmptyState title="No CV uploaded yet" description="Upload a PDF or DOCX to get started." />
+    );
   }
 
   return (

@@ -25,7 +25,11 @@ export async function POST(
   // Backend enqueues feedback generation and returns { job_id, document_id, message }
   // (DocumentUploadResponse — shared with the upload flow, §8.6) — surface the job id
   // so callers can poll job status if they need to, per the same shape used elsewhere.
-  return handleBackendJson(backendResponse, (raw: { job_id: string }) => ({ jobId: raw.job_id }), 202);
+  return handleBackendJson(
+    backendResponse,
+    (raw: { job_id: string }) => ({ jobId: raw.job_id }),
+    202,
+  );
 }
 
 export async function GET(

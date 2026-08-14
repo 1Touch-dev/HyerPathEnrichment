@@ -1,7 +1,11 @@
 import { NextRequest } from "next/server";
 import { adaptCvChatSession } from "@/src/lib/api-adapter";
 import { backendFetch } from "@/src/lib/backend-client";
-import { bffServiceUnavailable, bffValidationError, handleBackendJson } from "@/src/lib/bff-response";
+import {
+  bffServiceUnavailable,
+  bffValidationError,
+  handleBackendJson,
+} from "@/src/lib/bff-response";
 
 export const dynamic = "force-dynamic";
 

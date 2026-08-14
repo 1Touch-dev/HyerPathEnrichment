@@ -11,7 +11,10 @@ export async function GET() {
   } catch {
     return bffServiceUnavailable();
   }
-  return handleBackendJson(backendResponse, (raw: { messages: Parameters<typeof adaptOutreachMessage>[0][] }) => ({
-    messages: raw.messages.map(adaptOutreachMessage),
-  }));
+  return handleBackendJson(
+    backendResponse,
+    (raw: { messages: Parameters<typeof adaptOutreachMessage>[0][] }) => ({
+      messages: raw.messages.map(adaptOutreachMessage),
+    }),
+  );
 }

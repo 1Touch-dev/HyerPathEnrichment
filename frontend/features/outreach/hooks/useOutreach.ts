@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { draftOutreach, editOutreachDraft, fetchOutreachMessages, sendOutreach } from "@/src/lib/api-client";
+import {
+  draftOutreach,
+  editOutreachDraft,
+  fetchOutreachMessages,
+  sendOutreach,
+} from "@/src/lib/api-client";
 import { outreachKeys } from "../api/keys";
 
 export function useOutreachMessages(options: { poll?: boolean } = {}) {
@@ -58,7 +63,11 @@ async function fetchMostRecentCompletedDocumentId(): Promise<string> {
 export function useDraftOutreachForMatch() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { companyName: string; jobMatchId?: string; recipientRoleTitle?: string }) => {
+    mutationFn: async (payload: {
+      companyName: string;
+      jobMatchId?: string;
+      recipientRoleTitle?: string;
+    }) => {
       const documentId = await fetchMostRecentCompletedDocumentId();
       return draftOutreach({ ...payload, documentId });
     },
@@ -69,8 +78,15 @@ export function useDraftOutreachForMatch() {
 export function useEditOutreachDraft() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ messageId, subject, body }: { messageId: string; subject: string; body: string }) =>
-      editOutreachDraft(messageId, subject, body),
+    mutationFn: ({
+      messageId,
+      subject,
+      body,
+    }: {
+      messageId: string;
+      subject: string;
+      body: string;
+    }) => editOutreachDraft(messageId, subject, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: outreachKeys.list() }),
   });
 }

@@ -97,7 +97,11 @@ describe("adaptCvFeedbackReport", () => {
       strengths: [],
       improvements: [],
       rewritten_bullets: [
-        { original: "Worked on backend", rewritten: "Built backend serving 1M+ users", rationale: "Quantifies impact" },
+        {
+          original: "Worked on backend",
+          rewritten: "Built backend serving 1M+ users",
+          rationale: "Quantifies impact",
+        },
       ],
       accepted_bullet_indices: [0],
       created_at: "2026-01-01T00:00:00Z",

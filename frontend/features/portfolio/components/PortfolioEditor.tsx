@@ -6,12 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useAddPortfolioItem,
   useDeletePortfolioItem,
@@ -53,7 +48,12 @@ export function PortfolioEditor() {
     if (!newItemUrl.trim() || !newItemTitle.trim()) return;
     addItem.mutate(
       { itemType: "other_link", title: newItemTitle, description: null, url: newItemUrl },
-      { onSuccess: () => { setNewItemUrl(""); setNewItemTitle(""); } },
+      {
+        onSuccess: () => {
+          setNewItemUrl("");
+          setNewItemTitle("");
+        },
+      },
     );
   }
 
@@ -87,11 +87,22 @@ export function PortfolioEditor() {
         <SlugField value={slug} onChange={setSlug} />
         <div>
           <Label htmlFor="headline">Headline</Label>
-          <Input id="headline" value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={120} />
+          <Input
+            id="headline"
+            value={headline}
+            onChange={(e) => setHeadline(e.target.value)}
+            maxLength={120}
+          />
         </div>
         <div>
           <Label htmlFor="summary">Summary</Label>
-          <Textarea id="summary" value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={2000} rows={4} />
+          <Textarea
+            id="summary"
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            maxLength={2000}
+            rows={4}
+          />
         </div>
         <div className="flex items-center justify-between rounded-lg border p-4">
           <div>
@@ -112,7 +123,10 @@ export function PortfolioEditor() {
           <h3 className="text-sm font-semibold">Portfolio items</h3>
           <ul className="mt-2 space-y-2">
             {profile.items.map((item) => (
-              <li key={item.itemId} className="flex items-center justify-between rounded-lg border p-3">
+              <li
+                key={item.itemId}
+                className="flex items-center justify-between rounded-lg border p-3"
+              >
                 <div>
                   <p className="text-sm font-medium">{item.title}</p>
                   <p className="text-xs text-muted-foreground">

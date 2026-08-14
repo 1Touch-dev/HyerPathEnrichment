@@ -30,7 +30,11 @@ const rawCompletedReport = {
   strengths: ["Strong technical background"],
   improvements: ["Add more quantified results"],
   rewritten_bullets: [
-    { original: "Worked on backend systems", rewritten: "Built backend systems serving 1M+ users", rationale: "Quantifies impact" },
+    {
+      original: "Worked on backend systems",
+      rewritten: "Built backend systems serving 1M+ users",
+      rationale: "Quantifies impact",
+    },
   ],
   accepted_bullet_indices: [],
   created_at: "2026-01-01T00:00:00Z",
@@ -81,7 +85,9 @@ describe("CvFeedbackPanel", () => {
 
   it("refetches and renders the report once the job status reaches completed", async () => {
     vi.spyOn(apiClient, "fetchCvFeedback")
-      .mockRejectedValueOnce(new ApiError("No feedback report yet", { code: "NOT_FOUND", statusCode: 404 }))
+      .mockRejectedValueOnce(
+        new ApiError("No feedback report yet", { code: "NOT_FOUND", statusCode: 404 }),
+      )
       .mockResolvedValue(envelope(completedReport));
     vi.spyOn(apiClient, "requestCvFeedback").mockResolvedValue(envelope({ jobId: "job1" }));
     vi.spyOn(apiClient, "fetchDocumentJobStatus").mockResolvedValue(
@@ -113,9 +119,7 @@ describe("CvFeedbackPanel", () => {
     const useButton = await screen.findByRole("button", { name: "Use this version" });
     fireEvent.click(useButton);
 
-    await waitFor(() =>
-      expect(apiClient.acceptCvBullet).toHaveBeenCalledWith("doc1", "r1", 0),
-    );
+    await waitFor(() => expect(apiClient.acceptCvBullet).toHaveBeenCalledWith("doc1", "r1", 0));
   });
 
   it("shows an 'Applied' state instead of the Accept button for bullets already in acceptedBulletIndices", async () => {

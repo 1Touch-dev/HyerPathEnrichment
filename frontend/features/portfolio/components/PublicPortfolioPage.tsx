@@ -34,7 +34,9 @@ export function PublicPortfolioPage({ profile }: PublicPortfolioPageProps) {
                 <h2 className="font-medium">{item.title}</h2>
                 <Badge variant="outline">{ITEM_TYPE_LABELS[item.itemType] ?? item.itemType}</Badge>
               </div>
-              {item.description && <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>}
+              {item.description && (
+                <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+              )}
             </a>
           ))}
         </section>

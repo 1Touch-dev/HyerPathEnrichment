@@ -21,7 +21,14 @@ const activeSession: CvChatSession = {
   status: "active",
   missingFieldsAtStart: ["phone"],
   fieldsResolved: [],
-  messages: [{ id: "m1", role: "assistant", content: "What is your phone number?", createdAt: "2026-01-01T00:00:00Z" }],
+  messages: [
+    {
+      id: "m1",
+      role: "assistant",
+      content: "What is your phone number?",
+      createdAt: "2026-01-01T00:00:00Z",
+    },
+  ],
 };
 
 describe("useCvChat", () => {

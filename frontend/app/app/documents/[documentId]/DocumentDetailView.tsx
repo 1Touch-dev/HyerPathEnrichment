@@ -15,9 +15,7 @@ export function DocumentDetailView({ documentId }: DocumentDetailViewProps) {
     <div className="space-y-4">
       <CompletenessBanner documentId={documentId} onStartChat={() => setShowChat(true)} />
 
-      {showChat && (
-        <CvChatWidget documentId={documentId} onComplete={() => setShowChat(false)} />
-      )}
+      {showChat && <CvChatWidget documentId={documentId} onComplete={() => setShowChat(false)} />}
 
       <Tabs defaultValue="feedback">
         <TabsList>

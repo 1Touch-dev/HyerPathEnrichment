@@ -22,5 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!response.ok) return { title: "Portfolio not found" };
   const raw = await response.json();
   const backendProfile = unwrapEnvelopeData<{ headline: string | null }>(raw);
-  return { title: backendProfile.headline ? `${backendProfile.headline} — Portfolio` : "Portfolio" };
+  return {
+    title: backendProfile.headline ? `${backendProfile.headline} — Portfolio` : "Portfolio",
+  };
 }

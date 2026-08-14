@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addPortfolioItem, deletePortfolioItem, fetchPortfolioProfile, savePortfolioProfile } from "@/src/lib/api-client";
+import {
+  addPortfolioItem,
+  deletePortfolioItem,
+  fetchPortfolioProfile,
+  savePortfolioProfile,
+} from "@/src/lib/api-client";
 import type { PortfolioItem, PortfolioProfile } from "@/src/lib/types";
 import { portfolioKeys } from "../api/keys";
 
@@ -17,7 +22,8 @@ export function usePortfolioProfile() {
 export function useSavePortfolioProfile() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Partial<PortfolioProfile> & { slug: string }) => savePortfolioProfile(payload),
+    mutationFn: (payload: Partial<PortfolioProfile> & { slug: string }) =>
+      savePortfolioProfile(payload),
     onSuccess: (response) => queryClient.setQueryData(portfolioKeys.profile(), response.data),
   });
 }
@@ -25,7 +31,8 @@ export function useSavePortfolioProfile() {
 export function useAddPortfolioItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Omit<PortfolioItem, "itemId" | "displayOrder">) => addPortfolioItem(payload),
+    mutationFn: (payload: Omit<PortfolioItem, "itemId" | "displayOrder">) =>
+      addPortfolioItem(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: portfolioKeys.profile() }),
   });
 }

@@ -612,14 +612,20 @@ export function adaptDocumentSummary(raw: RawDocumentMetadataResponse): Document
   };
 }
 
-const PORTFOLIO_ITEM_TYPE_FROM_BACKEND: Record<RawPortfolioItemResponse["item_type"], PortfolioItem["itemType"]> = {
+const PORTFOLIO_ITEM_TYPE_FROM_BACKEND: Record<
+  RawPortfolioItemResponse["item_type"],
+  PortfolioItem["itemType"]
+> = {
   github: "github_repo",
   live_demo: "live_demo",
   case_study: "case_study",
   other: "other_link",
 };
 
-const PORTFOLIO_ITEM_TYPE_TO_BACKEND: Record<PortfolioItem["itemType"], RawPortfolioItemResponse["item_type"]> = {
+const PORTFOLIO_ITEM_TYPE_TO_BACKEND: Record<
+  PortfolioItem["itemType"],
+  RawPortfolioItemResponse["item_type"]
+> = {
   github_repo: "github",
   live_demo: "live_demo",
   case_study: "case_study",

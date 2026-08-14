@@ -21,7 +21,9 @@ vi.mock("./SwipeCard", () => ({
     onDraftOutreach: (matchId: string, companyName: string) => void;
   }) => {
     lastOnSwiped = onSwiped;
-    return <div data-testid="swipe-card" data-match-id={card.matchId} data-is-top={String(isTop)} />;
+    return (
+      <div data-testid="swipe-card" data-match-id={card.matchId} data-is-top={String(isTop)} />
+    );
   },
 }));
 

@@ -1,7 +1,11 @@
 import { NextRequest } from "next/server";
 import { adaptOutreachMessage } from "@/src/lib/api-adapter";
 import { backendFetch } from "@/src/lib/backend-client";
-import { backendFailureResponse, bffServiceUnavailable, handleBackendJson } from "@/src/lib/bff-response";
+import {
+  backendFailureResponse,
+  bffServiceUnavailable,
+  handleBackendJson,
+} from "@/src/lib/bff-response";
 
 export const dynamic = "force-dynamic";
 

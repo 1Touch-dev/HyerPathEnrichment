@@ -11,7 +11,8 @@ interface SlugFieldProps {
 }
 
 export function SlugField({ value, onChange }: SlugFieldProps) {
-  const isValid = value.length === 0 || (value.length >= 3 && value.length <= 60 && SLUG_PATTERN.test(value));
+  const isValid =
+    value.length === 0 || (value.length >= 3 && value.length <= 60 && SLUG_PATTERN.test(value));
 
   return (
     <div>
