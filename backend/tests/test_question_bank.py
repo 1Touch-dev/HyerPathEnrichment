@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Self
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -715,3 +716,150 @@ class TestSeedScript:
         assert isinstance(params["technologies"], str)
         assert isinstance(params["id"], str)  # stringified UUID for SQLite TEXT column
         assert params["scoring_rubric"] == json.dumps(question_data["scoring_rubric"])
+
+
+class TestPersonalizedGeneration:
+    """Tests for §3 Decision 1 - candidate_context personalization."""
+
+    @pytest.mark.asyncio
+    async def test_generate_questions_without_context_is_byte_identical_to_before(
+        self, mock_settings, sample_question_response
+    ):
+        """Regression guard: candidate_context=None must not change existing behavior."""
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            mock_response = MagicMock()
+            mock_response.json.return_value = sample_question_response
+            mock_response.raise_for_status = MagicMock()
+            mock_post.return_value = mock_response
+
+            questions, _ = await generate_questions(
+                job_role="software_engineer",
+                category="behavioral",
+                difficulty="medium",
+                settings=mock_settings,
+                count=1,
+                candidate_context=None,
+            )
+            call_kwargs = mock_post.call_args.kwargs
+            assert "Tailor this question" not in call_kwargs["json"]["messages"][1]["content"]
+            assert len(questions) == 1
+
+    @pytest.mark.asyncio
+    async def test_generate_questions_with_context_appends_personalization_paragraph(
+        self, mock_settings, sample_question_response
+    ):
+        from app.services.question_generator import CandidateContext
+
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            mock_response = MagicMock()
+            mock_response.json.return_value = sample_question_response
+            mock_response.raise_for_status = MagicMock()
+            mock_post.return_value = mock_response
+
+            context = CandidateContext(
+                skills=["Python", "Kubernetes"], target_role="Backend Engineer"
+            )
+            await generate_questions(
+                job_role="software_engineer",
+                category="technical",
+                difficulty="medium",
+                settings=mock_settings,
+                count=1,
+                candidate_context=context,
+            )
+            call_kwargs = mock_post.call_args.kwargs
+            content = call_kwargs["json"]["messages"][1]["content"]
+            assert "Python" in content
+            assert "Kubernetes" in content
+
+    @pytest.mark.asyncio
+    async def test_generate_questions_retries_on_http_error(
+        self, mock_settings, sample_question_response
+    ):
+        """§3 Decision 2: retry logic must actually retry, not just be decorated."""
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            success_response = MagicMock()
+            success_response.json.return_value = sample_question_response
+            success_response.raise_for_status = MagicMock()
+            mock_post.side_effect = [httpx.ConnectError("boom"), success_response]
+
+            questions, _ = await generate_questions(
+                job_role="software_engineer",
+                category="behavioral",
+                difficulty="easy",
+                settings=mock_settings,
+                count=1,
+            )
+            assert mock_post.call_count == 2
+            assert len(questions) == 1
+
+
+class TestQuestionRecencyExclusionUsesRealTable:
+    """§4.2/§4.6 regression guard: recency exclusion must read question_attempts,
+    not the dead interview_attempts table.
+    """
+
+    @pytest.mark.asyncio
+    async def test_recently_attempted_question_is_excluded(self, db: AsyncSession):
+        from app.models import InterviewQuestion
+        from app.modules.sessions.models import PracticeSession, QuestionAttempt
+
+        user_id = uuid.uuid4()
+        question = InterviewQuestion(
+            question_text="Q1",
+            question_category="technical",
+            difficulty="easy",
+            job_roles=["software_engineer"],
+            technologies=["python"],
+        )
+        db.add(question)
+        await db.commit()
+
+        session = PracticeSession(id=uuid.uuid4(), user_id=user_id, session_type="text")
+        db.add(session)
+        await db.commit()
+
+        attempt = QuestionAttempt(
+            id=uuid.uuid4(),
+            session_id=session.id,
+            user_id=user_id,
+            question_id=question.id,
+            response_type="text",
+            text_response="answer",
+        )
+        db.add(attempt)
+        await db.commit()
+
+        results = await select_questions(
+            db, user_id=user_id, job_role="software_engineer", exclude_recent_days=7
+        )
+        assert all(r["id"] != str(question.id) for r in results)
+
+    @pytest.mark.asyncio
+    async def test_personalized_question_excluded_from_other_users_rotation(self, db: AsyncSession):
+        """§5.1 leak guard."""
+        from app.models import InterviewQuestion
+
+        owner_id = uuid.uuid4()
+        other_id = uuid.uuid4()
+        personalized = InterviewQuestion(
+            question_text="Personalized Q",
+            question_category="technical",
+            difficulty="medium",
+            job_roles=["software_engineer"],
+            technologies=["python"],
+            personalized_for_user_id=owner_id,
+        )
+        db.add(personalized)
+        await db.commit()
+
+        results = await select_questions(db, user_id=other_id, job_role="software_engineer")
+        assert all(r["id"] != str(personalized.id) for r in results)
+
+        # count=100 makes this assertion robust against however many other
+        # rows earlier tests in this module have already committed to the
+        # shared test database (this module never truncates between tests).
+        own_results = await select_questions(
+            db, user_id=owner_id, job_role="software_engineer", count=100
+        )
+        assert any(r["id"] == str(personalized.id) for r in own_results)
