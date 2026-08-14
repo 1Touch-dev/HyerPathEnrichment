@@ -42,7 +42,8 @@ export function useCvFeedbackJobStatus(jobId: string | null) {
     queryKey: cvManagementKeys.feedbackJob(jobId ?? "none"),
     queryFn: async () => (await fetchDocumentJobStatus(jobId as string)).data,
     enabled: Boolean(jobId),
-    refetchInterval: (query) => (TERMINAL_JOB_STATUSES.has(query.state.data?.status ?? "") ? false : 3_000),
+    refetchInterval: (query) =>
+      TERMINAL_JOB_STATUSES.has(query.state.data?.status ?? "") ? false : 3_000,
   });
 }
 
@@ -50,7 +51,8 @@ export function useRequestCvFeedback(documentId: string) {
   return useMutation({
     // Unwraps the envelope so callers get `{ jobId }` directly from `mutate(...)`'s
     // per-call `onSuccess` — the real signal to start polling `useCvFeedbackJobStatus`.
-    mutationFn: async (targetRole?: string) => (await requestCvFeedback(documentId, targetRole)).data,
+    mutationFn: async (targetRole?: string) =>
+      (await requestCvFeedback(documentId, targetRole)).data,
   });
 }
 
@@ -59,6 +61,7 @@ export function useAcceptCvBullet(documentId: string) {
   return useMutation({
     mutationFn: ({ reportId, bulletIndex }: { reportId: string; bulletIndex: number }) =>
       acceptCvBullet(documentId, reportId, bulletIndex),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: cvManagementKeys.feedback(documentId) }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: cvManagementKeys.feedback(documentId) }),
   });
 }

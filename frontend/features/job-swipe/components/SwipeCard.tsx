@@ -15,7 +15,11 @@ interface SwipeCardProps {
 const SWIPE_THRESHOLD_X = 120;
 const SWIPE_THRESHOLD_Y = -100;
 
-function formatSalary(min: number | null, max: number | null, currency: string | null): string | null {
+function formatSalary(
+  min: number | null,
+  max: number | null,
+  currency: string | null,
+): string | null {
   if (min === null && max === null) return null;
   const cur = currency ?? "USD";
   if (min !== null && max !== null) return `${cur} ${min.toLocaleString()}–${max.toLocaleString()}`;
@@ -81,7 +85,13 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
               <h2 className="text-xl font-semibold">{card.title}</h2>
               <p className="text-muted-foreground">{card.company}</p>
             </div>
-            <Badge className={card.overallScore >= 80 ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
+            <Badge
+              className={
+                card.overallScore >= 80
+                  ? "bg-green-100 text-green-800"
+                  : "bg-yellow-100 text-yellow-800"
+              }
+            >
               {Math.round(card.overallScore)}/100
             </Badge>
           </div>

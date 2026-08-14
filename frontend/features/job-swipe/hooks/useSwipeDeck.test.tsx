@@ -78,7 +78,9 @@ describe("useSubmitSwipe", () => {
     result.current.mutate({ matchId: "m1", direction: "right" });
 
     await waitFor(() => {
-      const cached = queryClient.getQueryData<{ cards: { matchId: string }[] }>(jobSwipeKeys.deck());
+      const cached = queryClient.getQueryData<{ cards: { matchId: string }[] }>(
+        jobSwipeKeys.deck(),
+      );
       expect(cached?.cards.some((c) => c.matchId === "m1")).toBe(false);
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

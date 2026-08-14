@@ -137,7 +137,12 @@ describe("PortfolioEditor", () => {
     addForm!.requestSubmit();
 
     expect(addMutateMock).toHaveBeenCalledWith(
-      { itemType: "other_link", title: "New project", description: null, url: "https://example.com" },
+      {
+        itemType: "other_link",
+        title: "New project",
+        description: null,
+        url: "https://example.com",
+      },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
     await waitFor(() => expect(titleInput).toHaveValue(""));

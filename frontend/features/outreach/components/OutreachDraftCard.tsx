@@ -34,7 +34,12 @@ export function OutreachDraftCard({ message }: OutreachDraftCardProps) {
       </div>
 
       <Input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!canEdit} />
-      <Textarea value={body} onChange={(e) => setBody(e.target.value)} disabled={!canEdit} rows={8} />
+      <Textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        disabled={!canEdit}
+        rows={8}
+      />
 
       {canEdit && (
         <div className="flex justify-end gap-2">

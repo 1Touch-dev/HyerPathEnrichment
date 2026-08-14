@@ -11,24 +11,18 @@ function ControlledSlugField({ initial = "" }: { initial?: string }) {
 describe("SlugField", () => {
   it("shows an error for a slug that is too short", () => {
     render(<ControlledSlugField initial="AB" />);
-    expect(
-      screen.getByText(/3-60 characters: lowercase letters, numbers/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/3-60 characters: lowercase letters, numbers/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Portfolio URL")).toHaveAttribute("aria-invalid", "true");
   });
 
   it("shows an error for a slug with a leading hyphen", () => {
     render(<ControlledSlugField initial="-abc" />);
-    expect(
-      screen.getByText(/3-60 characters: lowercase letters, numbers/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/3-60 characters: lowercase letters, numbers/i)).toBeInTheDocument();
   });
 
   it("shows an error for a slug typed in uppercase before lowercasing settles", () => {
     render(<ControlledSlugField initial="ABC-def" />);
-    expect(
-      screen.getByText(/3-60 characters: lowercase letters, numbers/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/3-60 characters: lowercase letters, numbers/i)).toBeInTheDocument();
   });
 
   it("shows no error for a valid slug", () => {

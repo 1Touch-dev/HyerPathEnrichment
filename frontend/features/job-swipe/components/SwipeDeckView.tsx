@@ -16,7 +16,8 @@ export function SwipeDeckView() {
   const draftOutreach = useDraftOutreachForMatch();
 
   if (isLoading) return <div className="animate-pulse h-[32rem] rounded-2xl bg-muted" />;
-  if (isError) return <EmptyState title="Couldn't load your deck" description="Please try again shortly." />;
+  if (isError)
+    return <EmptyState title="Couldn't load your deck" description="Please try again shortly." />;
   if (!data || data.cards.length === 0) {
     // `hasMore` reflects the backend's unswiped-match count at the time of the last fetch
     // (backend/app/modules/job_swipe/service.py's `_DECK_PAGE_SIZE` paging) — once the visible
@@ -53,8 +54,12 @@ export function SwipeDeckView() {
     draftOutreach.mutate(
       { companyName, jobMatchId: matchId },
       {
-        onSuccess: () => toast.success("Drafting outreach...", { description: "Your draft will appear on the Outreach page shortly." }),
-        onError: (error) => toast.error("Couldn't start drafting outreach", { description: error.message }),
+        onSuccess: () =>
+          toast.success("Drafting outreach...", {
+            description: "Your draft will appear on the Outreach page shortly.",
+          }),
+        onError: (error) =>
+          toast.error("Couldn't start drafting outreach", { description: error.message }),
       },
     );
   }

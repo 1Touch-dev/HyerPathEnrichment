@@ -31,7 +31,10 @@ const sampleList: OutreachListResponse = { messages: [sampleMessage] };
 
 describe("useOutreachMessages", () => {
   it("returns the unwrapped messages list on success", async () => {
-    vi.spyOn(apiClient, "fetchOutreachMessages").mockResolvedValue({ success: true, data: sampleList });
+    vi.spyOn(apiClient, "fetchOutreachMessages").mockResolvedValue({
+      success: true,
+      data: sampleList,
+    });
 
     const { result } = renderHook(() => useOutreachMessages(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -51,13 +54,19 @@ describe("useDraftOutreach", () => {
     result.current.mutate({ companyName: "Acme", documentId: "doc1" });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(apiClient.draftOutreach).toHaveBeenCalledWith({ companyName: "Acme", documentId: "doc1" });
+    expect(apiClient.draftOutreach).toHaveBeenCalledWith({
+      companyName: "Acme",
+      documentId: "doc1",
+    });
   });
 });
 
 describe("useEditOutreachDraft", () => {
   it("calls editOutreachDraft with the correct arguments and invalidates the list on success", async () => {
-    vi.spyOn(apiClient, "editOutreachDraft").mockResolvedValue({ success: true, data: sampleMessage });
+    vi.spyOn(apiClient, "editOutreachDraft").mockResolvedValue({
+      success: true,
+      data: sampleMessage,
+    });
 
     const { result } = renderHook(() => useEditOutreachDraft(), { wrapper });
     result.current.mutate({ messageId: "msg1", subject: "New subject", body: "New body" });

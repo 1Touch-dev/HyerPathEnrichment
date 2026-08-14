@@ -28,7 +28,14 @@ const activeSession: CvChatSession = {
   status: "active",
   missingFieldsAtStart: ["phone"],
   fieldsResolved: [],
-  messages: [{ id: "m1", role: "assistant", content: "What is your phone number?", createdAt: "2026-01-01T00:00:00Z" }],
+  messages: [
+    {
+      id: "m1",
+      role: "assistant",
+      content: "What is your phone number?",
+      createdAt: "2026-01-01T00:00:00Z",
+    },
+  ],
 };
 
 const pendingFeedback: CvFeedbackReport = {
@@ -54,11 +61,15 @@ describe("DocumentDetailView", () => {
 
     render(<DocumentDetailView documentId="doc1" />, { wrapper });
 
-    expect(screen.queryByRole("button", { name: "Start CV completeness chat" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Start CV completeness chat" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("button", { name: "Complete it" }));
 
-    expect(await screen.findByRole("button", { name: "Start CV completeness chat" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Start CV completeness chat" }),
+    ).toBeInTheDocument();
   });
 
   it("unmounts CvChatWidget again once onComplete fires", async () => {

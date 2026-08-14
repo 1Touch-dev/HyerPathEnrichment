@@ -22,7 +22,12 @@ const activeSession: CvChatSession = {
   missingFieldsAtStart: ["phone"],
   fieldsResolved: [],
   messages: [
-    { id: "m1", role: "assistant", content: "What is your phone number?", createdAt: "2026-01-01T00:00:00Z" },
+    {
+      id: "m1",
+      role: "assistant",
+      content: "What is your phone number?",
+      createdAt: "2026-01-01T00:00:00Z",
+    },
     { id: "m2", role: "user", content: "555-1234", createdAt: "2026-01-01T00:01:00Z" },
   ],
 };

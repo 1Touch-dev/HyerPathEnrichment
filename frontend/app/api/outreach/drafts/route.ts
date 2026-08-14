@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { backendFetch } from "@/src/lib/backend-client";
-import { bffServiceUnavailable, bffValidationError, handleBackendJson } from "@/src/lib/bff-response";
+import {
+  bffServiceUnavailable,
+  bffValidationError,
+  handleBackendJson,
+} from "@/src/lib/bff-response";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +45,10 @@ export async function POST(request: NextRequest) {
   }
   return handleBackendJson(
     backendResponse,
-    (raw: { rq_job_id: string; message: string }) => ({ rqJobId: raw.rq_job_id, message: raw.message }),
+    (raw: { rq_job_id: string; message: string }) => ({
+      rqJobId: raw.rq_job_id,
+      message: raw.message,
+    }),
     202,
   );
 }

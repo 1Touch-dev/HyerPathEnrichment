@@ -7,12 +7,20 @@ export function OutreachView() {
   const { data, isLoading, isError } = useOutreachMessages();
 
   if (isLoading) return <div className="animate-pulse h-96 rounded-lg bg-muted" />;
-  if (isError) return <EmptyState title="Couldn't load your outreach drafts" description="Please try again shortly." />;
+  if (isError)
+    return (
+      <EmptyState
+        title="Couldn't load your outreach drafts"
+        description="Please try again shortly."
+      />
+    );
   if (!data || data.messages.length === 0) {
     return (
       <EmptyState
         title="No outreach drafts yet"
-        description={'Draft outreach from a job\u2019s "why we matched you" card on your swipe deck or matches list.'}
+        description={
+          'Draft outreach from a job\u2019s "why we matched you" card on your swipe deck or matches list.'
+        }
       />
     );
   }

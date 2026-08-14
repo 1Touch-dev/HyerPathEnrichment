@@ -27,7 +27,9 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
 
   const isGenerating =
     requestFeedback.isPending ||
-    (pendingJobId !== null && jobStatus.data?.status !== "completed" && jobStatus.data?.status !== "failed");
+    (pendingJobId !== null &&
+      jobStatus.data?.status !== "completed" &&
+      jobStatus.data?.status !== "failed");
 
   // Once the real job reaches a terminal state, stop tracking it and refetch the
   // report (on success) so the UI updates without a manual page reload.
@@ -103,7 +105,9 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
                       size="sm"
                       variant="outline"
                       className="mt-2"
-                      onClick={() => acceptBullet.mutate({ reportId: report.reportId, bulletIndex: index })}
+                      onClick={() =>
+                        acceptBullet.mutate({ reportId: report.reportId, bulletIndex: index })
+                      }
                       disabled={acceptBullet.isPending}
                     >
                       Use this version

@@ -123,13 +123,17 @@ describe("SwipeCard", () => {
     expect(capturedDragProps).toContain(true);
 
     capturedDragProps = [];
-    render(<SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={() => {}} isTop={false} />);
+    render(
+      <SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={() => {}} isTop={false} />,
+    );
     expect(capturedDragProps).toContain(false);
   });
 
   it('calls onDraftOutreach with the matchId and company when "Draft outreach" is clicked', () => {
     const onDraftOutreach = vi.fn();
-    render(<SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={onDraftOutreach} isTop />);
+    render(
+      <SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={onDraftOutreach} isTop />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Draft outreach" }));
     expect(onDraftOutreach).toHaveBeenCalledWith("m1", "Acme");
   });
