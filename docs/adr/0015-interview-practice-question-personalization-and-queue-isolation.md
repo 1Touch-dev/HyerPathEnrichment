@@ -51,15 +51,25 @@ scope over the original spec's more aggressive wording**:
    the original spec's more literal "sentiment analysis... nervousness"
    framing, and **over** using Deepgram-style transcript-based "sentiment"
    as if it were vocal-tone analysis (it is not — see Tradeoffs).
-3. **Retry/backoff reuses the existing `tenacity` pattern already proven in
-   `clients/speech.py`, over inventing a second retry convention.** Both
-   `feedback_generator.py` and `question_generator.py` wrap only their raw
-   `httpx.AsyncClient.post()` call (not the whole function, so `ValueError`s
-   from missing keys or parse failures are not retried) with the same
-   `@retry(retry_if_exception_type(httpx.HTTPError), stop_after_attempt(3),
-   wait_exponential(...), reraise=True)` shape already in production in this
-   codebase. `tenacity` is promoted from a transitive to an explicit direct
-   `pyproject.toml` dependency.
+3. **Retry/backoff reuses the existing `with_transient_retry` helper
+   (`app/clients/retry.py`) already proven at 6+ call sites (`outreach.py`,
+   `cv_chat_service.py`, `perplexity.py`, `sidecar.py`,
+   `generate_cv_improvement()`), over inventing a second retry convention.**
+   Both `feedback_generator.py` and `question_generator.py` wrap only their
+   raw `httpx.AsyncClient.post()` call (not the whole function, so
+   `ValueError`s from missing keys or parse failures are not retried) with
+   `with_transient_retry(...)`, which retries `ConnectError`/`ReadTimeout`/
+   `WriteTimeout`/`PoolTimeout` and `HTTPStatusError` with status in
+   `{429, 502, 503, 504}`, up to `max_retries=2` (3 attempts total) with
+   exponential backoff. This repo has two superficially similar retry
+   patterns — a single-use `tenacity` decorator in `clients/speech.py`, and
+   the plain-function `with_transient_retry` helper reused across 6+ other
+   call sites — and this decision picks the more-reused, zero-new-dependency
+   one **over** the single-use decorator, since consistency with the
+   dominant existing pattern outweighs matching `speech.py` specifically.
+   `tenacity` remains a transitive dependency only (still added directly to
+   `pyproject.toml` per repo convention of listing direct imports
+   explicitly, even though no code in this module ends up calling it).
 4. **`question_generation` gets a new RQ queue constant and priority weight,
    consumed by the existing generic worker by default, with a new optional
    dedicated-worker overlay (`docker-compose.week2-ai.yml`) — over building a
@@ -98,10 +108,12 @@ scope over the original spec's more aggressive wording**:
   read as "less than the ticket asked for" without this ADR's context.
 - Decision 3's function-scoped retry means a hard rate-limit outage across
   an entire `generate_questions()`/`generate_interview_feedback()` call
-  still fails after 3 attempts (max ~12s backoff) rather than being queued
-  indefinitely — **traded for** simplicity and consistency with the existing
-  `speech.py` pattern rather than introducing a different, more complex
-  backoff/circuit-breaker mechanism for only these two call sites.
+  still fails after 3 attempts (max ~0.75s of backoff, `with_transient_retry`'s
+  default `max_retries=2`/`base_delay_seconds=0.25`) rather than being queued
+  indefinitely — **traded for** simplicity and consistency with the
+  dominant existing retry helper already used at 6+ other call sites,
+  rather than introducing a different, more complex backoff/circuit-breaker
+  mechanism for only these two call sites.
 - Decision 4's "consumed by the existing generic worker by default" choice
   means `feedback`/`question_generation` remain bundled with Week 1's
   document/embedding/CV-extraction queues in production until an operator
@@ -115,12 +127,12 @@ scope over the original spec's more aggressive wording**:
 ## Consequences
 
 - `backend/app/services/question_generator.py`: new `CandidateContext`
-  dataclass, one new optional parameter on `generate_questions()`, retry
-  decorator around its `httpx` call.
-- `backend/app/services/feedback_generator.py`: retry decorator around
-  `generate_interview_feedback()`'s `httpx` call only (not
-  `generate_cv_improvement()`, which already had its own retry pattern from
-  Module 2).
+  dataclass, one new optional parameter on `generate_questions()`,
+  `with_transient_retry(...)` wrapped around its `httpx` call.
+- `backend/app/services/feedback_generator.py`: `with_transient_retry(...)`
+  wrapped around `generate_interview_feedback()`'s `httpx` call only (not
+  `generate_cv_improvement()`, which already had its own
+  `with_transient_retry(...)` call from Module 2).
 - `backend/app/modules/questions/`: new module (schemas, service, router)
   — the API-facing use case layer that calls `question_generator.py`/
   `question_selector.py`, per `RULE.md` layer ownership (does not touch
