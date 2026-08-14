@@ -15,6 +15,7 @@ SyncSessionLocal to seed/inspect rows.
 from __future__ import annotations
 
 import asyncio
+import types
 import uuid
 from unittest.mock import MagicMock, patch
 
@@ -24,7 +25,7 @@ from app.auth.models import User
 from app.database.session import SyncSessionLocal
 from app.database.session import engine as _async_engine
 from app.modules.documents.models import CandidateDocument, DocumentJob
-from app.workers.tasks.document import process_document_job
+from app.workers.tasks.document import on_document_job_failure, process_document_job
 
 FAKE_EXTRACTION_RESULT = {
     "text": "Experienced backend engineer skilled in Python and SQL.",
@@ -123,7 +124,7 @@ def test_successful_processing_marks_document_job_completed():
         patch("app.workers.queue.get_redis_connection"),
         patch("rq.Queue"),
     ):
-        process_document_job(str(doc.id), b"%PDF-1.4 fake", "application/pdf")
+        process_document_job(str(doc.id), b"%PDF-1.4 fake", "application/pdf", str(job.id))
 
     updated_job = _get_job(job.id)
     assert updated_job.status == "completed"
@@ -144,8 +145,122 @@ def test_failed_processing_marks_document_job_failed():
     job = _create_job(user.id, uuid.UUID(missing_document_id))
 
     with pytest.raises(ValueError, match="not found in database"):
-        process_document_job(missing_document_id, b"%PDF-1.4 fake", "application/pdf")
+        process_document_job(missing_document_id, b"%PDF-1.4 fake", "application/pdf", str(job.id))
 
     updated_job = _get_job(job.id)
     assert updated_job.status == "failed"
     assert updated_job.error is not None
+
+
+def test_unclassified_exception_marks_document_job_failed():
+    """Closes Gap 1: a plain RuntimeError (not DocumentProcessingError/ValueError)
+    raised from processing must still mark DocumentJob/CandidateDocument as
+    'failed' via the collapsed except Exception handler, not just the
+    previously-special-cased exception types."""
+    user = _create_user()
+    doc = _create_document(user.id)
+    job = _create_job(user.id, doc.id)
+
+    mock_processor = MagicMock()
+    mock_processor.process_document.side_effect = RuntimeError("boom")
+
+    with (
+        patch("app.workers.tasks.document.DocumentProcessor", return_value=mock_processor),
+        patch("app.workers.queue.get_redis_connection"),
+        patch("rq.Queue"),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        process_document_job(str(doc.id), b"%PDF-1.4 fake", "application/pdf", str(job.id))
+
+    updated_job = _get_job(job.id)
+    assert updated_job.status == "failed"
+    assert updated_job.error is not None
+    assert "boom" in updated_job.error
+
+    updated_doc = _get_document(doc.id)
+    assert updated_doc.processing_status == "failed"
+
+
+def test_job_id_scoping_leaves_other_pending_job_for_same_document_untouched():
+    """Closes Gap 3: when a document has two DocumentJob rows (mirroring the
+    reprocess_document hazard of an extra pending job for a document already
+    being processed by an original upload job), processing one job by its
+    specific job_id must not flip the other job's status by matching on
+    document_id + status=='pending'."""
+    user = _create_user()
+    doc = _create_document(user.id)
+    first_job = _create_job(user.id, doc.id)
+    second_job = _create_job(user.id, doc.id)
+
+    mock_processor = MagicMock()
+    mock_processor.process_document.return_value = dict(FAKE_EXTRACTION_RESULT)
+
+    with (
+        patch("app.workers.tasks.document.DocumentProcessor", return_value=mock_processor),
+        patch("app.workers.queue.get_redis_connection"),
+        patch("rq.Queue"),
+    ):
+        process_document_job(str(doc.id), b"%PDF-1.4 fake", "application/pdf", str(first_job.id))
+
+    updated_first_job = _get_job(first_job.id)
+    assert updated_first_job.status == "completed"
+
+    updated_second_job = _get_job(second_job.id)
+    assert updated_second_job.status == "pending"
+
+
+def test_failure_callback_marks_pending_job_failed():
+    """Closes Gap 2: on_document_job_failure (the RQ on_failure callback) must
+    mark a still-'pending' DocumentJob/CandidateDocument as 'failed' when
+    invoked for a worker crash/timeout where no Python except in the task body
+    ever ran."""
+    user = _create_user()
+    doc = _create_document(user.id)
+    job = _create_job(user.id, doc.id)
+
+    fake_job = types.SimpleNamespace(
+        args=(str(doc.id), b"%PDF-1.4 fake", "application/pdf", str(job.id))
+    )
+
+    on_document_job_failure(
+        fake_job,
+        connection=None,
+        exc_type=RuntimeError,
+        exc_value=RuntimeError("worker crashed"),
+        exc_traceback=None,
+    )
+
+    updated_job = _get_job(job.id)
+    assert updated_job.status == "failed"
+    assert updated_job.error is not None
+
+    updated_doc = _get_document(doc.id)
+    assert updated_doc.processing_status == "failed"
+
+
+def test_failure_callback_is_noop_on_already_terminal_job():
+    """The on_document_job_failure callback must be idempotent: if the normal
+    in-task exception handler already marked the job 'completed' (or 'failed')
+    before RQ's worker-maintenance process invokes the callback, the callback
+    must never clobber that terminal state."""
+    user = _create_user()
+    doc = _create_document(user.id, processing_status="completed")
+    job = _create_job(user.id, doc.id, status="completed")
+
+    fake_job = types.SimpleNamespace(
+        args=(str(doc.id), b"%PDF-1.4 fake", "application/pdf", str(job.id))
+    )
+
+    on_document_job_failure(
+        fake_job,
+        connection=None,
+        exc_type=RuntimeError,
+        exc_value=RuntimeError("worker crashed"),
+        exc_traceback=None,
+    )
+
+    updated_job = _get_job(job.id)
+    assert updated_job.status == "completed"
+
+    updated_doc = _get_document(doc.id)
+    assert updated_doc.processing_status == "completed"

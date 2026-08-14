@@ -8,7 +8,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, UploadFile, status
 from redis import Redis
-from rq import Queue
+from rq import Callback, Queue
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -164,7 +164,11 @@ class DocumentService:
                 str(document.id),
                 file_data,
                 file.content_type,
+                str(job.id),
                 job_timeout=300,  # 5 minutes
+                on_failure=Callback(
+                    "app.workers.tasks.document.on_document_job_failure", timeout=30
+                ),
             )
 
             logger.info(
@@ -478,6 +482,10 @@ class DocumentService:
         # Note: In a full implementation, we would need to retrieve the original file data
         # from storage and re-enqueue it. For now, this creates the job record.
         # A production version would need file storage integration.
+        # NOTE: once this is wired to actually call queue.enqueue(...), it must pass
+        # str(job.id) as the job_id positional arg and on_failure=Callback(
+        # "app.workers.tasks.document.on_document_job_failure", timeout=30) — same
+        # wiring as upload_document above — so it isn't silently missed later.
 
         logger.info(
             "Document reprocess job created",

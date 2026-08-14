@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 from uuid import UUID
 
 from rq import Queue
@@ -17,30 +18,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import ORM registry FIRST to register all models
 import app.database.orm_registry  # noqa: F401
-from app.database.session import SessionLocal, engine
+from app.database.session import SessionLocal, SyncSessionLocal, engine
 from app.infrastructure.redis import close_redis
 from app.modules.documents.models import CandidateDocument, DocumentJob
-from app.services.document_processor import DocumentProcessingError, DocumentProcessor
-from app.storage.document_storage import DocumentStorageError
+from app.services.document_processor import DocumentProcessor
 
 logger = logging.getLogger(__name__)
 
 
-def process_document_job(document_id: str, file_data: bytes, mime_type: str) -> None:
+def process_document_job(document_id: str, file_data: bytes, mime_type: str, job_id: str) -> None:
     """RQ entrypoint (sync) for document processing.
 
     Args:
         document_id: UUID of candidate_documents record
         file_data: Raw file bytes
         mime_type: MIME type of uploaded file
+        job_id: UUID of the DocumentJob record the client polls for status
     """
-    asyncio.run(_process_document_job(document_id, file_data, mime_type))
+    asyncio.run(_process_document_job(document_id, file_data, mime_type, job_id))
 
 
 async def _process_document_job(
     document_id: str,
     file_data: bytes,
     mime_type: str,
+    job_id: str,
 ) -> None:
     """Process document: extract text, update DB, chain to embedding worker.
 
@@ -135,12 +137,13 @@ async def _process_document_job(
             # finishes processing, since it reads DocumentJob.status, not
             # CandidateDocument.processing_status. progress is a 0.0-1.0 fraction
             # (JobStatusResponse.progress has ge=0.0, le=1.0) — not a percentage.
+            # Scoped by the specific job's primary key (job_id) rather than
+            # document_id+"pending", since a document can have multiple
+            # DocumentJob rows (e.g. reprocess) and only this job's row should
+            # transition here.
             await session.execute(
                 sa_update(DocumentJob)
-                .where(
-                    DocumentJob.document_id == UUID(document_id),
-                    DocumentJob.status == "pending",
-                )
+                .where(DocumentJob.id == UUID(job_id))
                 .values(status="completed", progress=1.0)
             )
             await session.commit()
@@ -200,11 +203,11 @@ async def _process_document_job(
                         )
                         await asyncio.sleep(1)
 
-    except (DocumentProcessingError, DocumentStorageError, ValueError) as exc:
+    except Exception as exc:
         logger.error(
             "Document processing failed",
             exc_info=True,
-            extra={"document_id": document_id, "error": str(exc)},
+            extra={"document_id": document_id, "job_id": job_id, "error": str(exc)},
         )
 
         # Mark as failed in database
@@ -220,10 +223,7 @@ async def _process_document_job(
                 )
                 await recovery_session.execute(
                     sa_update(DocumentJob)
-                    .where(
-                        DocumentJob.document_id == UUID(document_id),
-                        DocumentJob.status == "pending",
-                    )
+                    .where(DocumentJob.id == UUID(job_id))
                     .values(status="failed", error=str(exc))
                 )
                 await recovery_session.commit()
@@ -231,22 +231,77 @@ async def _process_document_job(
             logger.error(
                 "Failed to mark document as failed",
                 exc_info=True,
-                extra={"document_id": document_id},
+                extra={"document_id": document_id, "job_id": job_id},
             )
 
-        raise
-
-    except Exception as exc:
-        logger.error(
-            "Unexpected error in document processing",
-            exc_info=True,
-            extra={"document_id": document_id, "error_type": type(exc).__name__},
-        )
         raise
 
     finally:
         await close_redis()
         await engine.dispose()
+
+
+def on_document_job_failure(
+    job: Any,
+    connection: Any,
+    exc_type: Any,
+    exc_value: Any,
+    exc_traceback: Any,
+) -> None:
+    """RQ ``on_failure`` callback: safety net for cases where no Python
+    ``except`` in `_process_document_job` ever ran at all — a `job_timeout`
+    exceeded or a killed/abandoned worker process (RQ's `AbandonedJobError`).
+    RQ's worker-maintenance process invokes `on_failure` callbacks for these
+    cases too, not just for in-task exceptions.
+
+    Must never raise: RQ callbacks have their own timeout/failure handling,
+    and letting an exception escape here would crash the RQ maintenance
+    process. Idempotent: only updates rows still in "pending" state, so it
+    never clobbers a terminal state already written by the normal in-task
+    exception handler (which may have run first).
+    """
+    try:
+        document_id = job.args[0]
+        job_id = job.args[3]
+    except Exception:
+        logger.error(
+            "on_document_job_failure: could not extract document_id/job_id from job.args",
+            exc_info=True,
+        )
+        return
+
+    try:
+        error_message = f"Worker-level failure: {exc_type.__name__}: {exc_value}"
+    except Exception:
+        error_message = "Worker-level failure (details unavailable)"
+
+    logger.error(
+        "Document job failed at the RQ worker level (timeout or crashed/abandoned worker)",
+        extra={"document_id": document_id, "job_id": job_id, "error": error_message},
+    )
+
+    try:
+        with SyncSessionLocal() as session:
+            session.execute(
+                sa_update(DocumentJob)
+                .where(DocumentJob.id == UUID(job_id), DocumentJob.status == "pending")
+                .values(status="failed", error=error_message)
+            )
+            session.execute(
+                sa_update(CandidateDocument)
+                .where(
+                    CandidateDocument.id == UUID(document_id),
+                    CandidateDocument.processing_status == "pending",
+                )
+                .values(processing_status="failed")
+            )
+            session.commit()
+    except Exception:
+        logger.error(
+            "on_document_job_failure: failed to mark job/document as failed",
+            exc_info=True,
+            extra={"document_id": document_id, "job_id": job_id},
+        )
 
 
 def check_worker_health(queue_name: str) -> bool:
