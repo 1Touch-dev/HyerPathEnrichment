@@ -9,7 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.job_matching.models import JobMatch
-from app.modules.job_swipe.repository import get_unswiped_matches, record_swipe
+from app.modules.job_swipe.repository import (
+    delete_swipe,
+    get_last_swipe,
+    get_unswiped_matches,
+    record_swipe,
+)
 from app.modules.job_swipe.schemas import (
     SwipeableMatchResponse,
     SwipeActionRequest,
@@ -63,3 +68,19 @@ class JobSwipeService:
         return SwipeActionResponse(
             match_id=str(match.id), direction=action.direction, created_at=action.created_at
         )
+
+    async def undo_last_swipe(self, user_id: UUID) -> SwipeActionResponse:
+        """Undo the candidate's most recent swipe decision, restoring that card to the deck."""
+        last_swipe = await get_last_swipe(self.db, user_id)
+        if not last_swipe:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="No previous swipe to undo"
+            )
+
+        restored = SwipeActionResponse(
+            match_id=str(last_swipe.job_match_id),
+            direction=last_swipe.direction,
+            created_at=last_swipe.created_at,
+        )
+        await delete_swipe(self.db, last_swipe.id)
+        return restored

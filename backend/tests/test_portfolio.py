@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
+from sqlalchemy import inspect
 
+from alembic import command
 from app.auth.models import User
 from app.modules.portfolio.schemas import PortfolioItemRequest, PortfolioProfileRequest
 from app.modules.portfolio.service import PortfolioService
+from tests.migration_helpers import alembic_config, sqlite_file_url, sync_engine_for, upgrade_head
 
 
 @pytest.fixture
@@ -82,7 +86,9 @@ async def test_upsert_profile_creates_then_updates(db, test_user):
     created = await service.upsert_profile(test_user.id, req)
     assert created.slug == "john-doe"
 
-    req2 = PortfolioProfileRequest(slug="john-doe", headline="Senior Backend Engineer", is_published=True)
+    req2 = PortfolioProfileRequest(
+        slug="john-doe", headline="Senior Backend Engineer", is_published=True
+    )
     updated = await service.upsert_profile(test_user.id, req2)
     assert updated.profile_id == created.profile_id
     assert updated.headline == "Senior Backend Engineer"
@@ -105,7 +111,9 @@ async def test_upsert_profile_allows_same_owner_to_reuse_own_slug(db, test_user)
 
 async def test_get_public_profile_hides_unpublished(db, test_user):
     service = PortfolioService(db)
-    await service.upsert_profile(test_user.id, PortfolioProfileRequest(slug="hidden-one", is_published=False))
+    await service.upsert_profile(
+        test_user.id, PortfolioProfileRequest(slug="hidden-one", is_published=False)
+    )
     with pytest.raises(HTTPException) as exc_info:
         await service.get_public_profile("hidden-one")
     assert exc_info.value.status_code == 404
@@ -120,7 +128,9 @@ async def test_get_public_profile_404_for_unknown_slug(db):
 
 async def test_get_public_profile_returns_published(db, test_user):
     service = PortfolioService(db)
-    await service.upsert_profile(test_user.id, PortfolioProfileRequest(slug="visible-one", is_published=True))
+    await service.upsert_profile(
+        test_user.id, PortfolioProfileRequest(slug="visible-one", is_published=True)
+    )
     public = await service.get_public_profile("visible-one")
     assert public.slug == "visible-one"
     # Public response must never leak user_id (privacy — verified by schema shape, not just by value)
@@ -164,7 +174,10 @@ async def test_add_item_creates_item_for_existing_profile(db, test_user):
     item = await service.add_item(
         test_user.id,
         PortfolioItemRequest(
-            item_type="github", title="My Project", description="A thing", url="https://github.com/x/y"
+            item_type="github",
+            title="My Project",
+            description="A thing",
+            url="https://github.com/x/y",
         ),
     )
     assert item.title == "My Project"
@@ -201,3 +214,79 @@ async def test_delete_item_removes_item(db, test_user):
 
     profile = await service.get_my_profile(test_user.id)
     assert profile.items == []
+
+
+async def test_add_item_with_image_url_round_trips_through_my_and_public_profile(db, test_user):
+    """image_url is optional but, when set, must survive both the owner-facing
+    get_my_profile response and the public get_public_profile response."""
+    service = PortfolioService(db)
+    await service.upsert_profile(
+        test_user.id, PortfolioProfileRequest(slug="image-url-profile", is_published=True)
+    )
+    item = await service.add_item(
+        test_user.id,
+        PortfolioItemRequest(
+            item_type="github",
+            title="Project With Thumbnail",
+            url="https://github.com/x/y",
+            image_url="https://cdn.example.com/thumb.png",
+        ),
+    )
+    assert item.image_url == "https://cdn.example.com/thumb.png"
+
+    my_profile = await service.get_my_profile(test_user.id)
+    assert my_profile.items[0].image_url == "https://cdn.example.com/thumb.png"
+
+    public_profile = await service.get_public_profile("image-url-profile")
+    assert public_profile.items[0].image_url == "https://cdn.example.com/thumb.png"
+
+
+async def test_add_item_without_image_url_defaults_to_none(db, test_user):
+    service = PortfolioService(db)
+    await service.upsert_profile(test_user.id, PortfolioProfileRequest(slug="no-image-url"))
+    item = await service.add_item(
+        test_user.id,
+        PortfolioItemRequest(item_type="other", title="No Thumbnail", url="https://example.com"),
+    )
+    assert item.image_url is None
+
+    my_profile = await service.get_my_profile(test_user.id)
+    assert my_profile.items[0].image_url is None
+
+
+@pytest.fixture
+def migration_sqlite_url(tmp_path: Path) -> str:
+    return sqlite_file_url(tmp_path / "portfolio_image_url_migrate.db")
+
+
+def _portfolio_items_columns(url: str) -> dict[str, dict]:
+    engine = sync_engine_for(url)
+    try:
+        with engine.connect() as conn:
+            return {c["name"]: c for c in inspect(conn).get_columns("portfolio_items")}
+    finally:
+        engine.dispose()
+
+
+def test_migration_032_adds_image_url_and_reverses_cleanly(migration_sqlite_url: str):
+    """Alembic revision 032_portfolio_item_image_url must apply cleanly on top of
+    031_merge_job_board_cv_and_stabilization_heads, and downgrading back to 031 must
+    drop image_url while leaving the rest of portfolio_items untouched.
+    """
+    upgrade_head(migration_sqlite_url)
+    cols = _portfolio_items_columns(migration_sqlite_url)
+    assert "image_url" in cols
+    assert cols["image_url"]["nullable"] is True
+
+    command.downgrade(
+        alembic_config(migration_sqlite_url), "031_merge_job_board_cv_and_stabilization_heads"
+    )
+    cols_after_downgrade = _portfolio_items_columns(migration_sqlite_url)
+    assert "image_url" not in cols_after_downgrade
+    assert {"id", "profile_id", "item_type", "title", "url", "display_order"} <= (
+        cols_after_downgrade.keys()
+    )
+
+    upgrade_head(migration_sqlite_url)
+    cols_after_reupgrade = _portfolio_items_columns(migration_sqlite_url)
+    assert "image_url" in cols_after_reupgrade

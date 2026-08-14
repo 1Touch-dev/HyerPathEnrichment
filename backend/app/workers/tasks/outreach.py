@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 import app.database.orm_registry  # noqa: F401
 from app.clients.perplexity import PerplexityClient
+from app.clients.retry import with_transient_retry
 from app.core.config import Settings, get_settings
 from app.database.session import SessionLocal, engine
 from app.domain.candidate import CVData
@@ -33,13 +34,23 @@ but still personalized-to-the-candidate message.
 
 
 def generate_outreach_draft_job(
-    user_id: str, document_id: str, company_name: str, role_title: str | None, job_match_id: str | None
+    user_id: str,
+    document_id: str,
+    company_name: str,
+    role_title: str | None,
+    job_match_id: str | None,
 ) -> None:
-    asyncio.run(_generate_outreach_draft_job(user_id, document_id, company_name, role_title, job_match_id))
+    asyncio.run(
+        _generate_outreach_draft_job(user_id, document_id, company_name, role_title, job_match_id)
+    )
 
 
 async def _generate_outreach_draft_job(
-    user_id: str, document_id: str, company_name: str, role_title: str | None, job_match_id: str | None
+    user_id: str,
+    document_id: str,
+    company_name: str,
+    role_title: str | None,
+    job_match_id: str | None,
 ) -> None:
     try:
         async with SessionLocal() as session:
@@ -50,13 +61,17 @@ async def _generate_outreach_draft_job(
             if not document:
                 raise ValueError(f"Document {document_id} not found")
 
-            cv_data = CVData(**(document.extracted_data or {})) if document.extracted_data else CVData()
+            cv_data = (
+                CVData(**(document.extracted_data or {})) if document.extracted_data else CVData()
+            )
 
             perplexity = PerplexityClient()
             context = await perplexity.get_company_context(company_name, role_title)
 
             settings = get_settings()
-            subject, body = await _draft_with_llm(cv_data, company_name, role_title, context["summary"], settings)
+            subject, body = await _draft_with_llm(
+                cv_data, company_name, role_title, context["summary"], settings
+            )
 
             message = OutreachMessage(
                 id=uuid4(),
@@ -74,10 +89,16 @@ async def _generate_outreach_draft_job(
 
             logger.info(
                 "Outreach draft generated",
-                extra={"user_id": user_id[:8], "company_name": company_name, "context_source": context["source"]},
+                extra={
+                    "user_id": user_id[:8],
+                    "company_name": company_name,
+                    "context_source": context["source"],
+                },
             )
     except Exception:
-        logger.error("Outreach draft generation failed", exc_info=True, extra={"user_id": user_id[:8]})
+        logger.error(
+            "Outreach draft generation failed", exc_info=True, extra={"user_id": user_id[:8]}
+        )
         raise
     finally:
         await close_redis()
@@ -85,7 +106,11 @@ async def _generate_outreach_draft_job(
 
 
 async def _draft_with_llm(
-    cv_data: CVData, company_name: str, role_title: str | None, company_context: str, settings: Settings
+    cv_data: CVData,
+    company_name: str,
+    role_title: str | None,
+    company_context: str,
+    settings: Settings,
 ) -> tuple[str, str]:
     api_key = settings.openai_api_key.strip()
     if not api_key:
@@ -110,20 +135,28 @@ async def _draft_with_llm(
     )
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "system", "content": _OUTREACH_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_content},
-                ],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.5,
-            },
-        )
-        response.raise_for_status()
+        # raise_for_status() must run *inside* the retried operation, not after
+        # with_transient_retry returns — httpx doesn't raise on 4xx/5xx by itself,
+        # so calling it outside would mean status-code errors (429/502/503/504)
+        # never actually trigger a retry, only network-level failures would.
+        async def _do_post() -> httpx.Response:
+            resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": _OUTREACH_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.5,
+                },
+            )
+            resp.raise_for_status()
+            return resp
+
+        response = await with_transient_retry(_do_post)
         result = response.json()
         content = result["choices"][0]["message"]["content"]
         parsed = json.loads(content)

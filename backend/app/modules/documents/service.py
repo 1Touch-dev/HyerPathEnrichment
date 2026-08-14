@@ -33,6 +33,7 @@ from app.modules.documents.schemas import (
     SearchRequest,
     SearchResult,
 )
+from app.services.feedback_generator import ATS_SCORE_METHODOLOGY
 from app.services.vector_search import similarity_search
 from app.workers.queue import QUEUE_DOCUMENT, QUEUE_FEEDBACK, get_redis_connection
 
@@ -542,7 +543,11 @@ class DocumentService:
             )
 
         job = DocumentJob(
-            user_id=user_id, document_id=document.id, job_type="cv_feedback", status="pending", progress=0.0
+            user_id=user_id,
+            document_id=document.id,
+            job_type="cv_feedback",
+            status="pending",
+            progress=0.0,
         )
         self.db.add(job)
         await self.db.commit()
@@ -567,7 +572,9 @@ class DocumentService:
             )
 
         return DocumentUploadResponse(
-            job_id=str(job.id), document_id=str(document.id), message="CV feedback generation started"
+            job_id=str(job.id),
+            document_id=str(document.id),
+            message="CV feedback generation started",
         )
 
     async def get_latest_cv_feedback(self, document_id: str, user_id: UUID) -> CvFeedbackResponse:
@@ -580,7 +587,9 @@ class DocumentService:
         )
         report = result.scalar_one_or_none()
         if not report:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No feedback report yet")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="No feedback report yet"
+            )
         return self._feedback_to_response(report)
 
     async def accept_cv_feedback_bullet(
@@ -595,9 +604,13 @@ class DocumentService:
         )
         report = result.scalar_one_or_none()
         if not report:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feedback report not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Feedback report not found"
+            )
         if bullet_index < 0 or bullet_index >= len(report.rewritten_bullets):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid bullet index")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid bullet index"
+            )
         if bullet_index not in report.accepted_bullet_indices:
             report.accepted_bullet_indices = [*report.accepted_bullet_indices, bullet_index]
             await self.db.commit()
@@ -621,6 +634,7 @@ class DocumentService:
             document_id=str(report.document_id),
             target_role=report.target_role,
             ats_score=report.ats_score,
+            ats_score_methodology=ATS_SCORE_METHODOLOGY,
             strengths=report.strengths,
             improvements=report.improvements,
             rewritten_bullets=[RewrittenBullet(**b) for b in report.rewritten_bullets],

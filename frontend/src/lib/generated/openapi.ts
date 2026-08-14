@@ -713,6 +713,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/matches/swipe/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Undo Swipe
+         * @description Undo the candidate's most recent swipe decision, restoring it to the deck.
+         */
+        delete: operations["undo_swipe_api_matches_swipe_undo_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/matches/{match_id}/swipe": {
         parameters: {
             query?: never;
@@ -1587,6 +1607,8 @@ export interface components {
             accepted_bullet_indices: number[];
             /** Ats Score */
             ats_score: number;
+            /** Ats Score Methodology */
+            ats_score_methodology: string;
             /**
              * Created At
              * Format: date-time
@@ -2194,6 +2216,8 @@ export interface components {
             message_id: string;
             /** Recipient Role Title */
             recipient_role_title: string | null;
+            /** Research Degraded */
+            research_degraded: boolean;
             /** Sent At */
             sent_at: string | null;
             /** Status */
@@ -2224,6 +2248,8 @@ export interface components {
              * @default 0
              */
             display_order: number;
+            /** Image Url */
+            image_url?: string | null;
             /**
              * Item Type
              * @enum {string}
@@ -2250,6 +2276,8 @@ export interface components {
             description: string | null;
             /** Display Order */
             display_order: number;
+            /** Image Url */
+            image_url?: string | null;
             /** Item Id */
             item_id: string;
             /** Item Type */
@@ -6381,6 +6409,117 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["SwipeDeckResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    undo_swipe_api_matches_swipe_undo_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["SwipeActionResponse"];
                         message?: string | null;
                         meta?: {
                             [key: string]: unknown;

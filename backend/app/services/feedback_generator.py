@@ -8,13 +8,23 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import TypedDict
 
 import httpx
 
+from app.clients.retry import with_transient_retry
 from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
+
+# Heuristic LLM estimate disclaimer — set on every CvImprovementResult so callers
+# never present the ats_score as if it mirrors a real employer's ATS scoring system.
+ATS_SCORE_METHODOLOGY = (
+    "Heuristic LLM estimate — does not reflect any specific employer's real ATS scoring system."
+)
+
+_NUMBER_TOKEN_RE = re.compile(r"\d[\d,.]*%?")
 
 # Rubric dimensions (each scored 0-25 points)
 FEEDBACK_DIMENSIONS = {
@@ -287,6 +297,7 @@ class CvImprovementResult(TypedDict):
     strengths: list[str]
     improvements: list[str]
     rewritten_bullets: list[dict[str, str]]  # [{original, rewritten, rationale}]
+    ats_score_methodology: str
 
 
 CV_IMPROVEMENT_SYSTEM_PROMPT = """
@@ -312,6 +323,21 @@ Only include bullets that genuinely benefit from rewriting (up to 5). Never fabr
 or dates not present in the source text. If the CV text is too short or malformed to assess meaningfully,
 return an ats_score of 0 and explain why in "improvements".
 """.strip()
+
+
+def _drop_fabricated_metric_bullets(bullets: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Drop bullets whose 'rewritten' text contains a number not present in 'original'.
+
+    Guards against the LLM fabricating metrics despite the system prompt's
+    instruction not to invent numbers absent from the source CV text.
+    """
+    kept: list[dict[str, str]] = []
+    for bullet in bullets:
+        rewritten_numbers = _NUMBER_TOKEN_RE.findall(bullet["rewritten"])
+        original = bullet["original"]
+        if all(number in original for number in rewritten_numbers):
+            kept.append(bullet)
+    return kept
 
 
 def _parse_cv_improvement_response(content: str) -> CvImprovementResult:
@@ -341,12 +367,14 @@ def _parse_cv_improvement_response(content: str) -> CvImprovementResult:
             for b in rewritten_bullets
             if isinstance(b, dict) and b.get("original") and b.get("rewritten")
         ][:5]
+        cleaned_bullets = _drop_fabricated_metric_bullets(cleaned_bullets)
 
         return CvImprovementResult(
             ats_score=ats_score,
             strengths=strengths[:4],
             improvements=improvements[:4],
             rewritten_bullets=cleaned_bullets,
+            ats_score_methodology=ATS_SCORE_METHODOLOGY,
         )
     except (ValueError, TypeError, KeyError, json.JSONDecodeError):
         logger.warning("Failed to parse CV improvement response", exc_info=True)
@@ -355,6 +383,7 @@ def _parse_cv_improvement_response(content: str) -> CvImprovementResult:
             strengths=[],
             improvements=["Unable to generate CV feedback. Please try again."],
             rewritten_bullets=[],
+            ats_score_methodology=ATS_SCORE_METHODOLOGY,
         )
 
 
@@ -378,7 +407,13 @@ async def generate_cv_improvement(
     """
     if not cv_text.strip():
         return (
-            CvImprovementResult(ats_score=0, strengths=[], improvements=["No CV text available."], rewritten_bullets=[]),
+            CvImprovementResult(
+                ats_score=0,
+                strengths=[],
+                improvements=["No CV text available."],
+                rewritten_bullets=[],
+                ats_score_methodology=ATS_SCORE_METHODOLOGY,
+            ),
             {"input_tokens": 0, "output_tokens": 0},
         )
 
@@ -390,20 +425,25 @@ async def generate_cv_improvement(
     user_content = f"CV text:\n{cv_text[:12000]}{role_line}"  # truncate defensively; GPT-4o-mini context is ample but bounded cost
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": settings.cv_feedback_model,
-                "messages": [
-                    {"role": "system", "content": CV_IMPROVEMENT_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_content},
-                ],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.3,
-            },
-        )
-        response.raise_for_status()
+
+        async def _do_post() -> httpx.Response:
+            resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": settings.cv_feedback_model,
+                    "messages": [
+                        {"role": "system", "content": CV_IMPROVEMENT_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.3,
+                },
+            )
+            resp.raise_for_status()
+            return resp
+
+        response = await with_transient_retry(_do_post)
         result = response.json()  # synchronous — see §2.1 Bug 1
         content = result["choices"][0]["message"]["content"]
         usage = result.get("usage", {})

@@ -10,6 +10,7 @@ import logging
 
 import httpx
 
+from app.clients.retry import with_transient_retry
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,9 @@ class PerplexityClient:
         self._settings = get_settings()
         self._client = http_client or httpx.AsyncClient(timeout=30.0)
 
-    async def get_company_context(self, company_name: str, role_title: str | None = None) -> dict[str, str]:
+    async def get_company_context(
+        self, company_name: str, role_title: str | None = None
+    ) -> dict[str, str]:
         """Return {"summary": str, "source": "perplexity"} or a fail-soft empty summary.
 
         Never raises — outreach generation must still work (with a shorter,
@@ -44,23 +47,36 @@ class PerplexityClient:
         if not api_key:
             return {"summary": "", "source": "none"}
 
-        role_line = f" The candidate is looking at a '{role_title}' role there." if role_title else ""
+        role_line = (
+            f" The candidate is looking at a '{role_title}' role there." if role_title else ""
+        )
         user_content = f"Company: {company_name}.{role_line} Summarize public information relevant to outreach."
 
         try:
-            response = await self._client.post(
-                f"{self._settings.perplexity_api_base}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": "sonar",
-                    "messages": [
-                        {"role": "system", "content": _COMPANY_CONTEXT_SYSTEM_PROMPT},
-                        {"role": "user", "content": user_content},
-                    ],
-                    "temperature": 0.2,
-                },
-            )
-            response.raise_for_status()
+            # raise_for_status() must run *inside* the retried operation, not after
+            # with_transient_retry returns — httpx doesn't raise on 4xx/5xx by itself,
+            # so calling it outside would mean status-code errors (429/502/503/504)
+            # never actually trigger a retry, only network-level failures would.
+            async def _do_post() -> httpx.Response:
+                resp = await self._client.post(
+                    f"{self._settings.perplexity_api_base}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "sonar",
+                        "messages": [
+                            {"role": "system", "content": _COMPANY_CONTEXT_SYSTEM_PROMPT},
+                            {"role": "user", "content": user_content},
+                        ],
+                        "temperature": 0.2,
+                    },
+                )
+                resp.raise_for_status()
+                return resp
+
+            response = await with_transient_retry(_do_post)
             data = response.json()
             summary = data["choices"][0]["message"]["content"]
             return {"summary": summary.strip(), "source": "perplexity"}

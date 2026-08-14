@@ -8,7 +8,10 @@ import httpx
 
 T = TypeVar("T")
 
-_TRANSIENT_STATUS = frozenset({502, 503, 504})
+# 429 (rate limited) is included alongside the 5xx statuses because OpenAI's own
+# rate-limit guidance treats 429 as retry-appropriate with backoff (honoring any
+# `Retry-After` semantics the upstream provider signals), not a permanent failure.
+_TRANSIENT_STATUS = frozenset({429, 502, 503, 504})
 
 
 def is_transient_http_error(exc: BaseException) -> bool:

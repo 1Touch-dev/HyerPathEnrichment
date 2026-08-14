@@ -136,6 +136,7 @@ class CvFeedbackResponse(BaseModel):
     document_id: str
     target_role: str | None
     ats_score: int = Field(..., ge=0, le=100)
+    ats_score_methodology: str
     strengths: list[str]
     improvements: list[str]
     rewritten_bullets: list[RewrittenBullet]

@@ -21,6 +21,7 @@ class OutreachMessageResponse(BaseModel):
     status: str
     sent_at: datetime | None
     created_at: datetime
+    research_degraded: bool
 
 
 class OutreachListResponse(BaseModel):

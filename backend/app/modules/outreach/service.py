@@ -28,6 +28,7 @@ _UNSUBSCRIBE_FOOTER_TEMPLATE = (
     "You're receiving this message because {sender_name} applied to or expressed interest in "
     "opportunities at {company_name} and used HyrePath to draft this note. "
     "Reply to {sender_email} directly, or let us know if you'd prefer not to receive further outreach."
+    "\nPrivacy policy: {privacy_url}"
 )
 
 
@@ -53,6 +54,17 @@ class OutreachService:
         if not document or document.processing_status != "completed":
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="A processed CV is required"
+            )
+
+        lock_key = (
+            f"outreach-draft-lock:{user_id}:{body.company_name.strip().lower()}:"
+            f"{body.job_match_id or 'none'}"
+        )
+        lock_acquired = self.redis_conn.set(lock_key, "1", nx=True, ex=60)
+        if not lock_acquired:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Draft generation already in progress for this company",
             )
 
         queue = Queue(QUEUE_OUTREACH, connection=self.redis_conn)
@@ -110,11 +122,20 @@ class OutreachService:
             )
 
         footer = _UNSUBSCRIBE_FOOTER_TEMPLATE.format(
-            sender_name=sender_name, company_name=message.company_name, sender_email=sender_email
+            sender_name=sender_name,
+            company_name=message.company_name,
+            sender_email=sender_email,
+            privacy_url=self._privacy_policy_url(),
         )
         message.body = message.body + footer
         message = await mark_sent(self.db, message)
         return self._to_response(message)
+
+    def _privacy_policy_url(self) -> str:
+        base_url = self._settings.app_public_base_url.strip()
+        if base_url:
+            return f"{base_url.rstrip('/')}/app/privacy"
+        return "/app/privacy"
 
     def _to_response(self, message: OutreachMessage) -> OutreachMessageResponse:
         return OutreachMessageResponse(
@@ -126,4 +147,5 @@ class OutreachService:
             status=message.status,
             sent_at=message.sent_at,
             created_at=message.created_at,
+            research_degraded=message.company_context_used.get("source") != "perplexity",
         )

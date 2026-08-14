@@ -83,6 +83,7 @@ class PortfolioService:
             title=body.title,
             description=body.description,
             url=body.url,
+            image_url=body.image_url,
             display_order=body.display_order,
         )
         self.db.add(item)
@@ -141,6 +142,7 @@ class PortfolioService:
             title=item.title,
             description=item.description,
             url=item.url,
+            image_url=item.image_url,
             display_order=item.display_order,
             created_at=item.created_at,
         )
