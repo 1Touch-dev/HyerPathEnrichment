@@ -131,6 +131,14 @@ def test_completeness_score_richer_list_scores_higher_though_both_not_missing():
     assert completeness_score(sparse_cv) < completeness_score(rich_cv)
 
 
+def test_field_weights_sum_to_one():
+    """The module docstring claims FIELD_WEIGHTS forms a weighted distribution
+    that sums to 1.0 — lock that invariant in so a future edit that adds/removes
+    a field or rebalances weights without preserving the total is caught here,
+    rather than silently skewing completeness_score()'s 0.0-1.0 range."""
+    assert sum(FIELD_WEIGHTS.values()) == 1.0
+
+
 def test_compute_missing_fields_unchanged_regression():
     """Regression guard: compute_missing_fields() must stay a binary
     presence/absence check, unaffected by FIELD_WEIGHTS/richness scoring,
