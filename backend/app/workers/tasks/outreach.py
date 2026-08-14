@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import httpx
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.database.orm_registry  # noqa: F401
 from app.clients.perplexity import PerplexityClient
@@ -18,15 +19,24 @@ from app.database.session import SessionLocal, engine
 from app.domain.candidate import CVData
 from app.infrastructure.redis import close_redis
 from app.modules.documents.models import CandidateDocument
+
+# JobMatch/JobPosting are owned by the job_matching module — imported here
+# read-only, never redefined, same cross-module convention job_swipe/repository.py
+# already uses for its own read-only access to Module 1's tables.
+from app.modules.job_matching.models import JobMatch, JobPosting
 from app.modules.outreach.models import OutreachMessage
 
 logger = logging.getLogger(__name__)
 
 _OUTREACH_SYSTEM_PROMPT = """
 You are helping a job candidate write a short, personalized outreach email to a hiring
-manager. Use the candidate's background and the provided public company context. Keep it
-under 150 words, professional, specific (reference at least one real detail from the
-company context if provided), and end with a clear, low-friction call to action.
+manager. Use the candidate's background, the job description excerpt (if provided), and
+the provided public company context. The email's core purpose is a tailored value
+proposition: explain specifically why the candidate would be valuable to this company,
+connecting their real skills/experience to the company's actual needs (from the job
+description or company context) — not a generic "I'm interested" note. Keep it under 150
+words, professional, specific (reference at least one real detail from the job description
+or company context if provided), and end with a clear, low-friction call to action.
 Return JSON: {"subject": <string>, "body": <string>}. Do not fabricate company facts
 beyond what is provided in the context; if context is empty, write a more general
 but still personalized-to-the-candidate message.
@@ -65,12 +75,14 @@ async def _generate_outreach_draft_job(
                 CVData(**(document.extracted_data or {})) if document.extracted_data else CVData()
             )
 
+            job_description = await _get_job_description(session, job_match_id, UUID(user_id))
+
             perplexity = PerplexityClient()
             context = await perplexity.get_company_context(company_name, role_title)
 
             settings = get_settings()
             subject, body = await _draft_with_llm(
-                cv_data, company_name, role_title, context["summary"], settings
+                cv_data, company_name, role_title, context["summary"], job_description, settings
             )
 
             message = OutreachMessage(
@@ -105,11 +117,40 @@ async def _generate_outreach_draft_job(
         await engine.dispose()
 
 
+async def _get_job_description(
+    session: AsyncSession, job_match_id: str | None, user_id: UUID
+) -> str | None:
+    """Job posting description text for the match this draft is about, if any.
+
+    `job_match_id` is only ever stored on `OutreachMessage` for audit purposes today
+    (§6.6's design notes) — this is what actually grounds the draft in the real job
+    posting's description, per the original feature spec's "pulls context from: job
+    description" requirement. Read-only cross-module access to Module 1's tables,
+    same convention `job_swipe/repository.py` already uses.
+    """
+    if not job_match_id:
+        return None
+    match_result = await session.execute(
+        select(JobMatch).where(JobMatch.id == UUID(job_match_id), JobMatch.user_id == user_id)
+    )
+    match = match_result.scalar_one_or_none()
+    if not match:
+        return None
+    posting_result = await session.execute(
+        select(JobPosting).where(JobPosting.id == match.job_posting_id)
+    )
+    posting = posting_result.scalar_one_or_none()
+    if not posting or not posting.description_raw:
+        return None
+    return posting.description_raw[:1500]
+
+
 async def _draft_with_llm(
     cv_data: CVData,
     company_name: str,
     role_title: str | None,
     company_context: str,
+    job_description: str | None,
     settings: Settings,
 ) -> tuple[str, str]:
     api_key = settings.openai_api_key.strip()
@@ -131,6 +172,7 @@ async def _draft_with_llm(
         f"Candidate background: {candidate_summary}\n"
         f"Target company: {company_name}\n"
         f"Target role: {role_title or 'not specified'}\n"
+        f"Job description excerpt: {job_description or '(none available)'}\n"
         f"Public company context: {company_context or '(none available)'}"
     )
 

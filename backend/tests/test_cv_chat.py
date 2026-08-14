@@ -43,7 +43,7 @@ async def completed_document(db, test_user):
         file_hash="abc123",
         file_size_bytes=1000,
         raw_text="Jane Doe, Software Engineer",
-        extracted_data={"email": "jane@example.com"},  # 1 of 8 required fields present
+        extracted_data={"email": "jane@example.com"},  # 1 of 11 required fields present
         processing_status="completed",
     )
     db.add(doc)
@@ -100,8 +100,11 @@ async def test_start_session_no_missing_fields_completes_immediately(db, test_us
             "email": "jane@example.com",
             "phone": "555-0100",
             "linkedin_url": "https://linkedin.com/in/jane",
+            "github_url": "https://github.com/jane",
+            "portfolio_url": "https://jane.dev",
             "technical_skills": ["python"],
             "total_years_experience": 5.0,
+            "highest_degree": "BS Computer Science",
             "desired_roles": ["engineer"],
             "desired_locations": ["remote"],
             "remote_preference": "remote",
@@ -251,8 +254,11 @@ async def test_post_message_completes_session_after_last_field_resolved(db, test
         extracted_data={
             "phone": "555-0100",
             "linkedin_url": "https://linkedin.com/in/jane",
+            "github_url": "https://github.com/jane",
+            "portfolio_url": "https://jane.dev",
             "technical_skills": ["python"],
             "total_years_experience": 5.0,
+            "highest_degree": "BS Computer Science",
             "desired_roles": ["engineer"],
             "desired_locations": ["remote"],
             "remote_preference": "remote",
@@ -416,7 +422,10 @@ async def test_post_message_uses_values_array_for_list_field(db, test_user):
             "email": "jane@example.com",
             "phone": "555-0100",
             "linkedin_url": "https://linkedin.com/in/jane",
+            "github_url": "https://github.com/jane",
+            "portfolio_url": "https://jane.dev",
             "total_years_experience": 5.0,
+            "highest_degree": "BS Computer Science",
             "desired_roles": ["engineer"],
             "desired_locations": ["remote"],
             "remote_preference": "remote",

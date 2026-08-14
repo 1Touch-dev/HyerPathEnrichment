@@ -4,6 +4,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,6 +30,8 @@ const ITEM_TYPE_LABELS: Record<PortfolioItem["itemType"], string> = {
   other_link: "Other link",
 };
 
+const ITEM_TYPE_OPTIONS = Object.entries(ITEM_TYPE_LABELS) as [PortfolioItem["itemType"], string][];
+
 export function PortfolioEditor() {
   const { data: profile, isLoading } = usePortfolioProfile();
   const saveProfile = useSavePortfolioProfile();
@@ -35,6 +44,7 @@ export function PortfolioEditor() {
   const [isPublished, setIsPublished] = useState(profile?.isPublished ?? false);
   const [newItemUrl, setNewItemUrl] = useState("");
   const [newItemTitle, setNewItemTitle] = useState("");
+  const [newItemType, setNewItemType] = useState<PortfolioItem["itemType"]>("other_link");
 
   if (isLoading) return <div className="animate-pulse h-96 rounded-lg bg-muted" />;
 
@@ -47,11 +57,12 @@ export function PortfolioEditor() {
     e.preventDefault();
     if (!newItemUrl.trim() || !newItemTitle.trim()) return;
     addItem.mutate(
-      { itemType: "other_link", title: newItemTitle, description: null, url: newItemUrl },
+      { itemType: newItemType, title: newItemTitle, description: null, url: newItemUrl },
       {
         onSuccess: () => {
           setNewItemUrl("");
           setNewItemTitle("");
+          setNewItemType("other_link");
         },
       },
     );
@@ -146,6 +157,21 @@ export function PortfolioEditor() {
           </ul>
 
           <form onSubmit={handleAddItem} className="mt-3 flex gap-2">
+            <Select
+              value={newItemType}
+              onValueChange={(v) => setNewItemType(v as PortfolioItem["itemType"])}
+            >
+              <SelectTrigger className="w-36" aria-label="Item type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ITEM_TYPE_OPTIONS.map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               placeholder="Title"
               value={newItemTitle}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cvManagementKeys } from "../api/keys";
 import {
   useAcceptCvBullet,
@@ -19,6 +20,7 @@ interface CvFeedbackPanelProps {
 export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
   const queryClient = useQueryClient();
   const [pendingJobId, setPendingJobId] = useState<string | null>(null);
+  const [targetRole, setTargetRole] = useState("");
 
   const { data: report, isLoading } = useCvFeedback(documentId);
   const jobStatus = useCvFeedbackJobStatus(pendingJobId);
@@ -53,9 +55,15 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">No feedback generated yet.</p>
+        <Input
+          value={targetRole}
+          onChange={(e) => setTargetRole(e.target.value)}
+          placeholder="Target role (optional, e.g. Senior Backend Engineer)"
+          aria-label="Target role"
+        />
         <Button
           onClick={() =>
-            requestFeedback.mutate(undefined, {
+            requestFeedback.mutate(targetRole.trim() || undefined, {
               onSuccess: (data) => setPendingJobId(data.jobId),
             })
           }

@@ -88,13 +88,15 @@ def _service(db) -> DocumentService:
 # ---------------------------------------------------------------------------
 
 
-async def test_get_completeness_no_active_session_reports_missing_fields(db, test_user, completed_document):
+async def test_get_completeness_no_active_session_reports_missing_fields(
+    db, test_user, completed_document
+):
     service = _service(db)
     result = await service.get_completeness(str(completed_document.id), test_user.id)
 
     assert result.document_id == str(completed_document.id)
     assert result.has_active_chat_session is False
-    # extracted_data only sets email + technical_skills, so the other 6 REQUIRED_FIELDS are missing
+    # extracted_data only sets email + technical_skills, so the other REQUIRED_FIELDS are missing
     assert "email" not in result.missing_fields
     assert "technical_skills" not in result.missing_fields
     assert "phone" in result.missing_fields
@@ -149,7 +151,7 @@ async def test_get_completeness_with_no_extracted_data_reports_all_fields_missin
     service = _service(db)
     result = await service.get_completeness(str(doc.id), test_user.id)
     assert result.completeness_score == 0.0
-    assert len(result.missing_fields) == 8
+    assert len(result.missing_fields) == 11
 
 
 async def test_get_completeness_404_for_unowned_document(db, test_user, completed_document):
@@ -171,14 +173,18 @@ async def test_get_completeness_404_for_unknown_document(db, test_user):
 # ---------------------------------------------------------------------------
 
 
-async def test_request_cv_feedback_enqueues_job_for_completed_document(db, test_user, completed_document):
+async def test_request_cv_feedback_enqueues_job_for_completed_document(
+    db, test_user, completed_document
+):
     mock_queue_cls = MagicMock()
     mock_queue_instance = MagicMock()
     mock_queue_cls.return_value = mock_queue_instance
 
     service = _service(db)
     with patch("app.modules.documents.service.Queue", mock_queue_cls):
-        result = await service.request_cv_feedback(str(completed_document.id), test_user.id, "Backend Engineer")
+        result = await service.request_cv_feedback(
+            str(completed_document.id), test_user.id, "Backend Engineer"
+        )
 
     assert result.document_id == str(completed_document.id)
     assert result.message == "CV feedback generation started"
@@ -194,7 +200,9 @@ async def test_request_cv_feedback_enqueues_job_for_completed_document(db, test_
     assert job_result.job_type == "cv_feedback"
 
 
-async def test_request_cv_feedback_rejects_document_not_yet_completed(db, test_user, pending_document):
+async def test_request_cv_feedback_rejects_document_not_yet_completed(
+    db, test_user, pending_document
+):
     service = _service(db)
     with pytest.raises(HTTPException) as exc_info:
         await service.request_cv_feedback(str(pending_document.id), test_user.id, None)
@@ -208,7 +216,9 @@ async def test_request_cv_feedback_404_for_unowned_document(db, test_user, compl
     assert exc_info.value.status_code == 404
 
 
-async def test_request_cv_feedback_marks_job_failed_on_enqueue_error(db, test_user, completed_document):
+async def test_request_cv_feedback_marks_job_failed_on_enqueue_error(
+    db, test_user, completed_document
+):
     mock_queue_cls = MagicMock()
     mock_queue_instance = MagicMock()
     mock_queue_instance.enqueue.side_effect = RuntimeError("redis down")
@@ -221,12 +231,17 @@ async def test_request_cv_feedback_marks_job_failed_on_enqueue_error(db, test_us
     assert exc_info.value.status_code == 500
 
     jobs = (
-        await db.execute(
-            select(DocumentJob).where(
-                DocumentJob.document_id == completed_document.id, DocumentJob.job_type == "cv_feedback"
+        (
+            await db.execute(
+                select(DocumentJob).where(
+                    DocumentJob.document_id == completed_document.id,
+                    DocumentJob.job_type == "cv_feedback",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(jobs) == 1
     assert jobs[0].status == "failed"
     assert "redis down" in jobs[0].error
@@ -313,7 +328,9 @@ async def feedback_report(db, test_user, completed_document):
     return report
 
 
-async def test_accept_cv_feedback_bullet_appends_index(db, test_user, completed_document, feedback_report):
+async def test_accept_cv_feedback_bullet_appends_index(
+    db, test_user, completed_document, feedback_report
+):
     service = _service(db)
     result = await service.accept_cv_feedback_bullet(
         str(completed_document.id), test_user.id, str(feedback_report.id), 0
@@ -321,33 +338,47 @@ async def test_accept_cv_feedback_bullet_appends_index(db, test_user, completed_
     assert result.accepted_bullet_indices == [0]
 
 
-async def test_accept_cv_feedback_bullet_is_idempotent(db, test_user, completed_document, feedback_report):
+async def test_accept_cv_feedback_bullet_is_idempotent(
+    db, test_user, completed_document, feedback_report
+):
     service = _service(db)
-    await service.accept_cv_feedback_bullet(str(completed_document.id), test_user.id, str(feedback_report.id), 1)
+    await service.accept_cv_feedback_bullet(
+        str(completed_document.id), test_user.id, str(feedback_report.id), 1
+    )
     result = await service.accept_cv_feedback_bullet(
         str(completed_document.id), test_user.id, str(feedback_report.id), 1
     )
     assert result.accepted_bullet_indices == [1]
 
 
-async def test_accept_cv_feedback_bullet_rejects_negative_index(db, test_user, completed_document, feedback_report):
+async def test_accept_cv_feedback_bullet_rejects_negative_index(
+    db, test_user, completed_document, feedback_report
+):
     service = _service(db)
     with pytest.raises(HTTPException) as exc_info:
-        await service.accept_cv_feedback_bullet(str(completed_document.id), test_user.id, str(feedback_report.id), -1)
+        await service.accept_cv_feedback_bullet(
+            str(completed_document.id), test_user.id, str(feedback_report.id), -1
+        )
     assert exc_info.value.status_code == 400
 
 
-async def test_accept_cv_feedback_bullet_rejects_out_of_range_index(db, test_user, completed_document, feedback_report):
+async def test_accept_cv_feedback_bullet_rejects_out_of_range_index(
+    db, test_user, completed_document, feedback_report
+):
     service = _service(db)
     with pytest.raises(HTTPException) as exc_info:
-        await service.accept_cv_feedback_bullet(str(completed_document.id), test_user.id, str(feedback_report.id), 2)
+        await service.accept_cv_feedback_bullet(
+            str(completed_document.id), test_user.id, str(feedback_report.id), 2
+        )
     assert exc_info.value.status_code == 400
 
 
 async def test_accept_cv_feedback_bullet_404_for_unknown_report(db, test_user, completed_document):
     service = _service(db)
     with pytest.raises(HTTPException) as exc_info:
-        await service.accept_cv_feedback_bullet(str(completed_document.id), test_user.id, str(uuid4()), 0)
+        await service.accept_cv_feedback_bullet(
+            str(completed_document.id), test_user.id, str(uuid4()), 0
+        )
     assert exc_info.value.status_code == 404
 
 
@@ -357,11 +388,15 @@ async def test_accept_cv_feedback_bullet_404_for_unowned_document(
     """Caller doesn't own the document at all — fails the _get_owned_document check first."""
     service = _service(db)
     with pytest.raises(HTTPException) as exc_info:
-        await service.accept_cv_feedback_bullet(str(completed_document.id), uuid4(), str(feedback_report.id), 0)
+        await service.accept_cv_feedback_bullet(
+            str(completed_document.id), uuid4(), str(feedback_report.id), 0
+        )
     assert exc_info.value.status_code == 404
 
 
-async def test_accept_cv_feedback_bullet_404_when_report_owned_by_different_user(db, test_user, completed_document):
+async def test_accept_cv_feedback_bullet_404_when_report_owned_by_different_user(
+    db, test_user, completed_document
+):
     """Document is owned by the caller, but the report row belongs to a different user_id —
     the second query's `CvFeedbackReport.user_id == user_id` filter must still reject it."""
     other_user = User(
@@ -381,7 +416,9 @@ async def test_accept_cv_feedback_bullet_404_when_report_owned_by_different_user
         ats_score=70,
         strengths=["Strong background"],
         improvements=["Add metrics"],
-        rewritten_bullets=[{"original": "Did work", "rewritten": "Did great work", "rationale": "clarity"}],
+        rewritten_bullets=[
+            {"original": "Did work", "rewritten": "Did great work", "rationale": "clarity"}
+        ],
         accepted_bullet_indices=[],
     )
     db.add(report)
@@ -389,5 +426,7 @@ async def test_accept_cv_feedback_bullet_404_when_report_owned_by_different_user
 
     service = _service(db)
     with pytest.raises(HTTPException) as exc_info:
-        await service.accept_cv_feedback_bullet(str(completed_document.id), test_user.id, str(report.id), 0)
+        await service.accept_cv_feedback_bullet(
+            str(completed_document.id), test_user.id, str(report.id), 0
+        )
     assert exc_info.value.status_code == 404
