@@ -48,3 +48,4 @@ Add or update an ADR when you:
 | [0012](0012-semantic-chunking-strategy.md) | Semantic chunking strategy for document processing | Accepted | 2026-08-04 |
 | [0013](0013-job-matching-queue-and-storage.md) | Dedicated queue and storage for job matching (Module 1) | Accepted | 2026-08-10 |
 | [0014](0014-cv-chat-portfolio-outreach.md) | CV chat, portfolio, and outreach — storage, queue, and external API choices (Module 2) | Accepted | 2026-08-13 |
+| [0015](0015-interview-practice-question-personalization-and-queue-isolation.md) | Interview practice question personalization, queue isolation, and voice-tone scope limits (Module 3) | Accepted | 2026-08-14 |
