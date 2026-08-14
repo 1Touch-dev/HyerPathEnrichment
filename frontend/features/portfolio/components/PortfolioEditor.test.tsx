@@ -7,6 +7,19 @@ import { PortfolioEditor } from "./PortfolioEditor";
 import * as hooks from "../hooks/usePortfolioProfile";
 import type { PortfolioProfile } from "@/src/lib/types";
 
+// jsdom doesn't implement these — Radix's Select needs them to open/scroll its
+// listbox in tests (same class of gap the shared vitest.setup.ts already patches
+// for ResizeObserver).
+if (typeof Element.prototype.scrollIntoView !== "function") {
+  Element.prototype.scrollIntoView = () => {};
+}
+if (typeof Element.prototype.hasPointerCapture !== "function") {
+  Element.prototype.hasPointerCapture = () => false;
+}
+if (typeof Element.prototype.releasePointerCapture !== "function") {
+  Element.prototype.releasePointerCapture = () => {};
+}
+
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
@@ -147,5 +160,34 @@ describe("PortfolioEditor", () => {
     );
     await waitFor(() => expect(titleInput).toHaveValue(""));
     expect(urlInput).toHaveValue("");
+  });
+
+  it("lets the candidate categorize a new item as a GitHub repo, live demo, or case study", async () => {
+    mockUsePortfolioProfile({ data: sampleProfile, isLoading: false });
+    render(<PortfolioEditor />, { wrapper });
+
+    fireEvent.click(screen.getByLabelText("Item type"));
+    const caseStudyOption = await screen.findAllByRole("option", { name: "Case study" });
+    fireEvent.click(caseStudyOption[0]);
+
+    fireEvent.change(screen.getByPlaceholderText("Title"), {
+      target: { value: "Redesign project" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("https://..."), {
+      target: { value: "https://example.com/case-study" },
+    });
+
+    const addForm = screen.getByText("Add").closest("form");
+    addForm!.requestSubmit();
+
+    expect(addMutateMock).toHaveBeenCalledWith(
+      {
+        itemType: "case_study",
+        title: "Redesign project",
+        description: null,
+        url: "https://example.com/case-study",
+      },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
   });
 });

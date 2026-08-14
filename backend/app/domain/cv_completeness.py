@@ -12,12 +12,22 @@ from app.domain.candidate import CVData
 # Ordered by how strongly each field affects discoverability/matchability —
 # asked in this order by the chatbot (§8.2) so the highest-value questions
 # come first if a candidate abandons the session partway through.
+#
+# `github_url`, `portfolio_url`, and `highest_degree` (education) were added
+# alongside the original contact/skills/preference fields — the original
+# feature spec's completeness scan explicitly names GitHub, portfolio, and
+# education as fields to check for, and `CVData` (app/domain/candidate.py)
+# already has all three; they were simply never wired into this required-
+# field list.
 REQUIRED_FIELDS: list[str] = [
     "email",
     "phone",
     "linkedin_url",
+    "github_url",
+    "portfolio_url",
     "technical_skills",
     "total_years_experience",
+    "highest_degree",
     "desired_roles",
     "desired_locations",
     "remote_preference",
@@ -28,14 +38,17 @@ REQUIRED_FIELDS: list[str] = [
 # 1.0. compute_missing_fields() intentionally stays unweighted/binary (see
 # that function's docstring) — only the score below uses these weights.
 FIELD_WEIGHTS: dict[str, float] = {
-    "email": 0.15,
-    "phone": 0.15,
-    "linkedin_url": 0.15,
-    "technical_skills": 0.20,
-    "total_years_experience": 0.15,
-    "desired_roles": 0.08,
-    "desired_locations": 0.07,
-    "remote_preference": 0.05,
+    "email": 0.13,
+    "phone": 0.12,
+    "linkedin_url": 0.12,
+    "github_url": 0.07,
+    "portfolio_url": 0.05,
+    "technical_skills": 0.17,
+    "total_years_experience": 0.12,
+    "highest_degree": 0.06,
+    "desired_roles": 0.07,
+    "desired_locations": 0.05,
+    "remote_preference": 0.04,
 }
 
 # List-type fields where a single entry is only partial signal — a richness
@@ -50,8 +63,11 @@ FIELD_QUESTIONS: dict[str, str] = {
     "email": "What's the best email address for recruiters to reach you?",
     "phone": "What's a good phone number to include?",
     "linkedin_url": "Do you have a LinkedIn profile URL you'd like to include?",
+    "github_url": "Do you have a GitHub profile? What's your username or profile URL?",
+    "portfolio_url": "Do you have a portfolio site or personal website you'd like to link?",
     "technical_skills": "What are your top technical skills? (comma-separated is fine)",
     "total_years_experience": "How many years of professional experience do you have?",
+    "highest_degree": "What's your highest level of education (degree and field of study)?",
     "desired_roles": "What job titles or roles are you targeting?",
     "desired_locations": "Which locations are you open to working in?",
     "remote_preference": "Do you prefer remote, hybrid, or onsite work?",

@@ -83,6 +83,27 @@ describe("CvFeedbackPanel", () => {
     await waitFor(() => expect(apiClient.fetchDocumentJobStatus).toHaveBeenCalledWith("job1"));
   });
 
+  it("passes the entered target role to requestCvFeedback (keyword optimization by target role)", async () => {
+    vi.spyOn(apiClient, "fetchCvFeedback").mockRejectedValue(
+      new ApiError("No feedback report yet", { code: "NOT_FOUND", statusCode: 404 }),
+    );
+    vi.spyOn(apiClient, "requestCvFeedback").mockResolvedValue(envelope({ jobId: "job1" }));
+    vi.spyOn(apiClient, "fetchDocumentJobStatus").mockResolvedValue(
+      envelope(adaptDocumentJobStatus(rawJobStatus("processing"))),
+    );
+
+    render(<CvFeedbackPanel documentId="doc1" />, { wrapper });
+
+    fireEvent.change(await screen.findByLabelText("Target role"), {
+      target: { value: "Senior Backend Engineer" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Get AI feedback" }));
+
+    await waitFor(() =>
+      expect(apiClient.requestCvFeedback).toHaveBeenCalledWith("doc1", "Senior Backend Engineer"),
+    );
+  });
+
   it("refetches and renders the report once the job status reaches completed", async () => {
     vi.spyOn(apiClient, "fetchCvFeedback")
       .mockRejectedValueOnce(
