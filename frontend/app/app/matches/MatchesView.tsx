@@ -38,10 +38,15 @@ export function MatchesView() {
           title="No matches yet"
           description="Upload your CV and set preferences to get started."
           action={
-            <Button onClick={() => triggerScan.mutate()} disabled={triggerScan.isPending}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              {triggerScan.isPending ? "Scanning..." : "Scan now"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline">
+                <Link href="/app/documents">Upload your CV</Link>
+              </Button>
+              <Button onClick={() => triggerScan.mutate()} disabled={triggerScan.isPending}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {triggerScan.isPending ? "Scanning..." : "Scan now"}
+              </Button>
+            </div>
           }
         />
       </div>

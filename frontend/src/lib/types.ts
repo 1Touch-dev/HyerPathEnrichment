@@ -272,3 +272,66 @@ export type JobMatchListResponse = {
 export type UnreadMatchCountEvent = {
   unreadCount: number;
 };
+
+// Documents module: candidate document upload, processing, and search
+// (mirrors backend/app/modules/documents/schemas.py, camelCase).
+
+export type DocumentType = "cv" | "cover_letter";
+
+export type CandidateDocument = {
+  documentId: string;
+  documentType: DocumentType;
+  originalFilename: string;
+  fileSizeBytes: number;
+  processingStatus: string;
+  createdAt: string;
+};
+
+export type CandidateDocumentDetail = {
+  documentId: string;
+  documentType: DocumentType;
+  originalFilename: string;
+  fileSizeBytes: number;
+  processingStatus: string;
+  rawText: string | null;
+  extractedData: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DocumentUploadResult = {
+  jobId: string;
+  documentId: string;
+  message: string;
+};
+
+export type DocumentJobStatus = {
+  jobId: string;
+  status: string;
+  progress: number;
+  documentId: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CvData = {
+  documentId: string;
+  extractedData: Record<string, unknown>;
+  rawText: string | null;
+  processingStatus: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DocumentSearchResult = {
+  documentId: string;
+  similarityScore: number;
+  cvData: Record<string, unknown>;
+  excerpt: string;
+};
+
+export type DocumentSearchResponse = {
+  results: DocumentSearchResult[];
+};

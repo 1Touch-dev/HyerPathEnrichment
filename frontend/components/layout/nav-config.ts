@@ -7,6 +7,7 @@ import {
   Bell,
   Search,
   Sparkles,
+  FileText,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -26,6 +27,7 @@ export const mainNav: NavSection = {
   title: "Main",
   items: [
     { href: "/app/enrich", label: "Look up", icon: Search },
+    { href: "/app/documents", label: "Documents", icon: FileText },
     { href: "/app/history", label: "History", icon: History },
     { href: "/app/signals", label: "Signals", icon: Bell },
     { href: "/app/matches", label: "Matches", icon: Sparkles },

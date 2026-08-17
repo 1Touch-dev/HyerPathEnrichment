@@ -1,5 +1,13 @@
 import {
+  CandidateDocument,
+  CandidateDocumentDetail,
   CandidateJobPreferences,
+  CvData,
+  DocumentJobStatus,
+  DocumentSearchResponse,
+  DocumentSearchResult,
+  DocumentType,
+  DocumentUploadResult,
   Dossier,
   EnrichmentInput,
   EnrichmentJob,
@@ -17,6 +25,10 @@ import {
   SignalListResponse,
 } from "@/src/lib/types";
 import type {
+  BackendCVDataResponse,
+  BackendDocumentDetailResponse,
+  BackendDocumentMetadata,
+  BackendDocumentUploadResponse,
   BackendDossier,
   BackendDsarResponse,
   BackendHealthResponse,
@@ -26,11 +38,18 @@ import type {
   BackendJobMatchResponse,
   BackendJobPreferencesResponse,
   BackendJobResponse,
+  BackendJobStatusResponse,
+  BackendSearchResponse,
+  BackendSearchResult,
   BackendSignalListItem,
   BackendSignalListResponse,
 } from "@/src/lib/generated/api-schemas";
 
 export type {
+  BackendCVDataResponse,
+  BackendDocumentDetailResponse,
+  BackendDocumentMetadata,
+  BackendDocumentUploadResponse,
   BackendDsarResponse,
   BackendHealthResponse,
   BackendJobListResponse,
@@ -38,6 +57,8 @@ export type {
   BackendJobMatchResponse,
   BackendJobPreferencesResponse,
   BackendJobResponse,
+  BackendJobStatusResponse,
+  BackendSearchResponse,
   BackendSignalListResponse,
 } from "@/src/lib/generated/api-schemas";
 
@@ -371,6 +392,88 @@ export function mapBackendHealth(response: BackendHealthResponse): HealthStatus 
   return {
     status: response.status,
     service: response.service ?? "hyrepath-enrichment",
+  };
+}
+
+export function mapBackendDocumentMetadata(raw: BackendDocumentMetadata): CandidateDocument {
+  return {
+    documentId: raw.document_id,
+    documentType: raw.document_type as DocumentType,
+    originalFilename: raw.original_filename,
+    fileSizeBytes: raw.file_size_bytes,
+    processingStatus: raw.processing_status,
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendDocumentList(raw: BackendDocumentMetadata[]): CandidateDocument[] {
+  return raw.map(mapBackendDocumentMetadata);
+}
+
+export function mapBackendDocumentDetail(
+  raw: BackendDocumentDetailResponse,
+): CandidateDocumentDetail {
+  return {
+    documentId: raw.document_id,
+    documentType: raw.document_type as DocumentType,
+    originalFilename: raw.original_filename,
+    fileSizeBytes: raw.file_size_bytes,
+    processingStatus: raw.processing_status,
+    rawText: raw.raw_text ?? null,
+    extractedData: raw.extracted_data ?? null,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+export function mapBackendDocumentUploadResponse(
+  raw: BackendDocumentUploadResponse,
+): DocumentUploadResult {
+  return {
+    jobId: raw.job_id,
+    documentId: raw.document_id,
+    message: raw.message,
+  };
+}
+
+export function mapBackendDocumentJobStatus(raw: BackendJobStatusResponse): DocumentJobStatus {
+  return {
+    jobId: raw.job_id,
+    status: raw.status,
+    progress: raw.progress,
+    documentId: raw.document_id ?? null,
+    result: raw.result ?? null,
+    error: raw.error ?? null,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+export function mapBackendCvData(raw: BackendCVDataResponse): CvData {
+  return {
+    documentId: raw.document_id,
+    extractedData: raw.extracted_data ?? {},
+    rawText: raw.raw_text ?? null,
+    processingStatus: raw.processing_status,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+function mapBackendDocumentSearchResult(raw: BackendSearchResult): DocumentSearchResult {
+  return {
+    documentId: raw.document_id,
+    similarityScore: raw.similarity_score,
+    cvData: raw.cv_data ?? {},
+    excerpt: raw.excerpt,
+  };
+}
+
+export function mapBackendDocumentSearchResponse(
+  raw: BackendSearchResponse,
+): DocumentSearchResponse {
+  return {
+    results: (raw.results ?? []).map(mapBackendDocumentSearchResult),
   };
 }
 

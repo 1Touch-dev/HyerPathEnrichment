@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -103,6 +105,12 @@ export function PreferencesForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {preferences?.sourceDocumentId && (
+        <Link href={`/app/documents/${preferences.sourceDocumentId}`}>
+          <Badge variant="secondary">Source CV: {preferences.sourceDocumentId}</Badge>
+        </Link>
+      )}
+
       <div>
         <Label htmlFor="desiredRoles">Desired roles</Label>
         <Input
