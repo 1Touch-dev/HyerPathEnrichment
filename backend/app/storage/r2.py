@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import cast
 
 from app.core.config import Settings, get_settings
 
@@ -76,6 +77,54 @@ class R2StorageClient:
 
         await self._upload_to_local_cache(object_key, payload)
         return self.build_asset_url(object_key)
+
+    async def download_bytes(self, key: str) -> bytes:
+        """Download an object's raw bytes from R2 or the local dev cache.
+
+        Raises:
+            R2StorageError: If the object cannot be read from either backend.
+        """
+        settings = get_settings()
+        object_key = key.lstrip("/")
+
+        if r2_is_configured(settings):
+            try:
+                return await self._download_from_r2(object_key, settings)
+            except Exception as exc:
+                logger.warning(
+                    "R2 download failed for key=%s; falling back to local cache",
+                    object_key[:32],
+                    exc_info=True,
+                )
+                if settings.app_env.strip().lower() == "production":
+                    raise R2StorageError(f"R2 download failed for key: {object_key}") from exc
+
+        return self._download_from_local_cache(object_key)
+
+    async def _download_from_r2(self, key: str, settings: Settings) -> bytes:
+        try:
+            import aioboto3
+        except ImportError as exc:
+            raise R2StorageError("aioboto3 is not installed") from exc
+
+        endpoint = f"https://{settings.r2_account_id.strip()}.r2.cloudflarestorage.com"
+        session = aioboto3.Session()
+        async with session.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=settings.r2_access_key_id.strip(),
+            aws_secret_access_key=settings.r2_secret_access_key.get_secret_value().strip(),
+            region_name="auto",
+        ) as client:
+            response = await client.get_object(Bucket=settings.r2_bucket.strip(), Key=key)
+            body = response["Body"]
+            return cast(bytes, await body.read())
+
+    def _download_from_local_cache(self, key: str) -> bytes:
+        source = LOCAL_ASSET_CACHE_DIR / key.replace("/", "_")
+        if not source.exists():
+            raise R2StorageError(f"Object not found in local cache: {key}")
+        return source.read_bytes()
 
     async def delete_object(self, key: str) -> bool:
         """Delete an object from R2 or the local dev cache. Returns True if removed."""

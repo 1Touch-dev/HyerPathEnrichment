@@ -310,12 +310,17 @@ def _build_search_term(prefs: CandidateJobPreferences, cv_doc: CandidateDocument
 
 
 async def _get_latest_cv(session: AsyncSession, user_id: UUID) -> CandidateDocument | None:
+    # "completed" = text extracted, embedding not (yet) generated; "embedded" =
+    # the embedding worker has since advanced status past "completed" on success
+    # (see workers/tasks/embedding.py). Both are eligible here — excluding
+    # "embedded" would make a CV invisible to scans the moment it finishes
+    # embedding, which is the one state where scoring should actually work.
     result = await session.execute(
         select(CandidateDocument)
         .where(
             CandidateDocument.user_id == user_id,
             CandidateDocument.document_type == "cv",
-            CandidateDocument.processing_status == "completed",
+            CandidateDocument.processing_status.in_(["completed", "embedded"]),
         )
         .order_by(CandidateDocument.created_at.desc())
         .limit(1)

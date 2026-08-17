@@ -12,8 +12,9 @@ RUN apt-get update && \
 # Copy dependency files
 COPY pyproject.toml README.md ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -e .
+# Install Python dependencies (incl. [enrichers] extra for python-jobspy, used
+# by _scan_jobs_for_candidate_async's reuse of JobSpyEnricher._scrape)
+RUN pip install --no-cache-dir -e ".[enrichers]"
 
 # Copy application code
 COPY app ./app

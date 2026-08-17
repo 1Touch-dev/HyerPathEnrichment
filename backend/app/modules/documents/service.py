@@ -24,6 +24,7 @@ from app.modules.documents.schemas import (
     SearchResult,
 )
 from app.services.vector_search import similarity_search
+from app.storage.document_storage import DocumentStorageClient, DocumentStorageError
 from app.workers.queue import QUEUE_DOCUMENT, get_redis_connection
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class DocumentService:
         """
         self.db = db
         self.redis_conn = redis_conn or get_redis_connection()
+        self.storage = DocumentStorageClient()
 
     async def upload_document(
         self,
@@ -129,13 +131,34 @@ class DocumentService:
                 message="Document already exists",
             )
 
-        # Create document record
-        storage_path = f"documents/{user_id}/{file_hash}{_get_file_extension(file.filename or '')}"
+        # Create document record: persist bytes to storage first so we never
+        # leave an orphaned DB row pointing at a storage_path that was never
+        # actually written.
+        try:
+            storage_path, _, _ = await self.storage.upload_document(
+                file_data,
+                file.filename or "unknown",
+                file.content_type or "application/octet-stream",
+                str(user_id),
+                document_type,
+            )
+        except DocumentStorageError as exc:
+            logger.error(
+                "Failed to persist document to storage",
+                exc_info=True,
+                extra={"user_id": str(user_id)[:8], "error": str(exc)},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to store document: {exc}",
+            )
+
         document = CandidateDocument(
             user_id=user_id,
             document_type=document_type,
             original_filename=file.filename or "unknown",
             storage_path=storage_path,
+            mime_type=file.content_type,
             file_hash=file_hash,
             file_size_bytes=file_size,
             processing_status="pending",
@@ -462,6 +485,31 @@ class DocumentService:
                 detail="Document not found",
             )
 
+        # Legacy rows predate storage-backed uploads (no mime_type, and their
+        # storage_path was never actually written to R2/local cache), so there
+        # are no bytes to re-extract from.
+        if document.mime_type is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "This document predates file storage support and cannot be "
+                    "reprocessed automatically — re-upload it instead."
+                ),
+            )
+
+        try:
+            file_data = await self.storage.download_document(document.storage_path)
+        except DocumentStorageError as exc:
+            logger.error(
+                "Failed to download document for reprocessing",
+                exc_info=True,
+                extra={"document_id": document_id, "error": str(exc)},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Stored file could not be retrieved: {exc}",
+            )
+
         # Reset processing status
         document.processing_status = "pending"
         document.raw_text = None
@@ -479,22 +527,45 @@ class DocumentService:
         await self.db.commit()
         await self.db.refresh(job)
 
-        # Note: In a full implementation, we would need to retrieve the original file data
-        # from storage and re-enqueue it. For now, this creates the job record.
-        # A production version would need file storage integration.
-        # NOTE: once this is wired to actually call queue.enqueue(...), it must pass
-        # str(job.id) as the job_id positional arg and on_failure=Callback(
-        # "app.workers.tasks.document.on_document_job_failure", timeout=30) — same
-        # wiring as upload_document above — so it isn't silently missed later.
+        # Enqueue to RQ, mirroring upload_document's enqueue logic exactly.
+        try:
+            queue = Queue(QUEUE_DOCUMENT, connection=self.redis_conn)
+            rq_job = queue.enqueue(
+                "app.workers.tasks.document.process_document_job",
+                str(document.id),
+                file_data,
+                document.mime_type,
+                str(job.id),
+                job_timeout=300,  # 5 minutes
+                on_failure=Callback(
+                    "app.workers.tasks.document.on_document_job_failure", timeout=30
+                ),
+            )
 
-        logger.info(
-            "Document reprocess job created",
-            extra={
-                "job_id": str(job.id),
-                "document_id": document_id,
-                "user_id": str(user_id)[:8],
-            },
-        )
+            logger.info(
+                "Document reprocess job enqueued",
+                extra={
+                    "job_id": str(job.id),
+                    "document_id": str(document.id),
+                    "rq_job_id": rq_job.id,
+                    "user_id": str(user_id)[:8],
+                },
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to enqueue document reprocessing",
+                exc_info=True,
+                extra={"job_id": str(job.id), "error": str(e)},
+            )
+            # Mark job as failed
+            job.status = "failed"
+            job.error = f"Failed to enqueue: {e!s}"
+            await self.db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to enqueue document for reprocessing",
+            )
 
         return DocumentUploadResponse(
             job_id=str(job.id),

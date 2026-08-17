@@ -32,6 +32,7 @@ class CandidateDocument(Base):
     document_type: Mapped[str] = mapped_column(String(20), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     storage_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    mime_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
     file_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)

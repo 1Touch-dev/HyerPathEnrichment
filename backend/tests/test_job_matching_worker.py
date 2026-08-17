@@ -578,6 +578,39 @@ class TestScanJobsForCandidate:
         mock_scrape.assert_not_called()
         assert len(_get_postings()) == postings_before
 
+    def test_finds_cv_once_embedding_worker_advances_status_to_embedded(self):
+        # Regression: the embedding worker (workers/tasks/embedding.py) advances
+        # CandidateDocument.processing_status from "completed" to "embedded" on
+        # success. _get_latest_cv must still find the document in that state —
+        # otherwise a CV becomes invisible to scans the moment its embedding
+        # finishes, and every scan reports "no processed CV found".
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+        with SyncSessionLocal() as session:
+            doc = session.execute(
+                select(CandidateDocument).where(CandidateDocument.id == cv_doc.id)
+            ).scalar_one()
+            doc.processing_status = "embedded"
+            session.commit()
+
+        unique_rows = [
+            {**row, "title": f"{row['title']} {uuid.uuid4().hex[:8]}"} for row in FAKE_JOBSPY_ROWS
+        ]
+
+        with (
+            _mock_jobspy_scrape(unique_rows),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            _mock_track_embedding_cost(),
+            _mock_track_llm_cost(),
+        ):
+            stats = scan_jobs_for_candidate(str(user.id))
+
+        assert stats["scraped"] == len(unique_rows)
+
     def test_skips_when_no_cv_document_at_all(self):
         user = _create_user()
         _create_preferences(user.id)

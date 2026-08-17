@@ -12,7 +12,10 @@ from uuid import UUID
 from rq import get_current_job
 from sqlalchemy import select
 
-from app.auth.models import User  # noqa: F401 - Import for SQLAlchemy FK resolution
+# Import ORM registry FIRST to register all models (User has relationships
+# to PracticeSession/QuestionAttempt that otherwise fail to resolve when this
+# worker process never imports app.modules.sessions.models).
+import app.database.orm_registry  # noqa: F401
 from app.clients.embeddings import get_embeddings_client
 from app.database.session import SessionLocal
 from app.modules.documents.models import CandidateDocument
