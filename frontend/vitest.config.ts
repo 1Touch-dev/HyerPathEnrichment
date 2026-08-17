@@ -8,6 +8,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname),
+      // Next.js resolves "server-only" to a no-op via the "react-server" export
+      // condition at build time; vitest runs under plain Node, so without this
+      // alias any module (e.g. bff-response.ts) that imports "server-only" would
+      // throw immediately when loaded in a test.
+      "server-only": path.resolve(__dirname, "node_modules/server-only/empty.js"),
     },
   },
   test: {

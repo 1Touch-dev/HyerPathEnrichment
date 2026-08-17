@@ -4,6 +4,7 @@ these tests do not require Module 1's worker/scanner to run."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -11,11 +12,13 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.auth.models import User
+from app.core.config import get_settings
 from app.modules.job_matching.models import (  # Module 1 — see §4.1 dependency note
     JobMatch,
     JobPosting,
     JobPostingEmbedding,
 )
+from app.modules.job_swipe import repository
 from app.modules.job_swipe.schemas import SwipeActionRequest
 from app.modules.job_swipe.service import JobSwipeService
 
@@ -185,6 +188,106 @@ async def test_swipe_right_boosts_similar_posting_above_dissimilar_one(db, test_
     """Swiping right on a posting should re-rank a near-identical-embedding posting above a
     near-orthogonal one in the next deck fetch, even though both start with the same
     overall_score (isolates the similarity boost from the base-score ordering)."""
+    service = JobSwipeService(db)
+
+    liked_match, liked_posting = await _make_match(db, test_user, 50.0, title="Liked Job")
+    similar_match, similar_posting = await _make_match(db, test_user, 50.0, title="Similar Job")
+    dissimilar_match, dissimilar_posting = await _make_match(
+        db, test_user, 50.0, title="Dissimilar Job"
+    )
+
+    liked_vector = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    similar_vector = [0.99, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    dissimilar_vector = [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    await _add_embedding(db, liked_posting, liked_vector)
+    await _add_embedding(db, similar_posting, similar_vector)
+    await _add_embedding(db, dissimilar_posting, dissimilar_vector)
+
+    await service.swipe(test_user.id, str(liked_match.id), SwipeActionRequest(direction="right"))
+
+    deck = await service.get_deck(test_user.id)
+    match_ids_in_order = [card.match_id for card in deck.cards]
+
+    # liked_match was swiped, so it should no longer appear.
+    assert str(liked_match.id) not in match_ids_in_order
+    assert str(similar_match.id) in match_ids_in_order
+    assert str(dissimilar_match.id) in match_ids_in_order
+
+    similar_rank = match_ids_in_order.index(str(similar_match.id))
+    dissimilar_rank = match_ids_in_order.index(str(dissimilar_match.id))
+    assert similar_rank < dissimilar_rank
+
+
+async def test_compute_similarity_boosts_falls_back_to_python_when_pgvector_query_raises(
+    db, test_user, monkeypatch
+):
+    """Deterministic proof of the fallback branch in repository.py's
+    _compute_similarity_boosts (lines 94-101), without needing real Postgres.
+
+    Monkeypatches the `get_settings` name imported *inside* repository.py (not the
+    global `app.core.config.get_settings`, which the `db` fixture's session still
+    relies on to stay SQLite-backed) so `_compute_similarity_boosts` believes it's
+    talking to Postgres and takes the `is_postgres` branch. It then issues the raw
+    pgvector `<=>`/`::vector` SQL against the test session's real SQLite connection,
+    which doesn't understand that syntax and raises — exercising the `except
+    Exception` handler that falls through to the Python `cosine_similarity()` path.
+    """
+    fake_settings = SimpleNamespace(database_url="postgresql+asyncpg://fake-host/fake-db")
+    monkeypatch.setattr(repository, "get_settings", lambda: fake_settings)
+
+    service = JobSwipeService(db)
+
+    liked_match, liked_posting = await _make_match(db, test_user, 50.0, title="Liked Job")
+    similar_match, similar_posting = await _make_match(db, test_user, 50.0, title="Similar Job")
+    dissimilar_match, dissimilar_posting = await _make_match(
+        db, test_user, 50.0, title="Dissimilar Job"
+    )
+
+    liked_vector = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    similar_vector = [0.99, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    dissimilar_vector = [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    await _add_embedding(db, liked_posting, liked_vector)
+    await _add_embedding(db, similar_posting, similar_vector)
+    await _add_embedding(db, dissimilar_posting, dissimilar_vector)
+
+    await service.swipe(test_user.id, str(liked_match.id), SwipeActionRequest(direction="right"))
+
+    deck = await service.get_deck(test_user.id)
+    match_ids_in_order = [card.match_id for card in deck.cards]
+
+    # liked_match was swiped, so it should no longer appear.
+    assert str(liked_match.id) not in match_ids_in_order
+    assert str(similar_match.id) in match_ids_in_order
+    assert str(dissimilar_match.id) in match_ids_in_order
+
+    similar_rank = match_ids_in_order.index(str(similar_match.id))
+    dissimilar_rank = match_ids_in_order.index(str(dissimilar_match.id))
+    assert similar_rank < dissimilar_rank
+
+
+@pytest.mark.postgres
+async def test_swipe_right_boosts_similar_posting_above_dissimilar_one_on_real_postgres(
+    db, test_user
+):
+    """Real-Postgres proof that the pgvector `<=>` SQL branch in
+    _compute_similarity_boosts (not just its SQLite/error fallback) produces the
+    correct ranking. Same scenario/assertions as
+    test_swipe_right_boosts_similar_posting_above_dissimilar_one above.
+
+    NOTE on the two coexisting "postgres opt-in" conventions in this suite:
+    test_alembic_migrations.py's `@pytest.mark.postgres` tests read `TEST_DATABASE_URL`
+    and drive a separate sync raw engine just for that one test. This test uses a
+    *different* convention: conftest.py (lines 9-24) detects `DATABASE_URL` itself
+    being a `postgresql://` URL at pytest startup and switches the *entire* session —
+    including the async `db`/`test_user` fixtures used here — over to real Postgres.
+    Don't confuse the two; this test's runtime skip below checks `DATABASE_URL` (via
+    `get_settings().database_url`), not `TEST_DATABASE_URL`.
+    """
+    if "postgresql" not in get_settings().database_url.lower():
+        pytest.skip("Requires DATABASE_URL pointed at real Postgres with pgvector")
+
     service = JobSwipeService(db)
 
     liked_match, liked_posting = await _make_match(db, test_user, 50.0, title="Liked Job")

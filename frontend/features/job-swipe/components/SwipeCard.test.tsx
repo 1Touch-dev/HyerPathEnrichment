@@ -78,8 +78,26 @@ describe("SwipeCard", () => {
     render(<SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={() => {}} isTop />);
     expect(screen.getByText("Senior Engineer")).toBeInTheDocument();
     expect(screen.getByText("Acme")).toBeInTheDocument();
-    expect(screen.getByText("Great fit for your skills.")).toBeInTheDocument();
     expect(screen.getByText("88/100")).toBeInTheDocument();
+  });
+
+  it('hides the "why we matched you" explanation until the toggle is clicked, then shows it', () => {
+    render(<SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={() => {}} isTop />);
+
+    expect(screen.queryByText("Great fit for your skills.")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Why we matched you" }));
+
+    expect(screen.getByText("Great fit for your skills.")).toBeInTheDocument();
+  });
+
+  it('clicking "Why we matched you" does not call onSwiped', () => {
+    const onSwiped = vi.fn();
+    render(<SwipeCard card={baseCard} onSwiped={onSwiped} onDraftOutreach={() => {}} isTop />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Why we matched you" }));
+
+    expect(onSwiped).not.toHaveBeenCalled();
   });
 
   it('calls onSwiped("right") when dragged right past the x threshold', () => {

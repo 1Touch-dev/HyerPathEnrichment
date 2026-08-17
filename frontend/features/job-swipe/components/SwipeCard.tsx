@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion, useMotionValue, useTransform, type PanInfo } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ function formatSalary(
 }
 
 export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardProps) {
+  const [showExplanation, setShowExplanation] = useState(false);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-15, 15]);
@@ -103,10 +105,24 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
           {salary && <p className="mt-1 text-sm font-medium">{salary}</p>}
         </div>
 
-        {card.explanation && (
-          <p className="mt-4 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-            {card.explanation}
-          </p>
+        {card.explanation && isTop && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowExplanation((prev) => !prev);
+              }}
+              className="rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
+            >
+              Why we matched you
+            </button>
+            {showExplanation && (
+              <p className="mt-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+                {card.explanation}
+              </p>
+            )}
+          </div>
         )}
 
         {isTop && (

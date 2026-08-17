@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.domain.candidate import CVData
 from app.domain.cv_completeness import (
     FIELD_WEIGHTS,
+    REQUIRED_FIELDS,
     completeness_score,
     compute_missing_fields,
     question_for_field,
@@ -136,7 +139,15 @@ def test_field_weights_sum_to_one():
     that sums to 1.0 — lock that invariant in so a future edit that adds/removes
     a field or rebalances weights without preserving the total is caught here,
     rather than silently skewing completeness_score()'s 0.0-1.0 range."""
-    assert sum(FIELD_WEIGHTS.values()) == 1.0
+    assert sum(FIELD_WEIGHTS.values()) == pytest.approx(1.0)
+
+
+def test_field_weights_cover_exactly_required_fields():
+    """Guards against a future field being added to REQUIRED_FIELDS without a
+    matching FIELD_WEIGHTS entry (today that would silently KeyError inside
+    completeness_score() at runtime with no test catching it beforehand), and
+    vice versa (a stale weight left behind for a removed field)."""
+    assert set(FIELD_WEIGHTS.keys()) == set(REQUIRED_FIELDS)
 
 
 def test_compute_missing_fields_unchanged_regression():
