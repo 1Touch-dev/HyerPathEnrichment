@@ -177,9 +177,19 @@ async def _make_match(
     return match, posting
 
 
+_EMBEDDING_DIM = 1536  # JobPostingEmbedding.embedding is pgvector Vector(1536) on Postgres;
+# SQLite doesn't enforce vector length, so a short test vector only surfaces there. Zero-padding
+# preserves cosine similarity exactly (padding contributes 0 to both dot product and magnitude),
+# so this keeps the tests' short, readable vectors while still satisfying Postgres's dimension check.
+
+
+def _padded(vector: list[float]) -> list[float]:
+    return vector + [0.0] * (_EMBEDDING_DIM - len(vector))
+
+
 async def _add_embedding(db, posting: JobPosting, vector: list[float]) -> None:
     embedding = JobPostingEmbedding(job_posting_id=posting.id, token_count=10)
-    embedding.embedding = vector
+    embedding.embedding = _padded(vector)
     db.add(embedding)
     await db.commit()
 
