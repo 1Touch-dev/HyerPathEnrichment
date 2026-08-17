@@ -12,7 +12,7 @@ export function FeedbackPanel({ attempt }: FeedbackPanelProps) {
   const breakdownEntries = attempt.scoreBreakdown ? Object.entries(attempt.scoreBreakdown) : [];
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
+    <div className="space-y-3 border-t pt-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Score</h3>
         {attempt.aiScore === null ? (

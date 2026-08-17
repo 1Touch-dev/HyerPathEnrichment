@@ -236,7 +236,10 @@ async def test_generate_interview_feedback_success():
         assert "https://api.openai.com" in call_args.args[0]
         assert call_kwargs["headers"]["Authorization"] == "Bearer test-key"
         assert call_kwargs["json"]["model"] == "gpt-4o-mini"
-        assert call_kwargs["json"]["response_format"]["type"] == "json_object"
+        # Structured Outputs (strict json_schema) — see feedback_generator.py's
+        # _FEEDBACK_JSON_SCHEMA docstring for why plain json_object mode isn't used.
+        assert call_kwargs["json"]["response_format"]["type"] == "json_schema"
+        assert call_kwargs["json"]["response_format"]["json_schema"]["strict"] is True
         assert call_kwargs["json"]["temperature"] == 0.3
 
         # Verify feedback structure

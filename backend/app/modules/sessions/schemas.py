@@ -62,6 +62,13 @@ class QuestionAttemptResponse(BaseModel):
     session_id: UUID
     user_id: UUID
     question_id: UUID | None
+    # Denormalized from interview_questions.question_text (question_attempts.question_id's
+    # FK target, migration 033) — QuestionAttempt has no declared relationship for it, so
+    # this is filled in by session_manager.py's `_fetch_question_texts` (called from
+    # `_serialize_session` and `add_attempt`), not by `from_attributes` reading it off the
+    # ORM instance directly. None for attempts whose question was later deleted (FK is ON
+    # DELETE SET NULL) or that have no question_id.
+    question_text: str | None = None
     response_type: str
     text_response: str | None
     audio_recording_id: UUID | None

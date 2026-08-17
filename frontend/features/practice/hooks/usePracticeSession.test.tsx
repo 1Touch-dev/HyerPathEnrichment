@@ -17,6 +17,7 @@ function makeAttempt(overrides: Partial<PracticeAttempt> = {}): PracticeAttempt 
     sessionId: "session-1",
     userId: "user-1",
     questionId: "q1",
+    questionText: null,
     responseType: "text",
     textResponse: "My answer",
     audioRecordingId: null,

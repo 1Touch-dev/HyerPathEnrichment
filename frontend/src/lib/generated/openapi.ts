@@ -2536,6 +2536,8 @@ export interface components {
             id: string;
             /** Question Id */
             question_id: string | null;
+            /** Question Text */
+            question_text?: string | null;
             /** Response Type */
             response_type: string;
             /** Score Breakdown */

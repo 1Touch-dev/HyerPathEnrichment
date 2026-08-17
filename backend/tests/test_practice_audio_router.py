@@ -153,6 +153,48 @@ def test_upload_audio_transcribes_and_analyzes(
     assert data["transcription_status"] == "completed"
 
 
+def test_upload_audio_accepts_codec_qualified_mime_type(
+    client: TestClient, practice_session_fixture: dict[str, Any]
+) -> None:
+    """Regression test: Chrome's `MediaRecorder.mimeType` defaults to
+    `"audio/webm;codecs=opus"` (23 chars), which previously overflowed the
+    `audio_format` column (`VARCHAR(20)`, migration 017) and crashed every
+    real browser-recorded upload with an uncaught `StringDataRightTruncationError`
+    -> 500 INTERNAL_ERROR, since `service.py` stored the raw MIME type
+    verbatim. `service._base_mime_type` now strips codec params before the
+    DB write while still passing the original value through unchanged to
+    storage/Whisper (asserted below via the mocks' call args)."""
+    session = practice_session_fixture["session"]
+    headers = _auth_headers(str(practice_session_fixture["user_id"]))
+    codec_qualified = "audio/webm;codecs=opus"
+
+    with (
+        patch(
+            "app.clients.speech.WhisperClient.transcribe_audio", new_callable=AsyncMock
+        ) as mock_transcribe,
+        patch(
+            "app.services.audio_storage.AudioStorageClient.upload_audio", new_callable=AsyncMock
+        ) as mock_upload,
+    ):
+        mock_transcribe.return_value = TranscriptionResult(text="Answer.", duration=3.0)
+        mock_upload.return_value = ("practice-audio/mock-user/mock-session/mock456.webm", 17)
+
+        response = client.post(
+            "/api/practice/audio",
+            headers=headers,
+            data={"practice_session_id": str(session.id), "audio_format": codec_qualified},
+            files={"file": ("recording.webm", b"fake-audio-bytes", codec_qualified)},
+        )
+
+        # Storage and Whisper still see the fully-qualified MIME type (they need
+        # the codec info); only the DB column write is normalized.
+        assert mock_upload.call_args.args[2] == codec_qualified
+        assert mock_transcribe.call_args.args[2] == codec_qualified
+
+    data = assert_success(response)
+    assert data["transcription_status"] == "completed"
+
+
 def test_upload_audio_rejects_oversized_file(
     client: TestClient, practice_session_fixture: dict[str, Any]
 ) -> None:

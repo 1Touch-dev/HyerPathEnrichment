@@ -59,6 +59,19 @@ def _generate_feedback_sync(attempt_id: str, db: Session) -> None:
         )
         question_text = db.scalar(question_stmt)
 
+    # DEBUG: `question_text`/`answer_text` are candidate-authored content, so
+    # this must not run at INFO in staging/production (extra= fields render
+    # directly into the log stream — see core/logging.py's `_extra_fields`).
+    logger.debug(
+        "Feedback generation input",
+        extra={
+            "attempt_id": attempt_id,
+            "response_type": attempt.response_type,
+            "question_text": question_text,
+            "answer_text": attempt.text_response,
+        },
+    )
+
     # Generate feedback (run async function in event loop)
     logger.info(f"Calling feedback service for attempt {attempt_id}")
     loop = asyncio.new_event_loop()
@@ -73,6 +86,26 @@ def _generate_feedback_sync(attempt_id: str, db: Session) -> None:
         )
     finally:
         loop.close()
+
+    # `overall_score` alone is safe at INFO; the rest (detailed_feedback,
+    # strengths, improvements) can quote/paraphrase the candidate's answer.
+    logger.info(
+        "Feedback generation output",
+        extra={
+            "attempt_id": attempt_id,
+            "overall_score": feedback["overall_score"],
+        },
+    )
+    logger.debug(
+        "Feedback generation output detail",
+        extra={
+            "attempt_id": attempt_id,
+            "dimension_scores": feedback["dimension_scores"],
+            "detailed_feedback": feedback["detailed_feedback"],
+            "strengths": feedback["strengths"],
+            "improvements": feedback["improvements"],
+        },
+    )
 
     # Update attempt with feedback
     attempt.ai_score = float(feedback["overall_score"])

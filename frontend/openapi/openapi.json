@@ -2972,6 +2972,17 @@
             ],
             "title": "Question Id"
           },
+          "question_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Text"
+          },
           "response_type": {
             "title": "Response Type",
             "type": "string"

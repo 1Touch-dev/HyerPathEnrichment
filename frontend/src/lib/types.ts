@@ -438,6 +438,7 @@ export interface PracticeAttempt {
   sessionId: string;
   userId: string;
   questionId: string | null;
+  questionText: string | null;
   responseType: "text" | "audio";
   textResponse: string | null;
   audioRecordingId: string | null;

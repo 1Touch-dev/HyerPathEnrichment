@@ -136,13 +136,20 @@ class WhisperClient:
                 if not text:
                     raise WhisperError("Whisper API returned empty transcription")
 
+                # `text_length` is safe at INFO; `text_preview` is the
+                # candidate's actual spoken words (PII), so it's DEBUG-only.
                 logger.info(
                     "Transcription successful",
                     extra={
                         "audio_filename": filename[:32],
                         "text_length": len(text),
                         "language": result.get("language"),
+                        "whisper_duration": result.get("duration"),
                     },
+                )
+                logger.debug(
+                    "Transcription text preview",
+                    extra={"audio_filename": filename[:32], "text_preview": text[:200]},
                 )
 
                 return TranscriptionResult(

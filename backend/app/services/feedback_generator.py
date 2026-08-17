@@ -45,6 +45,56 @@ class InterviewFeedback(TypedDict):
     detailed_feedback: str  # Comprehensive paragraph
 
 
+# OpenAI Structured Outputs schema (response_format: json_schema, strict mode).
+# Without this, plain `{"type": "json_object"}` mode only asks for *some* JSON
+# in the system prompt's prose — gpt-4o-mini sometimes echoes the rubric's
+# human-readable headings verbatim (e.g. "Overall Score", "Clarity" as a
+# top-level key) instead of these exact snake_case keys. `_parse_feedback_response`
+# then silently falls back to defaults (0 / {} / "") via `.get(key, default)`
+# with no error, so scores looked "generated" but were empty/zero. `strict: true`
+# makes the API itself guarantee this exact shape, eliminating the drift.
+_FEEDBACK_JSON_SCHEMA: dict[str, object] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "interview_feedback",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "overall_score": {"type": "number"},
+                "dimension_scores": {
+                    "type": "object",
+                    "properties": {
+                        "clarity": {"type": "number"},
+                        "technical_accuracy": {"type": "number"},
+                        "completeness": {"type": "number"},
+                        "communication_skills": {"type": "number"},
+                    },
+                    "required": [
+                        "clarity",
+                        "technical_accuracy",
+                        "completeness",
+                        "communication_skills",
+                    ],
+                    "additionalProperties": False,
+                },
+                "strengths": {"type": "array", "items": {"type": "string"}},
+                "improvements": {"type": "array", "items": {"type": "string"}},
+                "detailed_feedback": {"type": "string"},
+            },
+            "required": [
+                "overall_score",
+                "dimension_scores",
+                "strengths",
+                "improvements",
+                "detailed_feedback",
+            ],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
 FEEDBACK_SYSTEM_PROMPT = """
 You are an expert interview coach evaluating candidate responses.
 
@@ -74,12 +124,12 @@ Evaluate the candidate's answer using this rubric (each dimension 0-25 points):
    - 10-14: Somewhat disorganized or unprofessional
    - 0-9: Poor structure or inappropriate tone
 
-Provide your evaluation in JSON format with:
-- Specific dimension scores
-- Overall score (sum of dimensions, 0-100)
-- 2-4 concrete strengths
-- 2-4 actionable improvements
-- Detailed feedback paragraph
+Provide your evaluation as JSON with exactly these keys:
+- "dimension_scores": an object with keys "clarity", "technical_accuracy", "completeness", "communication_skills" (each 0-25)
+- "overall_score": sum of the four dimension scores (0-100)
+- "strengths": 2-4 concrete strengths (array of strings)
+- "improvements": 2-4 actionable improvements (array of strings)
+- "detailed_feedback": a comprehensive feedback paragraph (string)
 
 Be constructive and specific. Focus on helping the candidate improve.
 """.strip()
@@ -231,6 +281,18 @@ async def generate_interview_feedback(
 
     messages = _build_feedback_messages(question, answer)
 
+    # DEBUG, not INFO: contains the candidate's raw interview answer, which is
+    # personal/sensitive content. Structured logging renders `extra=` fields
+    # directly into the log stream (see core/logging.py's `_extra_fields`), so
+    # this must not be at the default INFO level in staging/production.
+    logger.debug(
+        "Feedback generation request",
+        extra={
+            "question": question,
+            "answer": answer,
+        },
+    )
+
     # Call OpenAI API with JSON mode
     async with httpx.AsyncClient(timeout=60.0) as client:
 
@@ -244,7 +306,7 @@ async def generate_interview_feedback(
                 json={
                     "model": "gpt-4o-mini",
                     "messages": messages,
-                    "response_format": {"type": "json_object"},
+                    "response_format": _FEEDBACK_JSON_SCHEMA,
                     "temperature": 0.3,  # Lower temperature for consistent scoring
                 },
             )
@@ -257,6 +319,14 @@ async def generate_interview_feedback(
             result = response.json()
             content = result["choices"][0]["message"]["content"]
 
+            # DEBUG: the raw LLM response echoes back the candidate's answer
+            # content inside `detailed_feedback`/quoted excerpts — same PII
+            # concern as the request log above.
+            logger.debug(
+                "Feedback generation raw LLM response",
+                extra={"raw_content": content},
+            )
+
             # Extract token usage
             usage = result.get("usage", {})
             token_usage = {
@@ -266,15 +336,23 @@ async def generate_interview_feedback(
 
             feedback = _parse_feedback_response(content, strict=True)
 
+            # Scores/token counts are safe at INFO (operationally useful, not
+            # sensitive); `detailed_feedback` can quote the candidate's answer,
+            # so it's logged separately at DEBUG only.
             logger.info(
                 "Generated interview feedback",
                 extra={
                     "overall_score": feedback["overall_score"],
+                    "dimension_scores": feedback["dimension_scores"],
                     "input_tokens": token_usage["input_tokens"],
                     "output_tokens": token_usage["output_tokens"],
                     "question_length": len(question) if question else 0,
                     "answer_length": len(answer),
                 },
+            )
+            logger.debug(
+                "Generated interview feedback detail",
+                extra={"detailed_feedback": feedback["detailed_feedback"]},
             )
 
             return feedback, token_usage

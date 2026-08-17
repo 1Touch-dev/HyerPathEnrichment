@@ -762,6 +762,10 @@ export function mapBackendQuestionAttempt(raw: BackendQuestionAttemptResponse): 
     sessionId: raw.session_id,
     userId: raw.user_id,
     questionId: raw.question_id,
+    // `question_text` is only populated by session_manager.py's read paths
+    // (get/list session, add_attempt) — see its docstring; `?? null` covers
+    // schema optionality and pre-existing attempts whose question was deleted.
+    questionText: raw.question_text ?? null,
     // Backend's response_type is an unconstrained str; narrowed here since the
     // DB CheckConstraint (check_response_type) guarantees only these two values exist.
     responseType: raw.response_type as PracticeAttempt["responseType"],

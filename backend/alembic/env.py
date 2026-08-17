@@ -6,7 +6,7 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
-from sqlalchemy import create_engine, pool
+from sqlalchemy import create_engine, pool, text
 from sqlalchemy.engine import Connection
 
 from alembic import context
@@ -62,7 +62,30 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _ensure_wide_version_table(connection: Connection) -> None:
+    """Pre-create alembic_version with version_num VARCHAR(255) on Postgres.
+
+    Alembic auto-creates this table with VARCHAR(32) the first time a fresh
+    (or freshly-stamped) database is migrated. Several of our merge-migration
+    revision ids (e.g. "025_merge_job_matching_and_stabilization_heads") are
+    longer than 32 chars, so the very first head-merge write fails with
+    "value too long for type character varying(32)" on any brand-new
+    Postgres. No-op if the table already exists.
+    """
+    if connection.dialect.name != "postgresql":
+        return
+    connection.execute(
+        text(
+            "CREATE TABLE IF NOT EXISTS alembic_version ("
+            "version_num VARCHAR(255) NOT NULL, "
+            "CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
+        )
+    )
+    connection.commit()
+
+
 def do_run_migrations(connection: Connection) -> None:
+    _ensure_wide_version_table(connection)
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
