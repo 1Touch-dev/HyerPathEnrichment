@@ -1,4 +1,11 @@
-"""Tests for feedback generation worker tasks."""
+"""Tests for feedback generation worker tasks.
+
+Updated to match the current sync implementation (`_generate_feedback_sync` /
+`SyncSessionLocal`, introduced by commit 155a3e10 "Fix sync/async mismatch in
+feedback worker - use sync session"). The previous version of this file tested
+a `_generate_feedback_async` function and patched a `SessionLocal` name that no
+longer exist in `app.workers.tasks.feedback`, so it failed to even import.
+"""
 
 from __future__ import annotations
 
@@ -26,15 +33,22 @@ def in_memory_db():
 
 @pytest.fixture
 def sample_attempt(in_memory_db):
-    """Create a sample QuestionAttempt for testing."""
+    """Create a sample QuestionAttempt for testing.
+
+    `QuestionAttempt` has no real `attempt_metadata` column (see
+    `app.modules.sessions.models`); `feedback.py` treats it as a transient,
+    duck-typed dict attribute via `hasattr`/`getattr`, so it must be set as a
+    plain instance attribute after construction rather than a constructor
+    kwarg (which the declarative constructor would reject as unknown).
+    """
     attempt = QuestionAttempt(
         id=uuid4(),
         session_id=uuid4(),
         user_id=uuid4(),
         response_type="text",
         text_response="REST is an architectural style for building web services...",
-        attempt_metadata={"question_text": "Explain REST APIs"},
     )
+    attempt.attempt_metadata = {"question_text": "Explain REST APIs"}
     in_memory_db.add(attempt)
     in_memory_db.commit()
     in_memory_db.refresh(attempt)
@@ -134,7 +148,7 @@ def test_generate_feedback_sync_tracks_cost(in_memory_db, sample_attempt, mock_f
 
 
 def test_generate_feedback_job_sync_wrapper(sample_attempt, mock_feedback):
-    """Sync wrapper runs async logic successfully."""
+    """Sync wrapper runs feedback generation successfully."""
     with patch("app.workers.tasks.feedback.SyncSessionLocal") as mock_session_local:
         mock_db = MagicMock(spec=Session)
         mock_session_local.return_value = mock_db
@@ -158,18 +172,17 @@ def test_generate_feedback_job_sync_wrapper(sample_attempt, mock_feedback):
 
 
 def test_generate_feedback_job_invalid_uuid():
-    """Invalid UUID format is handled gracefully."""
-    with patch("app.workers.tasks.feedback.SyncSessionLocal") as mock_session_local:
-        mock_db = MagicMock(spec=Session)
-        mock_session_local.return_value = mock_db
+    """Invalid UUID format is handled gracefully without ever opening a DB session.
 
+    `generate_feedback_job` parses the UUID before calling `SyncSessionLocal()`,
+    so an invalid UUID raises and is caught without a session ever being created.
+    """
+    with patch("app.workers.tasks.feedback.SyncSessionLocal") as mock_session_local:
         # Should not raise - error is logged
         generate_feedback_job("not-a-uuid")
 
-        # UUID parsing fails before a DB session is ever opened, so no
-        # session is created and there is nothing to close.
+        # No DB session should have been created for this early failure
         mock_session_local.assert_not_called()
-        mock_db.close.assert_not_called()
 
 
 def test_generate_feedback_job_attempt_not_found():
@@ -241,8 +254,8 @@ def test_generate_feedback_uses_question_from_metadata(in_memory_db):
         user_id=uuid4(),
         response_type="text",
         text_response="My answer here",
-        attempt_metadata={"question_text": "Custom question from metadata"},
     )
+    attempt.attempt_metadata = {"question_text": "Custom question from metadata"}
     in_memory_db.add(attempt)
     in_memory_db.commit()
 

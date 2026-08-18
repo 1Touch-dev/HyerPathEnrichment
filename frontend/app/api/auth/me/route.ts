@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { isMockMode } from "@/src/lib/mocks/enabled";
+
+const MOCK_USER = {
+  id: "mock-user-1",
+  email: "mock.user@hyrepath.dev",
+  first_name: "Mock",
+  last_name: "User",
+  is_verified: true,
+  is_active: true,
+  created_at: "2026-01-01T00:00:00.000Z",
+};
 
 export async function GET(request: NextRequest) {
+  if (isMockMode()) {
+    return NextResponse.json(MOCK_USER);
+  }
+
   const cookieStore = await cookies();
 
   // Backend sets "access_token" not "auth_token"

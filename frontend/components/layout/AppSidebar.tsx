@@ -4,12 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/src/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleSidebar } from "@/store/slices/uiSlice";
 import { allNavSections } from "./nav-config";
 
-export function AppSidebar() {
+type AppSidebarProps = {
+  matchesUnreadCount?: number;
+};
+
+export function AppSidebar({ matchesUnreadCount = 0 }: AppSidebarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const sidebarOpen = useAppSelector((state) => state.ui.sidebarOpen);
@@ -61,6 +66,7 @@ export function AppSidebar() {
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
+                const showUnreadBadge = item.href === "/app/matches" && matchesUnreadCount > 0;
                 return (
                   <li key={item.href}>
                     <Link
@@ -74,8 +80,18 @@ export function AppSidebar() {
                       )}
                       title={!sidebarOpen ? item.label : undefined}
                     >
-                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="relative shrink-0">
+                        <Icon className="h-4 w-4" />
+                        {showUnreadBadge && !sidebarOpen ? (
+                          <span className="absolute -right-1 -top-1 size-2 rounded-full bg-destructive" />
+                        ) : null}
+                      </span>
                       {sidebarOpen ? <span>{item.label}</span> : null}
+                      {showUnreadBadge && sidebarOpen ? (
+                        <Badge variant="destructive" className="ml-auto px-1.5 py-0 text-[10px]">
+                          {matchesUnreadCount}
+                        </Badge>
+                      ) : null}
                     </Link>
                   </li>
                 );

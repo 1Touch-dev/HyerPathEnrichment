@@ -6,7 +6,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     app_name: str = Field(default="Hyrepath Enrichment Backend", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
@@ -121,6 +126,30 @@ class Settings(BaseSettings):
     gmaps_job_timeout_seconds: int = Field(default=300, alias="GMAPS_JOB_TIMEOUT_SECONDS")
     gmaps_job_poll_seconds: int = Field(default=10, alias="GMAPS_JOB_POLL_SECONDS")
 
+    # Module 1: AI Job Matching & Notifications
+    job_matching_enabled: bool = Field(default=True, alias="JOB_MATCHING_ENABLED")
+    job_matching_scan_cron: str = Field(default="0 6 * * *", alias="JOB_MATCHING_SCAN_CRON")
+    job_matching_max_postings_per_scan: int = Field(
+        default=50, alias="JOB_MATCHING_MAX_POSTINGS_PER_SCAN"
+    )
+    job_matching_similarity_threshold: float = Field(
+        default=0.5, alias="JOB_MATCHING_SIMILARITY_THRESHOLD"
+    )
+    job_matching_top_n_explanations: int = Field(default=5, alias="JOB_MATCHING_TOP_N_EXPLANATIONS")
+    job_matching_inactive_after_days: int = Field(
+        default=14, alias="JOB_MATCHING_INACTIVE_AFTER_DAYS"
+    )
+    job_matching_explanation_max_retries: int = Field(
+        default=3, alias="JOB_MATCHING_EXPLANATION_MAX_RETRIES"
+    )
+    notify_sms_enabled: bool = Field(default=False, alias="NOTIFY_SMS_ENABLED")
+
+    # Web push (browser notifications) — VAPID keypair, generate once via `vapid_gen_keys`
+    # or the `py-vapid` CLI (ops step, not committed with real values).
+    vapid_public_key: str = Field(default="", alias="VAPID_PUBLIC_KEY")
+    vapid_private_key: str = Field(default="", alias="VAPID_PRIVATE_KEY")
+    vapid_subject: str = Field(default="mailto:ops@example.com", alias="VAPID_SUBJECT")
+
     # LLM disambiguation
     disambiguation_threshold: float = Field(default=0.7, alias="DISAMBIGUATION_THRESHOLD")
     ollama_base_url: str = Field(default="", alias="OLLAMA_BASE_URL")
@@ -129,6 +158,25 @@ class Settings(BaseSettings):
     litellm_api_key: str = Field(default="", alias="LITELLM_API_KEY")
     litellm_model: str = Field(default="gpt-4o-mini", alias="LITELLM_MODEL")
     litellm_fallbacks: str = Field(default="", alias="LITELLM_FALLBACKS")
+
+    # Module 2: Tinder-Style Job Board + CV Management (portfolio public URL)
+    # NOTE: portfolio_public_base_url, cv_chat_max_turns, and cv_feedback_model
+    # are added here because portfolio/service.py, cv_chat_service.py, and
+    # feedback_generator.py already read them and need them to be non-blocking
+    # per the reviewer gate.
+    portfolio_public_base_url: str = Field(default="", alias="PORTFOLIO_PUBLIC_BASE_URL")
+    app_public_base_url: str = Field(default="", alias="APP_PUBLIC_BASE_URL")
+    cv_chat_max_turns: int = Field(default=12, alias="CV_CHAT_MAX_TURNS")
+    cv_feedback_model: str = Field(default="gpt-4o-mini", alias="CV_FEEDBACK_MODEL")
+
+    # Module 2 §5.9/§8.12: Perplexity Sonar client + outreach drafting (Decision 5/7)
+    # — added here because app/clients/perplexity.py and modules/outreach/service.py
+    # already read these and need them to be non-blocking.
+    perplexity_api_key: str = Field(default="", alias="PERPLEXITY_API_KEY")
+    perplexity_api_base: str = Field(
+        default="https://api.perplexity.ai", alias="PERPLEXITY_API_BASE"
+    )
+    outreach_enabled: bool = Field(default=True, alias="OUTREACH_ENABLED")
 
     # OpenAI API (for CV extraction, embeddings, etc.)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")

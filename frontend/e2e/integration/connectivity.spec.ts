@@ -54,9 +54,11 @@ test.describe("Live backend integration", () => {
     await page.getByLabel("Quick (sync)").click();
     await page.getByRole("textbox", { name: /Username/ }).fill(username);
 
-    // Include tiers 2/3/4 (sync mode filters tier1 automatically).
-    await page.getByRole("button", { name: "Advanced" }).click();
-    await page.getByRole("radio", { name: "Deep" }).click();
+    // Tiers 2 (Username Discovery) and 3 (Deep OSINT) are checked by default
+    // in sync mode; tier 1 is unavailable and tier 4 needs extra fields we
+    // aren't filling here, so the defaults are exactly what this test wants.
+    await expect(page.getByRole("checkbox", { name: /Username Discovery/ })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: /Deep OSINT/ })).toBeChecked();
 
     await expect(page.getByRole("button", { name: "Look up" })).toBeEnabled({ timeout: 15_000 });
     await page.getByRole("button", { name: "Look up" }).click();

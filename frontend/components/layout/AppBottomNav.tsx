@@ -9,13 +9,14 @@ import { mainNav, systemNav } from "./nav-config";
 
 type AppBottomNavProps = {
   pathname: string;
+  matchesUnreadCount?: number;
 };
 
 function isPathActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppBottomNav({ pathname }: AppBottomNavProps) {
+export function AppBottomNav({ pathname, matchesUnreadCount = 0 }: AppBottomNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreActive = systemNav.items.some((item) => isPathActive(pathname, item.href));
 
@@ -26,16 +27,22 @@ export function AppBottomNav({ pathname }: AppBottomNavProps) {
           {mainNav.items.map((item) => {
             const Icon = item.icon;
             const active = isPathActive(pathname, item.href);
+            const showUnreadBadge = item.href === "/app/matches" && matchesUnreadCount > 0;
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
                   className={cn(
-                    "flex flex-col items-center gap-1 rounded-md px-2 py-2 text-xs",
+                    "relative flex flex-col items-center gap-1 rounded-md px-2 py-2 text-xs",
                     active ? "bg-secondary text-primary" : "text-muted-foreground",
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <span className="relative">
+                    <Icon className="h-4 w-4" />
+                    {showUnreadBadge ? (
+                      <span className="absolute -right-1.5 -top-1.5 size-2 rounded-full bg-destructive" />
+                    ) : null}
+                  </span>
                   <span>{item.label}</span>
                 </Link>
               </li>

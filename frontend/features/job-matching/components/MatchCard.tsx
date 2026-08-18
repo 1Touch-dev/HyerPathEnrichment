@@ -1,0 +1,86 @@
+"use client";
+
+import { JobCard } from "@/components/dossier/JobCard";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
+import type { JobMatch } from "@/src/lib/types";
+import { useMarkMatchViewed, useSubmitFeedback } from "../hooks/useMatches";
+import { useEffect } from "react";
+
+interface MatchCardProps {
+  match: JobMatch;
+}
+
+function scoreColor(score: number): string {
+  if (score >= 80) return "bg-green-100 text-green-800";
+  if (score >= 60) return "bg-yellow-100 text-yellow-800";
+  return "bg-gray-100 text-gray-600";
+}
+
+export function MatchCard({ match }: MatchCardProps) {
+  const markViewed = useMarkMatchViewed();
+  const submitFeedback = useSubmitFeedback();
+
+  useEffect(() => {
+    if (match.isNew) {
+      markViewed.mutate(match.matchId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match.matchId]);
+
+  return (
+    <div className="relative rounded-lg border p-4">
+      <div className="absolute right-4 top-4">
+        <Badge className={scoreColor(match.overallScore)}>
+          {Math.round(match.overallScore)}/100
+        </Badge>
+      </div>
+
+      <JobCard
+        job={{
+          title: match.title,
+          company: match.company,
+          location: match.location ?? "",
+          remote: match.remote,
+          source: match.source,
+        }}
+      />
+
+      {match.explanation && (
+        <p className="mt-2 text-sm text-muted-foreground">{match.explanation}</p>
+      )}
+
+      <div className="mt-3 flex items-center gap-2">
+        {match.sourceUrl && (
+          <a
+            href={match.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            View posting
+          </a>
+        )}
+        <div className="ml-auto flex gap-1">
+          <Button
+            size="icon"
+            variant={match.feedback === "up" ? "default" : "ghost"}
+            onClick={() => submitFeedback.mutate({ matchId: match.matchId, feedback: "up" })}
+            aria-label="Good match"
+          >
+            <ThumbsUp className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant={match.feedback === "down" ? "default" : "ghost"}
+            onClick={() => submitFeedback.mutate({ matchId: match.matchId, feedback: "down" })}
+            aria-label="Not a good match"
+          >
+            <ThumbsDown className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

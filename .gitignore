@@ -69,6 +69,7 @@ pnpm-debug.log*
 playwright-report/
 test-results/
 blob-report/
+frontend/e2e/integration/.auth/
 
 # IDE / editor
 .vscode/
@@ -82,3 +83,6 @@ blob-report/
 
 # Agent local session notes (not for org repo)
 memory/
+
+# Orchestrator-managed git worktrees (kept inside workspace for file-write approval scoping)
+.worktrees-m2/

@@ -2,8 +2,8 @@
 
 Hyrepath Enrichment backend — architecture reference for the FastAPI service under `backend/`.
 
-**Version:** 0.3 (July 2026)
-**Last verified against code:** 2026-07-20
+**Version:** 0.4 (August 2026)
+**Last verified against code:** 2026-08-13
 **Repo layout:** `HyerEnrichment/backend/` (split from the Next.js frontend in `frontend/`)
 
 ---
@@ -55,6 +55,12 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | DSAR flow | **`POST/GET /api/dsar`** — requires authenticated verified user in v1 (per ADR 0009) |
 | Data erasure on opt-out | Opt-out service → compliance suppress + purge jobs, photo cache, R2/local assets |
 | Sidecars are real services | Compose uses **real images**; free-mode ones default-on, paid/heavy ones behind `profiles:` |
+| SMS notification channel | Job-matching preferences accept `"sms"` but no Twilio client exists; selecting it is a UI-disabled no-op. |
+| CV chat runs on a worker queue | It does not — synchronous on the `api` container per Decision 2 (`phase2_module2.md` §3). There is no `cv_chat` RQ queue; `documents/cv_chat_service.py` calls OpenAI inline within the request. |
+| Outreach has its own dedicated worker container | It does not — shares the generic `worker` container's `QUEUE_OUTREACH` (`outreach_generation`, added to the existing fixed-priority list in `rq_worker.py` right after `QUEUE_FEEDBACK`), unlike Module 1's `job_matching`, which does have a dedicated container. See `phase2_module2.md` §10 and ADR 0014 for why these two decisions differ. |
+| Portfolio pages are all behind auth | `GET /api/portfolio/public/{slug}` (and its frontend counterpart `/p/[slug]`) are deliberately public — see ADR 0014. Every other portfolio/outreach/CV-chat/swipe route requires an authenticated, verified user (`Depends(current_verified_user)` at the `app.include_router` call in `main.py`). |
+| "Send" on an outreach message actually emails the recipient | It does not, in v1 — `send_message()` in `app/modules/outreach/service.py` appends the mandatory CAN-SPAM disclosure footer and marks the message `sent`, but never transmits over SMTP; the candidate copies/sends the drafted text themselves. Real outbound send-as-the-candidate infrastructure (deliverability, SPF/DKIM) is explicitly out of scope for v1. |
+| Module 2 shipped a CV upload widget | It did not — `frontend/app/app/documents/DocumentsView.tsx` only lists and links into existing documents; it explicitly assumes a generic upload widget that, as of this writing, still does not exist anywhere in `frontend/` (same gap `phase2_module1.md` §11.10 already flagged, still open after Module 2). |
 
 ### Task routing — where to start
 
@@ -686,6 +692,12 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Scrapoxy proxy pool | Rate-limit hardening | `ProxyProvider` (`PROXY_MODE=none|scrapoxy|paid`, default none = direct) |
 | Change signals | changedetection.io webhook → notify | `POST /api/signals/changedetection` → `clients/notify.py` (`NOTIFY_WEBHOOK_URL`, optional `X-Signal-Token`) |
 | Prometheus metrics | `/metrics` endpoint | Optional dependency |
+| Job matching (Module 1) | `app/modules/job_matching/`, `app/workers/tasks/job_matching.py` | Real, scaffolded per `phase2_module1.md`. Depends on CV upload UI existing (currently missing — see that doc §11.10). |
+| CV completeness chat (Module 2) | `app/modules/documents/cv_chat_service.py`, `app/clients/llm_tools.py` | Real, implemented per `phase2_module2.md`. Synchronous on `api`, no queue. Function-calling tool (`record_cv_answer`) constrains the model to structured answers, never free-form CV data (ADR 0014). |
+| CV improvement feedback (Module 2) | `app/services/feedback_generator.py` (`generate_cv_improvement`), `app/workers/tasks/cv_improvement.py` | Real, implemented per `phase2_module2.md`. Shares `QUEUE_FEEDBACK` with Foundation Week 2's interview feedback. Writes to `cv_feedback_reports`, never overwrites the stored CV — draft-then-explicit-accept, no auto-apply. |
+| Candidate portfolio (Module 2) | `app/modules/portfolio/` | Real, implemented per `phase2_module2.md`. Only Module 2 feature with an unauthenticated public route (`GET /api/portfolio/public/{slug}`, ADR 0014) — served by a separate `public_router` with no auth dependency, and a distinct `PublicPortfolioResponse` schema with no `user_id` field. |
+| Job swipe deck (Module 2) | `app/modules/job_swipe/` | Real, implemented per `phase2_module2.md`. Read-only against Module 1's `job_matches`/`job_postings` (joined in `repository.py`) — never writes to either table; only writes its own `job_swipe_actions`. Depends on Module 1 shipping first. |
+| Personalized outreach (Module 2) | `app/modules/outreach/`, `app/clients/perplexity.py` | Real, implemented per `phase2_module2.md`. New external dependency: Perplexity Sonar API (ADR 0014), degrades to a generic draft on failure. Every message starts `status="draft"`; "send" appends the mandatory CAN-SPAM disclosure footer and marks `sent`, but does not transmit email itself — the candidate copies/sends it externally (v1 scope; see `outreach/service.py`). |
 
 Use this table when reviewing PRs, running `GRILLME.md` sessions, or planning the next delivery slice.
 

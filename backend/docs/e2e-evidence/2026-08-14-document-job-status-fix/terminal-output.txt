@@ -1,0 +1,270 @@
+================================================================
+# PART 1/3: setup_stack.sh -- bring up real Postgres+Redis+uvicorn+RQ worker
+================================================================
+=== [1/7] tearing down any pre-existing 'docker' compose project (clean slate) ===
+time="2026-08-14T06:28:27Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-08-14T06:28:27Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-08-14T06:28:27Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-08-14T06:28:27Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-08-14T06:28:27Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-08-14T06:28:27Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+ Container docker-redis-1 Stopping
+ Container docker-postgres-1 Stopping
+ Container docker-postgres-1 Stopped
+ Container docker-postgres-1 Removing
+ Container docker-redis-1 Stopped
+ Container docker-redis-1 Removing
+ Container docker-postgres-1 Removed
+ Container docker-redis-1 Removed
+ Volume docker_postgres_data Removing
+ Network docker_default Removing
+ Network docker_default Removed
+ Volume docker_postgres_data Removed
+=== [2/7] bringing up Postgres + Redis via docker-compose ===
+ Network docker_default Creating
+ Network docker_default Creating
+ Volume docker_postgres_data Creating
+ Volume docker_postgres_data Creating
+ Volume docker_postgres_data Created
+ Volume docker_postgres_data Created
+ Network docker_default Created
+ Network docker_default Created
+ Container docker-redis-1 Creating
+ Container docker-postgres-1 Creating
+ Container docker-redis-1 Created
+ Container docker-postgres-1 Created
+ Container docker-redis-1 Starting
+ Container docker-postgres-1 Starting
+ Container docker-redis-1 Started
+ Container docker-postgres-1 Started
+=== waiting for postgres+redis health ===
+  [1] postgres=starting redis=starting
+  [2] postgres=starting redis=starting
+  [3] postgres=starting redis=healthy
+  [4] postgres=healthy redis=healthy
+time="2026-08-14T06:29:52Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-08-14T06:29:52Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-08-14T06:29:52Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-08-14T06:29:52Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-08-14T06:29:52Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+time="2026-08-14T06:29:52Z" level=warning msg="The \"POSTGRES_PASSWORD\" variable is not set. Defaulting to a blank string."
+NAME                IMAGE             COMMAND                  SERVICE    CREATED          STATUS                    PORTS
+docker-postgres-1   docker-postgres   "docker-entrypoint.s…"   postgres   19 seconds ago   Up 14 seconds (healthy)   127.0.0.1:5433->5432/tcp
+docker-redis-1      redis:7-alpine    "docker-entrypoint.s…"   redis      19 seconds ago   Up 14 seconds (healthy)   0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+=== [3/7] creating Python venv on native ext4 (not /mnt/g, for speed) ===
+venv ready: Python 3.14.4
+=== [4/7] loading backend/.env.production for POSTGRES_USER/PASSWORD/API_TOKEN (values never echoed) ===
+/tmp/tmp.IyP1JNXMPk: line 140: Enrichment: command not found
+=== [5/7] alembic upgrade head (real Postgres migration) ===
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 001_baseline_schema, Create baseline schema (jobs, suppression, audit, dsar, photo_cache).
+INFO  [alembic.runtime.migration] Running upgrade 001_baseline_schema -> 002_promote_json_to_jsonb, Idempotent promote of document columns to JSONB (+ add missing cols).
+INFO  [alembic.runtime.migration] Running upgrade 002_promote_json_to_jsonb -> 003_add_signals_table, Add signals table for persisted change notifications.
+INFO  [alembic.runtime.migration] Running upgrade 003_add_signals_table -> 64970cccdab8, Add progress_metadata to JobRecord
+INFO  [alembic.runtime.migration] Running upgrade 64970cccdab8 -> 004_add_parent_child_job_fields, Add parent-child job relationship fields
+INFO  [alembic.runtime.migration] Running upgrade 004_add_parent_child_job_fields -> 005_add_is_internal_flag, Add is_internal flag to jobs table
+INFO  [alembic.runtime.migration] Running upgrade 005_add_is_internal_flag -> 006_add_user_authentication, Add user authentication and related tables
+INFO  [alembic.runtime.migration] Running upgrade 006_add_user_authentication -> 007_add_user_id_to_dsar, Add user_id to DSAR requests
+INFO  [alembic.runtime.migration] Running upgrade 007_add_user_id_to_dsar -> 008_candidate_documents, Add candidate_documents table for CV and document storage.
+INFO  [alembic.runtime.migration] Running upgrade 008_candidate_documents -> 009_unique_user_file_hash, Add unique constraint on user_id + file_hash for document deduplication
+INFO  [alembic.runtime.migration] Running upgrade 009_unique_user_file_hash -> 010_enable_pgvector, Enable pgvector extension for vector embeddings storage.
+INFO  [alembic.runtime.migration] Running upgrade 010_enable_pgvector -> 013_document_jobs, Add document_jobs table for tracking document processing jobs.
+INFO  [alembic.runtime.migration] Running upgrade 013_document_jobs -> 014_document_embeddings, Create document_embeddings table with pgvector support
+INFO  [alembic.runtime.migration] Running upgrade 014_document_embeddings -> 016_interview_questions, Create interview_questions table
+INFO  [alembic.runtime.migration] Running upgrade 014_document_embeddings -> 015_add_session_tracking, Add session tracking tables
+INFO  [alembic.runtime.migration] Running upgrade 015_add_session_tracking, 016_interview_questions -> 017_practice_audio_recordings, Add practice audio recordings table
+INFO  [alembic.runtime.migration] Running upgrade 017_practice_audio_recordings -> 018_job_postings, Add job_postings table for deduplicated scraped job listings.
+INFO  [alembic.runtime.migration] Running upgrade 018_job_postings -> 019_job_posting_embeddings, Add job_posting_embeddings table for pgvector-based job matching.
+INFO  [alembic.runtime.migration] Running upgrade 019_job_posting_embeddings -> 020_candidate_job_preferences, Add candidate_job_preferences table.
+INFO  [alembic.runtime.migration] Running upgrade 020_candidate_job_preferences -> 021_job_matches, Add job_matches table for scored candidate-job pairings.
+INFO  [alembic.runtime.migration] Running upgrade 021_job_matches -> 022_webhook_url_preferences, Add webhook_url to candidate_job_preferences (webhook notification target).
+INFO  [alembic.runtime.migration] Running upgrade 022_webhook_url_preferences -> 023_job_match_explanation_status, Add explanation retry state machine columns to job_matches.
+INFO  [alembic.runtime.migration] Running upgrade 023_job_match_explanation_status -> 024_push_subscriptions, Add push_subscriptions table for browser push notification delivery.
+INFO  [alembic.runtime.migration] Running upgrade 017_practice_audio_recordings -> 018_add_attempt_metadata, Add attempt_metadata to question_attempts
+INFO  [alembic.runtime.migration] Running upgrade 018_add_attempt_metadata -> 019_rename_audit_log_metadata, Rename auth_audit_logs.metadata to extra_data
+INFO  [alembic.runtime.migration] Running upgrade 019_rename_audit_log_metadata, 024_push_subscriptions -> 025_merge_job_match_heads, Merge job-matching and stabilization migration heads
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+025_merge_job_match_heads (head) (mergepoint)
+=== [6/7] starting real uvicorn (background) ===
+uvicorn pid=1762
+=== waiting for API health ===
+  [1] health=000
+  [2] health=000
+  [3] health=000
+  [4] health=000
+  [5] health=000
+  [6] health=000
+  [7] health=000
+  [8] health=200
+=== [7/7] starting real RQ worker for the document_processing queue (background) ===
+worker pid=1920
+=== setup complete ===
+
+================================================================
+# PART 2/3: run_e2e_tests.sh -- PROOF 1 (success path) + PROOF 2 (in-task failure path)
+================================================================
+############################################
+## Register + verify + login a test user  ##
+############################################
+email=e2e-doc-fix-1786690183@example.com
+--- POST /auth/register ---
+{"message":"Registration successful. Please check your email to verify your account.","detail":null}
+--- fetching verification token directly from Postgres (EMAIL_TEST_MODE=true; no real email sent) ---
+verification_token(len)=43
+--- POST /auth/verify-email ---
+{"message":"Email verified successfully. You can now log in.","detail":null}
+--- POST /auth/login (stores HttpOnly cookies) ---
+{"user":{"id":"b60c7349-fcc5-4bf5-88fa-b28064b27f20","email":"e2e-doc-fix-1786690183@example.com","first_name":"E2E","last_name":"DocFix","avatar_url":null,"oauth_provider":null,"is_verified":true,"is_active":true,"is_superuser":false,"deleted_at":null,"created_at":"2026-08-14T06:49:44.607374Z","updated_at":"2026-08-14T06:49:46.114352Z"},"message":"Login successful"}
+--- GET /auth/me (confirm is_verified=true) ---
+{"id":"b60c7349-fcc5-4bf5-88fa-b28064b27f20","email":"e2e-doc-fix-1786690183@example.com","first_name":"E2E","last_name":"DocFix","avatar_url":null,"oauth_provider":null,"is_verified":true,"is_active":true,"is_superuser":false,"deleted_at":null,"created_at":"2026-08-14T06:49:44.607374Z","updated_at":"2026-08-14T06:49:46.114352Z"}
+
+############################################
+## PROOF 1: success path (real, valid PDF)##
+############################################
+upload response: {"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","message":"Document uploaded successfully"},"message":null,"meta":null}
+job_id=c0aa8faf-70a4-4d4d-91f9-4969ed620e17 document_id=9a30beeb-17ba-454c-93d4-7b5b30bb7c21
+--- polling GET /api/documents/jobs/c0aa8faf-70a4-4d4d-91f9-4969ed620e17 until terminal ---
+  [1] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [2] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [3] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [4] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [5] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [6] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [7] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [8] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [9] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [10] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [11] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [12] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [13] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [14] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [15] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [16] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [17] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [18] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [19] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [20] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [21] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [22] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [23] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [24] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [25] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [26] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [27] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [28] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [29] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [30] status=pending raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"pending","progress":0.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:49:47.085420"},"message":null,"meta":null}
+  [31] status=completed raw={"success":true,"data":{"job_id":"c0aa8faf-70a4-4d4d-91f9-4969ed620e17","status":"completed","progress":1.0,"document_id":"9a30beeb-17ba-454c-93d4-7b5b30bb7c21","result":null,"error":null,"created_at":"2026-08-14T06:49:47.085416","updated_at":"2026-08-14T06:50:19.958188"},"message":null,"meta":null}
+>>> PROOF 1 final status: completed
+
+############################################
+## PROOF 2: in-task failure path (malformed.pdf)
+############################################
+--- malformed.pdf fixture bytes (hex) ---
+00000000: 2550 4446 2d31 2e34 0a54 6869 7320 6973  %PDF-1.4.This is
+00000010: 206e 6f74 2076 616c 6964 2050 4446 2063   not valid PDF c
+00000020: 6f6e 7465 6e74 210a 5261 6e64 6f6d 2062  ontent!.Random b
+00000030: 7974 6573 3a20 0001 02ff fe0a            ytes: ......
+upload response: {"success":true,"data":{"job_id":"8e435de3-28d4-4acc-bd3c-63074829aa9b","document_id":"da26479c-bacb-443e-a4b8-0c50b37965cc","message":"Document uploaded successfully"},"message":null,"meta":null}
+job_id=8e435de3-28d4-4acc-bd3c-63074829aa9b document_id=da26479c-bacb-443e-a4b8-0c50b37965cc
+--- polling GET /api/documents/jobs/8e435de3-28d4-4acc-bd3c-63074829aa9b until terminal ---
+  [1] status=pending raw={"success":true,"data":{"job_id":"8e435de3-28d4-4acc-bd3c-63074829aa9b","status":"pending","progress":0.0,"document_id":"da26479c-bacb-443e-a4b8-0c50b37965cc","result":null,"error":null,"created_at":"2026-08-14T06:50:20.454559","updated_at":"2026-08-14T06:50:20.454562"},"message":null,"meta":null}
+  [2] status=pending raw={"success":true,"data":{"job_id":"8e435de3-28d4-4acc-bd3c-63074829aa9b","status":"pending","progress":0.0,"document_id":"da26479c-bacb-443e-a4b8-0c50b37965cc","result":null,"error":null,"created_at":"2026-08-14T06:50:20.454559","updated_at":"2026-08-14T06:50:20.454562"},"message":null,"meta":null}
+  [3] status=failed raw={"success":true,"data":{"job_id":"8e435de3-28d4-4acc-bd3c-63074829aa9b","status":"failed","progress":0.0,"document_id":"da26479c-bacb-443e-a4b8-0c50b37965cc","result":null,"error":"Failed to process PDF: Failed to open stream","created_at":"2026-08-14T06:50:20.454559","updated_at":"2026-08-14T06:50:22.120640"},"message":null,"meta":null}
+>>> PROOF 2 final status: failed
+
+############################################
+
+================================================================
+# PART 3/3: run_proof3_final.sh -- PROOF 3 (worker crash / AbandonedJobError path)
+================================================================
+=== loading backend/.env.production for POSTGRES_USER/PASSWORD (values never echoed) ===
+/tmp/tmp.6P0tqMehlB: line 140: Enrichment: command not found
+
+############################################
+## Register + verify + login a NEW test user (final proof-3 attempt)
+############################################
+email=e2e-doc-fix-crash3-1786691883@example.com
+{"message":"Registration successful. Please check your email to verify your account.","detail":null}
+verification_token(len)=43
+{"message":"Email verified successfully. You can now log in.","detail":null}
+{"user":{"id":"7e6553ae-e431-45fa-b59b-c120bd8b4292","email":"e2e-doc-fix-crash3-1786691883@example.com","first_name":"E2E","last_name":"Crash3","avatar_url":null,"oauth_provider":null,"is_verified":true,"is_active":true,"is_superuser":false,"deleted_at":null,"created_at":"2026-08-14T07:18:04.082213Z","updated_at":"2026-08-14T07:18:04.637966Z"},"message":"Login successful"}
+
+############################################
+## PROOF 3 (final): worker crash after job reaches 'started'
+############################################
+--- clean slate: kill any existing worker ---
+--- starting the 'live' worker (correctly configured) ---
+live worker pid=46012
+  46012 Sl+  /home/axiz/hyre-e2e-venv/bin/python3 /home/axiz/hyre-e2e-venv/bin/rq worker document_processing --url redis://localhost:6379/0
+--- SIGSTOP the worker (freeze it so it cannot dequeue) ---
+  46012 Tl+  /home/axiz/hyre-e2e-venv/bin/python3 /home/axiz/hyre-e2e-venv/bin/rq worker document_processing --url redis://localhost:6379/0
+--- uploading a valid PDF while worker is frozen (document_type=cv) ---
+upload response: {"success":true,"data":{"job_id":"97c25060-3c7d-4d85-adbb-d2bde3ff1250","document_id":"50fa25cd-be1f-4742-9a21-7ecfe3b13540","message":"Document uploaded successfully"},"message":null,"meta":null}
+job_id=97c25060-3c7d-4d85-adbb-d2bde3ff1250 document_id=50fa25cd-be1f-4742-9a21-7ecfe3b13540
+--- confirm job is still 'pending' while worker frozen ---
+{"success":true,"data":{"job_id":"97c25060-3c7d-4d85-adbb-d2bde3ff1250","status":"pending","progress":0.0,"document_id":"50fa25cd-be1f-4742-9a21-7ecfe3b13540","result":null,"error":null,"created_at":"2026-08-14T07:18:08.057725","updated_at":"2026-08-14T07:18:08.057730"},"message":null,"meta":null}
+--- resume worker, wait 4s for it to reach RQ status=started, THEN SIGKILL ---
+resume at 2026-08-14T07:18:08.265646340
+kill at 2026-08-14T07:18:12.277268155
+/mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/docs/e2e-evidence/2026-08-14-document-job-status-fix/run_proof3_final.sh: line 103: 46012 Killed                     nohup "$VENV/bin/rq" worker document_processing --url redis://localhost:6379/0 > "$HOME/hyre-e2e-worker-live3.log" 2>&1
+--- process list after kill (should show none) ---
+(no rq worker processes running)
+--- worker-live3 log (should show 'Processing document'/dequeue line, no completion line) ---
+07:18:06 Worker a4bc093e2941401fa5f1c550513491ca: started with PID 46012, version 2.10.0
+07:18:06 Worker a4bc093e2941401fa5f1c550513491ca: subscribing to channel rq:pubsub:a4bc093e2941401fa5f1c550513491ca
+07:18:06 *** Listening on document_processing...
+07:18:06 Worker a4bc093e2941401fa5f1c550513491ca: cleaning registries for queue: document_processing
+07:18:08 document_processing: app.workers.tasks.document.process_document_job('50fa25cd-be1f-4742-9a21-7ecfe3b13540', b'%PDF-1.3\r\n%\x93\x8c\x8b\x9e ReportLab Generated PDF document (opensourc..., 'application/pdf', '97c25060-3c7d-4d85-adbb-d2bde3ff1250') (4d25c372-c578-4dbe-b449-7a7d129e1eb8)
+warning: The `fitz` API is deprecated and will be removed in future. Use `import pymupdf` instead.
+--- immediate job status right after kill (expect still non-terminal) ---
+{"success":true,"data":{"job_id":"97c25060-3c7d-4d85-adbb-d2bde3ff1250","status":"pending","progress":0.0,"document_id":"50fa25cd-be1f-4742-9a21-7ecfe3b13540","result":null,"error":null,"created_at":"2026-08-14T07:18:08.057725","updated_at":"2026-08-14T07:18:08.057730"},"message":null,"meta":null}
+--- waiting for StartedJobRegistry heartbeat TTL to expire (~90s from job start per rq 2.10 formula) ---
+  waiting... 5s elapsed
+  waiting... 10s elapsed
+  waiting... 15s elapsed
+  waiting... 20s elapsed
+  waiting... 25s elapsed
+  waiting... 30s elapsed
+  waiting... 35s elapsed
+  waiting... 40s elapsed
+  waiting... 45s elapsed
+  waiting... 50s elapsed
+  waiting... 55s elapsed
+  waiting... 60s elapsed
+  waiting... 65s elapsed
+  waiting... 70s elapsed
+  waiting... 75s elapsed
+  waiting... 80s elapsed
+  waiting... 85s elapsed
+  waiting... 90s elapsed
+  waiting... 95s elapsed
+  waiting... 100s elapsed
+  waiting... 105s elapsed
+  waiting... 110s elapsed
+--- starting a FRESH rq worker process (new PID), correctly configured ---
+new worker pid=47086
+--- new worker startup log ---
+07:20:03 Worker 80705d333ce2461b9a254715c4312352: started with PID 47086, version 2.10.0
+07:20:03 Worker 80705d333ce2461b9a254715c4312352: subscribing to channel rq:pubsub:80705d333ce2461b9a254715c4312352
+07:20:03 *** Listening on document_processing...
+07:20:03 Worker 80705d333ce2461b9a254715c4312352: cleaning registries for queue: document_processing
+Document job failed at the RQ worker level (timeout or crashed/abandoned worker)
+StartedJobRegistry cleanup: 4d25c372-c578-4dbe-b449-7a7d129e1eb8 Moved to FailedJobRegistry, due to AbandonedJobError, at 2026-08-14 07:20:05.051840+00:00
+--- polling GET /api/documents/jobs/97c25060-3c7d-4d85-adbb-d2bde3ff1250 until terminal ---
+  [1] status=failed raw={"success":true,"data":{"job_id":"97c25060-3c7d-4d85-adbb-d2bde3ff1250","status":"failed","progress":0.0,"document_id":"50fa25cd-be1f-4742-9a21-7ecfe3b13540","result":null,"error":"Worker-level failure: AbandonedJobError: ","created_at":"2026-08-14T07:18:08.057725","updated_at":"2026-08-14T07:20:05.015170"},"message":null,"meta":null}
+>>> PROOF 3 (final) status: failed
+--- tail of fresh worker log after polling ---
+07:20:03 Worker 80705d333ce2461b9a254715c4312352: started with PID 47086, version 2.10.0
+07:20:03 Worker 80705d333ce2461b9a254715c4312352: subscribing to channel rq:pubsub:80705d333ce2461b9a254715c4312352
+07:20:03 *** Listening on document_processing...
+07:20:03 Worker 80705d333ce2461b9a254715c4312352: cleaning registries for queue: document_processing
+Document job failed at the RQ worker level (timeout or crashed/abandoned worker)
+StartedJobRegistry cleanup: 4d25c372-c578-4dbe-b449-7a7d129e1eb8 Moved to FailedJobRegistry, due to AbandonedJobError, at 2026-08-14 07:20:05.051840+00:00
+
+############################################
+## PROOF 3 FINAL SUMMARY
+############################################
+job_id=97c25060-3c7d-4d85-adbb-d2bde3ff1250 document_id=50fa25cd-be1f-4742-9a21-7ecfe3b13540 final_status=failed

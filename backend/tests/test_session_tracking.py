@@ -445,3 +445,41 @@ class TestEdgeCases:
         assert session.questions_attempted == 3
         assert session.questions_completed == 3
         assert len(session.attempts) == 3
+
+
+class TestUserIdUuidCoercion:
+    """Regression tests for phase2_module2.md §2.1 Bug 2: user_id must be coerced to
+    uuid.UUID before binding to the ORM column, or Postgres raises StatementError
+    ('str' object has no attribute 'hex')."""
+
+    async def test_create_session_accepts_uuid_user_id(
+        self, session_manager: SessionManager, test_user_id: UUID
+    ):
+        """Passing a real uuid.UUID instance works and round-trips correctly."""
+        request = SessionCreateRequest(session_type="technical")
+        response = await session_manager.create_session(request, test_user_id)
+
+        assert isinstance(response.user_id, UUID)
+        assert response.user_id == test_user_id
+
+    async def test_create_session_accepts_str_user_id(
+        self, session_manager: SessionManager, test_user_id: UUID
+    ):
+        """Passing a str user_id (as an API boundary caller might) is coerced to
+        uuid.UUID before it reaches the PracticeSession constructor, instead of
+        raising StatementError."""
+        request = SessionCreateRequest(session_type="technical")
+        response = await session_manager.create_session(request, str(test_user_id))
+
+        assert isinstance(response.user_id, UUID)
+        assert response.user_id == test_user_id
+
+    async def test_add_attempt_accepts_str_user_id(
+        self, session_manager: SessionManager, sample_session: PracticeSession, test_user_id: UUID
+    ):
+        """add_attempt's user_id is coerced the same way as create_session's."""
+        request = QuestionAttemptRequest(response_type="text", text_response="Answer")
+        response = await session_manager.add_attempt(sample_session.id, request, str(test_user_id))
+
+        assert isinstance(response.user_id, UUID)
+        assert response.user_id == test_user_id

@@ -20,10 +20,18 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      name: "integration-setup",
+      testMatch: "integration/auth.setup.ts",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       name: "integration",
       testMatch: "integration/**/*.spec.ts",
+      testIgnore: "integration/auth.setup.ts",
+      dependencies: ["integration-setup"],
       use: {
         ...devices["Desktop Chrome"],
+        storageState: "e2e/integration/.auth/user.json",
       },
     },
   ],

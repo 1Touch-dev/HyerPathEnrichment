@@ -18,6 +18,7 @@ MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10MB
 ALLOWED_MIME_TYPES = {
     "application/pdf": "pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/msword": "doc",
 }
 
 
@@ -126,6 +127,28 @@ class DocumentStorageClient:
                 },
             )
             raise DocumentStorageError(f"Upload failed: {exc}") from exc
+
+    async def download_document(self, storage_path: str) -> bytes:
+        """Download document bytes from storage.
+
+        Args:
+            storage_path: Storage path/key from upload
+
+        Returns:
+            Raw file bytes
+
+        Raises:
+            DocumentStorageError: If the object cannot be read from storage
+        """
+        try:
+            return await self._storage.download_bytes(storage_path)
+        except Exception as exc:
+            logger.error(
+                "Failed to download document",
+                exc_info=True,
+                extra={"storage_path": storage_path[:32], "error": str(exc)},
+            )
+            raise DocumentStorageError(f"Download failed: {exc}") from exc
 
     async def delete_document(self, storage_path: str) -> bool:
         """Delete document from storage.

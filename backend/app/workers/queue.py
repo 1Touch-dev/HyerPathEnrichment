@@ -20,11 +20,19 @@ QUEUE_CV_EXTRACTION = "cv_extraction"
 QUEUE_FEEDBACK = "feedback"
 QUEUE_AUDIO_CLEANUP = "audio_cleanup"
 
+# Module 1: AI Job Matching & Notifications
+QUEUE_JOB_MATCHING = "job_matching"
+
+# Module 2: Tinder-Style Job Board + CV Management (outreach drafting, §8.15)
+QUEUE_OUTREACH = "outreach_generation"
+
 # Queue priorities (higher = processed first)
 QUEUE_PRIORITIES = {
     QUEUE_EMAIL: 10,  # Highest (user-facing)
     QUEUE_CV_EXTRACTION: 8,  # High (user-facing)
     QUEUE_FEEDBACK: 7,  # High (user-facing feedback)
+    QUEUE_JOB_MATCHING: 6,  # Between feedback (7) and document (5) — user-facing but async
+    QUEUE_OUTREACH: 6,  # NEW — user-facing but not time-critical; below feedback, above document/embedding
     QUEUE_DOCUMENT: 5,  # Medium (async)
     QUEUE_EMBEDDING: 3,  # Low (batch)
     QUEUE_NAME: 2,  # Low (existing enrichment)
@@ -191,6 +199,47 @@ def enqueue_feedback(attempt_id: str) -> None:
         raise
 
 
+def enqueue_job_matching_scan(user_id: str) -> None:
+    """Enqueue a job-matching scan for a single candidate.
+
+    Args:
+        user_id: UUID string of the candidate to scan
+
+    Raises:
+        Exception: On enqueue failure
+    """
+    from app.workers.tasks.job_matching import scan_jobs_for_candidate
+
+    connection = get_redis_connection()
+    try:
+        queue = Queue(QUEUE_JOB_MATCHING, connection=connection)
+        queue.enqueue(scan_jobs_for_candidate, user_id, job_timeout=120)
+        logger.info(f"Enqueued job-matching scan for user: {user_id[:8]}")
+    except Exception as e:
+        logger.error(
+            f"Failed to enqueue job-matching scan for user {user_id[:8]}",
+            extra={"error": str(e), "error_type": type(e).__name__},
+            exc_info=True,
+        )
+        raise
+
+
+def enqueue_email(
+    template: str, recipient: str, context: dict[str, object], subject: str | None = None
+) -> None:
+    """Enqueue a templated email send. Thin wrapper matching enqueue_feedback()'s shape."""
+    from app.workers.tasks.email_tasks import send_email_task
+
+    connection = get_redis_connection()
+    try:
+        queue = Queue(QUEUE_EMAIL, connection=connection)
+        queue.enqueue(send_email_task, template, recipient, context, subject, job_timeout=30)
+        logger.info(f"Enqueued email: {template} to {recipient[:3]}***")
+    except Exception as e:
+        logger.error(f"Failed to enqueue email: {template}", extra={"error": str(e)}, exc_info=True)
+        raise
+
+
 def register_scheduled_jobs() -> None:
     """Register scheduled cron jobs with RQ Scheduler.
 
@@ -215,9 +264,19 @@ def register_scheduled_jobs() -> None:
             timeout=3600,  # 1 hour timeout for large batches
         )
 
+        from app.workers.tasks.job_matching import fan_out_daily_scans
+
+        scheduler.cron(
+            get_settings().job_matching_scan_cron,  # default "0 6 * * *", configurable via JOB_MATCHING_SCAN_CRON
+            func=fan_out_daily_scans,
+            queue_name=QUEUE_JOB_MATCHING,
+            id="job_matching_fan_out_daily",
+            timeout=600,  # 10 minutes to page through and enqueue all candidates
+        )
+
         logger.info(
             "Registered scheduled jobs",
-            extra={"jobs": ["audio_cleanup_daily"]},
+            extra={"jobs": ["audio_cleanup_daily", "job_matching_fan_out_daily"]},
         )
 
     except ImportError:

@@ -26,8 +26,8 @@ If a field is missing from the CV, use null. Do not invent data.
 Focus on:
 - Contact info (name, email, phone, LinkedIn, GitHub)
 - Technical and soft skills
-- Work experience (roles, companies, years)
-- Education (degree, field)
+- Work experience (roles, companies, years, industries)
+- Education (degree, field, certifications)
 - Job preferences (desired roles, locations, remote preference)
 
 Be thorough but conservative - only extract what's clearly stated in the CV.
@@ -126,7 +126,7 @@ async def extract_cv_data(cv_text: str, settings: Settings) -> CVData:
                 json=payload,
             )
             response.raise_for_status()
-            data = await response.json()
+            data = response.json()
 
             content = data["choices"][0]["message"]["content"]
             raw_data: dict[str, Any] = json.loads(content)

@@ -86,3 +86,63 @@ class DocumentDetailResponse(BaseModel):
     extracted_data: dict[str, Any] | None = Field(None, description="Structured data")
     created_at: datetime = Field(..., description="Upload timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+
+
+class CvCompletenessResponse(BaseModel):
+    document_id: str
+    completeness_score: float = Field(..., ge=0.0, le=1.0)
+    missing_fields: list[str]
+    has_active_chat_session: bool
+
+
+class CvChatMessageResponse(BaseModel):
+    id: str
+    role: str
+    content: str
+    field_name: str | None
+    created_at: datetime
+
+
+class CvChatSessionResponse(BaseModel):
+    session_id: str
+    document_id: str
+    status: str
+    missing_fields_at_start: list[str]
+    fields_resolved: list[str]
+    messages: list[CvChatMessageResponse]
+
+
+class CvChatMessageRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2000)
+
+
+class CvChatTurnResponse(BaseModel):
+    session: CvChatSessionResponse
+    assistant_message: CvChatMessageResponse
+
+
+class CvFeedbackRequest(BaseModel):
+    target_role: str | None = Field(default=None, max_length=255)
+
+
+class RewrittenBullet(BaseModel):
+    original: str
+    rewritten: str
+    rationale: str
+
+
+class CvFeedbackResponse(BaseModel):
+    report_id: str
+    document_id: str
+    target_role: str | None
+    ats_score: int = Field(..., ge=0, le=100)
+    ats_score_methodology: str
+    strengths: list[str]
+    improvements: list[str]
+    rewritten_bullets: list[RewrittenBullet]
+    accepted_bullet_indices: list[int]
+    created_at: datetime
+
+
+class AcceptBulletRequest(BaseModel):
+    bullet_index: int = Field(..., ge=0)

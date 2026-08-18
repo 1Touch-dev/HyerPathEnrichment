@@ -1,4 +1,17 @@
-import { LayoutDashboard, History, Shield, Settings, Activity, Bell, Search } from "lucide-react";
+import {
+  LayoutDashboard,
+  History,
+  Shield,
+  Settings,
+  Activity,
+  Bell,
+  Search,
+  Sparkles,
+  FileText,
+  User,
+  Mail,
+  Briefcase,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type NavItem = {
@@ -17,8 +30,13 @@ export const mainNav: NavSection = {
   title: "Main",
   items: [
     { href: "/app/enrich", label: "Look up", icon: Search },
+    { href: "/app/documents", label: "Documents", icon: FileText },
     { href: "/app/history", label: "History", icon: History },
     { href: "/app/signals", label: "Signals", icon: Bell },
+    { href: "/app/matches", label: "Matches", icon: Sparkles },
+    { href: "/app/matches/swipe", label: "Swipe jobs", icon: Briefcase },
+    { href: "/app/portfolio", label: "Portfolio", icon: User },
+    { href: "/app/outreach", label: "Outreach", icon: Mail },
   ],
 };
 

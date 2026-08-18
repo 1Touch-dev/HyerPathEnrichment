@@ -6,6 +6,15 @@ This script:
 2. Creates a question attempt with question_id=None
 3. Enqueues a feedback generation job
 4. Monitors the job execution
+
+Note: lives in scripts/ (not tests/) despite the test_ prefix because it's a
+manual, imperative verification script (real Redis enqueue + polling against a
+running worker), not a pytest test. It previously sat at the backend/ root,
+where pytest's default rootdir-wide discovery picked it up and failed to
+collect it (broken `app.modules.users.models` import — that module doesn't
+exist; the real `User` model lives in `app.auth.models`). Moved here to match
+the existing convention of manual test_*.py scripts (see test_dsar_full_access.py,
+test_email_e2e.py, test_llm_job_query.py in this same directory).
 """
 
 import logging
