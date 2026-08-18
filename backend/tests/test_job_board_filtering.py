@@ -38,14 +38,83 @@ def test_job_board_sources_filtered_for_work_history() -> None:
     }
     zip_job = {"title": "Engineer", "company": "Acme", "location": "NYC", "source": "zip_recruiter"}
     linkedin_job = {"title": "Engineer", "company": "Acme", "location": "NYC", "source": "linkedin"}
+    google_job = {"title": "Engineer", "company": "Acme", "location": "NYC", "source": "google"}
 
     # For work history (no job_search), job boards should be filtered
     assert _is_valid_job(indeed_job, is_job_search=False) is False
     assert _is_valid_job(glassdoor_job, is_job_search=False) is False
     assert _is_valid_job(zip_job, is_job_search=False) is False
 
-    # But LinkedIn work history should be kept
+    # But LinkedIn and Google work history should be kept
     assert _is_valid_job(linkedin_job, is_job_search=False) is True
+    assert _is_valid_job(google_job, is_job_search=False) is True
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "indeed",
+        "Indeed",
+        "INDEED",
+        "glassdoor",
+        "Glassdoor",
+        "GLASSDOOR",
+        "zip_recruiter",
+        "Zip_Recruiter",
+        "ZIP_RECRUITER",
+    ],
+)
+def test_job_board_sources_filtered_case_insensitive(source: str) -> None:
+    """Excluded job-board sources are filtered regardless of casing."""
+    job = {"title": "Engineer", "company": "Acme", "location": "NYC", "source": source}
+    assert _is_valid_job(job, is_job_search=False) is False
+
+
+def test_jsearch_other_catchall_filtered_for_work_history() -> None:
+    """The 'jsearch_other' catch-all publisher bucket is excluded from work history."""
+    job = {"title": "Engineer", "company": "Acme", "location": "NYC", "source": "jsearch_other"}
+    assert _is_valid_job(job, is_job_search=False) is False
+
+
+def test_jsearch_other_catchall_filtered_case_insensitive() -> None:
+    """The 'jsearch_other' exclusion is case-insensitive."""
+    job = {"title": "Engineer", "company": "Acme", "location": "NYC", "source": "JSearch_Other"}
+    assert _is_valid_job(job, is_job_search=False) is False
+
+
+def test_jsearch_other_kept_for_job_search() -> None:
+    """For job searches (tier4), 'jsearch_other' listings are kept like any other source."""
+    job = {"title": "Engineer", "company": "Acme", "location": "NYC", "source": "jsearch_other"}
+    assert _is_valid_job(job, is_job_search=True) is True
+
+
+def test_merge_module_has_no_jobspy_dependency() -> None:
+    """The excluded-source vocabulary in merge.py must be a local literal, not imported
+    from app.enrichers.jobspy (fixed vocabulary contract, no cross-import by design)."""
+    import ast
+    import inspect
+
+    import app.enrichers.merge as merge_module
+
+    assert not hasattr(merge_module, "WORK_HISTORY_EXCLUDED_SOURCES")
+
+    # AST-level guard: no import statement in merge.py may reference
+    # app.enrichers.jobspy (comments/docstrings mentioning it are fine).
+    source = inspect.getsource(merge_module)
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            assert node.module != "app.enrichers.jobspy"
+        elif isinstance(node, ast.Import):
+            assert all(alias.name != "app.enrichers.jobspy" for alias in node.names)
+
+    assert "_WORK_HISTORY_EXCLUDED_SOURCES" in merge_module.__dict__
+    assert merge_module._WORK_HISTORY_EXCLUDED_SOURCES == {
+        "indeed",
+        "glassdoor",
+        "zip_recruiter",
+        "jsearch_other",
+    }
 
 
 def test_invalid_companies_always_filtered() -> None:

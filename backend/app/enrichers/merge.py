@@ -98,6 +98,15 @@ def _is_cdn_url(platform: str, url: str) -> bool:
     return False
 
 
+# Job-board source strings to exclude when filtering for genuine work history
+# (is_job_search=False). This is a plain literal, intentionally NOT imported from
+# app.enrichers.jobspy (or anywhere else) — it is handed identically to the
+# JSearch-provider integration as a fixed vocabulary contract so that neither side
+# needs to import from the other. Keep the two lists in sync manually if this
+# vocabulary ever changes.
+_WORK_HISTORY_EXCLUDED_SOURCES = {"indeed", "glassdoor", "zip_recruiter", "jsearch_other"}
+
+
 def _is_valid_job(job: dict[str, Any], is_job_search: bool = False) -> bool:
     """Filter out invalid job listings.
 
@@ -116,7 +125,7 @@ def _is_valid_job(job: dict[str, Any], is_job_search: bool = False) -> bool:
     # For work history (LinkedIn profiles), filter out job boards
     if not is_job_search:
         source = str(job.get("source", "")).lower()
-        if source in {"indeed", "glassdoor", "zip_recruiter"}:
+        if source in _WORK_HISTORY_EXCLUDED_SOURCES:
             # These are job board listings, not work history
             return False
 
