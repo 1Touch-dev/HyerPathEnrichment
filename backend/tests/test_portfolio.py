@@ -270,7 +270,7 @@ def _portfolio_items_columns(url: str) -> dict[str, dict]:
 
 def test_migration_032_adds_image_url_and_reverses_cleanly(migration_sqlite_url: str):
     """Alembic revision 032_portfolio_item_image_url must apply cleanly on top of
-    031_merge_job_board_cv_and_stabilization_heads, and downgrading back to 031 must
+    031_merge_jobcv_stab_heads, and downgrading back to 031 must
     drop image_url while leaving the rest of portfolio_items untouched.
     """
     upgrade_head(migration_sqlite_url)
@@ -278,9 +278,7 @@ def test_migration_032_adds_image_url_and_reverses_cleanly(migration_sqlite_url:
     assert "image_url" in cols
     assert cols["image_url"]["nullable"] is True
 
-    command.downgrade(
-        alembic_config(migration_sqlite_url), "031_merge_job_board_cv_and_stabilization_heads"
-    )
+    command.downgrade(alembic_config(migration_sqlite_url), "031_merge_jobcv_stab_heads")
     cols_after_downgrade = _portfolio_items_columns(migration_sqlite_url)
     assert "image_url" not in cols_after_downgrade
     assert {"id", "profile_id", "item_type", "title", "url", "display_order"} <= (
