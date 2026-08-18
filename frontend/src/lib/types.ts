@@ -273,6 +273,135 @@ export type UnreadMatchCountEvent = {
   unreadCount: number;
 };
 
+// Admin module: user/role management, audit logs, feature flags, queue
+// introspection, system health, analytics, MFA, and impersonation
+// (mirrors backend/app/modules/admin/schemas.py, camelCase).
+
+export type AdminRole = {
+  id: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+};
+
+export type AdminPermission = {
+  id: string;
+  resource: string;
+  action: string;
+  description: string | null;
+};
+
+export type AdminRoleWithPermissions = AdminRole & {
+  permissions: AdminPermission[];
+};
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  isVerified: boolean;
+  isSuperuser: boolean;
+  roleId: string | null;
+  roleName: string | null;
+  mfaEnabled: boolean;
+  createdAt: string;
+  deletedAt: string | null;
+};
+
+export type AdminUserListResponse = {
+  items: AdminUser[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type AdminAuditLogEntry = {
+  id: string;
+  actorUserId: string | null;
+  impersonatedBy: string | null;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  ipAddress: string | null;
+  capturedBy: "explicit" | "fallback";
+  createdAt: string;
+};
+
+export type AdminAuditLogListResponse = {
+  items: AdminAuditLogEntry[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type FeatureFlag = {
+  key: string;
+  enabled: boolean;
+  value: Record<string, unknown> | null;
+  description: string | null;
+  updatedBy: string | null;
+  updatedAt: string;
+};
+
+export type QueueSnapshot = {
+  name: string;
+  priority: number;
+  queuedCount: number;
+  failedCount: number;
+  oldestQueuedAgeSeconds: number | null;
+  workersListening: number;
+};
+
+export type FailedJob = {
+  jobId: string;
+  queueName: string;
+  funcName: string | null;
+  enqueuedAt: string | null;
+  failedAt: string | null;
+  excInfo: string | null;
+};
+
+export type SystemHealthSnapshot = {
+  databaseOk: boolean;
+  databaseLatencyMs: number;
+  redisOk: boolean;
+  redisLatencyMs: number;
+  prometheusConfigured: boolean;
+  signals: Record<string, number | null>;
+};
+
+export type JobMatchAnalytics = {
+  totalPostings: number;
+  totalMatches: number;
+  postingsBySource: Record<string, number>;
+  topCompanies: { company: string; count: number }[];
+  avgSalaryMin: number | null;
+  avgSalaryMax: number | null;
+  avgOverallScore: number | null;
+  computedAt: string;
+  cacheHit: boolean;
+};
+
+export type MfaStatus = {
+  mfaEnabled: boolean;
+  mfaEnrolledAt: string | null;
+};
+
+export type MfaEnrollResult = {
+  secret: string;
+  provisioningUri: string;
+};
+
+export type ImpersonationStatus = {
+  isImpersonating: boolean;
+  adminUserId: string | null;
+  adminEmail: string | null;
+  targetUserId: string | null;
+  expiresAt: string | null;
+};
+
 // Documents module: candidate document upload, processing, and search
 // (mirrors backend/app/modules/documents/schemas.py, camelCase).
 
