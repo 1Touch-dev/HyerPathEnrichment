@@ -14,6 +14,7 @@ from app.clients.llm import (
 )
 from app.core.config import Settings
 from app.domain.enrichment import EnrichmentRequest
+from app.domain.enums import RequestedTier
 from app.enrichers.jobspy import JobSpyEnricher
 
 
@@ -246,6 +247,94 @@ async def test_litellm_optimize_job_query_fallback_chain(
 
         assert result is not None
         assert call_count == 2  # Tried both models
+
+
+@pytest.mark.asyncio
+async def test_fetch_still_calls_llm_optimization_for_default_jobspy_provider(
+    sample_llm_response: dict[str, dict[str, str]],
+) -> None:
+    """Regression guard for the JSearch-migration's LLM-gating change (jobspy.py's
+    `_fetch`): with `job_source_provider` left at its default ("jobspy") and
+    `llm_mode="litellm"`, the opt-in per-board query-optimization call must still fire
+    exactly as before. The equivalent real end-to-end test below
+    (`test_jobspy_fetch_with_llm_enabled`) is skipped on Windows because it imports the
+    real `jobspy` package; this test proves the same gating contract without that import
+    by patching `_scrape` directly on the instance, the same technique
+    `test_jsearch_provider.py` uses for its jsearch-path equivalent."""
+    enricher = JobSpyEnricher()
+    request = EnrichmentRequest(
+        job_title="Software Engineer",
+        job_location="Mumbai",
+        job_country="India",
+        job_search="Software Engineer Mumbai",
+        requested_tiers=[RequestedTier.tier4],
+    )
+
+    settings = Settings()
+    assert settings.job_source_provider == "jobspy"
+    settings.llm_mode = "litellm"
+
+    with patch("app.enrichers.jobspy.get_settings", return_value=settings):
+        with patch(
+            "app.clients.llm.litellm_optimize_job_query",
+            new_callable=AsyncMock,
+            return_value=sample_llm_response,
+        ) as mock_optimize:
+            with patch.object(enricher, "_scrape", return_value=[]) as mock_scrape:
+                await enricher._fetch(request)
+
+    mock_optimize.assert_called_once()
+    mock_scrape.assert_called_once()
+    # The LLM-optimized queries must be threaded through to _scrape as its last
+    # positional argument (the `optimized_queries` param), not silently dropped.
+    assert mock_scrape.call_args[0][-1] == sample_llm_response
+
+
+@pytest.mark.asyncio
+async def test_fetch_jsearch_gating_never_invokes_llm_module_spy_even_with_results() -> None:
+    """Complementary regression layer to `test_jsearch_provider.py`'s
+    `test_fetch_skips_llm_optimization_when_jsearch` (which also patches
+    `app.clients.llm.litellm_optimize_job_query` and asserts it's not called, but with an
+    empty `_scrape` result). This test intentionally differs by installing the spy
+    directly on the `app.clients.llm` module attribute (via `patch.object` on the
+    module, rather than the string-target `patch("app.clients.llm.litellm_optimize_job_query")`
+    form), and by returning *non-empty* scrape rows -- proving the gating holds even when
+    there is real job data to optimize a query for, from this file's own vantage point as
+    the authoritative suite for `litellm_optimize_job_query`.
+    """
+    import app.clients.llm as llm_module
+
+    enricher = JobSpyEnricher()
+    request = EnrichmentRequest(
+        job_title="Software Engineer",
+        job_location="Mumbai",
+        job_country="India",
+        job_search="Software Engineer Mumbai",
+        requested_tiers=[RequestedTier.tier4],
+    )
+
+    settings = Settings()
+    settings.job_source_provider = "jsearch"
+    settings.llm_mode = "litellm"
+
+    spy = MagicMock(wraps=llm_module.litellm_optimize_job_query)
+    scraped_rows = [
+        {
+            "title": "Backend Engineer",
+            "company": "Acme",
+            "site": "jsearch_other",
+            "location": "Mumbai",
+        }
+    ]
+
+    with patch("app.enrichers.jobspy.get_settings", return_value=settings):
+        with patch.object(llm_module, "litellm_optimize_job_query", spy):
+            with patch.object(enricher, "_scrape", return_value=scraped_rows):
+                result = await enricher._fetch(request)
+
+    spy.assert_not_called()
+    assert result["jobs"][0]["title"] == "Backend Engineer"
+    assert result["jobs"][0]["source"] == "jsearch_other"
 
 
 @pytest.mark.asyncio

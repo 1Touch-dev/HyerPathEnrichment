@@ -622,6 +622,139 @@ class TestScanJobsForCandidate:
         mock_scrape.assert_not_called()
 
 
+class TestJSearchVocabularySourceHandling:
+    """Coverage for the JSearch-migration's effect on this worker's dedup-key
+    computation and Prometheus instrumentation. `_scrape` is mocked at the class
+    boundary (via `_mock_jobspy_scrape`) for every test here -- these tests do not
+    depend on `job_source_provider` config or touch any HTTP/retry mechanics, both of
+    which are already unit-tested in `test_jsearch_provider.py`.
+    """
+
+    def test_compute_dedup_key_distinguishes_jsearch_vocabulary_sources(self) -> None:
+        """Pure unit check (no DB): `compute_dedup_key` is stable for repeated calls
+        with identical inputs, and produces distinct keys for the same (title,
+        location) pair across different JSearch-vocabulary `source` values -- proving
+        `source` is genuinely part of the dedup identity, not an inert parameter."""
+        title = "Backend Engineer"
+        location = "Remote"
+
+        key_jsearch_other = compute_dedup_key(title, location, "jsearch_other")
+        key_google = compute_dedup_key(title, location, "google")
+        key_indeed = compute_dedup_key(title, location, "indeed")
+
+        assert compute_dedup_key(title, location, "jsearch_other") == key_jsearch_other
+        assert len({key_jsearch_other, key_google, key_indeed}) == 3
+
+    def test_jsearch_and_jobspy_sourced_postings_for_same_job_remain_distinct_rows(self) -> None:
+        """A candidate whose provider effectively switches from a legacy JobSpy site
+        ("indeed") to the JSearch catch-all bucket ("jsearch_other") for what is
+        logically the same job posting (identical title + location) must not silently
+        collide with / overwrite the pre-existing posting: both rows persist distinctly
+        because `source` is baked into the dedup key.
+        """
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+
+        shared_title = f"Backend Engineer {uuid.uuid4().hex[:8]}"
+        shared_location = "Remote"
+        base_row = {
+            "title": shared_title,
+            "company": "Acme Corp",
+            "location": shared_location,
+            "is_remote": True,
+            "description": "Build backend services.",
+        }
+
+        with (
+            _mock_jobspy_scrape([{**base_row, "site": "indeed"}]),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+        ):
+            scan_jobs_for_candidate(str(user.id))
+
+        with (
+            _mock_jobspy_scrape([{**base_row, "site": "jsearch_other"}]),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+        ):
+            scan_jobs_for_candidate(str(user.id))
+
+        postings = [p for p in _get_postings() if p.title == shared_title]
+        assert len(postings) == 2
+        assert {p.source for p in postings} == {"indeed", "jsearch_other"}
+        assert {p.dedup_key for p in postings} == {
+            compute_dedup_key(shared_title, shared_location, "indeed"),
+            compute_dedup_key(shared_title, shared_location, "jsearch_other"),
+        }
+
+    def test_postings_scraped_metric_labels_jsearch_vocabulary_source(self) -> None:
+        """`job_matching_postings_scraped_total.labels(source=...)` has no prior
+        coverage in this file. This locks in that the counter is incremented with the
+        raw JSearch-vocabulary `site` value (e.g. "jsearch_other"), not just legacy
+        JobSpy site strings, for each scraped row."""
+        from app.observability.job_matching_metrics import job_matching_postings_scraped_total
+
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+
+        row = {
+            "title": f"Data Engineer {uuid.uuid4().hex[:8]}",
+            "company": "Acme Corp",
+            "location": "Remote",
+            "is_remote": True,
+            "site": "jsearch_other",
+            "description": "Work with data pipelines.",
+        }
+
+        before = job_matching_postings_scraped_total.labels(source="jsearch_other")._value.get()
+
+        with (
+            _mock_jobspy_scrape([row]),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+        ):
+            stats = scan_jobs_for_candidate(str(user.id))
+
+        after = job_matching_postings_scraped_total.labels(source="jsearch_other")._value.get()
+
+        assert stats["scraped"] == 1
+        assert after - before == 1
+
+    def test_scan_handles_empty_scrape_results_gracefully(self) -> None:
+        """Graceful-empty-results test: simulates `_scrape_jsearch`'s
+        exhausted-retries/429 outcome (an empty list) surfacing up through
+        `scan_jobs_for_candidate` for an otherwise-valid candidate (prefs + completed
+        CV present). The scan must complete without raising and report all-zero stats,
+        rather than crashing on an empty `raw_rows` list. The actual HTTP retry/backoff
+        mechanics that produce this empty list are unit-tested in
+        `test_jsearch_provider.py` and are deliberately NOT re-mocked at the HTTP layer
+        here -- `_scrape` is mocked at the class boundary, per this file's convention.
+        """
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+
+        with (
+            _mock_jobspy_scrape([]) as mock_scrape,
+            _mock_embeddings_client() as mock_get_client,
+            _mock_explainer(),
+            _mock_enqueue_email(),
+        ):
+            stats = scan_jobs_for_candidate(str(user.id))
+
+        mock_scrape.assert_called_once()
+        mock_get_client.return_value.generate_embedding.assert_not_called()
+        assert stats == {"scraped": 0, "new_postings": 0, "matches_scored": 0, "explanations": 0}
+
+
 class TestGenerateExplanationsForCandidate:
     def test_generates_and_persists_explanations(self):
         user = _create_user()
