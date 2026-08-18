@@ -18,7 +18,6 @@ from app.core.config import Settings
 from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.jobspy import JobSpyEnricher, _normalize_publisher
 
-
 # ---------------------------------------------------------------------------
 # _normalize_publisher: closed 6-value vocabulary
 # ---------------------------------------------------------------------------
