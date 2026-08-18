@@ -124,7 +124,7 @@ def _is_valid_job(job: dict[str, Any], is_job_search: bool = False) -> bool:
     # For job searches (tier4), keep all job board listings
     # For work history (LinkedIn profiles), filter out job boards
     if not is_job_search:
-        source = str(job.get("source", "")).lower()
+        source = str(job.get("source", "")).lower().strip()
         if source in _WORK_HISTORY_EXCLUDED_SOURCES:
             # These are job board listings, not work history
             return False
