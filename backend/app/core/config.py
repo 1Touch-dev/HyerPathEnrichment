@@ -122,6 +122,13 @@ class Settings(BaseSettings):
 
     # Tier 4 — jobs + business
     jobspy_results_per_board: int = Field(default=15, alias="JOBSPY_RESULTS_PER_BOARD")
+    job_source_provider: str = Field(
+        default="jobspy", alias="JOB_SOURCE_PROVIDER"
+    )  # "jobspy" | "jsearch"
+    jsearch_api_key: str = Field(default="", alias="JSEARCH_API_KEY")
+    jsearch_api_host: str = Field(default="jsearch.p.rapidapi.com", alias="JSEARCH_API_HOST")
+    jsearch_num_pages: int = Field(default=1, alias="JSEARCH_NUM_PAGES")
+    jsearch_timeout_seconds: float = Field(default=20.0, alias="JSEARCH_TIMEOUT_SECONDS")
     gmaps_scraper_url: str = Field(default="", alias="GMAPS_SCRAPER_URL")
     gmaps_job_timeout_seconds: int = Field(default=300, alias="GMAPS_JOB_TIMEOUT_SECONDS")
     gmaps_job_poll_seconds: int = Field(default=10, alias="GMAPS_JOB_POLL_SECONDS")
