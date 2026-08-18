@@ -1,5 +1,6 @@
 import logging
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -143,5 +144,15 @@ async def init_db() -> None:
 
 
 async def get_db_session() -> AsyncIterator[AsyncSession]:
+    async with SessionLocal() as session:
+        yield session
+
+
+@asynccontextmanager
+async def get_db_session_context() -> AsyncIterator[AsyncSession]:
+    """Async context-manager wrapper around the same session factory
+    `get_db_session()` uses — for callers outside FastAPI's `Depends()`
+    injection (e.g. ASGI middleware), which cannot receive
+    `db: AsyncSession = Depends(get_db_session)` the way routes do."""
     async with SessionLocal() as session:
         yield session

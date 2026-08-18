@@ -79,6 +79,13 @@ async def get_current_user_from_cookie(
                 detail="Invalid token payload",
             )
 
+        # Admin Module (phase2_admin_module.md §8.16, Decision 6): impersonation
+        # tokens carry an extra "imp" claim (the *real* admin's user id) alongside
+        # the normal sub=<target_user_id> — additive, no existing caller's shape changes.
+        impersonated_by: str | None = payload.get("imp")
+        if impersonated_by:
+            request.state.impersonated_by = UUID(impersonated_by)
+
         # Check if token is blacklisted (logout) with security alert
         redis_client = get_redis_client()
         blacklist_service = LoggedOutTokenService(redis_client)
@@ -120,6 +127,11 @@ async def get_current_user_from_cookie(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is inactive",
         )
+
+    # Admin Module (phase2_admin_module.md §8.4/§8.16): additive attribute for
+    # code running outside FastAPI's Depends() injection (e.g. ASGI middleware)
+    # that needs to know the acting user without re-decoding the JWT.
+    request.state.user_id = user.id
 
     return user
 

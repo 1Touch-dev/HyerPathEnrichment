@@ -265,6 +265,24 @@ class Settings(BaseSettings):
     MONTHLY_COST_THRESHOLD_USD: float = Field(default=2000.0, alias="MONTHLY_COST_THRESHOLD_USD")
     ENABLE_BUDGET_ALERTS: bool = Field(default=True, alias="ENABLE_BUDGET_ALERTS")
 
+    # Admin Module: RBAC, audit log, feature flags, cached aggregates, MFA, impersonation
+    # (phase2_admin_module.md §7) — only admin_aggregate_cache_ttl_seconds is read by
+    # this chunk's files (cache.py); the rest are added now since core/config.py is a
+    # single shared file and later phases' service.py/mfa.py/impersonation.py need them.
+    admin_audit_log_retention_days: int = Field(
+        default=1825, alias="ADMIN_AUDIT_LOG_RETENTION_DAYS"
+    )
+    admin_aggregate_cache_ttl_seconds: int = Field(
+        default=300, alias="ADMIN_AGGREGATE_CACHE_TTL_SECONDS"
+    )
+    admin_default_page_size: int = Field(default=20, alias="ADMIN_DEFAULT_PAGE_SIZE")
+    admin_max_page_size: int = Field(default=100, alias="ADMIN_MAX_PAGE_SIZE")
+    admin_mfa_issuer_name: str = Field(default="Hyrepath Admin", alias="ADMIN_MFA_ISSUER_NAME")
+    admin_impersonation_max_duration_minutes: int = Field(
+        default=30, alias="ADMIN_IMPERSONATION_MAX_DURATION_MINUTES"
+    )
+    prometheus_query_url: str = Field(default="", alias="PROMETHEUS_QUERY_URL")
+
 
 _TIER1_PROD_ENVS = frozenset({"production", "staging"})
 
