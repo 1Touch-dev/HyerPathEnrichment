@@ -155,12 +155,37 @@ def _mock_response(status_code: int, json_payload: dict[str, Any] | None = None)
     if json_payload is not None:
         response.json.return_value = json_payload
     if status_code >= 400:
-        request = httpx.Request("GET", "https://jsearch.p.rapidapi.com/search")
+        request = httpx.Request("GET", "https://jsearch.p.rapidapi.com/search-v2")
         error = httpx.HTTPStatusError("error", request=request, response=response)
         response.raise_for_status.side_effect = error
     else:
         response.raise_for_status.return_value = None
     return response
+
+
+def test_scrape_jsearch_calls_search_v2_endpoint_with_expected_params() -> None:
+    """Must call /search-v2 (not the legacy /search) so job_description is returned
+    inline, avoiding a second per-job /job-details call. Regression guard for a bug
+    where the URL pointed at /search."""
+    enricher = JobSpyEnricher()
+    settings = _jsearch_settings()
+    response = _mock_response(200, {"data": []})
+
+    with patch("app.enrichers.jobspy.get_settings", return_value=settings):
+        with patch("httpx.Client") as mock_client_cls:
+            mock_get = mock_client_cls.return_value.__enter__.return_value.get
+            mock_get.return_value = response
+            enricher._scrape_jsearch("Software Engineer", "Bengaluru", "India", 15)
+
+    mock_get.assert_called_once()
+    call_args, call_kwargs = mock_get.call_args
+    url = call_args[0] if call_args else call_kwargs["url"]
+    assert url == "https://jsearch.p.rapidapi.com/search-v2"
+    params = call_kwargs["params"]
+    assert params["query"] == "Software Engineer in Bengaluru"
+    assert params["num_pages"] == "1"
+    assert params["country"] == "india"
+    assert params["date_posted"] == "all"
 
 
 def test_scrape_jsearch_rows_shaped_correctly() -> None:

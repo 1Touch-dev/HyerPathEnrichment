@@ -212,12 +212,15 @@ class JobSpyEnricher(Enricher):
             "query": query,
             "num_pages": str(settings.jsearch_num_pages),
             "country": country.lower() if country else "us",
+            "date_posted": "all",
         }
         headers = {
             "X-RapidAPI-Key": settings.jsearch_api_key,
             "X-RapidAPI-Host": settings.jsearch_api_host,
         }
-        url = f"https://{settings.jsearch_api_host}/search"
+        # /search-v2 (not the legacy /search) reliably returns job_description inline,
+        # avoiding a second per-job /job-details call that would double API/token cost.
+        url = f"https://{settings.jsearch_api_host}/search-v2"
 
         max_attempts = 3
         response: httpx.Response | None = None
