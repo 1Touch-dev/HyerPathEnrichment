@@ -2,13 +2,17 @@ import {
   CandidateDocument,
   CandidateDocumentDetail,
   CandidateJobPreferences,
+  CvChatSession,
+  CvCompleteness,
   CvData,
+  CvFeedbackReport,
+  Dossier,
   DocumentJobStatus,
   DocumentSearchResponse,
   DocumentSearchResult,
+  DocumentSummary,
   DocumentType,
   DocumentUploadResult,
-  Dossier,
   EnrichmentInput,
   EnrichmentJob,
   HealthStatus,
@@ -18,11 +22,16 @@ import {
   JobMatchListResponse,
   JobStatus,
   OptOutInput,
+  OutreachMessage,
+  PortfolioItem,
+  PortfolioProfile,
+  PublicPortfolioProfile,
   RequestedTier,
   DsarInput,
   DsarResponse,
   SignalListItem,
   SignalListResponse,
+  SwipeDeck,
 } from "@/src/lib/types";
 import type {
   BackendCVDataResponse,
@@ -503,4 +512,310 @@ export function hasIdentifier(input: EnrichmentInput): boolean {
     input.business ||
     input.jobSearch,
   );
+}
+
+// Module 2: Tinder-Style Job Board + CV Management (phase2_module2.md §11.3)
+//
+// The backend routes these adapt (CV completeness/chat/feedback, portfolio,
+// job swipe, outreach — phase2_module2.md §8) do not exist yet, so
+// `src/lib/generated/api-schemas.ts` has no generated schemas for them. The
+// `Raw*Response` interfaces below are hand-declared placeholders mirroring
+// §11.3's documented snake_case shapes; per this file's own convention
+// (see `Backend*Response` imports above), they must be deleted and replaced
+// with real `npm run openapi:gen` output once the backend routes exist —
+// do not let these placeholders become permanent hand-maintained duplicates.
+
+interface RawCvCompletenessResponse {
+  document_id: string;
+  completeness_score: number;
+  missing_fields: string[];
+  has_active_chat_session: boolean;
+}
+
+interface RawCvChatMessageResponse {
+  id: string;
+  role: "assistant" | "user";
+  content: string;
+  created_at: string;
+}
+
+interface RawCvChatSessionResponse {
+  session_id: string;
+  status: "active" | "completed" | "abandoned";
+  missing_fields_at_start: string[];
+  fields_resolved: string[];
+  messages: RawCvChatMessageResponse[];
+}
+
+/**
+ * Mirrors the backend's real `CvFeedbackResponse` (backend/app/modules/documents/schemas.py)
+ * — no `status` field exists on this response; a `CvFeedbackReport` row only exists once
+ * generation is fully complete (backend/app/workers/tasks/cv_improvement.py never inserts
+ * an interim "pending" row). "Is generation still running?" is answered by polling the real
+ * job-status endpoint (`GET /api/documents/jobs/{job_id}`), not by a fake status on this type.
+ */
+interface RawCvFeedbackReportResponse {
+  report_id: string;
+  document_id: string;
+  target_role: string | null;
+  ats_score: number;
+  strengths: string[];
+  improvements: string[];
+  rewritten_bullets: { original: string; rewritten: string; rationale: string }[];
+  accepted_bullet_indices: number[];
+  created_at: string;
+}
+
+/** Mirrors the backend's `JobStatusResponse` (backend/app/modules/documents/schemas.py). */
+interface RawJobStatusResponse {
+  job_id: string;
+  status: string;
+  progress: number;
+  document_id: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Mirrors the backend's `DocumentMetadata` (backend/app/modules/documents/schemas.py). */
+interface RawDocumentMetadataResponse {
+  document_id: string;
+  document_type: string;
+  original_filename: string;
+  file_size_bytes: number;
+  processing_status: string;
+  created_at: string;
+}
+
+interface RawPortfolioItemResponse {
+  item_id: string;
+  item_type: "github" | "live_demo" | "case_study" | "other";
+  title: string;
+  description: string | null;
+  url: string;
+  display_order: number;
+}
+
+interface RawPortfolioProfileResponse {
+  profile_id: string;
+  user_id: string;
+  slug: string;
+  display_name: string | null;
+  headline: string | null;
+  bio: string | null;
+  is_published: boolean;
+  public_url: string;
+  items: RawPortfolioItemResponse[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface RawPublicPortfolioProfileResponse {
+  slug: string;
+  display_name: string | null;
+  headline: string | null;
+  bio: string | null;
+  items: RawPortfolioItemResponse[];
+}
+
+/**
+ * Mirrors the backend's real `SwipeableMatchResponse` (backend/app/modules/job_swipe/schemas.py)
+ * — that schema has no `score_breakdown` field (unlike Module 1's `JobMatch`, which does have
+ * one from a different backend model). Nothing in `frontend/features/job-swipe/` renders a score
+ * breakdown, so it is intentionally omitted here rather than kept as a dead optional field.
+ */
+interface RawSwipeCardResponse {
+  match_id: string;
+  job_posting_id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
+  overall_score: number;
+  explanation: string | null;
+}
+
+interface RawSwipeDeckResponse {
+  cards: RawSwipeCardResponse[];
+  has_more: boolean;
+}
+
+interface RawOutreachMessageResponse {
+  message_id: string;
+  company_name: string;
+  recipient_role_title: string | null;
+  subject: string;
+  body: string;
+  status: "draft" | "sent";
+  sent_at: string | null;
+  created_at: string;
+}
+
+export function adaptCvCompleteness(raw: RawCvCompletenessResponse): CvCompleteness {
+  return {
+    documentId: raw.document_id,
+    completenessScore: raw.completeness_score,
+    missingFields: raw.missing_fields,
+    hasActiveChatSession: raw.has_active_chat_session,
+  };
+}
+
+export function adaptCvChatSession(raw: RawCvChatSessionResponse): CvChatSession {
+  return {
+    sessionId: raw.session_id,
+    status: raw.status,
+    missingFieldsAtStart: raw.missing_fields_at_start,
+    fieldsResolved: raw.fields_resolved,
+    messages: raw.messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      createdAt: m.created_at,
+    })),
+  };
+}
+
+export function adaptCvFeedbackReport(raw: RawCvFeedbackReportResponse): CvFeedbackReport {
+  return {
+    reportId: raw.report_id,
+    documentId: raw.document_id,
+    targetRole: raw.target_role,
+    atsScore: raw.ats_score,
+    strengths: raw.strengths,
+    improvements: raw.improvements,
+    rewrittenBullets: raw.rewritten_bullets,
+    acceptedBulletIndices: raw.accepted_bullet_indices,
+    createdAt: raw.created_at,
+  };
+}
+
+export function adaptDocumentJobStatus(raw: RawJobStatusResponse): DocumentJobStatus {
+  return {
+    jobId: raw.job_id,
+    status: raw.status,
+    progress: raw.progress,
+    documentId: raw.document_id,
+    result: raw.result,
+    error: raw.error,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+export function adaptDocumentSummary(raw: RawDocumentMetadataResponse): DocumentSummary {
+  return {
+    documentId: raw.document_id,
+    documentType: raw.document_type,
+    originalFilename: raw.original_filename,
+    fileSizeBytes: raw.file_size_bytes,
+    processingStatus: raw.processing_status,
+    createdAt: raw.created_at,
+  };
+}
+
+const PORTFOLIO_ITEM_TYPE_FROM_BACKEND: Record<
+  RawPortfolioItemResponse["item_type"],
+  PortfolioItem["itemType"]
+> = {
+  github: "github_repo",
+  live_demo: "live_demo",
+  case_study: "case_study",
+  other: "other_link",
+};
+
+const PORTFOLIO_ITEM_TYPE_TO_BACKEND: Record<
+  PortfolioItem["itemType"],
+  RawPortfolioItemResponse["item_type"]
+> = {
+  github_repo: "github",
+  live_demo: "live_demo",
+  case_study: "case_study",
+  other_link: "other",
+};
+
+/**
+ * Backend's `PortfolioItemRequest.item_type` is `"github"|"live_demo"|"case_study"|"other"`
+ * (backend/app/modules/portfolio/schemas.py); the frontend-facing `PortfolioItem.itemType`
+ * uses `"github_repo"|"live_demo"|"case_study"|"other_link"` instead. Used by the outgoing
+ * `POST /api/portfolio/items` BFF route to translate the request body.
+ */
+export function toBackendPortfolioItemType(
+  itemType: PortfolioItem["itemType"],
+): RawPortfolioItemResponse["item_type"] {
+  return PORTFOLIO_ITEM_TYPE_TO_BACKEND[itemType] ?? "other";
+}
+
+export function adaptPortfolioItem(raw: RawPortfolioItemResponse): PortfolioItem {
+  return {
+    itemId: raw.item_id,
+    itemType: PORTFOLIO_ITEM_TYPE_FROM_BACKEND[raw.item_type] ?? "other_link",
+    title: raw.title,
+    description: raw.description,
+    url: raw.url,
+    displayOrder: raw.display_order,
+  };
+}
+
+export function adaptPortfolioProfile(raw: RawPortfolioProfileResponse): PortfolioProfile {
+  return {
+    profileId: raw.profile_id,
+    userId: raw.user_id,
+    slug: raw.slug,
+    displayName: raw.display_name,
+    headline: raw.headline,
+    summary: raw.bio,
+    isPublished: raw.is_published,
+    publicUrl: raw.public_url,
+    items: raw.items.map(adaptPortfolioItem),
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+export function adaptPublicPortfolioProfile(
+  raw: RawPublicPortfolioProfileResponse,
+): PublicPortfolioProfile {
+  return {
+    slug: raw.slug,
+    displayName: raw.display_name,
+    headline: raw.headline,
+    summary: raw.bio,
+    items: raw.items.map(adaptPortfolioItem),
+  };
+}
+
+export function adaptSwipeDeck(raw: RawSwipeDeckResponse): SwipeDeck {
+  return {
+    cards: raw.cards.map((c) => ({
+      matchId: c.match_id,
+      jobPostingId: c.job_posting_id,
+      title: c.title,
+      company: c.company,
+      location: c.location,
+      remote: c.remote,
+      salaryMin: c.salary_min,
+      salaryMax: c.salary_max,
+      salaryCurrency: c.salary_currency,
+      overallScore: c.overall_score,
+      explanation: c.explanation,
+    })),
+    hasMore: raw.has_more,
+  };
+}
+
+export function adaptOutreachMessage(raw: RawOutreachMessageResponse): OutreachMessage {
+  return {
+    messageId: raw.message_id,
+    companyName: raw.company_name,
+    recipientRoleTitle: raw.recipient_role_title,
+    subject: raw.subject,
+    body: raw.body,
+    status: raw.status,
+    createdAt: raw.created_at,
+    sentAt: raw.sent_at,
+  };
 }

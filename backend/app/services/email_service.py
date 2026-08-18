@@ -26,6 +26,8 @@ class EmailTemplate(str, Enum):
     EMAIL_VERIFICATION = "email_verification"
     EMAIL_VERIFICATION_REMINDER = "email_verification_reminder"
     JOB_MATCH_DIGEST = "job_match_digest"
+    CV_COMPLETENESS_REMINDER = "cv_completeness_reminder"
+    PORTFOLIO_PUBLISHED = "portfolio_published"
 
 
 class EmailService:
@@ -159,6 +161,8 @@ class EmailService:
             EmailTemplate.EMAIL_VERIFICATION: self._render_email_verification,
             EmailTemplate.EMAIL_VERIFICATION_REMINDER: self._render_email_verification_reminder,
             EmailTemplate.JOB_MATCH_DIGEST: self._render_job_match_digest,
+            EmailTemplate.CV_COMPLETENESS_REMINDER: self._render_cv_completeness_reminder,
+            EmailTemplate.PORTFOLIO_PUBLISHED: self._render_portfolio_published,
         }
 
         renderer = templates.get(template)
@@ -535,6 +539,97 @@ class EmailService:
             f"{m['title']} at {m['company']} — {m['overall_score']}/100\n{m.get('explanation', '')}"
             for m in matches
         )
+
+        return html, text, subject
+
+    def _render_cv_completeness_reminder(self, ctx: dict[str, Any]) -> tuple[str, str, str]:
+        """Render CV completeness reminder (nudges candidate to finish the CV chatbot)."""
+        first_name = ctx.get("first_name", "")
+        missing_fields = ctx.get("missing_fields", [])
+        chat_link = ctx.get("chat_link", "#")
+
+        subject = "Finish setting up your CV"
+
+        missing_list_html = "".join(f"<li>{field}</li>" for field in missing_fields)
+
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2c3e50;">Your CV is almost ready{", " + first_name if first_name else ""}!</h2>
+            <p>A few details are still missing from your CV. Completing them helps us match you with better jobs.</p>
+            <ul>{missing_list_html}</ul>
+
+            <p style="text-align: center; margin: 30px 0;">
+                <a href="{chat_link}"
+                   style="background: #4CAF50; color: white; padding: 14px 28px;
+                          text-decoration: none; border-radius: 4px; display: inline-block; font-size: 16px;">
+                    Finish My CV
+                </a>
+            </p>
+
+            <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+                Hyrepath Enrichment | support@hyrepath.com
+            </p>
+        </body>
+        </html>
+        """
+
+        text = f"""
+        Your CV is almost ready{", " + first_name if first_name else ""}!
+
+        A few details are still missing from your CV: {", ".join(missing_fields)}
+
+        Finish your CV: {chat_link}
+
+        ---
+        Hyrepath Enrichment | support@hyrepath.com
+        """
+
+        return html, text, subject
+
+    def _render_portfolio_published(self, ctx: dict[str, Any]) -> tuple[str, str, str]:
+        """Render portfolio-published confirmation with the public page link."""
+        first_name = ctx.get("first_name", "")
+        portfolio_url = ctx.get("portfolio_url", "#")
+
+        subject = "Your portfolio is live!"
+
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2c3e50;">Your portfolio is live{", " + first_name if first_name else ""}!</h2>
+            <p>Your public portfolio page has been published and is ready to share.</p>
+
+            <p style="text-align: center; margin: 30px 0;">
+                <a href="{portfolio_url}"
+                   style="background: #4CAF50; color: white; padding: 14px 28px;
+                          text-decoration: none; border-radius: 4px; display: inline-block; font-size: 16px;">
+                    View My Portfolio
+                </a>
+            </p>
+
+            <p style="color: #666; font-size: 14px;">
+                Or copy and paste this link into your browser:<br>
+                <a href="{portfolio_url}" style="color: #4CAF50; word-break: break-all;">{portfolio_url}</a>
+            </p>
+
+            <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+                Hyrepath Enrichment | support@hyrepath.com
+            </p>
+        </body>
+        </html>
+        """
+
+        text = f"""
+        Your portfolio is live{", " + first_name if first_name else ""}!
+
+        Your public portfolio page has been published and is ready to share.
+
+        View your portfolio: {portfolio_url}
+
+        ---
+        Hyrepath Enrichment | support@hyrepath.com
+        """
 
         return html, text, subject
 

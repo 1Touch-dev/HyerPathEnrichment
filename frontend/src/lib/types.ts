@@ -335,3 +335,139 @@ export type DocumentSearchResult = {
 export type DocumentSearchResponse = {
   results: DocumentSearchResult[];
 };
+
+// Module 2: Tinder-Style Job Board + CV Management (phase2_module2.md §11.2)
+
+export interface CvCompleteness {
+  documentId: string;
+  completenessScore: number;
+  missingFields: string[];
+  hasActiveChatSession: boolean;
+}
+
+export interface CvChatMessage {
+  id: string;
+  role: "assistant" | "user";
+  content: string;
+  createdAt: string;
+}
+
+export interface CvChatSession {
+  sessionId: string;
+  status: "active" | "completed" | "abandoned";
+  missingFieldsAtStart: string[];
+  fieldsResolved: string[];
+  messages: CvChatMessage[];
+}
+
+/**
+ * Mirrors the backend's `CvFeedbackResponse` (backend/app/modules/documents/schemas.py) —
+ * a `CvFeedbackReport` row is only ever created once generation is fully complete (see
+ * `backend/app/workers/tasks/cv_improvement.py`), so there is no "pending" shape of this
+ * type. "Is generation still running?" is answered separately, via `DocumentJobStatus`
+ * (the real `job_id` returned by `requestCvFeedback`), not by a field on this type.
+ */
+export interface CvFeedbackReport {
+  reportId: string;
+  documentId: string;
+  targetRole: string | null;
+  atsScore: number;
+  strengths: string[];
+  improvements: string[];
+  rewrittenBullets: { original: string; rewritten: string; rationale: string }[];
+  /** Indices into `rewrittenBullets` the user has already accepted (backend's `accepted_bullet_indices`). */
+  acceptedBulletIndices: number[];
+  createdAt: string;
+}
+
+/** Mirrors the backend's `DocumentMetadata` (backend/app/modules/documents/schemas.py). */
+export interface DocumentSummary {
+  documentId: string;
+  documentType: string;
+  originalFilename: string;
+  fileSizeBytes: number;
+  processingStatus: string;
+  createdAt: string;
+}
+
+export interface PortfolioItem {
+  itemId: string;
+  itemType: "github_repo" | "live_demo" | "case_study" | "other_link";
+  title: string;
+  description: string | null;
+  url: string;
+  displayOrder: number;
+}
+
+export interface PortfolioProfile {
+  profileId: string;
+  userId: string;
+  slug: string;
+  displayName: string | null;
+  headline: string | null;
+  summary: string | null;
+  isPublished: boolean;
+  /** Absolute or root-relative URL to the public /p/{slug} page (backend's `PortfolioProfileResponse.public_url`). */
+  publicUrl: string;
+  items: PortfolioItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicPortfolioProfile {
+  slug: string;
+  displayName: string | null;
+  headline: string | null;
+  summary: string | null;
+  items: PortfolioItem[];
+  // Deliberately no profileId/userId/publicUrl/timestamps — public response never leaks
+  // internal IDs (§9.6), and the visitor is already on the public URL so it isn't needed.
+}
+
+export interface SwipeCard {
+  matchId: string;
+  jobPostingId: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+  overallScore: number;
+  explanation: string | null;
+}
+
+export interface SwipeDeck {
+  cards: SwipeCard[];
+  /** Whether more unswiped matches exist beyond this page (backend's `SwipeDeckResponse.has_more`). */
+  hasMore: boolean;
+}
+
+export type SwipeDirection = "left" | "right" | "up";
+
+export interface OutreachMessage {
+  messageId: string;
+  companyName: string;
+  recipientRoleTitle: string | null;
+  subject: string;
+  body: string;
+  status: "draft" | "sent";
+  createdAt: string;
+  sentAt: string | null;
+}
+
+export interface OutreachListResponse {
+  messages: OutreachMessage[];
+}
+
+/**
+ * `POST /api/outreach/drafts` is async — it enqueues an RQ job and returns this
+ * immediately; the actual `OutreachMessage` row only exists once the worker finishes
+ * and shows up later via `GET /api/outreach` (backend/app/modules/outreach/service.py's
+ * `request_draft`). There is no `OutreachMessage` to return synchronously.
+ */
+export interface OutreachDraftAccepted {
+  rqJobId: string;
+  message: string;
+}

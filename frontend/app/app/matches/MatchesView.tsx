@@ -58,6 +58,9 @@ export function MatchesView() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Job matches</h1>
         <div className="flex items-center gap-2">
+          <Link href="/app/matches/swipe">
+            <Button variant="outline">Try swipe view</Button>
+          </Link>
           <Button
             variant="outline"
             onClick={() => triggerScan.mutate()}

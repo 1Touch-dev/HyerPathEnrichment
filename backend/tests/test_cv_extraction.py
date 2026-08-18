@@ -206,7 +206,7 @@ async def test_extract_cv_data_malformed_response():
 
     with patch("app.services.cv_extractor.httpx.AsyncClient") as mock_client:
         mock_response_obj = AsyncMock()
-        mock_response_obj.json = AsyncMock(return_value=mock_response)
+        mock_response_obj.json = Mock(return_value=mock_response)
         mock_response_obj.raise_for_status = lambda: None
 
         mock_post = AsyncMock(return_value=mock_response_obj)
@@ -258,6 +258,31 @@ async def test_extract_cv_data_with_preferences():
     assert result.desired_locations == ["San Francisco", "Remote"]
     assert result.remote_preference == "hybrid"
     assert result.completeness_score == 1.0
+
+
+@pytest.mark.asyncio
+async def test_extract_cv_data_does_not_await_sync_json_method():
+    """Regression test for phase2_module2.md §2.1 Bug 1: response.json() must be called
+    synchronously, never awaited, or every real-key CV extraction silently returns empty.
+
+    The mock response's `.json` is a plain sync `Mock` (not `AsyncMock`) — if
+    `extract_cv_data` ever awaited it, this would raise a TypeError internally, get
+    swallowed by the broad except clause, and silently produce an all-empty CVData.
+    """
+    mock_response = {"choices": [{"message": {"content": '{"full_name": "Jane Doe"}'}}]}
+    settings = Settings(openai_api_key="test-key-123")
+
+    with patch("app.services.cv_extractor.httpx.AsyncClient") as mock_client:
+        mock_response_obj = AsyncMock()
+        mock_response_obj.json = Mock(return_value=mock_response)  # sync callable, not async
+        mock_response_obj.raise_for_status = lambda: None
+
+        mock_post = AsyncMock(return_value=mock_response_obj)
+        mock_client.return_value.__aenter__.return_value.post = mock_post
+
+        cv_data = await extract_cv_data("Jane Doe, Software Engineer", settings)
+
+    assert cv_data.full_name == "Jane Doe"
 
 
 def test_industries_and_certifications_default_to_empty_list():

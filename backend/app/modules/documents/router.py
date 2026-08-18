@@ -10,8 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.modules.documents.cv_chat_service import CvChatService
 from app.modules.documents.schemas import (
+    AcceptBulletRequest,
+    CvChatMessageRequest,
+    CvChatSessionResponse,
+    CvChatTurnResponse,
+    CvCompletenessResponse,
     CVDataResponse,
+    CvFeedbackRequest,
+    CvFeedbackResponse,
     DocumentDetailResponse,
     DocumentMetadata,
     DocumentUploadResponse,
@@ -232,3 +240,67 @@ async def reprocess_document(
     """
     service = DocumentService(db)
     return await service.reprocess_document(document_id, current_user.id)
+
+
+@router.get("/{document_id}/completeness", response_model=CvCompletenessResponse)
+async def get_completeness(
+    document_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> CvCompletenessResponse:
+    """Missing-field completeness check (Decision 1). Drives the 'let's finish your CV' prompt."""
+    service = DocumentService(db)
+    return await service.get_completeness(document_id, current_user.id)
+
+
+@router.post("/{document_id}/cv-chat/sessions", response_model=CvChatSessionResponse)
+async def start_cv_chat_session(
+    document_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> CvChatSessionResponse:
+    """Start (or resume) the missing-info chatbot for a document."""
+    service = CvChatService(db)
+    return await service.start_session(document_id, current_user.id)
+
+
+@router.post("/cv-chat/sessions/{session_id}/messages", response_model=CvChatTurnResponse)
+async def post_cv_chat_message(
+    session_id: str,
+    body: CvChatMessageRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> CvChatTurnResponse:
+    """One turn-based (non-streamed, Decision 2) chatbot exchange."""
+    service = CvChatService(db)
+    return await service.post_message(session_id, current_user.id, body.content)
+
+
+@router.post("/{document_id}/feedback", response_model=DocumentUploadResponse)
+async def request_cv_feedback(
+    document_id: str,
+    body: CvFeedbackRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> DocumentUploadResponse:
+    """Enqueue AI CV-improvement generation (Decision 3)."""
+    service = DocumentService(db)
+    return await service.request_cv_feedback(document_id, current_user.id, body.target_role)
+
+
+@router.get("/{document_id}/feedback", response_model=CvFeedbackResponse)
+async def get_cv_feedback(
+    document_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> CvFeedbackResponse:
+    """Latest CV-improvement report for a document."""
+    service = DocumentService(db)
+    return await service.get_latest_cv_feedback(document_id, current_user.id)
+
+
+@router.post("/{document_id}/feedback/{report_id}/accept", response_model=CvFeedbackResponse)
+async def accept_cv_feedback_bullet(
+    document_id: str,
+    report_id: str,
+    body: AcceptBulletRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> CvFeedbackResponse:
+    """Explicitly accept one rewritten bullet — the only way a suggestion is endorsed (Decision 3)."""
+    service = DocumentService(db)
+    return await service.accept_cv_feedback_bullet(document_id, current_user.id, report_id, body.bullet_index)

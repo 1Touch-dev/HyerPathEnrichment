@@ -18,7 +18,11 @@ from app.modules.email.router import router as email_router
 from app.modules.enrichment.router import router as enrich_router
 from app.modules.health.router import router as health_router
 from app.modules.job_matching.router import router as job_matching_router
+from app.modules.job_swipe.router import router as job_swipe_router
 from app.modules.opt_out.router import router as opt_out_router
+from app.modules.outreach.router import router as outreach_router
+from app.modules.portfolio.router import public_router as portfolio_public_router
+from app.modules.portfolio.router import router as portfolio_router
 from app.modules.sessions.router import router as sessions_router
 from app.modules.signals.router import list_router as signals_list_router
 from app.modules.signals.router import webhook_router as signals_webhook_router
@@ -78,6 +82,10 @@ app.include_router(enrich_router, dependencies=[Depends(current_verified_user)])
 app.include_router(email_router, dependencies=[Depends(current_verified_user)])
 app.include_router(sessions_router, dependencies=[Depends(current_verified_user)])
 app.include_router(job_matching_router, dependencies=[Depends(current_verified_user)])
+app.include_router(portfolio_router, dependencies=[Depends(current_verified_user)])
+app.include_router(portfolio_public_router)
+app.include_router(job_swipe_router, dependencies=[Depends(current_verified_user)])
+app.include_router(outreach_router, dependencies=[Depends(current_verified_user)])
 app.include_router(
     dsar_router,
     dependencies=[Depends(current_verified_user), Depends(enforce_compliance_rate_limit)],

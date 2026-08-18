@@ -13,19 +13,30 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.embeddings import get_embeddings_client
-from app.modules.documents.models import CandidateDocument, DocumentJob
+from app.domain.candidate import CVData
+from app.domain.cv_completeness import completeness_score, compute_missing_fields
+from app.modules.documents.models import (
+    CandidateDocument,
+    CvChatSession,
+    CvFeedbackReport,
+    DocumentJob,
+)
 from app.modules.documents.schemas import (
+    CvCompletenessResponse,
     CVDataResponse,
+    CvFeedbackResponse,
     DocumentDetailResponse,
     DocumentMetadata,
     DocumentUploadResponse,
     JobStatusResponse,
+    RewrittenBullet,
     SearchRequest,
     SearchResult,
 )
+from app.services.feedback_generator import ATS_SCORE_METHODOLOGY
 from app.services.vector_search import similarity_search
 from app.storage.document_storage import DocumentStorageClient, DocumentStorageError
-from app.workers.queue import QUEUE_DOCUMENT, get_redis_connection
+from app.workers.queue import QUEUE_DOCUMENT, QUEUE_FEEDBACK, get_redis_connection
 
 logger = logging.getLogger(__name__)
 
@@ -571,6 +582,135 @@ class DocumentService:
             job_id=str(job.id),
             document_id=str(document.id),
             message="Document queued for reprocessing",
+        )
+
+    async def get_completeness(self, document_id: str, user_id: UUID) -> CvCompletenessResponse:
+        """Compute completeness for a processed document (Decision 1)."""
+        document = await self._get_owned_document(document_id, user_id)
+        cv_data = CVData(**(document.extracted_data or {})) if document.extracted_data else CVData()
+        missing = compute_missing_fields(cv_data)
+
+        active_session = await self.db.execute(
+            select(CvChatSession).where(
+                CvChatSession.document_id == document.id, CvChatSession.status == "active"
+            )
+        )
+        return CvCompletenessResponse(
+            document_id=str(document.id),
+            completeness_score=completeness_score(cv_data),
+            missing_fields=missing,
+            has_active_chat_session=active_session.scalar_one_or_none() is not None,
+        )
+
+    async def request_cv_feedback(
+        self, document_id: str, user_id: UUID, target_role: str | None
+    ) -> DocumentUploadResponse:
+        """Enqueue CV improvement generation (Decision 3). Reuses QUEUE_FEEDBACK — no new queue."""
+        document = await self._get_owned_document(document_id, user_id)
+        if document.processing_status != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Document must finish processing before requesting feedback",
+            )
+
+        job = DocumentJob(
+            user_id=user_id,
+            document_id=document.id,
+            job_type="cv_feedback",
+            status="pending",
+            progress=0.0,
+        )
+        self.db.add(job)
+        await self.db.commit()
+        await self.db.refresh(job)
+
+        try:
+            queue = Queue(QUEUE_FEEDBACK, connection=self.redis_conn)
+            queue.enqueue(
+                "app.workers.tasks.cv_improvement.generate_cv_improvement_job",
+                str(document.id),
+                str(job.id),
+                target_role,
+                job_timeout=120,
+            )
+        except Exception as e:
+            job.status = "failed"
+            job.error = f"Failed to enqueue: {e!s}"
+            await self.db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to enqueue CV feedback generation",
+            )
+
+        return DocumentUploadResponse(
+            job_id=str(job.id),
+            document_id=str(document.id),
+            message="CV feedback generation started",
+        )
+
+    async def get_latest_cv_feedback(self, document_id: str, user_id: UUID) -> CvFeedbackResponse:
+        document = await self._get_owned_document(document_id, user_id)
+        result = await self.db.execute(
+            select(CvFeedbackReport)
+            .where(CvFeedbackReport.document_id == document.id)
+            .order_by(CvFeedbackReport.created_at.desc())
+            .limit(1)
+        )
+        report = result.scalar_one_or_none()
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="No feedback report yet"
+            )
+        return self._feedback_to_response(report)
+
+    async def accept_cv_feedback_bullet(
+        self, document_id: str, user_id: UUID, report_id: str, bullet_index: int
+    ) -> CvFeedbackResponse:
+        """Explicit candidate 'accept' — this is the ONLY path that constitutes endorsement (Decision 3)."""
+        await self._get_owned_document(document_id, user_id)
+        result = await self.db.execute(
+            select(CvFeedbackReport).where(
+                CvFeedbackReport.id == UUID(report_id), CvFeedbackReport.user_id == user_id
+            )
+        )
+        report = result.scalar_one_or_none()
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Feedback report not found"
+            )
+        if bullet_index < 0 or bullet_index >= len(report.rewritten_bullets):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid bullet index"
+            )
+        if bullet_index not in report.accepted_bullet_indices:
+            report.accepted_bullet_indices = [*report.accepted_bullet_indices, bullet_index]
+            await self.db.commit()
+            await self.db.refresh(report)
+        return self._feedback_to_response(report)
+
+    async def _get_owned_document(self, document_id: str, user_id: UUID) -> CandidateDocument:
+        result = await self.db.execute(
+            select(CandidateDocument).where(
+                CandidateDocument.id == UUID(document_id), CandidateDocument.user_id == user_id
+            )
+        )
+        document = result.scalar_one_or_none()
+        if not document:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        return document
+
+    def _feedback_to_response(self, report: CvFeedbackReport) -> CvFeedbackResponse:
+        return CvFeedbackResponse(
+            report_id=str(report.id),
+            document_id=str(report.document_id),
+            target_role=report.target_role,
+            ats_score=report.ats_score,
+            ats_score_methodology=ATS_SCORE_METHODOLOGY,
+            strengths=report.strengths,
+            improvements=report.improvements,
+            rewritten_bullets=[RewrittenBullet(**b) for b in report.rewritten_bullets],
+            accepted_bullet_indices=report.accepted_bullet_indices,
+            created_at=report.created_at,
         )
 
 

@@ -1,16 +1,19 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentStatusBadge } from "@/components/console/DocumentStatusBadge";
 import { EmptyState } from "@/components/console/EmptyState";
 import { RawJsonPanel } from "@/components/console/RawJsonPanel";
 import { useDeleteDocument, useDocument, useReprocessDocument } from "@/features/documents";
+import { CompletenessBanner, CvChatWidget, CvFeedbackPanel } from "@/features/cv-management";
 import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 
 function LoadingSkeleton() {
@@ -42,6 +45,7 @@ export default function DocumentDetailPage() {
   const { data: doc, isLoading, error } = useDocument(documentId);
   const reprocessMutation = useReprocessDocument();
   const deleteMutation = useDeleteDocument();
+  const [showChat, setShowChat] = useState(false);
 
   const handleReprocess = async () => {
     try {
@@ -136,6 +140,10 @@ export default function DocumentDetailPage() {
         </div>
       </div>
 
+      <CompletenessBanner documentId={documentId} onStartChat={() => setShowChat(true)} />
+
+      {showChat && <CvChatWidget documentId={documentId} onComplete={() => setShowChat(false)} />}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Metadata</CardTitle>
@@ -163,6 +171,15 @@ export default function DocumentDetailPage() {
           </dl>
         </CardContent>
       </Card>
+
+      <Tabs defaultValue="feedback">
+        <TabsList>
+          <TabsTrigger value="feedback">AI feedback</TabsTrigger>
+        </TabsList>
+        <TabsContent value="feedback">
+          <CvFeedbackPanel documentId={documentId} />
+        </TabsContent>
+      </Tabs>
 
       <Card>
         <CardHeader>
