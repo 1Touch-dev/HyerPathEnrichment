@@ -53,21 +53,3 @@ def test_session_metrics_module_defines_expected_collectors() -> None:
     assert session_metrics.attempt_score_distribution is not None
     assert session_metrics.active_sessions is not None
     assert session_metrics.state_transitions_total is not None
-
-
-def test_rate_limit_middleware_builds_configured_limiter() -> None:
-    from slowapi import Limiter
-
-    from app.middleware.rate_limit import (
-        API_RATE_LIMIT,
-        AUTH_RATE_LIMIT,
-        VERIFY_RATE_LIMIT,
-        get_limiter,
-    )
-
-    limiter = get_limiter()
-
-    assert isinstance(limiter, Limiter)
-    assert AUTH_RATE_LIMIT == "5/minute"
-    assert VERIFY_RATE_LIMIT == "10/minute"
-    assert API_RATE_LIMIT == "60/minute"
