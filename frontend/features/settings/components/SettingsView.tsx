@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Trash2 } from "lucide-react";
+import { LogOut, ShieldCheck, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -99,6 +100,22 @@ export function SettingsView() {
               className="font-mono text-xs"
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Security Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Security</CardTitle>
+          <CardDescription>Two-factor authentication and account security.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline" className="w-fit">
+            <Link href="/app/settings/security">
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              Manage two-factor authentication
+            </Link>
+          </Button>
         </CardContent>
       </Card>
 
