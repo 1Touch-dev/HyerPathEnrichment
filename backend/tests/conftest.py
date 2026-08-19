@@ -135,6 +135,33 @@ class FakeRedis:
     async def expire(self, key: str, seconds: int) -> bool:
         return key in self._counters
 
+    async def eval(self, script: str, numkeys: int, *keys_and_args: str) -> int:
+        """Reproduce the weighted sliding-window Lua script's semantics.
+
+        Not a general Lua interpreter -- this mirrors the exact algorithm in
+        ``app.infrastructure.redis._RATE_LIMIT_SCRIPT`` (same weighted-estimate
+        formula, same reject-without-incrementing-on-limit behavior) against
+        this fake's own ``_counters`` dict, which is the same store ``incr``/
+        ``expire`` above already use. The current/previous window keys and the
+        weight are computed by the real (unmocked) ``check_rate_limit`` before
+        it calls ``client.eval(...)``, so there is nothing left for this fake
+        to recompute independently -- it just has to apply the same estimate
+        check and increment step against its own state.
+        """
+        current_key, previous_key = keys_and_args[:numkeys]
+        limit_str, weight_str = keys_and_args[numkeys], keys_and_args[numkeys + 1]
+        limit = int(limit_str)
+        weight = float(weight_str)
+
+        current = self._counters.get(current_key, 0)
+        previous = self._counters.get(previous_key, 0)
+        estimated = current + previous * weight
+        if estimated >= limit:
+            return 0
+
+        self._counters[current_key] = current + 1
+        return 1
+
     async def get(self, key: str) -> str | None:
         return self._kv.get(key)
 

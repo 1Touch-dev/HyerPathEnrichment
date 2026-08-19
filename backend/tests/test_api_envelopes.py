@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.errors import NotFoundError
 from app.core.responses import success_envelope
+from app.enrichers import MaigretEnricher, SherlockEnricher, SocialAnalyzerEnricher
 from app.main import app
 from tests.envelope_helpers import assert_error, assert_success
 
@@ -56,6 +57,17 @@ def test_validation_error_envelope() -> None:
 
 def test_rate_limit_error_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.core.config import get_settings
+
+    # Stub tier2 enrichers so this stays a fast, offline test like the rest of
+    # the suite (see tests/test_pipeline_shape.py's _offline_enrichers), rather
+    # than shelling out to sherlock/maigret/social-analyzer CLIs that aren't
+    # installed here and would otherwise time out on each of the 3 calls below.
+    async def _fast_fetch(self, request):
+        return {}
+
+    monkeypatch.setattr(SherlockEnricher, "_fetch", _fast_fetch)
+    monkeypatch.setattr(MaigretEnricher, "_fetch", _fast_fetch)
+    monkeypatch.setattr(SocialAnalyzerEnricher, "_fetch", _fast_fetch)
 
     monkeypatch.setattr(get_settings(), "max_sync_requests_per_minute", 2)
     client = TestClient(app)
