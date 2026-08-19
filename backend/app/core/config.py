@@ -33,6 +33,15 @@ class Settings(BaseSettings):
         default=20, alias="MAX_COMPLIANCE_REQUESTS_PER_MINUTE"
     )
     max_auth_requests_per_minute: int = Field(default=5, alias="MAX_AUTH_REQUESTS_PER_MINUTE")
+    max_documents_upload_requests_per_minute: int = Field(
+        default=10, alias="MAX_DOCUMENTS_UPLOAD_REQUESTS_PER_MINUTE"
+    )
+    max_signals_webhook_requests_per_minute: int = Field(
+        default=30, alias="MAX_SIGNALS_WEBHOOK_REQUESTS_PER_MINUTE"
+    )
+    max_job_matching_scan_requests_per_minute: int = Field(
+        default=5, alias="MAX_JOB_MATCHING_SCAN_REQUESTS_PER_MINUTE"
+    )
 
     # Provider mode switches (Phase 0): the only flags that flip free -> paid.
     # Defaults = fully free / self-hosted. See app/providers/.

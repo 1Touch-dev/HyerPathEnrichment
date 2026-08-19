@@ -70,3 +70,33 @@ async def enforce_auth_rate_limit(
         f"auth:{_host_client_id(request)}",
         settings.max_auth_requests_per_minute,
     )
+
+
+async def enforce_documents_upload_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"documents:{_client_id(authorization)}",
+        settings.max_documents_upload_requests_per_minute,
+    )
+
+
+async def enforce_signals_webhook_rate_limit(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"signals:{_host_client_id(request)}",
+        settings.max_signals_webhook_requests_per_minute,
+    )
+
+
+async def enforce_job_matching_scan_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"job_matching:{_client_id(authorization)}",
+        settings.max_job_matching_scan_requests_per_minute,
+    )

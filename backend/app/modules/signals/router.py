@@ -11,6 +11,7 @@ from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import get_settings
 from app.core.errors import UnauthorizedError
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_signals_webhook_rate_limit
 from app.domain.enrichment import SignalListResponse
 from app.signals.store import create_signal, list_signals
 
@@ -35,7 +36,11 @@ def _parse_changedetection_payload(
     return watch_id, title, url, timestamp
 
 
-@webhook_router.post("/changedetection", status_code=status.HTTP_202_ACCEPTED)
+@webhook_router.post(
+    "/changedetection",
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(enforce_signals_webhook_rate_limit)],
+)
 async def changedetection_webhook(
     payload: dict[str, Any],
     x_signal_token: str | None = Header(default=None),

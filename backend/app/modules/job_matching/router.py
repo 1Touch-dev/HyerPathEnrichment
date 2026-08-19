@@ -9,6 +9,7 @@ from starlette.responses import StreamingResponse
 from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_job_matching_scan_rate_limit
 from app.modules.job_matching import events, push, repository
 from app.modules.job_matching.schemas import (
     JobMatchFeedbackRequest,
@@ -72,7 +73,11 @@ async def submit_match_feedback(
     await service.set_feedback(match_id, current_user.id, payload.feedback)
 
 
-@router.post("/scan", response_model=ScanTriggerResponse)
+@router.post(
+    "/scan",
+    response_model=ScanTriggerResponse,
+    dependencies=[Depends(enforce_job_matching_scan_rate_limit)],
+)
 async def trigger_scan(
     current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
 ) -> ScanTriggerResponse:
