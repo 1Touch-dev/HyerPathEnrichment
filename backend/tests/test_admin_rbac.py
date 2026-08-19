@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON
+from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 
 # NOTE: no module-level `pytestmark = pytest.mark.asyncio` here — this file
 # mixes sync and async test functions, and pyproject.toml's asyncio_mode =
@@ -26,7 +26,9 @@ async def test_user_without_role_denied(db_session, regular_user):
     assert await user_has_permission(db_session, regular_user, "users", "read") is False
 
 
-@pytest.mark.xfail(reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True)
+@pytest.mark.xfail(
+    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
+)
 async def test_support_role_can_read_users_but_not_write(db_session, support_user):
     from app.modules.admin.permissions import user_has_permission
 
@@ -34,7 +36,9 @@ async def test_support_role_can_read_users_but_not_write(db_session, support_use
     assert await user_has_permission(db_session, support_user, "users", "write") is False
 
 
-@pytest.mark.xfail(reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True)
+@pytest.mark.xfail(
+    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
+)
 async def test_support_role_can_suspend_users(db_session, support_user):
     """migration 038 grants ('users', 'suspend') to 'support' — distinct from
     ('users', 'write'), which it does NOT grant."""

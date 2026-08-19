@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy import select
 
 from app.modules.admin.models import AdminAuditLog
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON
+from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
 
 pytestmark = pytest.mark.asyncio
@@ -38,7 +38,9 @@ async def test_list_users_regular_user_forbidden(client, regular_user, auth_head
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True)
+@pytest.mark.xfail(
+    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
+)
 async def test_support_role_can_list_users(client, support_user, auth_headers):
     """support role grants users:read (migration 038) — RBAC path, not the
     is_superuser bypass."""
@@ -108,7 +110,9 @@ async def test_assign_role_requires_strict_superuser_not_rbac_permission(
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True)
+@pytest.mark.xfail(
+    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
+)
 async def test_assign_role_succeeds_for_superuser(
     client, superuser, regular_user, db_session, auth_headers
 ):

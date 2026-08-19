@@ -12,6 +12,12 @@ from uuid import UUID
 _EXISTING_DB_URL = os.environ.get("DATABASE_URL", "")
 _USE_REAL_INFRA = "postgresql" in _EXISTING_DB_URL.lower()
 
+# Exported for test modules that need to conditionally xfail/skip based on DB
+# backend (see SQLITE_ROLE_UUID_DASH_BUG_REASON below) — verified against a
+# real Postgres instance: the dashed/undashed UUID FK-join bug is confirmed
+# SQLite-only, so tests gated on it must still run for real on Postgres.
+USING_POSTGRES = _USE_REAL_INFRA
+
 if not _USE_REAL_INFRA:
     # Use SQLite for local/CI testing (isolated environment)
     _TEST_DB = Path(__file__).resolve().parent / "_pytest_hyrepath.db"
@@ -507,7 +513,10 @@ SQLITE_ROLE_UUID_DASH_BUG_REASON = (
     "ORM-written UUID value and a migration-seeded UUID value never matches as a raw "
     "SQLite TEXT comparison, so user_has_permission()'s RolePermission lookup silently "
     "returns no rows for any role-based (non-superuser) user on SQLite. Does not affect "
-    "PostgreSQL (native UUID column). Root cause is in app/modules/admin/models.py / the "
+    "PostgreSQL (native UUID column) — VERIFIED against a real Postgres 16 instance: all "
+    "4 tests gated on this reason pass for real there (see USING_POSTGRES below, which "
+    "makes the xfail conditional so Postgres runs actually exercise them instead of "
+    "silently xfail-skipping). Root cause is in app/modules/admin/models.py / the "
     "migration files, both out of scope for this test-only task."
 )
 
