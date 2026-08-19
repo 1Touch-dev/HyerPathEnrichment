@@ -5,20 +5,24 @@ import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { mainNav, systemNav } from "./nav-config";
+import { adminNav, mainNav, systemNav } from "./nav-config";
 
 type AppBottomNavProps = {
   pathname: string;
   matchesUnreadCount?: number;
+  isAdmin?: boolean;
 };
 
 function isPathActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppBottomNav({ pathname, matchesUnreadCount = 0 }: AppBottomNavProps) {
+export function AppBottomNav({ pathname, matchesUnreadCount = 0, isAdmin = false }: AppBottomNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
-  const moreActive = systemNav.items.some((item) => isPathActive(pathname, item.href));
+  const moreSections = isAdmin ? [systemNav, adminNav] : [systemNav];
+  const moreActive = moreSections
+    .flatMap((section) => section.items)
+    .some((item) => isPathActive(pathname, item.href));
 
   return (
     <>
@@ -72,7 +76,7 @@ export function AppBottomNav({ pathname, matchesUnreadCount = 0 }: AppBottomNavP
             <SheetTitle>More</SheetTitle>
           </SheetHeader>
           <ul className="mt-4 space-y-1">
-            {systemNav.items.map((item) => {
+            {moreSections.flatMap((section) => section.items).map((item) => {
               const Icon = item.icon;
               const active = isPathActive(pathname, item.href);
               return (

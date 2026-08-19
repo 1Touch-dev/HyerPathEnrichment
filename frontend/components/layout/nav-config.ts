@@ -11,6 +11,12 @@ import {
   User,
   Mail,
   Briefcase,
+  ShieldCheck,
+  Users,
+  ScrollText,
+  Flag,
+  ListTodo,
+  BarChart3,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -51,3 +57,16 @@ export const systemNav: NavSection = {
 };
 
 export const allNavSections = [mainNav, systemNav];
+
+export const adminNav: NavSection = {
+  title: "Admin",
+  items: [
+    { href: "/app/admin/system-health", label: "System health", icon: Activity },
+    { href: "/app/admin/users", label: "Users", icon: Users },
+    { href: "/app/admin/roles", label: "Roles", icon: ShieldCheck },
+    { href: "/app/admin/audit-logs", label: "Audit logs", icon: ScrollText },
+    { href: "/app/admin/feature-flags", label: "Feature flags", icon: Flag },
+    { href: "/app/admin/queues", label: "Queues", icon: ListTodo },
+    { href: "/app/admin/analytics", label: "Analytics", icon: BarChart3 },
+  ],
+};

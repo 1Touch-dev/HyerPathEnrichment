@@ -8,16 +8,18 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/src/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleSidebar } from "@/store/slices/uiSlice";
-import { allNavSections } from "./nav-config";
+import { adminNav, mainNav, systemNav } from "./nav-config";
 
 type AppSidebarProps = {
   matchesUnreadCount?: number;
+  isAdmin?: boolean;
 };
 
-export function AppSidebar({ matchesUnreadCount = 0 }: AppSidebarProps) {
+export function AppSidebar({ matchesUnreadCount = 0, isAdmin = false }: AppSidebarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const sidebarOpen = useAppSelector((state) => state.ui.sidebarOpen);
+  const sections = isAdmin ? [mainNav, systemNav, adminNav] : [mainNav, systemNav];
 
   const isActive = (href: string) => {
     return pathname === href || pathname.startsWith(`${href}/`);
@@ -57,7 +59,7 @@ export function AppSidebar({ matchesUnreadCount = 0 }: AppSidebarProps) {
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-2 py-4">
-        {allNavSections.map((section) => (
+        {sections.map((section) => (
           <div key={section.title}>
             {sidebarOpen ? (
               <p className="mb-2 px-2 text-xs font-medium text-muted-foreground">{section.title}</p>
