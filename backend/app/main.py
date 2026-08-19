@@ -58,11 +58,16 @@ app.add_middleware(RequestContextMiddleware)
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL] if settings.FRONTEND_URL else ["http://localhost:3000"],
+    allow_origins=settings.cors_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Actual verb set used across app/modules/*/router.py + OPTIONS for preflight.
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    # Only headers a browser-based client needs to send; server-side-only headers
+    # (X-Forwarded-For, X-Real-IP, User-Agent, X-Request-ID) don't need to be listed here.
+    allow_headers=["Authorization", "Content-Type"],
     expose_headers=["*"],
+    # Cache preflight responses for 10 minutes to cut down on repeated OPTIONS round-trips.
+    max_age=600,
 )
 
 # Register exception handlers

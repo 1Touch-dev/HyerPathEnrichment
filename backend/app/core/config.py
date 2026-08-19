@@ -253,6 +253,19 @@ class Settings(BaseSettings):
     # Frontend URL (for email links)
     FRONTEND_URL: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")
 
+    # CORS allowlist — comma-separated origins, e.g. "https://app.example.com,https://admin.example.com".
+    # Optional/opt-in: when unset, falls back to FRONTEND_URL (or localhost) so existing
+    # single-origin deployments keep working unchanged. See cors_allowed_origins below.
+    CORS_ALLOWED_ORIGINS: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
+
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        """Parsed CORS allowlist, falling back to FRONTEND_URL (or localhost) when unset."""
+        origins = [o.strip() for o in self.CORS_ALLOWED_ORIGINS.split(",") if o.strip()]
+        if origins:
+            return origins
+        return [self.FRONTEND_URL] if self.FRONTEND_URL else ["http://localhost:3000"]
+
     # Cookie settings
     COOKIE_SECURE: bool = Field(default=False, alias="COOKIE_SECURE")
     COOKIE_DOMAIN: str | None = Field(default=None, alias="COOKIE_DOMAIN")
