@@ -130,6 +130,61 @@ async def test_start_with_nonexistent_target_returns_404(db_session, superuser):
     assert exc.value.status_code == 404
 
 
+async def test_start_sets_cookie_secure_flag_from_settings_when_disabled(
+    db_session, superuser, regular_user, monkeypatch
+):
+    """Regression test: secure was previously hardcoded True, which makes
+    RFC-6265-compliant clients refuse the cookie over plain HTTP in dev/test.
+    """
+    from starlette.responses import Response
+
+    from app.core.config import get_settings
+    from app.modules.admin.impersonation import start_impersonation
+
+    monkeypatch.setattr(get_settings(), "COOKIE_SECURE", False)
+
+    response = Response()
+    await start_impersonation(
+        db_session,
+        admin=superuser,
+        target_user_id=regular_user.id,
+        reason="debugging a support ticket",
+        mfa_code=None,
+        response=response,
+        ip_address="127.0.0.1",
+    )
+
+    set_cookie_header = dict(response.headers.items())["set-cookie"]
+    assert "access_token=" in set_cookie_header
+    assert "Secure" not in set_cookie_header
+
+
+async def test_start_sets_cookie_secure_flag_from_settings_when_enabled(
+    db_session, superuser, regular_user, monkeypatch
+):
+    from starlette.responses import Response
+
+    from app.core.config import get_settings
+    from app.modules.admin.impersonation import start_impersonation
+
+    monkeypatch.setattr(get_settings(), "COOKIE_SECURE", True)
+
+    response = Response()
+    await start_impersonation(
+        db_session,
+        admin=superuser,
+        target_user_id=regular_user.id,
+        reason="debugging a support ticket",
+        mfa_code=None,
+        response=response,
+        ip_address="127.0.0.1",
+    )
+
+    set_cookie_header = dict(response.headers.items())["set-cookie"]
+    assert "access_token=" in set_cookie_header
+    assert "Secure" in set_cookie_header
+
+
 async def test_end_impersonation_marks_session_ended_and_revokes_jti(
     db_session, superuser, regular_user, mock_redis
 ):

@@ -64,7 +64,7 @@ async def start_impersonation(
         "access_token",
         token,
         httponly=True,
-        secure=True,
+        secure=settings.COOKIE_SECURE,
         samesite="lax",
         expires=int(expires_at.timestamp()),
     )
