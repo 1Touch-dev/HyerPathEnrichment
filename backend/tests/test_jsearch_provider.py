@@ -184,7 +184,7 @@ def test_scrape_jsearch_calls_search_v2_endpoint_with_expected_params() -> None:
     params = call_kwargs["params"]
     assert params["query"] == "Software Engineer in Bengaluru"
     assert params["num_pages"] == "1"
-    assert params["country"] == "india"
+    assert params["country"] == "in"
     assert params["date_posted"] == "all"
 
 
@@ -223,6 +223,100 @@ def test_scrape_jsearch_rows_shaped_correctly() -> None:
     assert row["is_remote"] is True
     assert row["site"] == "linkedin"
     assert row["description"] == "Build backend services."
+
+
+def test_scrape_jsearch_handles_nested_data_jobs_shape() -> None:
+    """Regression guard: /search-v2 has been observed wrapping results as
+    {"data": {"jobs": [...], "cursor": ...}} (cursor-paginated shape) rather than
+    {"data": [...]}. Both shapes must parse into the same normalized rows, otherwise
+    every live scrape silently returns zero results while still logging HTTP 200."""
+    enricher = JobSpyEnricher()
+    settings = _jsearch_settings()
+
+    payload = {
+        "data": {
+            "jobs": [
+                {
+                    "job_title": "Backend Engineer",
+                    "employer_name": "Acme Corp",
+                    "job_publisher": "XING",
+                }
+            ],
+            "cursor": "abc123",
+        }
+    }
+    response = _mock_response(200, payload)
+
+    with patch("app.enrichers.jobspy.get_settings", return_value=settings):
+        with patch("httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value.__enter__.return_value.get.return_value = response
+            rows = enricher._scrape_jsearch("Software Engineer", None, None, 15)
+
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Backend Engineer"
+    assert rows[0]["site"] == "jsearch_other"
+
+
+def test_scrape_jsearch_neither_list_nor_jobs_dict_returns_empty() -> None:
+    """Malformed/unexpected payload shapes must fail closed (empty list), not raise."""
+    enricher = JobSpyEnricher()
+    settings = _jsearch_settings()
+    response = _mock_response(200, {"data": {"unexpected": "shape"}})
+
+    with patch("app.enrichers.jobspy.get_settings", return_value=settings):
+        with patch("httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value.__enter__.return_value.get.return_value = response
+            rows = enricher._scrape_jsearch("Software Engineer", None, None, 15)
+
+    assert rows == []
+
+
+# ---------------------------------------------------------------------------
+# _country_to_iso2: JSearch's "country" param needs an ISO alpha-2 code, but
+# request.job_country is a free-text frontend field (e.g. "Germany", "USA").
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("Germany", "de"),
+        ("germany", "de"),
+        ("USA", "us"),
+        ("United States", "us"),
+        ("UK", "gb"),
+        ("United Kingdom", "gb"),
+        ("India", "in"),
+        ("de", "de"),
+        ("DE", "de"),
+        (None, "us"),
+        ("", "us"),
+        ("   ", "us"),
+        ("Wakanda", "us"),  # unrecognized name falls back rather than forwarding garbage
+    ],
+)
+def test_country_to_iso2(raw: str | None, expected: str) -> None:
+    from app.enrichers.jobspy import _country_to_iso2
+
+    assert _country_to_iso2(raw) == expected
+
+
+def test_scrape_jsearch_sends_iso2_country_code_not_full_name() -> None:
+    """Regression guard: passing the full country name straight through (e.g. "germany")
+    is accepted by JSearch as HTTP 200 but silently returns zero jobs -- this must never
+    reach the API layer unconverted."""
+    enricher = JobSpyEnricher()
+    settings = _jsearch_settings()
+    response = _mock_response(200, {"data": []})
+
+    with patch("app.enrichers.jobspy.get_settings", return_value=settings):
+        with patch("httpx.Client") as mock_client_cls:
+            mock_get = mock_client_cls.return_value.__enter__.return_value.get
+            mock_get.return_value = response
+            enricher._scrape_jsearch("Software engineer", "Berlin", "Germany", 15)
+
+    params = mock_get.call_args.kwargs["params"]
+    assert params["country"] == "de"
 
 
 def test_scrape_jsearch_respects_limit() -> None:

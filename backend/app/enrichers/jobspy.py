@@ -37,6 +37,75 @@ _PUBLISHER_ALIASES: tuple[tuple[str, str], ...] = (
     ("google", "google"),
 )
 
+# JSearch's "country" query param requires an ISO 3166-1 alpha-2 code (e.g. "de"),
+# unlike JobSpy's country_indeed which took free-text country names. request.job_country
+# is a free-text field (frontend placeholder: "e.g., USA, Germany, Canada"), so full
+# names must be mapped down before hitting the API — sending "germany" verbatim is
+# accepted (HTTP 200) but silently returns zero jobs instead of erroring.
+_COUNTRY_NAME_TO_ISO2: dict[str, str] = {
+    "usa": "us",
+    "united states": "us",
+    "united states of america": "us",
+    "america": "us",
+    "uk": "gb",
+    "united kingdom": "gb",
+    "great britain": "gb",
+    "england": "gb",
+    "germany": "de",
+    "deutschland": "de",
+    "france": "fr",
+    "spain": "es",
+    "italy": "it",
+    "netherlands": "nl",
+    "the netherlands": "nl",
+    "holland": "nl",
+    "belgium": "be",
+    "switzerland": "ch",
+    "austria": "at",
+    "sweden": "se",
+    "norway": "no",
+    "denmark": "dk",
+    "finland": "fi",
+    "poland": "pl",
+    "portugal": "pt",
+    "ireland": "ie",
+    "canada": "ca",
+    "mexico": "mx",
+    "brazil": "br",
+    "india": "in",
+    "china": "cn",
+    "japan": "jp",
+    "south korea": "kr",
+    "korea": "kr",
+    "singapore": "sg",
+    "australia": "au",
+    "new zealand": "nz",
+    "united arab emirates": "ae",
+    "uae": "ae",
+    "south africa": "za",
+}
+
+
+def _country_to_iso2(country: str | None) -> str:
+    """Best-effort mapping of a free-text country name to an ISO alpha-2 code for JSearch.
+
+    Falls back to "us" (JSearch's own documented default) for unrecognized input rather
+    than forwarding an unusable value that would silently zero out the search.
+    """
+    if not country or not country.strip():
+        return "us"
+
+    normalized = country.strip().lower()
+    mapped = _COUNTRY_NAME_TO_ISO2.get(normalized)
+    if mapped:
+        return mapped
+
+    if len(normalized) == 2:
+        return normalized
+
+    logger.warning(f"JSearch: unrecognized country {country!r}, defaulting to 'us'")
+    return "us"
+
 
 def _normalize_publisher(raw: str | None) -> str:
     """Map a free-text JSearch publisher/board name to one of a closed set of 6 literals.
@@ -211,7 +280,7 @@ class JobSpyEnricher(Enricher):
         params = {
             "query": query,
             "num_pages": str(settings.jsearch_num_pages),
-            "country": country.lower() if country else "us",
+            "country": _country_to_iso2(country),
             "date_posted": "all",
         }
         headers = {
@@ -267,9 +336,17 @@ class JobSpyEnricher(Enricher):
             logger.error(f"Failed to parse JSearch response JSON: {e}")
             return []
 
-        data = payload.get("data") if isinstance(payload, dict) else None
+        # /search-v2's "data" has been observed in two shapes: a flat list of job
+        # objects (legacy/documented shape), and {"jobs": [...], "cursor": ...}
+        # (current live shape, added for cursor-based pagination). Accept both so a
+        # future provider-side revert doesn't silently zero out every scrape again.
+        raw_data = payload.get("data") if isinstance(payload, dict) else None
+        if isinstance(raw_data, dict):
+            data = raw_data.get("jobs")
+        else:
+            data = raw_data
         if not isinstance(data, list):
-            logger.warning("JSearch response missing 'data' array")
+            logger.warning("JSearch response missing 'data'/'data.jobs' array")
             return []
 
         rows: list[dict[str, Any]] = []
