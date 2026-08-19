@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import contextvars
 import logging
+import re
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -21,6 +22,29 @@ logger = logging.getLogger(__name__)
 _audit_captured: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "admin_audit_captured", default=False
 )
+
+# Matches a dashed or undashed UUID (or any other 32-36 char hex/dash
+# dynamic-ID segment) so path-based fallback actions group by route shape
+# (e.g. "/api/admin/users/{id}/status") instead of embedding the literal ID.
+_DYNAMIC_ID_SEGMENT_RE = re.compile(r"/[0-9a-fA-F-]{32,36}(?=/|$)")
+
+# AdminAuditLog.action is sa.String(64) (see
+# backend/alembic/versions/035_admin_audit_logs.py). A plain
+# f"{method}_{path}" for a mutation route with a raw UUID segment (e.g.
+# "patch_/api/admin/users/<uuid>/status") is well over 64 chars — invisible
+# on SQLite's untyped TEXT column, but raises StringDataRightTruncationError
+# on real Postgres *after* the real business logic already committed.
+_ACTION_MAX_LENGTH = 64
+
+
+def _build_fallback_action(method: str, path: str) -> str:
+    """Build the fallback audit `action` string, normalizing dynamic-ID path
+    segments first (so the string stays short AND still identifies which
+    route shape ran), then applying a hard cap as a safety net for any route
+    shape not covered by the normalization regex."""
+    normalized_path = _DYNAMIC_ID_SEGMENT_RE.sub("/{id}", path)
+    action = f"{method.lower()}_{normalized_path}"
+    return action[:_ACTION_MAX_LENGTH]
 
 
 async def record_admin_action(
@@ -97,7 +121,7 @@ class AdminAuditFallbackMiddleware(BaseHTTPMiddleware):
                 AdminAuditLog(
                     id=uuid4(),
                     actor_user_id=actor_id,
-                    action=f"{request.method.lower()}_{request.url.path}",
+                    action=_build_fallback_action(request.method, request.url.path),
                     target_type="unclassified",
                     target_id=None,
                     before=None,

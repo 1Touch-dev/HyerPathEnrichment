@@ -85,6 +85,42 @@ def test_fallback_middleware_logs_uncaptured_mutation(
     assert rows[0].after == {"status_code": response.status_code}
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "expected_suffix"),
+    [
+        ("PATCH", "/api/admin/users/123e4567-e89b-12d3-a456-426614174000/status", "/status"),
+        ("PATCH", "/api/admin/user-accounts/123e4567e89b12d3a456426614174000/status", "/status"),
+        (
+            "PUT",
+            "/api/admin/roles/123e4567-e89b-12d3-a456-426614174000/permissions",
+            "/permissions",
+        ),
+    ],
+)
+def test_fallback_action_string_never_exceeds_column_limit(method, path, expected_suffix):
+    """Regression for the real bug found on Postgres during integration
+    testing: a naive f"{method}_{path}" for a mutating route with a UUID path
+    segment (e.g. PATCH /api/admin/users/<uuid>/status) is well over
+    AdminAuditLog.action's sa.String(64) limit. SQLite's untyped TEXT column
+    hides the overflow; real Postgres raises StringDataRightTruncationError
+    from `_log_fallback`, which runs *after* the real business logic already
+    committed, so the client saw a 500 despite the action succeeding.
+    Asserted directly against the naive string to prove it would have
+    overflowed, and against the helper to prove the fix normalizes the UUID
+    segment (keeping the trailing route-identifying suffix, e.g. "/status" vs
+    "/role") rather than blindly truncating from the right, which would cut
+    off exactly the part that identifies which mutation happened."""
+    from app.modules.admin.audit import _build_fallback_action
+
+    naive = f"{method.lower()}_{path}"
+    assert len(naive) > 64, "fixture path should reproduce the original overflow"
+
+    action = _build_fallback_action(method, path)
+    assert len(action) <= 64
+    assert "{id}" in action
+    assert action.endswith(expected_suffix)
+
+
 async def test_explicit_audit_call_suppresses_fallback_logging(client, superuser, auth_headers):
     """Sanity counterpart to the fallback test above: when the router DOES call
     record_admin_action (the normal, non-mocked path), the fallback middleware
