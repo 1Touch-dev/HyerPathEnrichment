@@ -60,3 +60,13 @@ async def enforce_compliance_rate_limit(
         f"compliance:{_host_client_id(request)}",
         settings.max_compliance_requests_per_minute,
     )
+
+
+async def enforce_auth_rate_limit(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"auth:{_host_client_id(request)}",
+        settings.max_auth_requests_per_minute,
+    )

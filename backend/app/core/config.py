@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     max_compliance_requests_per_minute: int = Field(
         default=20, alias="MAX_COMPLIANCE_REQUESTS_PER_MINUTE"
     )
+    max_auth_requests_per_minute: int = Field(default=5, alias="MAX_AUTH_REQUESTS_PER_MINUTE")
 
     # Provider mode switches (Phase 0): the only flags that flip free -> paid.
     # Defaults = fully free / self-hosted. See app/providers/.
