@@ -14,9 +14,7 @@ from app.modules.admin.models import FeatureFlag
 from app.modules.admin.permissions import require_permission
 from app.modules.admin.schemas import FeatureFlagResponse, UpsertFeatureFlagRequest
 
-router = APIRouter(
-    prefix="/api/admin/feature-flags", tags=["admin"], route_class=EnvelopeAPIRoute
-)
+router = APIRouter(prefix="/api/admin/feature-flags", tags=["admin"], route_class=EnvelopeAPIRoute)
 
 
 def _to_response(flag: FeatureFlag) -> FeatureFlagResponse:

@@ -25,9 +25,7 @@ from app.modules.admin.schemas import (
     ImpersonationStatusResponse,
 )
 
-router = APIRouter(
-    prefix="/api/admin/impersonation", tags=["admin"], route_class=EnvelopeAPIRoute
-)
+router = APIRouter(prefix="/api/admin/impersonation", tags=["admin"], route_class=EnvelopeAPIRoute)
 
 
 async def _get_active_session(

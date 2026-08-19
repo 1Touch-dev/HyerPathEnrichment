@@ -12,9 +12,7 @@ from app.modules.admin import health
 from app.modules.admin.permissions import require_permission
 from app.modules.admin.schemas import SystemHealthResponse
 
-router = APIRouter(
-    prefix="/api/admin/system-health", tags=["admin"], route_class=EnvelopeAPIRoute
-)
+router = APIRouter(prefix="/api/admin/system-health", tags=["admin"], route_class=EnvelopeAPIRoute)
 
 
 @router.get("", response_model=SystemHealthResponse)

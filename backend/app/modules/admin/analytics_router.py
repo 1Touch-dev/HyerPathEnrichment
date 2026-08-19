@@ -13,9 +13,7 @@ from app.modules.admin import analytics
 from app.modules.admin.permissions import require_permission
 from app.modules.admin.schemas import JobMatchAnalyticsResponse
 
-router = APIRouter(
-    prefix="/api/admin/analytics", tags=["admin"], route_class=EnvelopeAPIRoute
-)
+router = APIRouter(prefix="/api/admin/analytics", tags=["admin"], route_class=EnvelopeAPIRoute)
 
 
 @router.get("/job-matches", response_model=JobMatchAnalyticsResponse)
