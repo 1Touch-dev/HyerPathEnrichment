@@ -13,6 +13,8 @@ import {
   EnrichmentJob,
   HealthStatus,
   InterviewQuestion,
+  JdPracticeQuestion,
+  JdPracticeResponse,
   JobListItem,
   JobListResponse,
   JobMatch,
@@ -901,5 +903,47 @@ export function mapBackendAudioStatusResponse(
     analysisData: raw.analysis_data as AudioRecordingStatus["analysisData"],
     voiceToneSignals: raw.voice_tone_signals,
     durationSeconds: raw.duration_seconds,
+  };
+}
+
+// Module 4E: JD-aware interview practice (phase2_module4 §9.4/§9.6)
+//
+// Mirrors the backend's real `JdPracticeResponse`/`JdPracticeQuestionItem`
+// (backend/app/modules/jd_practice/schemas.py) — hand-declared per this file's own
+// convention (see the `Raw*Response` section above) since that module is being
+// implemented concurrently and has no generated schema yet. Must be deleted and
+// replaced with real `npm run openapi:gen` output once the backend route exists.
+
+export interface BackendJdPracticeQuestionItem {
+  id: string;
+  question_text: string;
+  category: JdPracticeQuestion["category"];
+  difficulty: JdPracticeQuestion["difficulty"];
+  sample_answer: string;
+}
+
+export interface BackendJdPracticeResponse {
+  questions: BackendJdPracticeQuestionItem[];
+  job_match_id: string;
+  practice_session_id: string;
+}
+
+export function mapBackendJdPracticeQuestionItem(
+  raw: BackendJdPracticeQuestionItem,
+): JdPracticeQuestion {
+  return {
+    id: raw.id,
+    questionText: raw.question_text,
+    category: raw.category,
+    difficulty: raw.difficulty,
+    sampleAnswer: raw.sample_answer,
+  };
+}
+
+export function mapBackendJdPracticeResponse(raw: BackendJdPracticeResponse): JdPracticeResponse {
+  return {
+    questions: raw.questions.map(mapBackendJdPracticeQuestionItem),
+    jobMatchId: raw.job_match_id,
+    practiceSessionId: raw.practice_session_id,
   };
 }
