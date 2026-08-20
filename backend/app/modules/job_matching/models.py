@@ -145,6 +145,10 @@ class JobMatch(Base):
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     feedback: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    apply_clicked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

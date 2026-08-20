@@ -299,6 +299,226 @@ def test_submit_match_feedback_invalid_value_returns_422(
 
 
 # ---------------------------------------------------------------------------
+# GET /api/job-matching/matches/{match_id}/apply-redirect
+# POST /api/job-matching/matches/{match_id}/mark-applied
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def seeded_match_without_source_url(db: AsyncSession) -> dict[str, Any]:
+    """A match whose posting has no source_url (should never normally happen for
+    scraped postings, but defensively 404s rather than redirecting nowhere)."""
+    user_id = uuid4()
+    user = User(
+        id=user_id,
+        email=f"seeded-no-url-{user_id.hex[:8]}@example.com",
+        first_name="Seeded",
+        last_name="User",
+        is_active=True,
+        is_verified=True,
+    )
+    db.add(user)
+
+    posting = JobPosting(
+        dedup_key=f"dedup-{uuid4().hex}",
+        title="Manual Entry",
+        company="Acme Corp",
+        location="Remote",
+        remote=True,
+        source="manual",
+        source_url=None,
+    )
+    db.add(posting)
+    await db.commit()
+    await db.refresh(posting)
+
+    match = JobMatch(
+        user_id=user_id,
+        job_posting_id=posting.id,
+        similarity_score=0.9,
+        rule_score=0.8,
+        overall_score=86.0,
+        score_breakdown={},
+    )
+    db.add(match)
+    await db.commit()
+    await db.refresh(match)
+
+    return {"user_id": user_id, "posting": posting, "match": match}
+
+
+def test_apply_redirect_success_302s_to_stored_source_url(
+    client: TestClient, seeded_match: dict[str, Any]
+) -> None:
+    headers = _auth_headers(str(seeded_match["user_id"]))
+    match_id = str(seeded_match["match"].id)
+
+    response = client.get(
+        f"/api/job-matching/matches/{match_id}/apply-redirect",
+        headers=headers,
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == seeded_match["posting"].source_url
+
+
+async def test_apply_redirect_sets_apply_clicked_at_on_first_click(
+    client: TestClient, db: AsyncSession, seeded_match: dict[str, Any]
+) -> None:
+    headers = _auth_headers(str(seeded_match["user_id"]))
+    match_uuid = seeded_match["match"].id
+    match_id = str(match_uuid)
+
+    client.get(
+        f"/api/job-matching/matches/{match_id}/apply-redirect",
+        headers=headers,
+        follow_redirects=False,
+    )
+
+    db.expire_all()
+    result = await db.execute(select(JobMatch).where(JobMatch.id == match_uuid))
+    match = result.scalar_one()
+    assert match.apply_clicked_at is not None
+
+
+async def test_apply_redirect_is_idempotent_across_repeated_clicks(
+    client: TestClient, db: AsyncSession, seeded_match: dict[str, Any]
+) -> None:
+    """apply_clicked_at is set on the first click and unchanged on a second click."""
+    headers = _auth_headers(str(seeded_match["user_id"]))
+    match_uuid = seeded_match["match"].id
+    match_id = str(match_uuid)
+
+    client.get(
+        f"/api/job-matching/matches/{match_id}/apply-redirect",
+        headers=headers,
+        follow_redirects=False,
+    )
+    db.expire_all()
+    result = await db.execute(select(JobMatch).where(JobMatch.id == match_uuid))
+    first_clicked_at = result.scalar_one().apply_clicked_at
+    assert first_clicked_at is not None
+
+    client.get(
+        f"/api/job-matching/matches/{match_id}/apply-redirect",
+        headers=headers,
+        follow_redirects=False,
+    )
+    db.expire_all()
+    result = await db.execute(select(JobMatch).where(JobMatch.id == match_uuid))
+    second_clicked_at = result.scalar_one().apply_clicked_at
+    assert second_clicked_at == first_clicked_at
+
+
+def test_apply_redirect_other_users_match_returns_404(
+    client: TestClient, seeded_match: dict[str, Any]
+) -> None:
+    other_user_headers = _auth_headers()  # different (fresh) user id
+    match_id = str(seeded_match["match"].id)
+
+    response = client.get(
+        f"/api/job-matching/matches/{match_id}/apply-redirect",
+        headers=other_user_headers,
+        follow_redirects=False,
+    )
+    assert_error(response, 404, "NOT_FOUND")
+
+
+def test_apply_redirect_bogus_match_id_returns_404(client: TestClient) -> None:
+    headers = _auth_headers()
+    bogus_id = str(uuid4())
+
+    response = client.get(
+        f"/api/job-matching/matches/{bogus_id}/apply-redirect",
+        headers=headers,
+        follow_redirects=False,
+    )
+    assert_error(response, 404, "NOT_FOUND")
+
+
+def test_apply_redirect_posting_without_source_url_returns_404(
+    client: TestClient, seeded_match_without_source_url: dict[str, Any]
+) -> None:
+    headers = _auth_headers(str(seeded_match_without_source_url["user_id"]))
+    match_id = str(seeded_match_without_source_url["match"].id)
+
+    response = client.get(
+        f"/api/job-matching/matches/{match_id}/apply-redirect",
+        headers=headers,
+        follow_redirects=False,
+    )
+    assert_error(response, 404, "NOT_FOUND")
+
+
+def test_mark_applied_true_sets_applied_at(
+    client: TestClient, seeded_match: dict[str, Any]
+) -> None:
+    headers = _auth_headers(str(seeded_match["user_id"]))
+    match_id = str(seeded_match["match"].id)
+
+    response = client.post(
+        f"/api/job-matching/matches/{match_id}/mark-applied",
+        headers=headers,
+        json={"applied": True},
+    )
+    assert response.status_code == 204
+
+    fetched = client.get("/api/job-matching/matches", headers=headers)
+    data = assert_success(fetched)
+    assert data["matches"][0]["applied_at"] is not None
+
+
+def test_mark_applied_toggles_back_to_unapplied(
+    client: TestClient, seeded_match: dict[str, Any]
+) -> None:
+    headers = _auth_headers(str(seeded_match["user_id"]))
+    match_id = str(seeded_match["match"].id)
+
+    client.post(
+        f"/api/job-matching/matches/{match_id}/mark-applied",
+        headers=headers,
+        json={"applied": True},
+    )
+    response = client.post(
+        f"/api/job-matching/matches/{match_id}/mark-applied",
+        headers=headers,
+        json={"applied": False},
+    )
+    assert response.status_code == 204
+
+    fetched = client.get("/api/job-matching/matches", headers=headers)
+    data = assert_success(fetched)
+    assert data["matches"][0]["applied_at"] is None
+
+
+def test_mark_applied_other_users_match_returns_404(
+    client: TestClient, seeded_match: dict[str, Any]
+) -> None:
+    other_user_headers = _auth_headers()  # different (fresh) user id
+    match_id = str(seeded_match["match"].id)
+
+    response = client.post(
+        f"/api/job-matching/matches/{match_id}/mark-applied",
+        headers=other_user_headers,
+        json={"applied": True},
+    )
+    assert_error(response, 404, "NOT_FOUND")
+
+
+def test_mark_applied_bogus_match_id_returns_404(client: TestClient) -> None:
+    headers = _auth_headers()
+    bogus_id = str(uuid4())
+
+    response = client.post(
+        f"/api/job-matching/matches/{bogus_id}/mark-applied",
+        headers=headers,
+        json={"applied": True},
+    )
+    assert_error(response, 404, "NOT_FOUND")
+
+
+# ---------------------------------------------------------------------------
 # GET /api/job-matching/events
 # ---------------------------------------------------------------------------
 
@@ -534,6 +754,8 @@ _UNAUTHENTICATED_REQUESTS = [
     ("GET", "/api/job-matching/matches", None),
     ("POST", f"/api/job-matching/matches/{uuid4()}/view", None),
     ("POST", f"/api/job-matching/matches/{uuid4()}/feedback", {"feedback": "up"}),
+    ("GET", f"/api/job-matching/matches/{uuid4()}/apply-redirect", None),
+    ("POST", f"/api/job-matching/matches/{uuid4()}/mark-applied", {"applied": True}),
     ("POST", "/api/job-matching/scan", None),
     ("GET", "/api/job-matching/events", None),
     (

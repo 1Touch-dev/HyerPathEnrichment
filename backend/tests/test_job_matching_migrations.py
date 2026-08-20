@@ -476,3 +476,36 @@ class TestDowngrades:
             "candidate_job_preferences",
             "job_matches",
         } <= names_after_reupgrade
+
+
+class TestJobMatchApplyTrackingSchema:
+    """Revision 039: apply_clicked_at / applied_at columns on job_matches (Module 4, Module B)."""
+
+    REV_JOB_MATCH_APPLY_TRACKING = "039_job_match_apply_tracking"
+    REV_PRACTICE_AUDIO_VOICE_TONE = "038_practice_audio_recordings_voice_tone"
+
+    def test_columns(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        cols = _columns(sqlite_url, "job_matches")
+        assert {"apply_clicked_at", "applied_at"} <= cols.keys()
+        assert cols["apply_clicked_at"]["nullable"] is True
+        assert cols["applied_at"]["nullable"] is True
+
+    def test_downgrade_drops_only_these_two_columns(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        _downgrade_to(sqlite_url, self.REV_PRACTICE_AUDIO_VOICE_TONE)
+        cols = _columns(sqlite_url, "job_matches")
+        assert not {"apply_clicked_at", "applied_at"} & cols.keys()
+        # Table itself and pre-existing columns survive.
+        assert "id" in cols
+        assert "feedback" in cols
+
+    def test_full_downgrade_then_reupgrade_is_clean(self, sqlite_url: str):
+        upgrade_head(sqlite_url)
+        _downgrade_to(sqlite_url, self.REV_PRACTICE_AUDIO_VOICE_TONE)
+        cols_after_downgrade = _columns(sqlite_url, "job_matches")
+        assert not {"apply_clicked_at", "applied_at"} & cols_after_downgrade.keys()
+
+        upgrade_head(sqlite_url)
+        cols_after_reupgrade = _columns(sqlite_url, "job_matches")
+        assert {"apply_clicked_at", "applied_at"} <= cols_after_reupgrade.keys()

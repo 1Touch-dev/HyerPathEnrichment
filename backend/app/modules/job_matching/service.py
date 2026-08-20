@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Literal, cast
+from urllib.parse import urlparse
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -10,6 +11,7 @@ from redis import Redis
 from rq import Queue
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import NotFoundError
 from app.modules.job_matching import repository
 from app.modules.job_matching.schemas import (
     JobMatchListResponse,
@@ -18,7 +20,24 @@ from app.modules.job_matching.schemas import (
     JobPreferencesResponse,
     ScanTriggerResponse,
 )
+from app.observability.job_matching_metrics import job_matching_apply_clicks_total
 from app.workers.queue import QUEUE_JOB_MATCHING, get_redis_connection
+
+
+def _validate_redirect_scheme(url: str) -> None:
+    """Security edge case: source_url is scraped from third-party job boards
+    (JobSpy/JSearch) — this codebase does not control or sanitize that upstream
+    data. A malformed or malicious scrape (e.g. `javascript:...`, `data:...`, or
+    a bare relative path) must never reach RedirectResponse, since a browser
+    following a non-http(s) "redirect" from an authenticated same-origin request
+    is a real, if narrow, injection surface. Only `http`/`https` schemes are
+    allowed through; anything else 404s exactly like a missing source_url would,
+    so a malformed row fails closed rather than exposing scheme-specific behavior
+    to a client probing for it.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise NotFoundError("This posting has no external application link")
 
 
 class JobMatchingService:
@@ -84,6 +103,8 @@ class JobMatchingService:
                 is_new=match.notified_at is None,
                 viewed_at=match.viewed_at,
                 feedback=cast('Literal["up", "down"] | None', match.feedback),
+                apply_clicked_at=match.apply_clicked_at,
+                applied_at=match.applied_at,
                 created_at=match.created_at,
             )
             for match, posting in rows
@@ -97,6 +118,23 @@ class JobMatchingService:
 
     async def set_feedback(self, match_id: str, user_id: UUID, feedback: str) -> None:
         found = await repository.set_feedback(self.db, UUID(match_id), user_id, feedback)
+        if not found:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
+
+    async def record_apply_click_and_get_redirect_url(self, match_id: str, user_id: UUID) -> str:
+        owned = await repository.get_owned_match(self.db, UUID(match_id), user_id)
+        if owned is None:
+            raise NotFoundError("Match not found")
+        match, posting = owned
+        if posting is None or not posting.source_url:
+            raise NotFoundError("This posting has no external application link")
+        _validate_redirect_scheme(posting.source_url)
+        await repository.record_apply_click(self.db, match.id)
+        job_matching_apply_clicks_total.inc()
+        return posting.source_url
+
+    async def set_applied(self, match_id: str, user_id: UUID, applied: bool) -> None:
+        found = await repository.set_applied(self.db, UUID(match_id), user_id, applied)
         if not found:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
 
