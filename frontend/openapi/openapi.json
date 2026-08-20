@@ -1579,6 +1579,186 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "InterviewScheduleResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "google_calendar_link": {
+            "title": "Google Calendar Link",
+            "type": "string"
+          },
+          "ics_download_url": {
+            "title": "Ics Download Url",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "job_match_id": {
+            "title": "Job Match Id",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "scheduled_at": {
+            "format": "date-time",
+            "title": "Scheduled At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "job_match_id",
+          "scheduled_at",
+          "duration_minutes",
+          "notes",
+          "ics_download_url",
+          "google_calendar_link",
+          "created_at"
+        ],
+        "title": "InterviewScheduleResponse",
+        "type": "object"
+      },
+      "JdPracticeQuestionItem": {
+        "properties": {
+          "category": {
+            "enum": [
+              "behavioral",
+              "technical",
+              "system_design"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "difficulty": {
+            "enum": [
+              "easy",
+              "medium",
+              "hard"
+            ],
+            "title": "Difficulty",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "question_text": {
+            "title": "Question Text",
+            "type": "string"
+          },
+          "sample_answer": {
+            "title": "Sample Answer",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "question_text",
+          "category",
+          "difficulty",
+          "sample_answer"
+        ],
+        "title": "JdPracticeQuestionItem",
+        "type": "object"
+      },
+      "JdPracticeRequest": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "behavioral",
+                  "technical",
+                  "system_design"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "count": {
+            "default": 5,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "difficulty": {
+            "anyOf": [
+              {
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty"
+          },
+          "job_match_id": {
+            "title": "Job Match Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_match_id"
+        ],
+        "title": "JdPracticeRequest",
+        "type": "object"
+      },
+      "JdPracticeResponse": {
+        "properties": {
+          "job_match_id": {
+            "title": "Job Match Id",
+            "type": "string"
+          },
+          "practice_session_id": {
+            "format": "uuid",
+            "title": "Practice Session Id",
+            "type": "string"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/JdPracticeQuestionItem"
+            },
+            "title": "Questions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "questions",
+          "job_match_id",
+          "practice_session_id"
+        ],
+        "title": "JdPracticeResponse",
+        "type": "object"
+      },
       "JobListing": {
         "properties": {
           "company": {
@@ -1662,6 +1842,30 @@
       },
       "JobMatchResponse": {
         "properties": {
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "apply_clicked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apply Clicked At"
+          },
           "company": {
             "title": "Company",
             "type": "string"
@@ -1763,7 +1967,14 @@
           },
           "score_breakdown": {
             "additionalProperties": {
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
             },
             "title": "Score Breakdown",
             "type": "object"
@@ -1818,6 +2029,8 @@
           "is_new",
           "viewed_at",
           "feedback",
+          "apply_clicked_at",
+          "applied_at",
           "created_at"
         ],
         "title": "JobMatchResponse",
@@ -2214,6 +2427,19 @@
         "title": "LoginResponse",
         "type": "object"
       },
+      "MarkAppliedRequest": {
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "applied"
+        ],
+        "title": "MarkAppliedRequest",
+        "type": "object"
+      },
       "MessageResponse": {
         "description": "Generic message response.",
         "properties": {
@@ -2275,6 +2501,19 @@
             "title": "Company Name",
             "type": "string"
           },
+          "custom_instruction": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required when message_type='custom'; validated in the service layer (not a Pydantic model_validator) since the requirement is conditional on another field's value \u2014 same pattern already used by JobPreferencesRequest's salary_max cross-field validator elsewhere in this codebase for the shape of the check, though this one is easier expressed as a plain service-layer guard.",
+            "title": "Custom Instruction"
+          },
           "document_id": {
             "title": "Document Id",
             "type": "string"
@@ -2289,6 +2528,17 @@
               }
             ],
             "title": "Job Match Id"
+          },
+          "message_type": {
+            "default": "email",
+            "enum": [
+              "email",
+              "linkedin",
+              "generic",
+              "custom"
+            ],
+            "title": "Message Type",
+            "type": "string"
           },
           "recipient_role_title": {
             "anyOf": [
@@ -2367,6 +2617,16 @@
             "title": "Message Id",
             "type": "string"
           },
+          "message_type": {
+            "enum": [
+              "email",
+              "linkedin",
+              "generic",
+              "custom"
+            ],
+            "title": "Message Type",
+            "type": "string"
+          },
           "recipient_role_title": {
             "anyOf": [
               {
@@ -2410,6 +2670,7 @@
           "subject",
           "body",
           "status",
+          "message_type",
           "sent_at",
           "created_at",
           "research_degraded"
@@ -3267,6 +3528,39 @@
         "title": "ScanTriggerResponse",
         "type": "object"
       },
+      "ScheduleInterviewRequest": {
+        "properties": {
+          "duration_minutes": {
+            "default": 60,
+            "maximum": 480.0,
+            "minimum": 15.0,
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "scheduled_at": {
+            "format": "date-time",
+            "title": "Scheduled At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduled_at"
+        ],
+        "title": "ScheduleInterviewRequest",
+        "type": "object"
+      },
       "SearchRequest": {
         "description": "Request for semantic document search.",
         "properties": {
@@ -3824,6 +4118,22 @@
       "SwipeableMatchResponse": {
         "description": "One card in the swipe deck \u2014 same shape as Module 1's JobMatchResponse, re-exposed here for this UI.",
         "properties": {
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "below_similarity_threshold": {
+            "title": "Below Similarity Threshold",
+            "type": "boolean"
+          },
           "company": {
             "title": "Company",
             "type": "string"
@@ -3904,6 +4214,17 @@
             ],
             "title": "Salary Min"
           },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -3921,7 +4242,10 @@
           "salary_currency",
           "overall_score",
           "explanation",
-          "created_at"
+          "created_at",
+          "below_similarity_threshold",
+          "source_url",
+          "applied_at"
         ],
         "title": "SwipeableMatchResponse",
         "type": "object"
@@ -4002,6 +4326,215 @@
           "total_cost_usd"
         ],
         "title": "TotalCostResponse",
+        "type": "object"
+      },
+      "TrackedMatchListResponse": {
+        "properties": {
+          "counts_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "new",
+                "applied",
+                "replied",
+                "interview",
+                "offer",
+                "rejected"
+              ]
+            },
+            "title": "Counts By Status",
+            "type": "object"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/TrackedMatchResponse"
+            },
+            "title": "Matches",
+            "type": "array"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matches",
+          "total",
+          "limit",
+          "offset",
+          "counts_by_status"
+        ],
+        "title": "TrackedMatchListResponse",
+        "type": "object"
+      },
+      "TrackedMatchResponse": {
+        "properties": {
+          "application_status": {
+            "enum": [
+              "new",
+              "applied",
+              "replied",
+              "interview",
+              "offer",
+              "rejected"
+            ],
+            "title": "Application Status",
+            "type": "string"
+          },
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "apply_clicked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apply Clicked At"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "job_posting_id": {
+            "title": "Job Posting Id",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "match_id": {
+            "title": "Match Id",
+            "type": "string"
+          },
+          "next_interview_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Interview At"
+          },
+          "overall_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Score"
+          },
+          "remote": {
+            "title": "Remote",
+            "type": "boolean"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "status_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Updated At"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "match_id",
+          "job_posting_id",
+          "title",
+          "company",
+          "location",
+          "remote",
+          "source_url",
+          "overall_score",
+          "application_status",
+          "apply_clicked_at",
+          "applied_at",
+          "status_updated_at",
+          "created_at"
+        ],
+        "title": "TrackedMatchResponse",
+        "type": "object"
+      },
+      "UpdateApplicationStatusRequest": {
+        "properties": {
+          "application_status": {
+            "enum": [
+              "new",
+              "applied",
+              "replied",
+              "interview",
+              "offer",
+              "rejected"
+            ],
+            "title": "Application Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "application_status"
+        ],
+        "title": "UpdateApplicationStatusRequest",
         "type": "object"
       },
       "UserCost": {
@@ -5109,6 +5642,414 @@
         "summary": "Get Total Costs",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/application-tracker/matches": {
+      "get": {
+        "operationId": "list_tracked_matches_endpoint_api_application_tracker_matches_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "new",
+                    "applied",
+                    "replied",
+                    "interview",
+                    "offer",
+                    "rejected"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "enum": [
+                "newest",
+                "oldest",
+                "score",
+                "recently_updated"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "access_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TrackedMatchListResponse"
+                    },
+                    "message": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "meta": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "List Tracked Matches Endpoint",
+        "tags": [
+          "application-tracker"
+        ]
+      }
+    },
+    "/api/application-tracker/matches/{match_id}/status": {
+      "patch": {
+        "operationId": "update_application_status_api_application_tracker_matches__match_id__status_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "title": "Match Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "access_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApplicationStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TrackedMatchResponse"
+                    },
+                    "message": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "meta": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "Update Application Status",
+        "tags": [
+          "application-tracker"
         ]
       }
     },
@@ -8069,6 +9010,841 @@
         ]
       }
     },
+    "/api/interviews/matches/{match_id}/schedule": {
+      "delete": {
+        "description": "Deletes the InterviewSchedule row. Does NOT auto-revert application_status \u2014\na candidate who cancels a scheduling row after actually attending (rescheduling\nflow) shouldn't have their status silently reset; status stays a manual field\n(Module C's core design tenet), this endpoint only removes the calendar artifact.\nAlso cancels the pending reminder job via RQ's cancel_job (no-op, logged at\nwarning level, if the job already fired or already ran \u2014 same idempotent-cancel\npattern as job_matching's existing scan-cancellation path).",
+        "operationId": "cancel_interview_api_interviews_matches__match_id__schedule_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "title": "Match Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "access_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "Cancel Interview",
+        "tags": [
+          "interview-scheduling"
+        ]
+      },
+      "get": {
+        "operationId": "get_interview_schedule_api_interviews_matches__match_id__schedule_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "title": "Match Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "access_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/InterviewScheduleResponse"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Response Get Interview Schedule Api Interviews Matches  Match Id  Schedule Get"
+                    },
+                    "message": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "meta": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "Get Interview Schedule",
+        "tags": [
+          "interview-scheduling"
+        ]
+      },
+      "post": {
+        "description": "Creates/updates the InterviewSchedule row, advances the JobMatch's\napplication_status to \"interview\" (Module C integration \u2014 same forward-fill-only\nrule as Module B's mark-applied: only auto-advance if current status isn't\nalready past \"interview\" e.g. don't downgrade \"offer\" back to \"interview\"),\nand enqueues both the confirmation notification (email+push, \u00a78.5) and the\nreminder job (\u00a78.6).",
+        "operationId": "schedule_interview_api_interviews_matches__match_id__schedule_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "title": "Match Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "access_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleInterviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InterviewScheduleResponse"
+                    },
+                    "message": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "meta": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "Schedule Interview",
+        "tags": [
+          "interview-scheduling"
+        ]
+      }
+    },
+    "/api/interviews/matches/{match_id}/schedule.ics": {
+      "get": {
+        "description": "Returns the .ics file with Content-Type: text/calendar; charset=utf-8 and\nContent-Disposition: attachment so the browser downloads/opens-in-calendar-app\nrather than rendering the raw ICS text.",
+        "operationId": "download_ics_api_interviews_matches__match_id__schedule_ics_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "title": "Match Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "access_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {},
+                    "message": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "meta": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "Download Ics",
+        "tags": [
+          "interview-scheduling"
+        ]
+      }
+    },
+    "/api/jd-practice/questions": {
+      "post": {
+        "operationId": "get_jd_practice_questions_api_jd_practice_questions_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "access_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JdPracticeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/JdPracticeResponse"
+                    },
+                    "message": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "meta": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "Get Jd Practice Questions",
+        "tags": [
+          "jd-practice"
+        ]
+      }
+    },
     "/api/job-matching/events": {
       "get": {
         "description": "SSE stream of the caller's live unread-match count. Re-checks Postgres for the\ncurrent count on every (re)connect, then pushes subsequent updates as new matches\nare scored. Clients without SSE support should keep polling `GET /matches`.",
@@ -8417,6 +10193,177 @@
         ]
       }
     },
+    "/api/job-matching/matches/{match_id}/apply-redirect": {
+      "get": {
+        "description": "Records the click server-side, then 302s to the posting's own source_url.\n\nOpen-redirect guard (hard requirement): the ONLY URL ever redirected to is\n`source_url` already stored on the JobPosting row joined through this exact\nmatch_id + current_user.id pair \u2014 there is no query parameter or request body\ninput that influences the redirect target. A match_id belonging to a different\nuser 404s (never leaks another candidate's saved posting), and a posting with\nno source_url (should not normally happen \u2014 JobSpy/JSearch rows always populate\nit, but defensive) 404s rather than redirecting to a blank/relative URL.",
+        "operationId": "apply_redirect_api_job_matching_matches__match_id__apply_redirect_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "title": "Match Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "access_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {},
+                    "message": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "meta": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "Apply Redirect",
+        "tags": [
+          "job-matching"
+        ]
+      }
+    },
     "/api/job-matching/matches/{match_id}/feedback": {
       "post": {
         "operationId": "submit_match_feedback_api_job_matching_matches__match_id__feedback_post",
@@ -8553,6 +10500,147 @@
           }
         },
         "summary": "Submit Match Feedback",
+        "tags": [
+          "job-matching"
+        ]
+      }
+    },
+    "/api/job-matching/matches/{match_id}/mark-applied": {
+      "post": {
+        "operationId": "mark_applied_api_job_matching_matches__match_id__mark_applied_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "title": "Match Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "access_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkAppliedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "Mark Applied",
         "tags": [
           "job-matching"
         ]
