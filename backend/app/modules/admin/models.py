@@ -143,3 +143,29 @@ class ImpersonationSession(Base):
     )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AdminReviewQueueItem(Base):
+    """Generic moderation review-queue row (Batch 1 — Stripe-Radar/Indeed-style
+    review queue). One row per flagged resource across domains (job postings,
+    documents, portfolio items, outreach messages, and later questions/
+    practice_audio). Maps exactly the columns from
+    alembic/versions/039_admin_review_queue.py; deliberately has no
+    relationships to domain ORM models (job_matching/documents/portfolio/
+    outreach) — resolution of the underlying resource is done via raw SQL in
+    review_queue_router.py so this module stays decoupled from those models."""
+
+    __tablename__ = "admin_review_queue"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    resource_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    resource_id: Mapped[UUID] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False)
+    flag_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    flag_source: Mapped[str] = mapped_column(String(16), nullable=False)
+    flagged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reviewed_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
