@@ -6,6 +6,8 @@ import {
   AdminReviewQueueDetail,
   AdminReviewQueueItem,
   AdminReviewQueueListResponse,
+  AdminDocument,
+  AdminDocumentListResponse,
   AdminRoleWithPermissions,
   AdminUser,
   AdminUserListResponse,
@@ -14,6 +16,8 @@ import {
   BackendAdminReviewQueueDetail,
   BackendAdminReviewQueueItem,
   BackendAdminReviewQueueListResponse,
+  BackendAdminDocumentListResponse,
+  BackendAdminDocumentResponse,
   CandidateDocument,
   CandidateDocumentDetail,
   CandidateJobPreferences,
@@ -550,6 +554,31 @@ export function mapBackendAdminJobPostingList(
 ): AdminJobPostingListResponse {
   return {
     items: raw.items.map(mapBackendAdminJobPosting),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAdminDocument(raw: BackendAdminDocumentResponse): AdminDocument {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    documentType: raw.document_type,
+    originalFilename: raw.original_filename,
+    mimeType: raw.mime_type,
+    fileSizeBytes: raw.file_size_bytes,
+    processingStatus: raw.processing_status,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+    deletedAt: raw.deleted_at,
+  };
+}
+
+export function mapBackendAdminDocumentList(
+  raw: BackendAdminDocumentListResponse,
+): AdminDocumentListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminDocument),
     nextCursor: raw.next_cursor,
     hasMore: raw.has_more,
   };

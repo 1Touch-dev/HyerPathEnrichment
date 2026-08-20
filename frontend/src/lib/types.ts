@@ -543,9 +543,71 @@ export type BackendAdminJobPostingListResponse = {
   has_more: boolean;
 };
 
+// Admin documents moderation: soft-delete/restore of candidate documents
+// (mirrors backend/app/modules/admin/documents_router.py's inline Pydantic
+// models — distinct from the candidate-facing CandidateDocument/CandidateDocumentDetail
+// types above, which come from app/modules/documents/schemas.py instead).
+
+export type AdminDocumentModerateAction = "soft_delete" | "restore";
+
+/**
+ * Wire shape of `documents_router.py`'s `AdminDocumentResponse` — declared by hand
+ * here (not sourced from `src/lib/generated/api-schemas.ts`) because that router's
+ * inline Pydantic models are not part of the committed OpenAPI schema yet, matching
+ * this file's existing `Raw*Response` convention (see `api-adapter.ts`) for
+ * not-yet-generated backend contracts.
+ */
+export type BackendAdminDocumentResponse = {
+  id: string;
+  user_id: string;
+  document_type: string;
+  original_filename: string;
+  mime_type: string | null;
+  file_size_bytes: number;
+  processing_status: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type BackendAdminDocumentListResponse = {
+  items: BackendAdminDocumentResponse[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
 export type BackendModerateJobPostingRequest = {
   moderation_status: ModerationStatus;
   reason?: string | null;
+};
+
+export type BackendModerateDocumentRequest = {
+  action: AdminDocumentModerateAction;
+  reason?: string | null;
+};
+
+export type AdminDocument = {
+  id: string;
+  userId: string;
+  documentType: string;
+  originalFilename: string;
+  mimeType: string | null;
+  fileSizeBytes: number;
+  processingStatus: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+};
+
+export type AdminDocumentListResponse = {
+  items: AdminDocument[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type AdminDocumentFilters = {
+  processingStatus: string | null;
+  deleted: boolean | null;
 };
 
 // Documents module: candidate document upload, processing, and search
