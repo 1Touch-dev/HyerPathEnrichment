@@ -45,6 +45,16 @@ describe("MatchCard", () => {
     expect(screen.getByText("Great fit for your skills.")).toBeInTheDocument();
   });
 
+  it('renders a "Broader match" badge instead of the score badge when below_similarity_threshold is true', () => {
+    const relaxedMatch: JobMatch = {
+      ...baseMatch,
+      scoreBreakdown: { below_similarity_threshold: true },
+    };
+    render(<MatchCard match={relaxedMatch} />, { wrapper });
+    expect(screen.getByText("Broader match")).toBeInTheDocument();
+    expect(screen.queryByText("87/100")).not.toBeInTheDocument();
+  });
+
   it("marks the match viewed on mount when isNew is true", async () => {
     render(<MatchCard match={baseMatch} />, { wrapper });
     await waitFor(() => expect(client.markMatchViewed).toHaveBeenCalledTimes(1));

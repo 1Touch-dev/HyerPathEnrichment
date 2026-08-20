@@ -87,12 +87,16 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
             </div>
             <Badge
               className={
-                card.overallScore >= 80
-                  ? "bg-green-100 text-green-800"
-                  : "bg-yellow-100 text-yellow-800"
+                card.belowSimilarityThreshold
+                  ? "bg-muted text-muted-foreground"
+                  : card.overallScore >= 80
+                    ? "bg-green-100 text-green-800"
+                    : "bg-yellow-100 text-yellow-800"
               }
             >
-              {Math.round(card.overallScore)}/100
+              {card.belowSimilarityThreshold
+                ? "Broader match"
+                : `${Math.round(card.overallScore)}/100`}
             </Badge>
           </div>
           {(card.location || card.remote) && (

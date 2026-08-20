@@ -252,7 +252,7 @@ export type JobMatch = {
   salaryMax: number | null;
   salaryCurrency: string | null;
   overallScore: number;
-  scoreBreakdown: Record<string, number>;
+  scoreBreakdown: Record<string, number | boolean>;
   explanation: string | null;
   isNew: boolean;
   viewedAt: string | null;
@@ -382,6 +382,7 @@ export interface SwipeCard {
   salaryCurrency: string | null;
   overallScore: number;
   explanation: string | null;
+  belowSimilarityThreshold: boolean;
 }
 
 export interface SwipeDeck {
