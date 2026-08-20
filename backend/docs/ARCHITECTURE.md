@@ -380,7 +380,7 @@ Configured via `REDIS_URL`. Present in docker-compose. A shared async client exi
 **Wired today:**
 
 - *Suppression fast path.* `add_suppression()` writes SQL first (durable record), then `SADD suppression:hashes`. `check_suppression()` tries `SISMEMBER` first; on a miss or Redis error it falls back to the authoritative SQL table and backfills Redis on a hit. Opt-out is never weakened by a Redis outage — no TTL on suppression hashes.
-- *Rate limiting.* Fixed-window counters via `check_rate_limit()`. `POST /enrich` enforces `MAX_ASYNC_REQUESTS_PER_MINUTE` and `POST /enrich/sync` enforces `MAX_SYNC_REQUESTS_PER_MINUTE` scoped per API token (`ratelimit:{sync|async}:{token-hash}`). Opt-out and DSAR enforce `MAX_COMPLIANCE_REQUESTS_PER_MINUTE` scoped per client IP (`ratelimit:compliance:{host-hash}`). Dependencies live in `app/routes/rate_limit.py`. Over-limit returns `429`. **Fails open** on Redis error — protection, not correctness. Raw tokens and IPs are never logged (hashed to 16 hex chars).
+- *Rate limiting.* Weighted sliding-window counters via `check_rate_limit()` (`app/infrastructure/redis.py`) — an atomic Lua script blends a decaying-weighted estimate of the previous window's count into the current window's check-then-increment, closing the boundary-burst gap a plain fixed-window counter has (full `limit` at the tail of one window + full `limit` at the head of the next). `POST /enrich` enforces `MAX_ASYNC_REQUESTS_PER_MINUTE` and `POST /enrich/sync` enforces `MAX_SYNC_REQUESTS_PER_MINUTE` scoped per API token (`ratelimit:{sync|async}:{token-hash}`). Opt-out and DSAR enforce `MAX_COMPLIANCE_REQUESTS_PER_MINUTE` scoped per client IP (`ratelimit:compliance:{host-hash}`). `POST /auth/register|login|verify-email|resend-verification` share one `MAX_AUTH_REQUESTS_PER_MINUTE` bucket scoped per client IP (`ratelimit:auth:{host-hash}`). `POST /api/documents/upload` (`MAX_DOCUMENTS_UPLOAD_REQUESTS_PER_MINUTE`) and `POST /api/job-matching/scan` (`MAX_JOB_MATCHING_SCAN_REQUESTS_PER_MINUTE`) are scoped per API token; `POST /api/signals/changedetection` (`MAX_SIGNALS_WEBHOOK_REQUESTS_PER_MINUTE`) is scoped per client IP. Dependencies live in `app/dependencies/rate_limit.py`. Over-limit returns `429`. **Fails open** on Redis error — protection, not correctness. Raw tokens and IPs are never logged (hashed to 16 hex chars).
 - *Job queue (RQ).* `POST /enrich` enqueues to the `enrichment` queue via `app/workers/queue.py` (synchronous `redis-py` connection — RQ is not async-compatible). The worker (`app/workers/rq_worker.py`) dequeues and calls `run_enrichment_job` (`app/workers/jobs.py`), which bridges to the async orchestrator with `asyncio.run` and a fresh DB session. Because each job gets its own event loop, the job disposes the shared async Redis client and DB engine pool in a `finally` — loop-bound connections leaking into the next job cause "Event loop is closed" failures. Enqueue failure marks the job `failed` and returns `503`.
 
 **Redis roles now wired:** suppression fast path, rate limiting, job queue. Compliance audit trail is in SQL (`audit_logs`).
@@ -528,15 +528,23 @@ Copy `backend/.env.example` → `backend/.env`.
 | `OPENAI_API_KEY`, `GEMINI_API_KEY` | Vendor keys on **litellm container only** (`env_file`) |
 | `DISAMBIGUATION_THRESHOLD` | Default `0.7` |
 
-### Rate limits (Redis fixed-window counters)
+### Rate limits (Redis weighted sliding-window counters, atomic Lua script — see `app/infrastructure/redis.py`)
 
 | Variable | Default | Scope |
 |----------|---------|-------|
 | `MAX_SYNC_REQUESTS_PER_MINUTE` | 10 | Per API token (`/enrich/sync`) |
 | `MAX_ASYNC_REQUESTS_PER_MINUTE` | 30 | Per API token (`/enrich`) |
 | `MAX_COMPLIANCE_REQUESTS_PER_MINUTE` | 20 | Per client IP (opt-out + DSAR) |
+| `MAX_AUTH_REQUESTS_PER_MINUTE` | 5 | Per client IP, one shared bucket across `/auth/register`, `/auth/login`, `/auth/verify-email`, `/auth/resend-verification` |
+| `MAX_DOCUMENTS_UPLOAD_REQUESTS_PER_MINUTE` | 10 | Per API token (`POST /api/documents/upload`) |
+| `MAX_SIGNALS_WEBHOOK_REQUESTS_PER_MINUTE` | 30 | Per client IP (`POST /api/signals/changedetection`) |
+| `MAX_JOB_MATCHING_SCAN_REQUESTS_PER_MINUTE` | 5 | Per API token (`POST /api/job-matching/scan`) |
 | `LINKEDIN_PHOTO_TTL_SECONDS` | 86400 | — |
 | `USERNAME_LOOKUP_TTL_SECONDS` | 3600 | — |
+
+### CORS
+
+`CORS_ALLOWED_ORIGINS` — comma-separated origin allowlist for `CORSMiddleware` (`app/main.py`); falls back to `FRONTEND_URL`, then `http://localhost:3000`, when unset. `allow_methods` and `allow_headers` are an explicit tightened set (`GET, POST, PUT, PATCH, DELETE, OPTIONS`; `Authorization, Content-Type`), not wildcards, since `allow_credentials=True` forbids a wildcard origin/credentials combination anyway. Preflight responses are cached client-side for 600s (`max_age=600`).
 
 ---
 
