@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { TrackedMatchRow } from "./TrackedMatchRow";
 import * as trackerClient from "../api/client";
 import * as matchingClient from "@/features/job-matching/api/client";
+import * as useInterviewScheduleHooks from "@/features/interview-scheduling/hooks/useInterviewSchedule";
 import type { TrackedMatch } from "@/src/lib/types";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -34,6 +35,13 @@ describe("TrackedMatchRow", () => {
     vi.restoreAllMocks();
     vi.spyOn(trackerClient, "updateApplicationStatus").mockResolvedValue(baseMatch);
     vi.spyOn(matchingClient, "markApplied").mockResolvedValue(undefined);
+    // InterviewScheduleCard (Module D) is only rendered when applicationStatus ===
+    // "interview"; stub its query so those rows don't trigger a real network call.
+    vi.spyOn(useInterviewScheduleHooks, "useInterviewSchedule").mockReturnValue({
+      data: null,
+      isLoading: false,
+      isError: false,
+    } as ReturnType<typeof useInterviewScheduleHooks.useInterviewSchedule>);
   });
 
   it("renders the score when overallScore is present", () => {
@@ -73,5 +81,19 @@ describe("TrackedMatchRow", () => {
   it("renders no interview chip when nextInterviewAt is null", () => {
     render(<TrackedMatchRow match={baseMatch} />, { wrapper });
     expect(screen.queryByText(/Interview:/)).not.toBeInTheDocument();
+  });
+
+  it('renders InterviewScheduleCard inline when applicationStatus is "interview"', () => {
+    render(<TrackedMatchRow match={{ ...baseMatch, applicationStatus: "interview" }} />, {
+      wrapper,
+    });
+    // Stubbed useInterviewSchedule resolves to null, so the card renders its
+    // "Schedule interview" CTA rather than the full card (§15.5).
+    expect(screen.getByRole("button", { name: "Schedule interview" })).toBeInTheDocument();
+  });
+
+  it("does not render InterviewScheduleCard for non-interview statuses", () => {
+    render(<TrackedMatchRow match={baseMatch} />, { wrapper });
+    expect(screen.queryByRole("button", { name: "Schedule interview" })).not.toBeInTheDocument();
   });
 });
