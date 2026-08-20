@@ -97,6 +97,41 @@ async def test_get_deck_empty_for_user_with_no_matches(db, test_user):
     assert deck.has_more is False
 
 
+async def test_get_deck_flags_below_similarity_threshold_matches(db, test_user):
+    """Module A (§5.5): SwipeableMatchResponse.below_similarity_threshold surfaces the
+    similarity-fallback flag from JobMatch.score_breakdown."""
+    service = JobSwipeService(db)
+
+    flagged_match, _ = await _make_match(
+        db,
+        test_user,
+        50.0,
+        title="Fallback Job",
+        score_breakdown={"below_similarity_threshold": True},
+    )
+    unflagged_match, _ = await _make_match(
+        db,
+        test_user,
+        50.0,
+        title="Strict Job",
+        score_breakdown={"below_similarity_threshold": False},
+    )
+    no_key_match, _ = await _make_match(
+        db,
+        test_user,
+        50.0,
+        title="No Key Job",
+        score_breakdown={},
+    )
+
+    deck = await service.get_deck(test_user.id)
+    cards_by_match_id = {card.match_id: card for card in deck.cards}
+
+    assert cards_by_match_id[str(flagged_match.id)].below_similarity_threshold is True
+    assert cards_by_match_id[str(unflagged_match.id)].below_similarity_threshold is False
+    assert cards_by_match_id[str(no_key_match.id)].below_similarity_threshold is False
+
+
 async def test_swipe_removes_card_from_next_deck_fetch(db, test_user, seeded_match):
     match, _ = seeded_match
     service = JobSwipeService(db)
@@ -143,7 +178,12 @@ def test_swipe_action_request_rejects_invalid_direction():
 
 
 async def _make_match(
-    db, user, overall_score: float, *, title: str = "Job"
+    db,
+    user,
+    overall_score: float,
+    *,
+    title: str = "Job",
+    score_breakdown: dict | None = None,
 ) -> tuple[JobMatch, JobPosting]:
     posting = JobPosting(
         id=uuid4(),
@@ -167,7 +207,7 @@ async def _make_match(
         similarity_score=0.8,
         rule_score=1.0,
         overall_score=overall_score,
-        score_breakdown={},
+        score_breakdown=score_breakdown if score_breakdown is not None else {},
     )
     db.add(match)
     await db.commit()
