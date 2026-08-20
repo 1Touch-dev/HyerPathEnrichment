@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.database.orm_registry  # noqa: F401
 from app.database.session import SessionLocal, engine
 from app.infrastructure.redis import close_redis
+from app.modules.admin.moderation_flagging import flag_if_needed
 from app.modules.documents.models import CandidateDocument
 from app.modules.job_matching import events, repository
 from app.modules.job_matching.models import CandidateJobPreferences, JobPosting
@@ -212,6 +213,32 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                         session, posting.id, embedding, token_count
                     )
                     stats["new_postings"] += 1
+
+                    # Soft-moderation flagging (Batch 1 admin module): gated on the same
+                    # "never embedded before" condition as the embedding step above, i.e.
+                    # only postings genuinely new to this scan (not every re-upsert of an
+                    # already-seen posting on a later scan day) get a flagging pass. A
+                    # scraped job board re-upserts the same postings repeatedly, so
+                    # flagging on every upsert would repeatedly re-flag/LLM-call postings
+                    # that were already screened once. Placed inside its own try/except:
+                    # flag_if_needed is internally fail-open, but this call site is
+                    # defensive against the test suite mocking flag_if_needed directly
+                    # (which bypasses that internal safety net) or a future regression in
+                    # its own fail-open guarantee — a moderation-side failure must never
+                    # abort or slow-fail this scan.
+                    try:
+                        await flag_if_needed(
+                            session,
+                            resource_type="job_posting",
+                            resource_id=posting.id,
+                            text_fields=[title, company, description],
+                        )
+                    except Exception:
+                        logger.warning(
+                            "flag_if_needed raised unexpectedly; ignoring (fail-open)",
+                            exc_info=True,
+                            extra={"posting_id": str(posting.id)},
+                        )
 
             # Stage 1 (Decision 1): pgvector similarity search using the candidate's CV
             # embedding, restricted to just the postings scraped in this scan.

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.database.orm_registry  # noqa: F401
 from app.database.session import SessionLocal, SyncSessionLocal, engine
 from app.infrastructure.redis import close_redis
+from app.modules.admin.moderation_flagging import flag_if_needed
 from app.modules.documents.models import CandidateDocument, DocumentJob
 from app.services.document_processor import DocumentProcessor
 
@@ -156,6 +157,31 @@ async def _process_document_job(
                     "text_length": len(extraction_result["text"]),
                 },
             )
+
+            # Soft-moderation flagging (Batch 1 admin module): runs after the
+            # document's own success is already committed, so a flagging
+            # failure can never affect processing_status/DocumentJob.status.
+            # All document types are flagged (not just "cv") — any uploaded
+            # candidate file's extracted text can carry spam/abuse content.
+            # flag_if_needed is internally fail-open (see moderation_flagging.py),
+            # but this call site still wraps it defensively: the test suite
+            # mocks flag_if_needed directly, which bypasses that internal
+            # safety net entirely, so this try/except is the only thing
+            # guaranteeing a broken/changed flagging implementation can never
+            # break document processing.
+            try:
+                await flag_if_needed(
+                    session,
+                    resource_type="document",
+                    resource_id=UUID(document_id),
+                    text_fields=[extraction_result["text"]],
+                )
+            except Exception:
+                logger.warning(
+                    "flag_if_needed raised unexpectedly; ignoring (fail-open)",
+                    exc_info=True,
+                    extra={"document_id": document_id},
+                )
 
             # Chain to embedding generation queue
             # NOTE: This assumes embedding worker exists - part of Agent 2's work

@@ -622,6 +622,125 @@ class TestScanJobsForCandidate:
         mock_scrape.assert_not_called()
 
 
+class TestScanJobsForCandidateFlagging:
+    """Soft-moderation flagging (Batch 1 admin module) integration at the
+    call site in `_scan_jobs_for_candidate_async`. `flag_if_needed`'s own
+    internals are covered by `test_admin_moderation_flagging.py` — these
+    tests only assert the call-site wiring and its fail-open guarantee.
+    """
+
+    def test_calls_flag_if_needed_for_newly_embedded_posting(self):
+        """A posting with no prior embedding (i.e. genuinely new to this scan)
+        must trigger `flag_if_needed` with the posting's own id and text
+        fields, gated on the same `has_posting_embedding` condition as the
+        embedding step above it."""
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+        unique_rows = [
+            {
+                **FAKE_JOBSPY_ROWS[0],
+                "title": f"{FAKE_JOBSPY_ROWS[0]['title']} {uuid.uuid4().hex[:8]}",
+            }
+        ]
+
+        with (
+            _mock_jobspy_scrape(unique_rows),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            _mock_track_embedding_cost(),
+            _mock_track_llm_cost(),
+            patch(
+                "app.workers.tasks.job_matching.flag_if_needed", new_callable=AsyncMock
+            ) as mock_flag,
+        ):
+            scan_jobs_for_candidate(str(user.id))
+
+        mock_flag.assert_called_once()
+        _, kwargs = mock_flag.call_args
+        assert kwargs["resource_type"] == "job_posting"
+        assert kwargs["text_fields"] == [
+            unique_rows[0]["title"],
+            unique_rows[0]["company"],
+            unique_rows[0]["description"],
+        ]
+        posting = next(p for p in _get_postings() if p.title == unique_rows[0]["title"])
+        assert kwargs["resource_id"] == posting.id
+
+    def test_does_not_call_flag_if_needed_for_already_embedded_posting(self):
+        """A posting already embedded from a prior scan (re-upserted, not
+        genuinely new) must not trigger another flagging pass — matches the
+        embedding step's own dedup gate immediately above."""
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+
+        row = {
+            **FAKE_JOBSPY_ROWS[0],
+            "title": f"{FAKE_JOBSPY_ROWS[0]['title']} {uuid.uuid4().hex[:8]}",
+        }
+        dedup_key = compute_dedup_key(row["title"], row["location"], "linkedin")
+        existing_posting = _create_posting(
+            dedup_key=dedup_key,
+            title=row["title"],
+            company=row["company"],
+            location=row["location"],
+            remote=True,
+            source="linkedin",
+            sources_seen=["linkedin"],
+        )
+        _create_posting_embedding(existing_posting.id)
+
+        with (
+            _mock_jobspy_scrape([row]),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            patch(
+                "app.workers.tasks.job_matching.flag_if_needed", new_callable=AsyncMock
+            ) as mock_flag,
+        ):
+            scan_jobs_for_candidate(str(user.id))
+
+        mock_flag.assert_not_called()
+
+    def test_flag_if_needed_failure_does_not_break_scan(self):
+        """The most important guarantee this chunk is responsible for: if
+        `flag_if_needed` raises an unexpected exception, the scan must still
+        complete successfully and return its normal stats."""
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+        unique_rows = [
+            {
+                **FAKE_JOBSPY_ROWS[0],
+                "title": f"{FAKE_JOBSPY_ROWS[0]['title']} {uuid.uuid4().hex[:8]}",
+            }
+        ]
+
+        with (
+            _mock_jobspy_scrape(unique_rows),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            _mock_track_embedding_cost(),
+            _mock_track_llm_cost(),
+            patch(
+                "app.workers.tasks.job_matching.flag_if_needed",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("simulated flagging bug"),
+            ),
+        ):
+            stats = scan_jobs_for_candidate(str(user.id))
+
+        assert stats["scraped"] == len(unique_rows)
+        assert stats["new_postings"] == 1
+
+
 class TestGenerateExplanationsForCandidate:
     def test_generates_and_persists_explanations(self):
         user = _create_user()

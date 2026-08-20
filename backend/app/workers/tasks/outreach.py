@@ -18,6 +18,7 @@ from app.core.config import Settings, get_settings
 from app.database.session import SessionLocal, engine
 from app.domain.candidate import CVData
 from app.infrastructure.redis import close_redis
+from app.modules.admin.moderation_flagging import flag_if_needed
 from app.modules.documents.models import CandidateDocument
 
 # JobMatch/JobPosting are owned by the job_matching module — imported here
@@ -107,6 +108,29 @@ async def _generate_outreach_draft_job(
                     "context_source": context["source"],
                 },
             )
+
+            # Soft-moderation flagging (Batch 1 admin module): runs after the
+            # draft's own success is already committed, so a flagging failure
+            # can never affect draft generation. flag_if_needed is internally
+            # fail-open (see moderation_flagging.py), but this call site still
+            # wraps it defensively: the test suite mocks flag_if_needed
+            # directly, which bypasses that internal safety net entirely, so
+            # this try/except is the only thing guaranteeing a broken/changed
+            # flagging implementation can never break outreach draft
+            # generation.
+            try:
+                await flag_if_needed(
+                    session,
+                    resource_type="outreach_message",
+                    resource_id=message.id,
+                    text_fields=[subject, body],
+                )
+            except Exception:
+                logger.warning(
+                    "flag_if_needed raised unexpectedly; ignoring (fail-open)",
+                    exc_info=True,
+                    extra={"user_id": user_id[:8], "message_id": str(message.id)},
+                )
     except Exception:
         logger.error(
             "Outreach draft generation failed", exc_info=True, extra={"user_id": user_id[:8]}
