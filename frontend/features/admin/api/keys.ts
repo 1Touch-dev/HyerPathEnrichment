@@ -12,4 +12,8 @@ export const adminKeys = {
   analytics: () => [...adminKeys.all, "analytics", "job-matches"] as const,
   mfaStatus: () => [...adminKeys.all, "mfa-status"] as const,
   impersonationStatus: () => [...adminKeys.all, "impersonation-status"] as const,
+  reviewQueueAll: () => [...adminKeys.all, "review-queue"] as const,
+  reviewQueue: (cursor: string | null, resourceType: string | null, status: string | null) =>
+    [...adminKeys.reviewQueueAll(), cursor, resourceType, status] as const,
+  reviewQueueItem: (id: string) => [...adminKeys.reviewQueueAll(), id] as const,
 };
