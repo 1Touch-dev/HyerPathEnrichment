@@ -5,9 +5,9 @@ backend (Postgres + Redis + API container) — no mocks, no test client.
 Seeds a superuser and a second regular user directly in the DB (same
 direct-row-write pattern as `create_test_user.py`), then drives the full
 Admin Module surface purely over HTTP: login, user list/suspend, feature
-flags, MFA enrollment, impersonation start/end, queues overview, and system
-health — printing a PASS/FAIL line per step and exiting non-zero on any
-failure.
+flags, MFA enrollment, impersonation start/end, queues overview, system
+health, and a review-queue flag -> decide -> domain-flip -> audit pass —
+printing a PASS/FAIL line per step and exiting non-zero on any failure.
 
 Usage:
     python scripts/smoke_admin_live.py [--base-url http://127.0.0.1:8010]
@@ -23,6 +23,7 @@ import os
 import sys
 import uuid
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pyotp
@@ -117,7 +118,75 @@ async def _seed_users() -> tuple[uuid.UUID, uuid.UUID]:
             target.is_superuser = False
 
         await session.commit()
-        return superuser.id, target.id
+        superuser_id, target_id = superuser.id, target.id
+
+    # Dispose the module-level async engine's connection pool before this
+    # asyncio.run() call's event loop closes — otherwise a later asyncio.run()
+    # call (e.g. _seed_flagged_job_posting()) reusing the same global `engine`
+    # trips "attached to a different loop" when the pool tries to reuse an
+    # asyncpg connection bound to this (now-closed) loop.
+    from app.database.session import engine
+
+    await engine.dispose()
+    return superuser_id, target_id
+
+
+_FLAGGED_JOB_TITLE = "Remote Data Entry Clerk"
+_FLAGGED_JOB_COMPANY = "Admin Smoke Test Co"
+# Real deny-listed term from moderation_flagging._DENY_LIST — see that module
+# for the full list. Using a real entry (rather than inventing one) ensures
+# this exercises the actual heuristic match, not a hand-crafted assumption.
+_FLAGGED_JOB_DESCRIPTION = "This role offers guaranteed income with flexible hours."
+
+
+async def _seed_flagged_job_posting() -> tuple[uuid.UUID, uuid.UUID]:
+    """Seed a `job_posting` row directly in the DB (mirroring `_seed_users()`'s
+    direct-row-write pattern), containing a deny-listed heuristic term in its
+    description, then call the real `flag_if_needed()` cascade against it —
+    the same function the scan pipeline calls — so the resulting
+    `admin_review_queue` row is produced by real code, not a hand-crafted
+    insert. Returns (job_posting_id, review_queue_item_id)."""
+    import app.database.orm_registry  # noqa: F401  (registers all ORM models/relationships)
+    from app.database.session import SessionLocal
+    from app.modules.admin.moderation_flagging import flag_if_needed
+    from app.modules.job_matching.models import JobPosting
+
+    posting_id = uuid.uuid4()
+
+    async with SessionLocal() as session:
+        posting = JobPosting(
+            id=posting_id,
+            dedup_key=f"admin-smoke-flagged-{posting_id}",
+            title=_FLAGGED_JOB_TITLE,
+            company=_FLAGGED_JOB_COMPANY,
+            source="admin_smoke_test",
+            description_raw=_FLAGGED_JOB_DESCRIPTION,
+        )
+        session.add(posting)
+        await session.flush()
+
+        item = await flag_if_needed(
+            session,
+            resource_type="job_posting",
+            resource_id=posting_id,
+            text_fields=[_FLAGGED_JOB_TITLE, _FLAGGED_JOB_DESCRIPTION],
+        )
+        await session.commit()
+
+    # See _seed_users()'s comment: dispose the shared engine's pool before
+    # this event loop closes, since this is the last asyncio.run() call in
+    # the script but leaves pooled connections tied to a soon-dead loop
+    # otherwise.
+    from app.database.session import engine
+
+    await engine.dispose()
+
+    if item is None:
+        raise RuntimeError(
+            "flag_if_needed() did not flag the seeded job posting — deny-list term "
+            "may have changed; check moderation_flagging._DENY_LIST"
+        )
+    return posting_id, item.id
 
 
 def _login(client: httpx.Client, email: str, password: str) -> httpx.Response:
@@ -346,6 +415,84 @@ def run_smoke(base_url: str) -> bool:
             "GET /api/admin/system-health (200 + expected shape)",
             health_ok,
             f"status={resp.status_code} database_ok={health_data.get('database_ok')} redis_ok={health_data.get('redis_ok')}",
+        )
+
+        # --- Review queue: flag a job posting, list/detail it, decide (reject),
+        # confirm the domain-side moderation column flips and the audit log
+        # records the decision. ---
+        posting_id, review_item_id = asyncio.run(_seed_flagged_job_posting())
+        _record(
+            "seed job_posting + flag_if_needed() (real heuristic cascade)",
+            True,
+            f"posting_id={posting_id} review_item_id={review_item_id}",
+        )
+
+        resp = client.get(
+            "/api/admin/review-queue", params={"resource_type": "job_posting", "status": "pending"}
+        )
+        review_list_ok = resp.status_code == 200
+        if review_list_ok:
+            data = resp.json().get("data", {})
+            review_list_ok = "items" in data and "next_cursor" in data and "has_more" in data
+            review_list_ok = review_list_ok and any(
+                item.get("id") == str(review_item_id) for item in data.get("items", [])
+            )
+        _record(
+            "GET /api/admin/review-queue?resource_type=job_posting&status=pending (cursor shape + seeded item present)",
+            review_list_ok,
+            f"status={resp.status_code}",
+        )
+
+        resp = client.get(f"/api/admin/review-queue/{review_item_id}")
+        detail_ok = resp.status_code == 200
+        resolved_resource: dict[str, Any] | None = None
+        if detail_ok:
+            detail_data = resp.json().get("data", {})
+            resolved_resource = detail_data.get("resolved_resource")
+            detail_ok = (
+                resolved_resource is not None
+                and resolved_resource.get("id") == str(posting_id)
+                and resolved_resource.get("title") == _FLAGGED_JOB_TITLE
+            )
+        _record(
+            "GET /api/admin/review-queue/{id} (resolved_resource reflects seeded job posting)",
+            detail_ok,
+            f"status={resp.status_code} resolved_resource={resolved_resource}",
+        )
+
+        resp = client.post(
+            f"/api/admin/review-queue/{review_item_id}/decide",
+            json={"status": "rejected", "review_notes": "smoke test rejection"},
+        )
+        _record(
+            "POST /api/admin/review-queue/{id}/decide (reject)",
+            resp.status_code == 200,
+            f"status={resp.status_code}",
+        )
+
+        resp = client.get(f"/api/admin/job-postings/{posting_id}")
+        moderation_status_now = (
+            resp.json().get("data", {}).get("moderation_status") if resp.status_code == 200 else None
+        )
+        _record(
+            "GET /api/admin/job-postings/{id} (moderation_status flipped to 'removed')",
+            moderation_status_now == "removed",
+            f"status={resp.status_code} moderation_status={moderation_status_now}",
+        )
+
+        resp = client.get(
+            "/api/admin/audit-logs", params={"action": "review_queue.decide", "limit": 5}
+        )
+        decide_logged = False
+        if resp.status_code == 200:
+            items = resp.json().get("data", {}).get("items", [])
+            decide_logged = any(
+                str(item.get("target_id")) == str(review_item_id) for item in items
+            )
+        _record(
+            "GET /api/admin/audit-logs (review_queue.decide recorded with correct target_id)",
+            decide_logged,
+            f"status={resp.status_code}",
         )
     finally:
         client.close()
