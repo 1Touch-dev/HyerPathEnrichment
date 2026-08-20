@@ -22,6 +22,7 @@ from app.modules.interview_scheduling.router import router as interview_scheduli
 from app.modules.jd_practice.router import router as jd_practice_router
 from app.modules.job_matching.router import router as job_matching_router
 from app.modules.job_swipe.router import router as job_swipe_router
+from app.modules.manual_jobs.router import router as manual_jobs_router
 from app.modules.opt_out.router import router as opt_out_router
 from app.modules.outreach.router import router as outreach_router
 from app.modules.portfolio.router import public_router as portfolio_public_router
@@ -96,6 +97,7 @@ app.include_router(portfolio_router, dependencies=[Depends(current_verified_user
 app.include_router(portfolio_public_router)
 app.include_router(job_swipe_router, dependencies=[Depends(current_verified_user)])
 app.include_router(outreach_router, dependencies=[Depends(current_verified_user)])
+app.include_router(manual_jobs_router, dependencies=[Depends(current_verified_user)])
 app.include_router(
     dsar_router,
     dependencies=[Depends(current_verified_user), Depends(enforce_compliance_rate_limit)],

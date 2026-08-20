@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base, JsonDoc
@@ -124,8 +124,17 @@ class JobMatch(Base):
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    job_posting_id: Mapped[UUID] = mapped_column(
-        ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=False, index=True
+    # Nullable since Module F (§10.2): a manually-added job has no JobPosting row.
+    # Exactly one of job_posting_id/manual_job_entry_id is set — see
+    # ck_job_matches_exactly_one_source below.
+    job_posting_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    # Bare string FK reference — no import of manual_jobs.models.ManualJobEntry needed,
+    # same convention as every other cross-module ForeignKey("users.id", ...) in this
+    # codebase (§10.5's layer-ownership note).
+    manual_job_entry_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("manual_job_entries.id", ondelete="CASCADE"), nullable=True, index=True
     )
     similarity_score: Mapped[float] = mapped_column(Float, nullable=False)
     rule_score: Mapped[float] = mapped_column(Float, nullable=False)
@@ -159,6 +168,14 @@ class JobMatch(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(job_posting_id IS NOT NULL AND manual_job_entry_id IS NULL) OR "
+            "(job_posting_id IS NULL AND manual_job_entry_id IS NOT NULL)",
+            name="ck_job_matches_exactly_one_source",
+        ),
     )
 
 

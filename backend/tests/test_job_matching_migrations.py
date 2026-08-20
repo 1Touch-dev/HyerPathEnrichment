@@ -225,7 +225,10 @@ class TestJobMatchesSchema:
         }
         assert expected <= cols.keys()
         assert cols["user_id"]["nullable"] is False
-        assert cols["job_posting_id"]["nullable"] is False
+        # job_posting_id became nullable at revision 043 (Module 4, Module F §10.2/§10.3) —
+        # a manually-added job has no JobPosting row. See test_manual_jobs_migrations.py
+        # for the dedicated coverage of that revision.
+        assert cols["job_posting_id"]["nullable"] is True
         assert cols["similarity_score"]["nullable"] is False
         assert cols["rule_score"]["nullable"] is False
         assert cols["overall_score"]["nullable"] is False
