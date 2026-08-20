@@ -58,7 +58,7 @@ class JobMatchResponse(BaseModel):
     salary_max: int | None
     salary_currency: str | None
     overall_score: float
-    score_breakdown: dict[str, float]
+    score_breakdown: dict[str, float | bool]
     explanation: str | None
     is_new: bool  # notified_at is None
     viewed_at: datetime | None

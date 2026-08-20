@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
@@ -21,6 +22,7 @@ from app.auth.password import hash_password
 from app.modules.job_matching import repository
 from app.modules.job_matching.models import PGVECTOR_AVAILABLE, JobPosting, JobPostingEmbedding
 from app.modules.job_matching.scorer import compute_dedup_key
+from app.observability.job_matching_metrics import job_matching_similarity_fallback_fired_total
 
 
 @pytest.fixture
@@ -592,13 +594,18 @@ class TestFindSimilarPostings:
         await repository.store_posting_embedding(db, posting.id, [1.0, 0.0, 0.0], token_count=5)
 
         results = await repository.find_similar_postings(
-            db, query_embedding=[1.0, 0.0, 0.0], limit=10, similarity_threshold=0.5
+            db,
+            query_embedding=[1.0, 0.0, 0.0],
+            limit=10,
+            similarity_threshold=0.5,
+            min_results=1,
         )
 
         assert len(results) == 1
-        result_id, similarity = results[0]
+        result_id, similarity, passed_threshold = results[0]
         assert result_id == posting.id
         assert similarity == pytest.approx(1.0, abs=1e-6)
+        assert passed_threshold is True
 
     async def test_respects_similarity_threshold(self, db: AsyncSession):
         posting = await _make_posting(db)
@@ -607,13 +614,16 @@ class TestFindSimilarPostings:
 
         # Scope to this posting via posting_ids since the test DB persists committed
         # rows across tests (no per-test transaction rollback), so unscoped queries
-        # would also pick up matching postings from other tests.
+        # would also pick up matching postings from other tests. min_results=0 keeps
+        # the fallback pass from firing (it would otherwise relax the threshold and
+        # pull this posting back in, defeating the point of this test).
         results = await repository.find_similar_postings(
             db,
             query_embedding=[1.0, 0.0, 0.0],
             limit=10,
             similarity_threshold=0.5,
             posting_ids=[posting.id],
+            min_results=0,
         )
         assert results == []
 
@@ -629,6 +639,7 @@ class TestFindSimilarPostings:
             limit=10,
             similarity_threshold=0.5,
             posting_ids=[included.id],
+            min_results=1,
         )
 
         result_ids = {r[0] for r in results}
@@ -641,12 +652,14 @@ class TestFindSimilarPostings:
         # Scope to this posting via posting_ids for the same reason as above: it's
         # excluded by is_active regardless, but this avoids depending on other tests'
         # leftover active postings sharing the same embedding to prove the point.
+        # min_results=0 keeps the fallback pass from firing.
         results = await repository.find_similar_postings(
             db,
             query_embedding=[1.0, 0.0, 0.0],
             limit=10,
             similarity_threshold=0.5,
             posting_ids=[posting.id],
+            min_results=0,
         )
         assert results == []
 
@@ -656,7 +669,11 @@ class TestFindSimilarPostings:
             await repository.store_posting_embedding(db, posting.id, [1.0, 0.0, 0.0], token_count=5)
 
         results = await repository.find_similar_postings(
-            db, query_embedding=[1.0, 0.0, 0.0], limit=2, similarity_threshold=0.5
+            db,
+            query_embedding=[1.0, 0.0, 0.0],
+            limit=2,
+            similarity_threshold=0.5,
+            min_results=0,
         )
         assert len(results) == 2
 
@@ -689,10 +706,136 @@ class TestFindSimilarPostings:
         # The simulated failure makes it fall through to the Python/SQLite fallback path,
         # which still runs against this test's real (SQLite) session — that fallback
         # behavior isn't what's under test here, only the captured Postgres-branch call.
-        await repository.find_similar_postings(db, query_embedding=embedding, limit=5)
+        await repository.find_similar_postings(
+            db, query_embedding=embedding, limit=5, min_results=0
+        )
 
         assert "sql_text" in captured, "expected the Postgres branch to be exercised"
         assert "0.123456" not in captured["sql_text"]
         assert "-0.654321" not in captured["sql_text"]
         assert "0.999999" not in captured["sql_text"]
         assert captured["params"]["query_embedding"] == "[0.123456,-0.654321,0.999999]"
+
+
+class TestFindSimilarPostingsFallback:
+    """Module A: progressive-relaxation fallback when the strict pass returns fewer
+    than `min_results` matches (§5.2/§5.3 of the Module 4 plan).
+    """
+
+    async def _make_postings_with_embeddings(
+        self, db: AsyncSession, similarities: list[float]
+    ) -> list[JobPosting]:
+        """Create one posting per similarity value in `similarities`, with an
+        embedding engineered (via a 2D unit-circle construction) so its cosine
+        similarity to the query embedding [1.0, 0.0] is exactly the requested value.
+        """
+        import math
+
+        postings = []
+        for sim in similarities:
+            posting = await _make_posting(db)
+            angle = math.acos(max(-1.0, min(1.0, sim)))
+            embedding = [math.cos(angle), math.sin(angle)]
+            await repository.store_posting_embedding(db, posting.id, embedding, token_count=5)
+            postings.append(posting)
+        return postings
+
+    async def test_fallback_never_fires_when_strict_pass_has_enough_results(self, db: AsyncSession):
+        postings = await self._make_postings_with_embeddings(
+            db, [0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.52, 0.51]
+        )
+        posting_ids = [p.id for p in postings]
+
+        with patch.object(job_matching_similarity_fallback_fired_total, "inc") as mock_inc:
+            results = await repository.find_similar_postings(
+                db,
+                query_embedding=[1.0, 0.0],
+                limit=20,
+                similarity_threshold=0.5,
+                posting_ids=posting_ids,
+                min_results=10,
+            )
+
+        assert len(results) == 10
+        assert all(passed_threshold is True for _pid, _sim, passed_threshold in results)
+        mock_inc.assert_not_called()  # fallback did not fire
+
+    async def test_fallback_fires_and_merges_strict_and_relaxed_results(self, db: AsyncSession):
+        # 4 postings clear the 0.5 threshold ("strict"); 6 more sit below it but
+        # would be picked up by a relaxed (threshold-less) pass ordered by similarity.
+        strict_postings = await self._make_postings_with_embeddings(db, [0.9, 0.8, 0.7, 0.6])
+        relaxed_postings = await self._make_postings_with_embeddings(
+            db, [0.45, 0.4, 0.35, 0.3, 0.25, 0.2]
+        )
+        posting_ids = [p.id for p in strict_postings + relaxed_postings]
+
+        with patch.object(job_matching_similarity_fallback_fired_total, "inc") as mock_inc:
+            results = await repository.find_similar_postings(
+                db,
+                query_embedding=[1.0, 0.0],
+                limit=20,
+                similarity_threshold=0.5,
+                posting_ids=posting_ids,
+                min_results=10,
+            )
+
+        mock_inc.assert_called_once()  # counter incremented exactly once
+
+        assert len(results) == 10  # topped up to exactly min_results
+
+        strict_ids = {p.id for p in strict_postings}
+        result_by_id = {pid: (sim, passed) for pid, sim, passed in results}
+
+        # All 4 strict results are present, untouched, and still flagged passed_threshold=True.
+        for posting in strict_postings:
+            assert posting.id in result_by_id
+            assert result_by_id[posting.id][1] is True
+
+        # Exactly 6 relaxed results fill the remaining slots up to min_results=10,
+        # all flagged passed_threshold=False, and none of them duplicate a strict id.
+        relaxed_ids_in_results = set(result_by_id) - strict_ids
+        assert len(relaxed_ids_in_results) == 6
+        for pid in relaxed_ids_in_results:
+            assert result_by_id[pid][1] is False
+
+        # The highest-similarity relaxed postings (0.45 down to 0.2, all 6 of them)
+        # are exactly the ones that filled the gap, since relaxed_postings has only 6.
+        relaxed_id_set = {p.id for p in relaxed_postings}
+        assert relaxed_ids_in_results == relaxed_id_set
+
+    async def test_fallback_never_truncates_strict_results_to_make_room(self, db: AsyncSession):
+        """A candidate with 15 genuinely good (above-threshold) matches sees all 15,
+        not capped at min_results=10 (§5.2 point 3)."""
+        strict_postings = await self._make_postings_with_embeddings(
+            db,
+            [
+                0.9,
+                0.85,
+                0.8,
+                0.75,
+                0.7,
+                0.65,
+                0.6,
+                0.58,
+                0.56,
+                0.54,
+                0.52,
+                0.51,
+                0.505,
+                0.502,
+                0.501,
+            ],
+        )
+        posting_ids = [p.id for p in strict_postings]
+
+        results = await repository.find_similar_postings(
+            db,
+            query_embedding=[1.0, 0.0],
+            limit=20,
+            similarity_threshold=0.5,
+            posting_ids=posting_ids,
+            min_results=10,
+        )
+
+        assert len(results) == 15
+        assert all(passed_threshold is True for _pid, _sim, passed_threshold in results)

@@ -452,6 +452,67 @@ class TestScanJobsForCandidate:
                 operation="job_match_explanation",
             )
 
+    def test_marks_below_similarity_threshold_in_score_breakdown_end_to_end(self):
+        """Module A (§5.4): when `repository.find_similar_postings` flags a triple's
+        `passed_threshold=False` (i.e. it was only surfaced via the relaxed fallback
+        pass), `_scan_jobs_for_candidate_async` must set
+        `score_breakdown["below_similarity_threshold"] = True` on the persisted match —
+        and must leave that key unset for triples that passed the strict threshold.
+
+        `repository.find_similar_postings` itself is stubbed here (rather than engineered
+        via real embeddings) so this test isolates exactly the worker's triple-unpacking/
+        breakdown-flagging behavior, independent of the repository's own fallback logic
+        (already covered by `test_job_matching_repository.py::TestFindSimilarPostingsFallback`).
+        """
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+        unique_rows = [
+            {**row, "title": f"{row['title']} {uuid.uuid4().hex[:8]}"} for row in FAKE_JOBSPY_ROWS
+        ]
+
+        captured_posting_ids: list = []
+
+        async def fake_find_similar_postings(
+            session, cv_embedding, limit, similarity_threshold, posting_ids
+        ):
+            captured_posting_ids.extend(posting_ids)
+            # First posting passes the strict threshold normally; second is only
+            # surfaced via the relaxed fallback pass (passed_threshold=False).
+            return [(posting_ids[0], 0.9, True), (posting_ids[1], 0.2, False)]
+
+        with (
+            _mock_jobspy_scrape(unique_rows),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            patch(
+                "app.modules.job_matching.repository.find_similar_postings",
+                side_effect=fake_find_similar_postings,
+            ),
+        ):
+            stats = scan_jobs_for_candidate(str(user.id))
+
+        assert stats["matches_scored"] == 2
+        assert len(captured_posting_ids) == 2
+
+        with SyncSessionLocal() as session:
+            matches = {
+                m.job_posting_id: m
+                for m in session.execute(
+                    select(JobMatch).where(JobMatch.job_posting_id.in_(captured_posting_ids))
+                )
+                .scalars()
+                .all()
+            }
+
+        above_threshold_match = matches[captured_posting_ids[0]]
+        below_threshold_match = matches[captured_posting_ids[1]]
+
+        assert "below_similarity_threshold" not in above_threshold_match.score_breakdown
+        assert below_threshold_match.score_breakdown["below_similarity_threshold"] is True
+
     def test_skips_embedding_when_posting_already_has_stored_embedding(self):
         """A posting scraped in this scan that already has a `JobPostingEmbedding` row
         from a prior scan must not trigger another `generate_embedding` call, and must
