@@ -1,4 +1,4 @@
-import type { JobPostingFilters } from "./client";
+import type { JobPostingFilters, AdminPortfolioFilters } from "./client";
 
 export const adminKeys = {
   all: ["admin"] as const,
@@ -24,4 +24,13 @@ export const adminKeys = {
   documents: (cursor: string | null, processingStatus: string | null, deleted: boolean | null) =>
     [...adminKeys.all, "documents", cursor, processingStatus, deleted] as const,
   document: (id: string) => [...adminKeys.all, "documents", id] as const,
+  portfolio: (cursor: string | null, filters: AdminPortfolioFilters = {}) =>
+    [
+      ...adminKeys.all,
+      "portfolio",
+      cursor,
+      filters.isPublished ?? null,
+      filters.adminHidden ?? null,
+    ] as const,
+  portfolioProfile: (profileId: string) => [...adminKeys.all, "portfolio", profileId] as const,
 };

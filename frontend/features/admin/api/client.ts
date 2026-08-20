@@ -6,6 +6,9 @@ import type {
   AdminDocumentFilters,
   AdminDocumentListResponse,
   AdminDocumentModerateAction,
+  AdminPortfolioProfile,
+  AdminPortfolioProfileDetail,
+  AdminPortfolioProfileListResponse,
   AdminUserListResponse,
   AdminRole,
   AdminReviewQueueDetail,
@@ -114,6 +117,47 @@ export async function fetchAuditLogs(
   if (action) params.set("action", action);
   const res = await fetch(`/api/admin/audit-logs?${params.toString()}`);
   return unwrap(res, "Failed to fetch audit logs");
+}
+
+export type AdminPortfolioFilters = {
+  isPublished?: boolean | null;
+  adminHidden?: boolean | null;
+};
+
+export async function fetchAdminPortfolioProfiles(
+  cursor: string | null,
+  filters: AdminPortfolioFilters = {},
+): Promise<AdminPortfolioProfileListResponse> {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  if (filters.isPublished !== null && filters.isPublished !== undefined) {
+    params.set("is_published", String(filters.isPublished));
+  }
+  if (filters.adminHidden !== null && filters.adminHidden !== undefined) {
+    params.set("admin_hidden", String(filters.adminHidden));
+  }
+  const res = await fetch(`/api/admin/portfolio?${params.toString()}`);
+  return unwrap(res, "Failed to fetch portfolio profiles");
+}
+
+export async function fetchAdminPortfolioProfile(
+  profileId: string,
+): Promise<AdminPortfolioProfileDetail> {
+  const res = await fetch(`/api/admin/portfolio/${profileId}`);
+  return unwrap(res, "Failed to fetch portfolio profile");
+}
+
+export async function moderatePortfolioProfile(
+  profileId: string,
+  adminHidden: boolean,
+  reason?: string,
+): Promise<AdminPortfolioProfile> {
+  const res = await fetch(`/api/admin/portfolio/${profileId}/moderate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ admin_hidden: adminHidden, reason }),
+  });
+  return unwrap(res, "Failed to moderate portfolio profile");
 }
 
 export async function fetchFeatureFlags(): Promise<FeatureFlag[]> {
