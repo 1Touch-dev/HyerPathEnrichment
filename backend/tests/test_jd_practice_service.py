@@ -23,6 +23,8 @@ from app.models import InterviewQuestion
 from app.modules.jd_practice.schemas import JdPracticeRequest
 from app.modules.jd_practice.service import get_jd_tailored_questions
 from app.modules.job_matching.models import JobMatch, JobPosting
+from app.modules.manual_jobs.schemas import CreateManualJobEntryRequest
+from app.modules.manual_jobs.service import create_manual_entry
 from app.modules.sessions.models import PracticeSession
 
 SAMPLE_GENERATED_QUESTION = {
@@ -249,7 +251,7 @@ class TestOwnershipAndValidation:
             await get_jd_tailored_questions(db, test_user.id, request, settings)
 
     @pytest.mark.asyncio
-    async def test_validation_error_when_posting_has_no_description_raw(
+    async def test_validation_error_when_posting_missing_description_raw(
         self, db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch
     ):
         posting = await _make_posting(db, description_raw=None)
@@ -257,28 +259,62 @@ class TestOwnershipAndValidation:
         settings = _mock_settings(monkeypatch)
 
         request = JdPracticeRequest(job_match_id=str(match.id), count=1)
-        with pytest.raises(ValidationAppError):
+        with pytest.raises(ValidationAppError) as exc_info:
             await get_jd_tailored_questions(db, test_user.id, request, settings)
+        assert "no description to practice against" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_validation_error_when_posting_is_none_manual_entry(
+    async def test_validation_error_when_posting_row_is_dangling(
         self, db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch
     ):
-        """Module F (manual job entries) doesn't exist yet on this branch, but
-        `job_matching_repository.get_owned_match`'s outerjoin already returns
-        `posting=None` for a JobMatch whose `job_posting_id` doesn't resolve --
-        this must be rejected with a clear message, not an AttributeError.
+        """A `JobMatch` whose `job_posting_id` is set but whose `JobPosting` row
+        no longer resolves (e.g. deleted out from under it) is a data-integrity
+        edge case, distinct from a genuine Module F manual entry (whose
+        `job_posting_id` is NULL by design, never set-then-orphaned). Must hit
+        the SAME "missing description" message as a real posting with no
+        `description_raw` -- not the manual-entry-specific message below, since
+        `match.job_posting_id` is still non-NULL here.
         """
         posting = await _make_posting(db)
         match = await _make_match(db, test_user.id, posting)
-        # Simulate a manual-entry-shaped match: no resolvable posting row.
         await db.delete(posting)
         await db.commit()
         settings = _mock_settings(monkeypatch)
 
         request = JdPracticeRequest(job_match_id=str(match.id), count=1)
-        with pytest.raises(ValidationAppError):
+        with pytest.raises(ValidationAppError) as exc_info:
             await get_jd_tailored_questions(db, test_user.id, request, settings)
+        assert "no description to practice against" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_validation_error_for_manual_entry_job_match(
+        self, db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A real Module F manual entry (`job_posting_id IS NULL`,
+        `manual_job_entry_id` set) must be rejected with its own specific
+        message -- distinct from the "missing description_raw" message used
+        for a genuine (but incomplete) `JobPosting` above.
+        """
+        await create_manual_entry(
+            db,
+            test_user.id,
+            CreateManualJobEntryRequest(title="Staff Engineer", company="Acme Networking Co"),
+        )
+
+        from sqlalchemy import select
+
+        result = await db.execute(
+            select(JobMatch).where(
+                JobMatch.user_id == test_user.id, JobMatch.manual_job_entry_id.is_not(None)
+            )
+        )
+        match = result.scalar_one()
+        settings = _mock_settings(monkeypatch)
+
+        request = JdPracticeRequest(job_match_id=str(match.id), count=1)
+        with pytest.raises(ValidationAppError) as exc_info:
+            await get_jd_tailored_questions(db, test_user.id, request, settings)
+        assert "Manual job entries have no job description" in str(exc_info.value)
 
 
 class TestQuestionsNeverPersistedToBank:

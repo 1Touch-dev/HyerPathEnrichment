@@ -79,25 +79,20 @@ async def get_jd_tailored_questions(
     if match_row is None:
         raise NotFoundError("Tracked job not found")
     match, posting = match_row
-    if posting is None:
-        # TODO(Module F): once Module F (manual job entries) lands, this must
-        # ALSO explicitly reject manual-entry job_match_ids with a clear error
-        # message distinguishing "manually-added, no JD to tailor against"
-        # from other failure modes (§13.3 checklist item 3) — not implemented
-        # yet because Module F doesn't exist on this branch. Do not forget
-        # this the moment Module F's PR opens.
-        #
-        # A manual job entry (job_posting_id is NULL) has no scraped
-        # description at all — there is nothing to tailor a question against,
-        # so this path is explicitly rejected with a clear, actionable message
-        # rather than crashing on `posting.description_raw` (which would be an
-        # AttributeError on None) or silently falling back to generic
-        # (non-JD-tailored) questions the candidate didn't ask for.
+    if match.job_posting_id is None:
+        # Module F: a manual job entry (job_posting_id is NULL, manual_job_entry_id
+        # set instead — see JobMatch's ck_job_matches_exactly_one_source) has no
+        # scraped description at all — there is nothing to tailor a question
+        # against, so this is a distinct, expected case (by design), not a data
+        # error. Rejected explicitly here, before ever touching `posting`, so it
+        # never falls through to the `description_raw` check below (which would
+        # be an AttributeError on `None.description_raw`) or silently falls back
+        # to generic (non-JD-tailored) questions the candidate didn't ask for.
         raise ValidationAppError(
-            "JD-tailored practice isn't available for manually-added jobs "
-            "(no job description on file) — try résumé-personalized practice instead"
+            "Manual job entries have no job description to practice against — "
+            "this feature requires a scanned posting"
         )
-    if not posting.description_raw:
+    if posting is None or not posting.description_raw:
         raise ValidationAppError("This job posting has no description to practice against")
 
     generated_today = await _jd_generation_count_today(db, user_id)
