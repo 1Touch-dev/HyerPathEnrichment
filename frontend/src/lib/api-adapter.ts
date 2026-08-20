@@ -1,12 +1,16 @@
 import {
   AdminAuditLogEntry,
   AdminAuditLogListResponse,
+  AdminJobPosting,
+  AdminJobPostingListResponse,
   AdminReviewQueueDetail,
   AdminReviewQueueItem,
   AdminReviewQueueListResponse,
   AdminRoleWithPermissions,
   AdminUser,
   AdminUserListResponse,
+  BackendAdminJobPostingListResponse,
+  BackendAdminJobPostingResponse,
   BackendAdminReviewQueueDetail,
   BackendAdminReviewQueueItem,
   BackendAdminReviewQueueListResponse,
@@ -516,6 +520,38 @@ export function mapBackendAdminReviewQueueDetail(
   return {
     item: mapBackendAdminReviewQueueItem(raw.item),
     resolvedResource: raw.resolved_resource,
+  };
+}
+
+export function mapBackendAdminJobPosting(raw: BackendAdminJobPostingResponse): AdminJobPosting {
+  return {
+    id: raw.id,
+    title: raw.title,
+    company: raw.company,
+    location: raw.location,
+    remote: raw.remote,
+    source: raw.source,
+    sourceUrl: raw.source_url,
+    salaryMin: raw.salary_min,
+    salaryMax: raw.salary_max,
+    salaryCurrency: raw.salary_currency,
+    postedAt: raw.posted_at,
+    firstSeenAt: raw.first_seen_at,
+    lastSeenAt: raw.last_seen_at,
+    isActive: raw.is_active,
+    moderationStatus: raw.moderation_status,
+    moderatedBy: raw.moderated_by,
+    moderatedAt: raw.moderated_at,
+  };
+}
+
+export function mapBackendAdminJobPostingList(
+  raw: BackendAdminJobPostingListResponse,
+): AdminJobPostingListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminJobPosting),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
   };
 }
 

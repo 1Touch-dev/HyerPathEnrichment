@@ -476,6 +476,78 @@ export type AdminReviewQueueDetail = {
   resolvedResource: Record<string, unknown> | null;
 };
 
+// Job postings moderation (Admin Module Phase 2 — moderation layer,
+// mirrors backend/app/modules/admin/job_postings_router.py, camelCase).
+
+export type ModerationStatus = "active" | "hidden" | "removed";
+
+export type AdminJobPosting = {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  source: string;
+  sourceUrl: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+  postedAt: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  isActive: boolean;
+  moderationStatus: ModerationStatus;
+  moderatedBy: string | null;
+  moderatedAt: string | null;
+};
+
+export type AdminJobPostingListResponse = {
+  items: AdminJobPosting[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+/**
+ * Mirrors backend/app/modules/admin/job_postings_router.py's
+ * `AdminJobPostingResponse`/`AdminJobPostingListResponse` Pydantic models.
+ * Hand-declared here (snake_case, not generated) because `openapi/openapi.json`
+ * and `src/lib/generated/openapi.ts` are held back for centralized regeneration
+ * elsewhere in this plan — same rationale as the `Raw*Response` placeholders
+ * below for Module 2, but named `Backend*` since this backend route already
+ * exists (not speculative). Should be replaced by real generated types once
+ * `npm run openapi:gen` is re-run against the merged router.
+ */
+export type BackendAdminJobPostingResponse = {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  source: string;
+  source_url: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
+  posted_at: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+  is_active: boolean;
+  moderation_status: ModerationStatus;
+  moderated_by: string | null;
+  moderated_at: string | null;
+};
+
+export type BackendAdminJobPostingListResponse = {
+  items: BackendAdminJobPostingResponse[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
+export type BackendModerateJobPostingRequest = {
+  moderation_status: ModerationStatus;
+  reason?: string | null;
+};
+
 // Documents module: candidate document upload, processing, and search
 // (mirrors backend/app/modules/documents/schemas.py, camelCase).
 

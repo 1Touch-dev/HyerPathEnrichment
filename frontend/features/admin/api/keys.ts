@@ -1,3 +1,5 @@
+import type { JobPostingFilters } from "./client";
+
 export const adminKeys = {
   all: ["admin"] as const,
   users: (cursor: string | null, isActive: boolean | null) =>
@@ -16,4 +18,7 @@ export const adminKeys = {
   reviewQueue: (cursor: string | null, resourceType: string | null, status: string | null) =>
     [...adminKeys.reviewQueueAll(), cursor, resourceType, status] as const,
   reviewQueueItem: (id: string) => [...adminKeys.reviewQueueAll(), id] as const,
+  jobPostings: (cursor: string | null, filters: JobPostingFilters) =>
+    [...adminKeys.all, "job-postings", cursor, filters] as const,
+  jobPosting: (id: string) => [...adminKeys.all, "job-postings", id] as const,
 };
