@@ -54,6 +54,64 @@ class QuestionData(TypedDict):
     scoring_rubric: dict[str, str]
 
 
+@dataclass(slots=True)
+class JobContext:
+    """JD-tailored personalization input (Module 4, Module E). Distinct from
+    CandidateContext (résumé-derived) — a JobContext always accompanies a
+    CandidateContext when generating (both the JD and the résumé ground the
+    question), but is never used alone.
+    """
+
+    job_description: str  # JobPosting.description_raw, truncated (see _MAX_JD_CHARS below)
+    job_title: str
+    company: str
+
+
+_MAX_JD_CHARS = 3000  # generous excerpt — long enough for a full JD, short enough to
+# keep prompt cost bounded; matches the existing precedent of
+# workers/tasks/outreach.py's _get_job_description() truncating
+# to description_raw[:1500] for the same cost-control reason,
+# sized up here since question generation needs more of the JD's
+# actual responsibilities/requirements text than an outreach
+# email's brief "job description excerpt" context line does.
+
+
+_CATEGORY_HINTS = {
+    "behavioral": "past experiences, teamwork, conflict resolution, leadership",
+    "technical": "coding, algorithms, system knowledge, debugging, best practices",
+    "system_design": "architecture, scalability, trade-offs, components, data flow",
+}
+
+_DIFFICULTY_HINTS = {
+    "easy": "entry-level or junior role, foundational concepts",
+    "medium": "mid-level role, practical experience required",
+    "hard": "senior or lead role, deep expertise and complex scenarios",
+}
+
+
+def _append_candidate_context_details(
+    user_content: str, candidate_context: CandidateContext
+) -> str:
+    """Append the personalization-details paragraph to `user_content`, shared
+    verbatim by both `_build_generation_messages` and `_build_jd_generation_messages`
+    so the two prompts' résumé-personalization behavior stays in sync.
+    """
+    details = [
+        (
+            f"Tailor this question to a candidate with these skills: "
+            f"{candidate_context.skills}. Prefer technologies and scenarios from "
+            "this list where relevant to the category."
+        )
+    ]
+    if candidate_context.target_role:
+        details.append(f"Target role: {candidate_context.target_role}.")
+    if candidate_context.years_experience is not None:
+        details.append(f"Years of experience: {candidate_context.years_experience}.")
+    if candidate_context.recent_job_titles:
+        details.append(f"Recent job titles: {candidate_context.recent_job_titles}.")
+    return user_content + "\n\n" + " ".join(details)
+
+
 GENERATION_SYSTEM_PROMPT = """
 You are an expert technical interviewer and hiring manager creating high-quality interview questions.
 
@@ -123,17 +181,8 @@ def _build_generation_messages(
         "devops_engineer": "DevOps Engineer (CI/CD, infrastructure, cloud, automation)",
     }
 
-    category_hints = {
-        "behavioral": "past experiences, teamwork, conflict resolution, leadership",
-        "technical": "coding, algorithms, system knowledge, debugging, best practices",
-        "system_design": "architecture, scalability, trade-offs, components, data flow",
-    }
-
-    difficulty_hints = {
-        "easy": "entry-level or junior role, foundational concepts",
-        "medium": "mid-level role, practical experience required",
-        "hard": "senior or lead role, deep expertise and complex scenarios",
-    }
+    category_hints = _CATEGORY_HINTS
+    difficulty_hints = _DIFFICULTY_HINTS
 
     user_content = f"""
 Generate {count} unique interview question{"s" if count > 1 else ""} with these specifications:
@@ -147,20 +196,7 @@ Each question should be distinct and realistic for actual interviews.
 """.strip()
 
     if candidate_context is not None:
-        details = [
-            (
-                f"Tailor this question to a candidate with these skills: "
-                f"{candidate_context.skills}. Prefer technologies and scenarios from "
-                "this list where relevant to the category."
-            )
-        ]
-        if candidate_context.target_role:
-            details.append(f"Target role: {candidate_context.target_role}.")
-        if candidate_context.years_experience is not None:
-            details.append(f"Years of experience: {candidate_context.years_experience}.")
-        if candidate_context.recent_job_titles:
-            details.append(f"Recent job titles: {candidate_context.recent_job_titles}.")
-        user_content += "\n\n" + " ".join(details)
+        user_content = _append_candidate_context_details(user_content, candidate_context)
 
     return [
         {"role": "system", "content": GENERATION_SYSTEM_PROMPT},
@@ -232,6 +268,86 @@ def _parse_generation_response(content: str, expected_count: int = 1) -> list[Qu
         raise ValueError(f"Invalid question generation JSON structure: {e}") from e
 
 
+async def _call_and_parse(
+    messages: list[dict[str, str]],
+    count: int,
+    api_key: str,
+    job_role_for_logging: str,
+) -> tuple[list[QuestionData], dict[str, int]]:
+    """Shared tail of both `generate_questions` and `generate_jd_tailored_questions`:
+    the httpx POST (via `with_transient_retry`), response parsing (via
+    `_parse_generation_response`), and the `(questions, token_usage)` return
+    contract. `job_role_for_logging` is only used for the info-log's `job_role`
+    field — it's the target role for the non-JD path, and the JD's job title
+    for the JD-tailored path — since there's no shared "role" concept between
+    the two callers, only a loggable label.
+
+    Extracted from `generate_questions`'s previous inline body (§9.3) — this
+    refactor must not change `generate_questions`'s observable behavior (same
+    retries, same error types, same logging).
+    """
+    async with httpx.AsyncClient(timeout=60.0) as client:
+
+        async def _do_post() -> httpx.Response:
+            resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": messages,
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.8,  # Higher temperature for variety
+                },
+            )
+            resp.raise_for_status()
+            return resp
+
+        try:
+            response = await with_transient_retry(_do_post)
+
+            result = response.json()
+            content = result["choices"][0]["message"]["content"]
+
+            # Extract token usage
+            usage = result.get("usage", {})
+            token_usage = {
+                "input_tokens": usage.get("prompt_tokens", 0),
+                "output_tokens": usage.get("completion_tokens", 0),
+            }
+
+            questions = _parse_generation_response(content, expected_count=count)
+
+            logger.info(
+                "Generated interview questions",
+                extra={
+                    "job_role": job_role_for_logging,
+                    "count": len(questions),
+                    "input_tokens": token_usage["input_tokens"],
+                    "output_tokens": token_usage["output_tokens"],
+                },
+            )
+
+            return questions, token_usage
+
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "OpenAI API request failed",
+                extra={
+                    "status_code": e.response.status_code,
+                    "response": e.response.text[:500],
+                },
+                exc_info=True,
+            )
+            raise
+
+        except (KeyError, IndexError) as e:
+            logger.error("Invalid OpenAI API response structure", exc_info=True)
+            raise ValueError(f"Invalid API response format: {e}") from e
+
+
 async def generate_questions(
     job_role: JobRole,
     category: QuestionCategory,
@@ -282,67 +398,77 @@ async def generate_questions(
         raise ValueError("OpenAI API key not configured")
 
     messages = _build_generation_messages(job_role, category, difficulty, count, candidate_context)
+    return await _call_and_parse(messages, count, api_key, job_role_for_logging=job_role)
 
-    # Call OpenAI API with JSON mode
-    async with httpx.AsyncClient(timeout=60.0) as client:
 
-        async def _do_post() -> httpx.Response:
-            resp = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "gpt-4o-mini",
-                    "messages": messages,
-                    "response_format": {"type": "json_object"},
-                    "temperature": 0.8,  # Higher temperature for variety
-                },
-            )
-            resp.raise_for_status()
-            return resp
+def _build_jd_generation_messages(
+    category: QuestionCategory,
+    difficulty: QuestionDifficulty,
+    job_context: JobContext,
+    candidate_context: CandidateContext | None,
+    count: int = 1,
+) -> list[dict[str, str]]:
+    """Builds the JD-tailored prompt. Reuses GENERATION_SYSTEM_PROMPT verbatim (the
+    interviewer-persona instructions don't change), only the user-turn content differs:
+    grounds the question in the JD's actual text first, then layers candidate résumé
+    context on top exactly the way _build_generation_messages already does for the
+    non-JD path — this keeps the two prompts structurally parallel rather than
+    diverging into two unrelated prompt-engineering styles.
+    """
+    category_hints = _CATEGORY_HINTS
+    difficulty_hints = _DIFFICULTY_HINTS
 
-        try:
-            response = await with_transient_retry(_do_post)
+    jd_excerpt = job_context.job_description[:_MAX_JD_CHARS]
+    user_content = f"""
+Generate {count} unique interview question{"s" if count > 1 else ""} tailored SPECIFICALLY
+to this job posting — not a generic question for the role in general.
 
-            result = response.json()
-            content = result["choices"][0]["message"]["content"]
+Job title: {job_context.job_title}
+Company: {job_context.company}
+Job description: {jd_excerpt}
 
-            # Extract token usage
-            usage = result.get("usage", {})
-            token_usage = {
-                "input_tokens": usage.get("prompt_tokens", 0),
-                "output_tokens": usage.get("completion_tokens", 0),
-            }
+Category: {category} ({category_hints[category]})
+Difficulty: {difficulty} ({difficulty_hints[difficulty]})
 
-            questions = _parse_generation_response(content, expected_count=count)
+Ground the question in specific responsibilities, requirements, or technologies
+actually mentioned in the job description above. Do not ask something that could
+apply to any {job_context.job_title} role anywhere — it must be recognizably
+about THIS posting.
+{"Return a JSON array with " + str(count) + " question objects." if count > 1 else "Return a single JSON object."}
+""".strip()
 
-            logger.info(
-                "Generated interview questions",
-                extra={
-                    "job_role": job_role,
-                    "category": category,
-                    "difficulty": difficulty,
-                    "count": len(questions),
-                    "input_tokens": token_usage["input_tokens"],
-                    "output_tokens": token_usage["output_tokens"],
-                },
-            )
+    if candidate_context is not None:
+        user_content = _append_candidate_context_details(user_content, candidate_context)
 
-            return questions, token_usage
+    return [
+        {"role": "system", "content": GENERATION_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
 
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                "OpenAI API request failed",
-                extra={
-                    "status_code": e.response.status_code,
-                    "response": e.response.text[:500],
-                },
-                exc_info=True,
-            )
-            raise
 
-        except (KeyError, IndexError) as e:
-            logger.error("Invalid OpenAI API response structure", exc_info=True)
-            raise ValueError(f"Invalid API response format: {e}") from e
+async def generate_jd_tailored_questions(
+    job_context: JobContext,
+    category: QuestionCategory,
+    difficulty: QuestionDifficulty,
+    settings: Settings,
+    count: int = 1,
+    candidate_context: CandidateContext | None = None,
+) -> tuple[list[QuestionData], dict[str, int]]:
+    """JD-tailored sibling of generate_questions(). Same HTTP call shape, retry
+    policy (with_transient_retry), response parsing (_parse_generation_response
+    is reused as-is — the response JSON shape is identical), and token-usage
+    return contract — only the prompt-building step differs, via
+    _build_jd_generation_messages instead of _build_generation_messages.
+    """
+    if count < 1 or count > 5:
+        raise ValueError("count must be between 1 and 5")
+    api_key = settings.openai_api_key.strip()
+    if not api_key:
+        raise ValueError("OpenAI API key not configured")
+
+    messages = _build_jd_generation_messages(
+        category, difficulty, job_context, candidate_context, count
+    )
+    return await _call_and_parse(
+        messages, count, api_key, job_role_for_logging=job_context.job_title
+    )
