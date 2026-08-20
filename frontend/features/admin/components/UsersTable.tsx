@@ -165,7 +165,10 @@ export function UsersTable() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <RoleBadge isSuperuser={targetUser.isSuperuser} roleName={targetUser.roleName} />
+                      <RoleBadge
+                        isSuperuser={targetUser.isSuperuser}
+                        roleName={targetUser.roleName}
+                      />
                     )}
                   </TableCell>
                   <TableCell>

@@ -94,7 +94,11 @@ export function MfaSetupCard() {
                 Enrolled {status.mfaEnrolledAt ? formatDate(status.mfaEnrolledAt) : ""}
               </p>
             </div>
-            <Button variant="destructive" onClick={() => void handleDisable()} disabled={disableMfa.isPending}>
+            <Button
+              variant="destructive"
+              onClick={() => void handleDisable()}
+              disabled={disableMfa.isPending}
+            >
               {disableMfa.isPending ? "Disabling…" : "Disable 2FA"}
             </Button>
           </div>
@@ -104,7 +108,12 @@ export function MfaSetupCard() {
               <Label>Setup secret</Label>
               <div className="flex items-center gap-2">
                 <Input readOnly value={enroll.data.secret} className="font-mono" />
-                <Button type="button" variant="outline" size="icon" onClick={() => void handleCopySecret()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => void handleCopySecret()}
+                >
                   {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
                 </Button>
               </div>

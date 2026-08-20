@@ -12,8 +12,15 @@ export function useAdminUsers(cursor: string | null, isActive: boolean | null = 
 export function useUpdateUserStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, isActive, reason }: { userId: string; isActive: boolean; reason?: string }) =>
-      updateUserStatus(userId, isActive, reason),
+    mutationFn: ({
+      userId,
+      isActive,
+      reason,
+    }: {
+      userId: string;
+      isActive: boolean;
+      reason?: string;
+    }) => updateUserStatus(userId, isActive, reason),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.all }),
   });
 }

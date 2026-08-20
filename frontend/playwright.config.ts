@@ -27,7 +27,11 @@ export default defineConfig({
     {
       name: "integration",
       testMatch: "integration/**/*.spec.ts",
-      testIgnore: ["integration/auth.setup.ts", "integration/admin.setup.ts", "integration/admin.spec.ts"],
+      testIgnore: [
+        "integration/auth.setup.ts",
+        "integration/admin.setup.ts",
+        "integration/admin.spec.ts",
+      ],
       dependencies: ["integration-setup"],
       use: {
         ...devices["Desktop Chrome"],

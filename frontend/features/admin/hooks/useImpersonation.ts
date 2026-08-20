@@ -16,8 +16,15 @@ export function useImpersonationStatus() {
 export function useStartImpersonation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, reason, mfaCode }: { userId: string; reason: string; mfaCode?: string }) =>
-      startImpersonation(userId, reason, mfaCode),
+    mutationFn: ({
+      userId,
+      reason,
+      mfaCode,
+    }: {
+      userId: string;
+      reason: string;
+      mfaCode?: string;
+    }) => startImpersonation(userId, reason, mfaCode),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.impersonationStatus() }),
   });
 }

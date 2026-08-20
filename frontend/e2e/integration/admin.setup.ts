@@ -3,8 +3,10 @@ import path from "node:path";
 import { test as setup } from "@playwright/test";
 
 const BACKEND_ROOT = path.resolve(__dirname, "../../../backend");
-const ADMIN_TEST_EMAIL = process.env.INTEGRATION_ADMIN_TEST_EMAIL ?? "e2e-integration-admin@example.com";
-const ADMIN_TEST_PASSWORD = process.env.INTEGRATION_ADMIN_TEST_PASSWORD ?? "IntegrationAdminTest123";
+const ADMIN_TEST_EMAIL =
+  process.env.INTEGRATION_ADMIN_TEST_EMAIL ?? "e2e-integration-admin@example.com";
+const ADMIN_TEST_PASSWORD =
+  process.env.INTEGRATION_ADMIN_TEST_PASSWORD ?? "IntegrationAdminTest123";
 
 const AUTH_FILE = path.resolve(__dirname, ".auth/admin-user.json");
 

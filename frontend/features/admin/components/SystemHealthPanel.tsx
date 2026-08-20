@@ -29,7 +29,9 @@ export function SystemHealthPanel() {
     return <p className="text-sm text-muted-foreground">Loading system health…</p>;
   }
   if (!data) {
-    return <EmptyState title="System health unavailable" description="Could not load health data." />;
+    return (
+      <EmptyState title="System health unavailable" description="Could not load health data." />
+    );
   }
 
   return (
@@ -65,9 +67,7 @@ export function SystemHealthPanel() {
             {Object.entries(data.signals).map(([key, value]) => (
               <Card key={key}>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {SIGNAL_LABELS[key] ?? key}
-                  </CardTitle>
+                  <CardTitle className="text-sm font-medium">{SIGNAL_LABELS[key] ?? key}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-semibold">{value ?? "—"}</p>
