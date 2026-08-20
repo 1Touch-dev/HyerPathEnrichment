@@ -2,6 +2,9 @@ import type {
   AdminAuditLogListResponse,
   AdminUserListResponse,
   AdminRole,
+  AdminReviewQueueDetail,
+  AdminReviewQueueItem,
+  AdminReviewQueueListResponse,
   FailedJob,
   FeatureFlag,
   ImpersonationStatus,
@@ -156,4 +159,35 @@ export async function endImpersonation(): Promise<void> {
 export async function fetchImpersonationStatus(): Promise<ImpersonationStatus> {
   const res = await fetch("/api/admin/impersonation/status");
   return unwrap(res, "Failed to fetch impersonation status");
+}
+
+export async function fetchReviewQueue(
+  cursor: string | null,
+  resourceType: string | null,
+  status: string | null,
+): Promise<AdminReviewQueueListResponse> {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  if (resourceType) params.set("resource_type", resourceType);
+  if (status) params.set("status", status);
+  const res = await fetch(`/api/admin/review-queue?${params.toString()}`);
+  return unwrap(res, "Failed to fetch review queue");
+}
+
+export async function fetchReviewQueueItem(id: string): Promise<AdminReviewQueueDetail> {
+  const res = await fetch(`/api/admin/review-queue/${id}`);
+  return unwrap(res, "Failed to fetch review queue item");
+}
+
+export async function decideReviewQueueItem(
+  id: string,
+  status: "approved" | "rejected",
+  reviewNotes?: string,
+): Promise<AdminReviewQueueItem> {
+  const res = await fetch(`/api/admin/review-queue/${id}/decide`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status, review_notes: reviewNotes }),
+  });
+  return unwrap(res, "Failed to decide review queue item");
 }

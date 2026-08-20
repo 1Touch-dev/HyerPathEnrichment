@@ -1,9 +1,15 @@
 import {
   AdminAuditLogEntry,
   AdminAuditLogListResponse,
+  AdminReviewQueueDetail,
+  AdminReviewQueueItem,
+  AdminReviewQueueListResponse,
   AdminRoleWithPermissions,
   AdminUser,
   AdminUserListResponse,
+  BackendAdminReviewQueueDetail,
+  BackendAdminReviewQueueItem,
+  BackendAdminReviewQueueListResponse,
   CandidateDocument,
   CandidateDocumentDetail,
   CandidateJobPreferences,
@@ -474,6 +480,42 @@ export function mapBackendAdminUserList(raw: BackendAdminUserListResponse): Admi
     items: raw.items.map(mapBackendAdminUser),
     nextCursor: raw.next_cursor,
     hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAdminReviewQueueItem(
+  raw: BackendAdminReviewQueueItem,
+): AdminReviewQueueItem {
+  return {
+    id: raw.id,
+    resourceType: raw.resource_type,
+    resourceId: raw.resource_id,
+    status: raw.status,
+    flagReason: raw.flag_reason,
+    flagSource: raw.flag_source,
+    flaggedAt: raw.flagged_at,
+    reviewedBy: raw.reviewed_by,
+    reviewedAt: raw.reviewed_at,
+    reviewNotes: raw.review_notes,
+  };
+}
+
+export function mapBackendAdminReviewQueueList(
+  raw: BackendAdminReviewQueueListResponse,
+): AdminReviewQueueListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminReviewQueueItem),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAdminReviewQueueDetail(
+  raw: BackendAdminReviewQueueDetail,
+): AdminReviewQueueDetail {
+  return {
+    item: mapBackendAdminReviewQueueItem(raw.item),
+    resolvedResource: raw.resolved_resource,
   };
 }
 

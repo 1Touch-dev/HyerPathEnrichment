@@ -402,6 +402,80 @@ export type ImpersonationStatus = {
   expiresAt: string | null;
 };
 
+// Generic moderation review queue (backend/app/modules/admin/review_queue_router.py).
+// This router is not yet exported to openapi.json/src/lib/generated (Batch 4's
+// centralized wiring), so — following this file's own "hand-declare, mirror the
+// backend snake_case shape, replace with real openapi:gen output later" convention
+// (see the Module 2 `Raw*Response` types in api-adapter.ts for the established
+// precedent) — the Backend* shapes live here as plain hand-written types instead.
+
+export type AdminReviewQueueResourceType =
+  | "job_posting"
+  | "document"
+  | "portfolio_item"
+  | "outreach_message"
+  | "question"
+  | "practice_audio";
+
+export type AdminReviewQueueStatus = "pending" | "approved" | "rejected";
+
+export type AdminReviewQueueFlagSource = "heuristic" | "llm_judge" | "user_report";
+
+export type BackendAdminReviewQueueItem = {
+  id: string;
+  resource_type: AdminReviewQueueResourceType;
+  resource_id: string;
+  status: AdminReviewQueueStatus;
+  flag_reason: string | null;
+  flag_source: AdminReviewQueueFlagSource;
+  flagged_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+};
+
+export type BackendAdminReviewQueueListResponse = {
+  items: BackendAdminReviewQueueItem[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
+export type BackendAdminReviewQueueDetail = {
+  item: BackendAdminReviewQueueItem;
+  resolved_resource: Record<string, unknown> | null;
+};
+
+export type BackendAdminReviewQueueDecideRequest = {
+  status: "approved" | "rejected";
+  review_notes?: string | null;
+};
+
+export type AdminReviewQueueItem = {
+  id: string;
+  resourceType: AdminReviewQueueResourceType;
+  resourceId: string;
+  status: AdminReviewQueueStatus;
+  flagReason: string | null;
+  flagSource: AdminReviewQueueFlagSource;
+  flaggedAt: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+};
+
+export type AdminReviewQueueListResponse = {
+  items: AdminReviewQueueItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type AdminReviewQueueDetail = {
+  item: AdminReviewQueueItem;
+  /** Best-effort snapshot of the flagged resource; null for Module-3 placeholders,
+   * unrecognized resource types, or a resource that no longer exists. */
+  resolvedResource: Record<string, unknown> | null;
+};
+
 // Documents module: candidate document upload, processing, and search
 // (mirrors backend/app/modules/documents/schemas.py, camelCase).
 
