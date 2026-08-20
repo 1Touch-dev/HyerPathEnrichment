@@ -48,6 +48,14 @@ class JobPosting(Base):
     )
     sources_seen: Mapped[list[str]] = mapped_column(JsonDoc, default=list, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    # Admin Module moderation (migration 040_phase2_moderation_columns).
+    moderation_status: Mapped[str] = mapped_column(
+        String(16), default="active", server_default="active", nullable=False
+    )
+    moderated_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class JobPostingEmbedding(Base):
