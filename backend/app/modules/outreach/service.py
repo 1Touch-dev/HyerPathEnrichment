@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -20,6 +20,7 @@ from app.modules.outreach.schemas import (
     OutreachEditRequest,
     OutreachListResponse,
     OutreachMessageResponse,
+    OutreachMessageType,
 )
 from app.workers.queue import QUEUE_OUTREACH, get_redis_connection
 
@@ -45,6 +46,12 @@ class OutreachService:
                 status_code=status.HTTP_403_FORBIDDEN, detail="Outreach feature is disabled"
             )
 
+        if body.message_type == "custom" and not (body.custom_instruction or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="custom_instruction is required when message_type='custom'",
+            )
+
         doc_result = await self.db.execute(
             select(CandidateDocument).where(
                 CandidateDocument.id == UUID(body.document_id), CandidateDocument.user_id == user_id
@@ -58,7 +65,7 @@ class OutreachService:
 
         lock_key = (
             f"outreach-draft-lock:{user_id}:{body.company_name.strip().lower()}:"
-            f"{body.job_match_id or 'none'}"
+            f"{body.job_match_id or 'none'}:{body.message_type}"
         )
         lock_acquired = self.redis_conn.set(lock_key, "1", nx=True, ex=60)
         if not lock_acquired:
@@ -75,6 +82,8 @@ class OutreachService:
             body.company_name,
             body.recipient_role_title,
             body.job_match_id,
+            body.message_type,
+            body.custom_instruction,
             job_timeout=60,
         )
         return {"rq_job_id": rq_job.id, "message": "Outreach draft generation started"}
@@ -93,6 +102,18 @@ class OutreachService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Only drafts can be edited"
             )
+        if message.message_type == "linkedin":
+            subject_max = self._settings.outreach_linkedin_inmail_subject_max_chars
+            body_max = self._settings.outreach_linkedin_inmail_body_max_chars
+            if len(body.subject) > subject_max or len(body.body) > body_max:
+                limit = subject_max if len(body.subject) > subject_max else body_max
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=(
+                        f"LinkedIn messages are limited to {limit} characters; "
+                        "please shorten before saving"
+                    ),
+                )
         message.subject = body.subject
         message.body = body.body
         await self.db.commit()
@@ -121,12 +142,14 @@ class OutreachService:
                 status_code=status.HTTP_409_CONFLICT, detail="Message already sent or discarded"
             )
 
-        footer = _UNSUBSCRIBE_FOOTER_TEMPLATE.format(
-            sender_name=sender_name,
-            company_name=message.company_name,
-            sender_email=sender_email,
-            privacy_url=self._privacy_policy_url(),
-        )
+        footer = ""
+        if message.message_type == "email":
+            footer = _UNSUBSCRIBE_FOOTER_TEMPLATE.format(
+                sender_name=sender_name,
+                company_name=message.company_name,
+                sender_email=sender_email,
+                privacy_url=self._privacy_policy_url(),
+            )
         message.body = message.body + footer
         message = await mark_sent(self.db, message)
         return self._to_response(message)
@@ -145,6 +168,7 @@ class OutreachService:
             subject=message.subject,
             body=message.body,
             status=message.status,
+            message_type=cast("OutreachMessageType", message.message_type),
             sent_at=message.sent_at,
             created_at=message.created_at,
             research_degraded=message.company_context_used.get("source") != "perplexity",

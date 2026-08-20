@@ -25,10 +25,11 @@ from app.modules.documents.models import CandidateDocument
 # already uses for its own read-only access to Module 1's tables.
 from app.modules.job_matching.models import JobMatch, JobPosting
 from app.modules.outreach.models import OutreachMessage
+from app.observability.outreach_metrics import outreach_drafts_by_type_total
 
 logger = logging.getLogger(__name__)
 
-_OUTREACH_SYSTEM_PROMPT = """
+_EMAIL_SYSTEM_PROMPT = """
 You are helping a job candidate write a short, personalized outreach email to a hiring
 manager. Use the candidate's background, the job description excerpt (if provided), and
 the provided public company context. The email's core purpose is a tailored value
@@ -42,6 +43,39 @@ beyond what is provided in the context; if context is empty, write a more genera
 but still personalized-to-the-candidate message.
 """.strip()
 
+_LINKEDIN_SYSTEM_PROMPT = """
+You are helping a job candidate write a short LinkedIn message to a hiring manager or
+recruiter. LinkedIn InMail messages are capped at 200 characters for the subject line and
+1,900 characters for the body — write well within these limits (aim for under 150 words in
+the body; LinkedIn's own guidance is that shorter InMails perform better). Do not include an
+email-style signature block or a formal letter salutation ("Dear ..."); LinkedIn messages
+read as brief, direct, professional notes. Reference at least one real detail from the job
+description or company context if provided. End with a clear, low-friction call to action
+(e.g., suggesting a short call). Return JSON: {"subject": <string, <=200 chars>, "body":
+<string, <=1900 chars>}.
+""".strip()
+
+_GENERIC_SYSTEM_PROMPT = """
+You are helping a job candidate write a short, informal outreach message (e.g., a text
+message or DM to a personal contact/referral, not a formal email to a stranger). Keep it
+brief (under 100 words), warm, and direct — this is going to someone the candidate likely
+already knows or has a warm introduction to, not a cold outreach. No email-style subject
+line is needed; return JSON: {"subject": <string, can be empty>, "body": <string>}.
+""".strip()
+
+_CUSTOM_INSTRUCTION_PREFIX = """
+Additional instructions from the candidate for this specific message (follow these in
+addition to, not instead of, the grounding in the candidate's real background, the job
+description, and company context provided below):
+""".strip()
+
+_SYSTEM_PROMPTS_BY_TYPE = {
+    "email": _EMAIL_SYSTEM_PROMPT,
+    "linkedin": _LINKEDIN_SYSTEM_PROMPT,
+    "generic": _GENERIC_SYSTEM_PROMPT,
+    "custom": _EMAIL_SYSTEM_PROMPT,
+}
+
 
 def generate_outreach_draft_job(
     user_id: str,
@@ -49,9 +83,19 @@ def generate_outreach_draft_job(
     company_name: str,
     role_title: str | None,
     job_match_id: str | None,
+    message_type: str = "email",
+    custom_instruction: str | None = None,
 ) -> None:
     asyncio.run(
-        _generate_outreach_draft_job(user_id, document_id, company_name, role_title, job_match_id)
+        _generate_outreach_draft_job(
+            user_id,
+            document_id,
+            company_name,
+            role_title,
+            job_match_id,
+            message_type,
+            custom_instruction,
+        )
     )
 
 
@@ -61,6 +105,8 @@ async def _generate_outreach_draft_job(
     company_name: str,
     role_title: str | None,
     job_match_id: str | None,
+    message_type: str = "email",
+    custom_instruction: str | None = None,
 ) -> None:
     try:
         async with SessionLocal() as session:
@@ -82,7 +128,14 @@ async def _generate_outreach_draft_job(
 
             settings = get_settings()
             subject, body = await _draft_with_llm(
-                cv_data, company_name, role_title, context["summary"], job_description, settings
+                cv_data,
+                company_name,
+                role_title,
+                context["summary"],
+                job_description,
+                settings,
+                message_type,
+                custom_instruction,
             )
 
             message = OutreachMessage(
@@ -95,9 +148,13 @@ async def _generate_outreach_draft_job(
                 body=body,
                 company_context_used=context,
                 status="draft",
+                message_type=message_type,
+                custom_instruction=custom_instruction,
             )
             session.add(message)
             await session.commit()
+
+            outreach_drafts_by_type_total.labels(message_type=message_type).inc()
 
             logger.info(
                 "Outreach draft generated",
@@ -105,6 +162,7 @@ async def _generate_outreach_draft_job(
                     "user_id": user_id[:8],
                     "company_name": company_name,
                     "context_source": context["source"],
+                    "message_type": message_type,
                 },
             )
     except Exception:
@@ -152,6 +210,8 @@ async def _draft_with_llm(
     company_context: str,
     job_description: str | None,
     settings: Settings,
+    message_type: str = "email",
+    custom_instruction: str | None = None,
 ) -> tuple[str, str]:
     api_key = settings.openai_api_key.strip()
     if not api_key:
@@ -175,6 +235,10 @@ async def _draft_with_llm(
         f"Job description excerpt: {job_description or '(none available)'}\n"
         f"Public company context: {company_context or '(none available)'}"
     )
+    if message_type == "custom" and custom_instruction:
+        user_content = f"{user_content}\n\n{_CUSTOM_INSTRUCTION_PREFIX}\n{custom_instruction}"
+
+    system_prompt = _SYSTEM_PROMPTS_BY_TYPE.get(message_type, _EMAIL_SYSTEM_PROMPT)
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         # raise_for_status() must run *inside* the retried operation, not after
@@ -188,7 +252,7 @@ async def _draft_with_llm(
                 json={
                     "model": "gpt-4o-mini",
                     "messages": [
-                        {"role": "system", "content": _OUTREACH_SYSTEM_PROMPT},
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_content},
                     ],
                     "response_format": {"type": "json_object"},
@@ -202,4 +266,21 @@ async def _draft_with_llm(
         result = response.json()
         content = result["choices"][0]["message"]["content"]
         parsed = json.loads(content)
-        return parsed.get("subject", f"Interested in {company_name}"), parsed.get("body", "")
+        subject = parsed.get("subject", f"Interested in {company_name}")
+        body = parsed.get("body", "")
+
+        if message_type == "linkedin":
+            if len(subject) > settings.outreach_linkedin_inmail_subject_max_chars:
+                subject = (
+                    subject[: settings.outreach_linkedin_inmail_subject_max_chars - 1].rstrip()
+                    + "…"
+                )
+            if len(body) > settings.outreach_linkedin_inmail_body_max_chars:
+                body = body[: settings.outreach_linkedin_inmail_body_max_chars - 1].rstrip() + "…"
+            # Truncation is a defensive backstop, not the primary control — the system
+            # prompt above already instructs the model to stay within limits; this catches
+            # the cases where it doesn't, since LinkedIn will itself reject/truncate an
+            # over-limit InMail and a candidate should never be surprised by that after
+            # already copying the text out of this app.
+
+        return subject, body
