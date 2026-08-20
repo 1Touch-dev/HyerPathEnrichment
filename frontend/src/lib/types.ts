@@ -518,3 +518,22 @@ export interface AudioRecordingStatus {
   voiceToneSignals: Record<string, unknown> | null;
   durationSeconds: number | null;
 }
+
+// Module 4E: JD-aware interview practice (phase2_module4 §9.6)
+
+export interface JdPracticeQuestion {
+  id: string;
+  questionText: string;
+  category: "behavioral" | "technical" | "system_design";
+  difficulty: "easy" | "medium" | "hard";
+  // Returned by the API for every question up front (backend/app/modules/jd_practice/schemas.py
+  // §9.4), but the frontend must not render this until the candidate has submitted an
+  // attempt for that question — a UI-layer discipline, not a schema-layer omission.
+  sampleAnswer: string;
+}
+
+export interface JdPracticeResponse {
+  questions: JdPracticeQuestion[];
+  jobMatchId: string;
+  practiceSessionId: string;
+}
