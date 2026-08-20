@@ -33,4 +33,7 @@ export const adminKeys = {
       filters.adminHidden ?? null,
     ] as const,
   portfolioProfile: (profileId: string) => [...adminKeys.all, "portfolio", profileId] as const,
+  outreach: (cursor: string | null, status: string | null, adminBlocked: boolean | null) =>
+    [...adminKeys.all, "outreach", cursor, status, adminBlocked] as const,
+  outreachMessage: (id: string) => [...adminKeys.all, "outreach", id] as const,
 };

@@ -12,6 +12,8 @@ import {
   AdminPortfolioProfile,
   AdminPortfolioProfileDetail,
   AdminPortfolioProfileListResponse,
+  AdminOutreachMessage,
+  AdminOutreachMessageListResponse,
   AdminRoleWithPermissions,
   AdminUser,
   AdminUserListResponse,
@@ -27,6 +29,8 @@ import {
   BackendAdminPortfolioProfileDetail,
   BackendAdminPortfolioProfileListResponse,
   BackendModeratePortfolioRequest,
+  BackendAdminOutreachMessage,
+  BackendAdminOutreachMessageListResponse,
   CandidateDocument,
   CandidateDocumentDetail,
   CandidateJobPreferences,
@@ -648,6 +652,34 @@ export function mapBackendAdminPortfolioProfileList(
 ): AdminPortfolioProfileListResponse {
   return {
     items: raw.items.map(mapBackendAdminPortfolioProfile),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAdminOutreachMessage(
+  raw: BackendAdminOutreachMessage,
+): AdminOutreachMessage {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    jobMatchId: raw.job_match_id,
+    recipientRoleTitle: raw.recipient_role_title,
+    companyName: raw.company_name,
+    subject: raw.subject,
+    body: raw.body,
+    status: raw.status,
+    adminBlocked: raw.admin_blocked,
+    sentAt: raw.sent_at,
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendAdminOutreachMessageList(
+  raw: BackendAdminOutreachMessageListResponse,
+): AdminOutreachMessageListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminOutreachMessage),
     nextCursor: raw.next_cursor,
     hasMore: raw.has_more,
   };

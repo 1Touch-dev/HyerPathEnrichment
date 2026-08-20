@@ -9,6 +9,8 @@ import type {
   AdminPortfolioProfile,
   AdminPortfolioProfileDetail,
   AdminPortfolioProfileListResponse,
+  AdminOutreachMessage,
+  AdminOutreachMessageListResponse,
   AdminUserListResponse,
   AdminRole,
   AdminReviewQueueDetail,
@@ -101,6 +103,43 @@ export async function moderateJobPosting(
     body: JSON.stringify({ moderation_status: moderationStatus, reason }),
   });
   return unwrap(res, "Failed to moderate job posting");
+}
+
+export type AdminOutreachFilters = {
+  status?: string | null;
+  adminBlocked?: boolean | null;
+};
+
+export async function fetchAdminOutreachMessages(
+  cursor: string | null,
+  filters: AdminOutreachFilters = {},
+): Promise<AdminOutreachMessageListResponse> {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.adminBlocked !== null && filters.adminBlocked !== undefined) {
+    params.set("admin_blocked", String(filters.adminBlocked));
+  }
+  const res = await fetch(`/api/admin/outreach?${params.toString()}`);
+  return unwrap(res, "Failed to fetch outreach messages");
+}
+
+export async function fetchAdminOutreachMessage(id: string): Promise<AdminOutreachMessage> {
+  const res = await fetch(`/api/admin/outreach/${id}`);
+  return unwrap(res, "Failed to fetch outreach message");
+}
+
+export async function moderateOutreachMessage(
+  id: string,
+  adminBlocked: boolean,
+  reason?: string,
+): Promise<void> {
+  const res = await fetch(`/api/admin/outreach/${id}/moderate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ admin_blocked: adminBlocked, reason }),
+  });
+  if (!res.ok) throw new Error(`Failed to moderate outreach message: ${res.status}`);
 }
 
 export async function fetchRoles(): Promise<AdminRole[]> {

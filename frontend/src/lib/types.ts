@@ -576,6 +576,36 @@ export type BackendAdminDocumentListResponse = {
   has_more: boolean;
 };
 
+// Outreach moderation (mirrors backend/app/modules/admin/outreach_router.py's
+// AdminOutreachMessageResponse/AdminOutreachMessageListResponse). That router's schemas
+// are not yet in the committed OpenAPI schema (frontend/openapi/openapi.json), so — unlike
+// the other admin types above, whose Backend* counterparts live in
+// src/lib/generated/api-schemas.ts — the Backend* types below are hand-declared here.
+// Delete these and switch to generated types once `npm run openapi:gen` picks up this router.
+
+/** `OutreachMessage.status` is a free-form `String(20)` column on the backend model
+ * (backend/app/modules/outreach/models.py), not a fixed enum — currently observed values
+ * are "draft" and "sent", but this is intentionally typed as `string` rather than a union. */
+export type BackendAdminOutreachMessage = {
+  id: string;
+  user_id: string;
+  job_match_id: string | null;
+  recipient_role_title: string | null;
+  company_name: string;
+  subject: string;
+  body: string;
+  status: string;
+  admin_blocked: boolean;
+  sent_at: string | null;
+  created_at: string;
+};
+
+export type BackendAdminOutreachMessageListResponse = {
+  items: BackendAdminOutreachMessage[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
 export type BackendModerateJobPostingRequest = {
   moderation_status: ModerationStatus;
   reason?: string | null;
@@ -601,6 +631,26 @@ export type AdminDocument = {
 
 export type AdminDocumentListResponse = {
   items: AdminDocument[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type AdminOutreachMessage = {
+  id: string;
+  userId: string;
+  jobMatchId: string | null;
+  recipientRoleTitle: string | null;
+  companyName: string;
+  subject: string;
+  body: string;
+  status: string;
+  adminBlocked: boolean;
+  sentAt: string | null;
+  createdAt: string;
+};
+
+export type AdminOutreachMessageListResponse = {
+  items: AdminOutreachMessage[];
   nextCursor: string | null;
   hasMore: boolean;
 };
