@@ -10,6 +10,7 @@ import {
   User,
   Mail,
   Briefcase,
+  ClipboardList,
   GraduationCap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -36,6 +37,7 @@ export const mainNav: NavSection = {
     { href: "/app/signals", label: "Signals", icon: Bell },
     { href: "/app/matches", label: "Matches", icon: Sparkles },
     { href: "/app/matches/swipe", label: "Swipe jobs", icon: Briefcase },
+    { href: "/app/tracker", label: "Applications", icon: ClipboardList },
     { href: "/app/portfolio", label: "Portfolio", icon: User },
     { href: "/app/outreach", label: "Outreach", icon: Mail },
   ],

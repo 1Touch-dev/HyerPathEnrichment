@@ -275,6 +275,35 @@ export type UnreadMatchCountEvent = {
   unreadCount: number;
 };
 
+// Module 4, Module C: Job application tracking board (phase2_module4_application_lifecycle_and_interview_prep.md §7.6)
+
+export type ApplicationStatus = "new" | "applied" | "replied" | "interview" | "offer" | "rejected";
+
+export type TrackedMatch = {
+  matchId: string;
+  jobPostingId: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  sourceUrl: string | null;
+  overallScore: number | null; // null for Module F manual entries (§10)
+  applicationStatus: ApplicationStatus;
+  applyClickedAt: string | null;
+  appliedAt: string | null;
+  statusUpdatedAt: string | null;
+  createdAt: string;
+  nextInterviewAt: string | null; // Module D
+};
+
+export type TrackedMatchListResponse = {
+  matches: TrackedMatch[];
+  total: number;
+  limit: number;
+  offset: number;
+  countsByStatus: Record<ApplicationStatus, number>;
+};
+
 // Module 2: Tinder-Style Job Board + CV Management (phase2_module2.md §11.2)
 
 export interface CvCompleteness {

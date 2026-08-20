@@ -1,4 +1,5 @@
 import {
+  ApplicationStatus,
   AudioRecordingStatus,
   AudioUploadResult,
   CandidateJobPreferences,
@@ -32,6 +33,8 @@ import {
   SignalListItem,
   SignalListResponse,
   SwipeDeck,
+  TrackedMatch,
+  TrackedMatchListResponse,
 } from "@/src/lib/types";
 import type {
   BackendAudioStatusResponse,
@@ -340,6 +343,70 @@ export function mapBackendJobMatchListToFrontend(
     total: response.total,
     limit: response.limit,
     offset: response.offset,
+  };
+}
+
+/**
+ * Mirrors the backend's real `TrackedMatchResponse`
+ * (backend/app/modules/application_tracker/schemas.py, Module 4 §7.4) — hand-declared
+ * per this file's own convention (see the `Raw*Response` section below) since that
+ * module's routes are being implemented concurrently and have no generated schema yet.
+ * Must be deleted and replaced with real `npm run openapi:gen` output once the backend
+ * route exists.
+ */
+export interface BackendTrackedMatchResponse {
+  match_id: string;
+  job_posting_id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  source_url: string | null;
+  overall_score: number | null;
+  application_status: ApplicationStatus;
+  apply_clicked_at: string | null;
+  applied_at: string | null;
+  status_updated_at: string | null;
+  created_at: string;
+  next_interview_at: string | null;
+}
+
+export interface BackendTrackedMatchListResponse {
+  matches: BackendTrackedMatchResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+  counts_by_status: Record<ApplicationStatus, number>;
+}
+
+export function mapBackendTrackedMatchItem(item: BackendTrackedMatchResponse): TrackedMatch {
+  return {
+    matchId: item.match_id,
+    jobPostingId: item.job_posting_id,
+    title: item.title,
+    company: item.company,
+    location: item.location,
+    remote: item.remote,
+    sourceUrl: item.source_url,
+    overallScore: item.overall_score,
+    applicationStatus: item.application_status,
+    applyClickedAt: item.apply_clicked_at,
+    appliedAt: item.applied_at,
+    statusUpdatedAt: item.status_updated_at,
+    createdAt: item.created_at,
+    nextInterviewAt: item.next_interview_at,
+  };
+}
+
+export function mapBackendTrackedMatchListToFrontend(
+  response: BackendTrackedMatchListResponse,
+): TrackedMatchListResponse {
+  return {
+    matches: response.matches.map(mapBackendTrackedMatchItem),
+    total: response.total,
+    limit: response.limit,
+    offset: response.offset,
+    countsByStatus: response.counts_by_status,
   };
 }
 
