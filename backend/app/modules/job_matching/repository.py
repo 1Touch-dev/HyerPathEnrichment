@@ -18,6 +18,7 @@ from app.modules.job_matching.models import (
     JobPostingEmbedding,
     PushSubscription,
 )
+from app.modules.manual_jobs.models import ManualJobEntry
 from app.observability.job_matching_metrics import job_matching_similarity_fallback_fired_total
 from app.services.vector_search import cosine_similarity
 
@@ -156,10 +157,18 @@ async def upsert_match(
 
 async def list_matches_for_user(
     db: AsyncSession, user_id: UUID, limit: int, offset: int
-) -> tuple[list[tuple[JobMatch, JobPosting]], int]:
+) -> tuple[list[tuple[JobMatch, JobPosting | None, ManualJobEntry | None]], int]:
+    """Outer-joined against both JobPosting and ManualJobEntry (Module F, §10.6): a
+    manual entry's job_posting_id is NULL, so an inner join here would silently drop
+    every manual-entry row from a candidate's own match list. Exactly one of
+    posting/manual_entry is populated per row, per ck_job_matches_exactly_one_source —
+    callers should use resolve_match_display_fields() below rather than assuming
+    `posting` is always present.
+    """
     result = await db.execute(
-        select(JobMatch, JobPosting)
-        .join(JobPosting, JobMatch.job_posting_id == JobPosting.id)
+        select(JobMatch, JobPosting, ManualJobEntry)
+        .outerjoin(JobPosting, JobMatch.job_posting_id == JobPosting.id)
+        .outerjoin(ManualJobEntry, JobMatch.manual_job_entry_id == ManualJobEntry.id)
         .where(JobMatch.user_id == user_id)
         .order_by(JobMatch.overall_score.desc(), JobMatch.created_at.desc())
         .limit(limit)
@@ -168,17 +177,51 @@ async def list_matches_for_user(
     rows = result.all()
     count_result = await db.execute(select(JobMatch).where(JobMatch.user_id == user_id))
     total = len(count_result.all())
-    return [(m, p) for m, p in rows], total
+    return [(m, p, e) for m, p, e in rows], total
+
+
+def resolve_match_display_fields(
+    posting: JobPosting | None, manual_entry: ManualJobEntry | None
+) -> tuple[str, str, str | None, str | None]:
+    """(title, company, location, source_url) for a JobMatch row joined against both
+    JobPosting and ManualJobEntry — sourced from whichever side is actually populated
+    (exactly one is, per ck_job_matches_exactly_one_source). Shared by job_matching's
+    own match-list mapping and the digest-notification worker task so the manual-entry
+    fallback logic lives in exactly one place.
+    """
+    if posting is not None:
+        return posting.title, posting.company, posting.location, posting.source_url
+    if manual_entry is not None:
+        return (
+            manual_entry.title,
+            manual_entry.company,
+            manual_entry.location,
+            manual_entry.source_url,
+        )
+    # Defensive fallback only — the CHECK constraint guarantees one side is always
+    # set for any real row; this branch should be unreachable in practice.
+    return "", "", None, None
 
 
 async def get_top_unexplained_matches(
     db: AsyncSession, user_id: UUID, top_n: int
 ) -> list[tuple[JobMatch, JobPosting]]:
-    """Top-N matches (by score) that don't have an LLM explanation yet — feeds Decision 1/3's LLM-last stage."""
+    """Top-N matches (by score) that don't have an LLM explanation yet — feeds Decision 1/3's LLM-last stage.
+
+    Manual entries (Module F, §10.6) are excluded via job_posting_id.is_not(None)
+    rather than widened into an outer join: there's no JD embedding/similarity score
+    to explain for a manually-added job in the first place, so "unexplained" isn't a
+    concept that applies to them at all — excluding is the correct fix, not a
+    degraded-field join.
+    """
     result = await db.execute(
         select(JobMatch, JobPosting)
         .join(JobPosting, JobMatch.job_posting_id == JobPosting.id)
-        .where(JobMatch.user_id == user_id, JobMatch.explanation_status == "not_explained")
+        .where(
+            JobMatch.user_id == user_id,
+            JobMatch.explanation_status == "not_explained",
+            JobMatch.job_posting_id.is_not(None),
+        )
         .order_by(JobMatch.overall_score.desc())
         .limit(top_n)
     )

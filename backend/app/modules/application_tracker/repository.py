@@ -13,13 +13,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.application_tracker.schemas import _ALL_STATUSES, ApplicationStatus
 from app.modules.job_matching.models import JobMatch, JobPosting
 from app.modules.job_matching.repository import get_owned_match  # re-exported for
+
 # this module's service.py — Module C never redefines the owned-single-match
 # lookup; it imports Module B's get_owned_match (job_matching/repository.py,
 # §6.5) directly, same read-only cross-module convention as everywhere else.
+from app.modules.manual_jobs.models import ManualJobEntry
 
 __all__ = [
     "get_owned_match",
     "list_tracked_matches",
+    "get_manual_entries",
     "update_status",
     "count_by_status",
 ]
@@ -122,3 +125,22 @@ async def count_by_status(db: AsyncSession, user_id: UUID) -> dict[str, int]:
     counts: dict[str, int] = {status: 0 for status in _ALL_STATUSES}
     counts.update({row[0]: row[1] for row in result.all()})
     return counts
+
+
+async def get_manual_entries(db: AsyncSession, ids: list[UUID]) -> dict[UUID, ManualJobEntry]:
+    """Batch-fetch ManualJobEntry rows by id, keyed for easy lookup.
+
+    `list_tracked_matches` above already outer-joins JobPosting so manual-entry
+    rows (job_posting_id IS NULL) are never silently dropped from the tracker —
+    per §10.6, this IS the one place manual entries are supposed to show up. But
+    its response mapping still needs each manual entry's own title/company/
+    location/source_url (JobMatch itself carries none of those), hence this
+    second, deliberately separate lookup rather than widening the tracker query's
+    join further — keeps list_tracked_matches' SQL shape unchanged for the common
+    (non-manual) case, batches the manual-entry side into one extra query instead
+    of N+1.
+    """
+    if not ids:
+        return {}
+    result = await db.execute(select(ManualJobEntry).where(ManualJobEntry.id.in_(ids)))
+    return {entry.id: entry for entry in result.scalars().all()}

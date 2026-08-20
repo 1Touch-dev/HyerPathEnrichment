@@ -125,11 +125,21 @@ async def _compute_similarity_boosts(
 async def get_unswiped_matches(
     db: AsyncSession, user_id: UUID, limit: int
 ) -> list[tuple[JobMatch, JobPosting]]:
+    """Manual entries (Module F, §10.6/§10.7) are excluded via job_posting_id.is_not(None)
+    rather than outer-joined with degraded fields: swiping is specifically for
+    scanner-discovered matches the candidate hasn't reacted to yet, and a job the
+    candidate typed in themselves (added straight to the tracker, application_status
+    "new") has no "discovery" moment to swipe on — it should never appear in this deck.
+    """
     already_swiped = select(JobSwipeAction.job_match_id).where(JobSwipeAction.user_id == user_id)
     result = await db.execute(
         select(JobMatch, JobPosting)
         .join(JobPosting, JobMatch.job_posting_id == JobPosting.id)
-        .where(JobMatch.user_id == user_id, JobMatch.id.not_in(already_swiped))
+        .where(
+            JobMatch.user_id == user_id,
+            JobMatch.id.not_in(already_swiped),
+            JobMatch.job_posting_id.is_not(None),
+        )
         .order_by(JobMatch.overall_score.desc())
         .limit(limit)
     )

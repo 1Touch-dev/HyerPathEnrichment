@@ -87,31 +87,38 @@ class JobMatchingService:
 
     async def list_matches(self, user_id: UUID, limit: int, offset: int) -> JobMatchListResponse:
         rows, total = await repository.list_matches_for_user(self.db, user_id, limit, offset)
-        matches = [
-            JobMatchResponse(
-                match_id=str(match.id),
-                job_posting_id=str(posting.id),
-                title=posting.title,
-                company=posting.company,
-                location=posting.location,
-                remote=posting.remote,
-                source=posting.source,
-                source_url=posting.source_url,
-                salary_min=posting.salary_min,
-                salary_max=posting.salary_max,
-                salary_currency=posting.salary_currency,
-                overall_score=match.overall_score,
-                score_breakdown=match.score_breakdown,
-                explanation=match.explanation,
-                is_new=match.notified_at is None,
-                viewed_at=match.viewed_at,
-                feedback=cast('Literal["up", "down"] | None', match.feedback),
-                apply_clicked_at=match.apply_clicked_at,
-                applied_at=match.applied_at,
-                created_at=match.created_at,
+        matches = []
+        for match, posting, manual_entry in rows:
+            title, company, location, source_url = repository.resolve_match_display_fields(
+                posting, manual_entry
             )
-            for match, posting in rows
-        ]
+            matches.append(
+                JobMatchResponse(
+                    match_id=str(match.id),
+                    # Manual entries (Module F, §10.6) have no JobPosting row —
+                    # job_posting_id is "" (never surfaced as a real id), same
+                    # convention TrackedMatchResponse already uses for this field.
+                    job_posting_id=str(posting.id) if posting else "",
+                    title=title,
+                    company=company,
+                    location=location,
+                    remote=posting.remote if posting else False,
+                    source=posting.source if posting else "manual",
+                    source_url=source_url,
+                    salary_min=posting.salary_min if posting else None,
+                    salary_max=posting.salary_max if posting else None,
+                    salary_currency=posting.salary_currency if posting else None,
+                    overall_score=match.overall_score,
+                    score_breakdown=match.score_breakdown,
+                    explanation=match.explanation,
+                    is_new=match.notified_at is None,
+                    viewed_at=match.viewed_at,
+                    feedback=cast('Literal["up", "down"] | None', match.feedback),
+                    apply_clicked_at=match.apply_clicked_at,
+                    applied_at=match.applied_at,
+                    created_at=match.created_at,
+                )
+            )
         return JobMatchListResponse(matches=matches, total=total, limit=limit, offset=offset)
 
     async def mark_viewed(self, match_id: str, user_id: UUID) -> None:

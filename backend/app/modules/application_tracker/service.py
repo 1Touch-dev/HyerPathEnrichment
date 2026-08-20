@@ -15,18 +15,25 @@ from app.modules.application_tracker.schemas import (
     TrackedMatchListResponse,
     TrackedMatchResponse,
 )
+from app.modules.job_matching import repository as job_matching_repository
 from app.modules.job_matching.models import JobMatch, JobPosting
+from app.modules.manual_jobs.models import ManualJobEntry
 
 
-def _to_tracked_response(match: JobMatch, posting: JobPosting | None) -> TrackedMatchResponse:
+def _to_tracked_response(
+    match: JobMatch, posting: JobPosting | None, manual_entry: ManualJobEntry | None = None
+) -> TrackedMatchResponse:
+    title, company, location, source_url = job_matching_repository.resolve_match_display_fields(
+        posting, manual_entry
+    )
     return TrackedMatchResponse(
         match_id=str(match.id),
         job_posting_id=str(match.job_posting_id) if match.job_posting_id else "",
-        title=posting.title if posting else "",
-        company=posting.company if posting else "",
-        location=posting.location if posting else None,
+        title=title,
+        company=company,
+        location=location,
         remote=posting.remote if posting else False,
-        source_url=posting.source_url if posting else None,
+        source_url=source_url,
         overall_score=match.overall_score if posting is not None else None,  # sentinel-hiding
         application_status=cast("ApplicationStatus", match.application_status),
         apply_clicked_at=match.apply_clicked_at,
@@ -50,9 +57,18 @@ async def list_tracked(
     rows, total = await repository.list_tracked_matches(
         db, user_id, status=status, sort=sort, limit=limit, offset=offset
     )
+    manual_entry_ids = [m.manual_job_entry_id for m, _p in rows if m.manual_job_entry_id]
+    manual_entries_by_id = await repository.get_manual_entries(db, manual_entry_ids)
     counts = await repository.count_by_status(db, user_id)
     return TrackedMatchListResponse(
-        matches=[_to_tracked_response(m, p) for m, p in rows],
+        matches=[
+            _to_tracked_response(
+                m,
+                p,
+                manual_entries_by_id.get(m.manual_job_entry_id) if m.manual_job_entry_id else None,
+            )
+            for m, p in rows
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -71,4 +87,8 @@ async def update_status(
         owned is not None
     )  # match row is guaranteed present here since update_status just returned it
     _, posting = owned
-    return _to_tracked_response(match, posting)
+    manual_entry = None
+    if match.manual_job_entry_id is not None:
+        manual_entries_by_id = await repository.get_manual_entries(db, [match.manual_job_entry_id])
+        manual_entry = manual_entries_by_id.get(match.manual_job_entry_id)
+    return _to_tracked_response(match, posting, manual_entry)

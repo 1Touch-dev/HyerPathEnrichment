@@ -194,6 +194,12 @@ async def _get_job_description(
     match = match_result.scalar_one_or_none()
     if not match:
         return None
+    if match.job_posting_id is None:
+        # Manual entry (Module F, §10.6) — no JobPosting row to look up at all, and
+        # therefore no description_raw to draft outreach from. Returning early here
+        # avoids an unnecessary query and keeps the "no description available"
+        # behavior identical to the existing not-found/no-description-raw cases below.
+        return None
     posting_result = await session.execute(
         select(JobPosting).where(JobPosting.id == match.job_posting_id)
     )

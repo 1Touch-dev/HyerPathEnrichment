@@ -21,6 +21,7 @@ from app.auth.password import hash_password
 from app.modules.application_tracker import repository
 from app.modules.job_matching.models import JobMatch, JobPosting
 from app.modules.job_matching import repository as job_matching_repository
+from app.modules.manual_jobs.models import ManualJobEntry
 
 
 @pytest.fixture
@@ -82,6 +83,42 @@ async def _make_match(
         "rule_score": 0.5,
         "overall_score": 50.0,
         "score_breakdown": {},
+    }
+    fields.update(overrides)
+    match = JobMatch(**fields)
+    db.add(match)
+    await db.commit()
+    await db.refresh(match)
+    return match
+
+
+async def _make_manual_entry(db: AsyncSession, user_id: uuid.UUID, **overrides) -> ManualJobEntry:
+    fields = {
+        "user_id": user_id,
+        "title": "Self-Sourced Role",
+        "company": "Referral Co",
+        "location": "Remote",
+    }
+    fields.update(overrides)
+    entry = ManualJobEntry(**fields)
+    db.add(entry)
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+async def _make_manual_match(
+    db: AsyncSession, user_id: uuid.UUID, entry: ManualJobEntry, **overrides
+) -> JobMatch:
+    fields = {
+        "user_id": user_id,
+        "job_posting_id": None,
+        "manual_job_entry_id": entry.id,
+        "similarity_score": 0.0,
+        "rule_score": 0.0,
+        "overall_score": 0.0,
+        "score_breakdown": {},
+        "application_status": "new",
     }
     fields.update(overrides)
     match = JobMatch(**fields)
@@ -358,3 +395,70 @@ class TestOwnershipScoping:
             db, match.id, test_user.id
         )
         assert owned_by_actual_owner is not None
+
+
+class TestManualEntrySafety:
+    """Regression tests (Module F, §10.6): a manual-entry JobMatch (job_posting_id
+    NULL, manual_job_entry_id set) must never raise an AttributeError/crash in the
+    tracker's two core repository reads. `get_owned_match` already outer-joined
+    JobPosting before this chunk (§6.5's forward-compat note) — this test class
+    exercises it directly against a real manual-entry row to confirm that claim,
+    rather than trusting the docstring.
+    """
+
+    async def test_list_tracked_matches_includes_manual_entry_with_no_crash(
+        self, db: AsyncSession, test_user: User
+    ):
+        entry = await _make_manual_entry(db, test_user.id)
+        manual_match = await _make_manual_match(db, test_user.id, entry)
+        posting = await _make_posting(db)
+        real_match = await _make_match(db, test_user.id, posting)
+
+        rows, total = await repository.list_tracked_matches(
+            db, test_user.id, status=None, sort="newest", limit=20, offset=0
+        )
+
+        assert total == 2
+        rows_by_id = {m.id: (m, p) for m, p in rows}
+        manual_row = rows_by_id[manual_match.id]
+        assert manual_row[1] is None  # outer-joined JobPosting is None for a manual row
+        real_row = rows_by_id[real_match.id]
+        assert real_row[1] is not None
+
+    async def test_get_owned_match_returns_none_posting_for_manual_entry_with_no_crash(
+        self, db: AsyncSession, test_user: User
+    ):
+        entry = await _make_manual_entry(db, test_user.id)
+        manual_match = await _make_manual_match(db, test_user.id, entry)
+
+        owned = await job_matching_repository.get_owned_match(db, manual_match.id, test_user.id)
+
+        assert owned is not None
+        match, posting = owned
+        assert match.id == manual_match.id
+        assert posting is None  # confirmed safe: outerjoin, no crash unpacking the row
+
+    async def test_service_list_tracked_shows_manual_entry_title_and_null_score(
+        self, db: AsyncSession, test_user: User
+    ):
+        """End-to-end through application_tracker/service.py: a manual entry's
+        title/company must come from ManualJobEntry (not blank strings), and
+        overall_score must be None (the 0.0 sentinel must never leak to the response).
+        """
+        from app.modules.application_tracker.service import list_tracked
+
+        entry = await _make_manual_entry(
+            db, test_user.id, title="Growth Marketer", company="Startup Co"
+        )
+        await _make_manual_match(db, test_user.id, entry)
+
+        result = await list_tracked(
+            db, test_user.id, status=None, sort="newest", limit=20, offset=0
+        )
+
+        assert len(result.matches) == 1
+        manual_response = result.matches[0]
+        assert manual_response.title == "Growth Marketer"
+        assert manual_response.company == "Startup Co"
+        assert manual_response.overall_score is None
+        assert manual_response.job_posting_id == ""

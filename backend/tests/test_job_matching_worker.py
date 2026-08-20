@@ -1117,7 +1117,7 @@ class TestSendMatchDigest:
                 rows, _total = await repository.list_matches_for_user(
                     session, user.id, limit=100, offset=0
                 )
-                return {m.id for m, _p in rows if m.notified_at is None}
+                return {m.id for m, _p, _e in rows if m.notified_at is None}
 
         still_unnotified = asyncio.run(_list_still_unnotified())
         assert still_unnotified == remaining_ids
