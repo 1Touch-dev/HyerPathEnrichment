@@ -643,6 +643,8 @@ interface RawOutreachMessageResponse {
   subject: string;
   body: string;
   status: "draft" | "sent";
+  // Module 4, Module G (§11.4): backend default is "email" for pre-Module-G rows.
+  message_type: OutreachMessage["messageType"];
   sent_at: string | null;
   created_at: string;
 }
@@ -807,6 +809,7 @@ export function adaptOutreachMessage(raw: RawOutreachMessageResponse): OutreachM
     subject: raw.subject,
     body: raw.body,
     status: raw.status,
+    messageType: raw.message_type,
     createdAt: raw.created_at,
     sentAt: raw.sent_at,
   };

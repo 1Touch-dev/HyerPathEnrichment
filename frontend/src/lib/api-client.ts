@@ -24,6 +24,7 @@ import {
   OutreachListResponse,
   OutreachDraftAccepted,
   OutreachMessage,
+  OutreachMessageType,
   PortfolioItem,
   PortfolioProfile,
   PracticeAttempt,
@@ -337,6 +338,8 @@ export async function draftOutreach(payload: {
   documentId: string;
   recipientRoleTitle?: string;
   jobMatchId?: string;
+  messageType?: OutreachMessageType;
+  customInstruction?: string;
 }): Promise<SuccessEnvelope<OutreachDraftAccepted>> {
   return request<OutreachDraftAccepted>("/api/outreach/drafts", {
     method: "POST",
@@ -346,6 +349,10 @@ export async function draftOutreach(payload: {
       documentId: payload.documentId,
       recipientRoleTitle: payload.recipientRoleTitle ?? null,
       jobMatchId: payload.jobMatchId ?? null,
+      // Module 4, Module G (§11.7): forwarded to the BFF route, which maps these
+      // to the backend's snake_case `message_type`/`custom_instruction` fields.
+      messageType: payload.messageType ?? "email",
+      customInstruction: payload.customInstruction ?? null,
     }),
   });
 }
