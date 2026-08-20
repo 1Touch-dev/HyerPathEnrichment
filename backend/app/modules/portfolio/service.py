@@ -107,7 +107,7 @@ class PortfolioService:
     async def get_public_profile(self, slug: str) -> PublicPortfolioResponse:
         """Unauthenticated lookup — used by the public /p/{slug} page (Decision 4)."""
         profile = await get_profile_by_slug(self.db, slug)
-        if not profile or not profile.is_published:
+        if not profile or not profile.is_published or profile.admin_hidden:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Portfolio not found")
         items = await list_items_for_profile(self.db, profile.id)
         return PublicPortfolioResponse(
