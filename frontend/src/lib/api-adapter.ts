@@ -13,6 +13,7 @@ import {
   EnrichmentJob,
   HealthStatus,
   InterviewQuestion,
+  InterviewSchedule,
   JobListItem,
   JobListResponse,
   JobMatch,
@@ -407,6 +408,40 @@ export function mapBackendTrackedMatchListToFrontend(
     limit: response.limit,
     offset: response.offset,
     countsByStatus: response.counts_by_status,
+  };
+}
+
+/**
+ * Mirrors the backend's real `InterviewScheduleResponse`
+ * (backend/app/modules/interview_scheduling/schemas.py, Module 4 §8.3) — hand-declared
+ * per this file's own convention (see the `Raw*Response` section below) since that
+ * module's routes are being implemented concurrently and have no generated schema yet.
+ * Must be deleted and replaced with real `npm run openapi:gen` output once the backend
+ * route exists.
+ */
+export interface BackendInterviewScheduleResponse {
+  id: string;
+  job_match_id: string;
+  scheduled_at: string;
+  duration_minutes: number;
+  notes: string | null;
+  ics_download_url: string;
+  google_calendar_link: string;
+  created_at: string;
+}
+
+export function mapBackendInterviewSchedule(
+  raw: BackendInterviewScheduleResponse,
+): InterviewSchedule {
+  return {
+    id: raw.id,
+    jobMatchId: raw.job_match_id,
+    scheduledAt: raw.scheduled_at,
+    durationMinutes: raw.duration_minutes,
+    notes: raw.notes,
+    icsDownloadUrl: raw.ics_download_url,
+    googleCalendarLink: raw.google_calendar_link,
+    createdAt: raw.created_at,
   };
 }
 

@@ -304,6 +304,20 @@ export type TrackedMatchListResponse = {
   countsByStatus: Record<ApplicationStatus, number>;
 };
 
+// Module 4, Module D: Interview scheduling, calendar, and notifications
+// (phase2_module4_application_lifecycle_and_interview_prep.md §8.7/§8.8)
+
+export interface InterviewSchedule {
+  id: string;
+  jobMatchId: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  notes: string | null;
+  icsDownloadUrl: string;
+  googleCalendarLink: string;
+  createdAt: string;
+}
+
 // Module 2: Tinder-Style Job Board + CV Management (phase2_module2.md §11.2)
 
 export interface CvCompleteness {
