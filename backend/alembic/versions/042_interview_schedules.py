@@ -1,7 +1,7 @@
 """Create interview_schedules table (Module 4, Module D).
 
-Revision ID: 041_interview_schedules
-Revises: 040_job_match_application_status
+Revision ID: 042_interview_schedules
+Revises: 041_outreach_message_type
 Create Date: 2026-08-20
 """
 
@@ -12,8 +12,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "041_interview_schedules"
-down_revision: str | Sequence[str] | None = "040_job_match_application_status"
+revision: str = "042_interview_schedules"
+down_revision: str | Sequence[str] | None = "041_outreach_message_type"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
