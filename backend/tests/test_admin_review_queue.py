@@ -30,9 +30,21 @@ _REVIEW_QUEUE_PREFIX = "/api/admin/review-queue"
 
 @pytest.fixture(autouse=True)
 def _mount_review_queue_router():
+    """`review_queue_router` is now wired permanently into
+    `app/modules/admin/__init__.py`'s aggregator, so the real `app` singleton
+    already has these routes mounted at import time. Only mount (and later
+    unmount) here if that isn't already the case, so this test never tears
+    down the permanently-wired production routes out from under other test
+    modules that run afterward in the same session."""
     from app.main import app
     from app.modules.admin.review_queue_router import router as review_queue_router
 
+    already_mounted = any(
+        getattr(route, "path", "").startswith(_REVIEW_QUEUE_PREFIX) for route in app.routes
+    )
+    if already_mounted:
+        yield
+        return
     app.include_router(review_queue_router)
     try:
         yield

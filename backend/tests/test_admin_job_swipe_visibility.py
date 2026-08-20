@@ -23,21 +23,25 @@ from tests.envelope_helpers import assert_error, assert_success
 
 @pytest.fixture(autouse=True)
 def _mount_job_swipe_router():
-    """`job_swipe_router` is not wired into `app/modules/admin/__init__.py` yet
-    (that aggregator is held back and wired centrally later, out of scope for
-    this chunk) — mount it directly onto the app for this test module only,
-    matching `test_api_envelopes.py`'s temporary-mount-and-unmount pattern.
-    The router's own `require_permission` dependency already enforces
-    authentication/authorization, so no extra `current_verified_user`
-    dependency is needed here."""
+    """`job_swipe_router` is now wired permanently into
+    `app/modules/admin/__init__.py`'s aggregator, so the real `app` singleton
+    already has these routes mounted at import time. Only mount (and later
+    unmount) here if that isn't the case — this keeps the test working
+    whether or not it runs against a build with the real wiring, without ever
+    tearing down the permanently-wired production routes out from under other
+    test modules that run afterward in the same session."""
     from app.main import app
     from app.modules.admin.job_swipe_router import router as job_swipe_router
 
+    prefix = job_swipe_router.prefix
+    already_mounted = any(getattr(route, "path", "").startswith(prefix) for route in app.routes)
+    if already_mounted:
+        yield
+        return
     app.include_router(job_swipe_router)
     try:
         yield
     finally:
-        prefix = job_swipe_router.prefix
         app.routes[:] = [
             route for route in app.routes if not getattr(route, "path", "").startswith(prefix)
         ]

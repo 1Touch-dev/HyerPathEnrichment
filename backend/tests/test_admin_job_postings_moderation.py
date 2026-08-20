@@ -28,19 +28,25 @@ from tests.envelope_helpers import assert_error, assert_success
 
 @pytest.fixture(autouse=True)
 def _mount_job_postings_router():
-    """Mount the not-yet-wired router onto the shared `app` for this test
-    only, then unmount so other test modules see the app as it ships today
-    (without this chunk's router included via __init__.py)."""
+    """`job_postings_router` is now wired permanently into
+    `app/modules/admin/__init__.py`'s aggregator, so the real `app` singleton
+    already has these routes mounted at import time. Only mount (and later
+    unmount) here if that isn't already the case, so this test never tears
+    down the permanently-wired production routes out from under other test
+    modules that run afterward in the same session."""
     from app.main import app
 
+    prefix = "/api/admin/job-postings"
+    already_mounted = any(getattr(route, "path", "").startswith(prefix) for route in app.routes)
+    if already_mounted:
+        yield
+        return
     app.include_router(job_postings_router)
     try:
         yield
     finally:
         app.routes[:] = [
-            route
-            for route in app.routes
-            if not getattr(route, "path", "").startswith("/api/admin/job-postings")
+            route for route in app.routes if not getattr(route, "path", "").startswith(prefix)
         ]
 
 
