@@ -1,9 +1,13 @@
 import {
   AdminAuditLogEntry,
   AdminAuditLogListResponse,
+  AdminOutreachMessage,
+  AdminOutreachMessageListResponse,
   AdminRoleWithPermissions,
   AdminUser,
   AdminUserListResponse,
+  BackendAdminOutreachMessage,
+  BackendAdminOutreachMessageListResponse,
   CandidateDocument,
   CandidateDocumentDetail,
   CandidateJobPreferences,
@@ -472,6 +476,34 @@ export function mapBackendAdminUser(raw: BackendAdminUserResponse): AdminUser {
 export function mapBackendAdminUserList(raw: BackendAdminUserListResponse): AdminUserListResponse {
   return {
     items: raw.items.map(mapBackendAdminUser),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAdminOutreachMessage(
+  raw: BackendAdminOutreachMessage,
+): AdminOutreachMessage {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    jobMatchId: raw.job_match_id,
+    recipientRoleTitle: raw.recipient_role_title,
+    companyName: raw.company_name,
+    subject: raw.subject,
+    body: raw.body,
+    status: raw.status,
+    adminBlocked: raw.admin_blocked,
+    sentAt: raw.sent_at,
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendAdminOutreachMessageList(
+  raw: BackendAdminOutreachMessageListResponse,
+): AdminOutreachMessageListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminOutreachMessage),
     nextCursor: raw.next_cursor,
     hasMore: raw.has_more,
   };

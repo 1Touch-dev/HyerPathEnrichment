@@ -12,4 +12,7 @@ export const adminKeys = {
   analytics: () => [...adminKeys.all, "analytics", "job-matches"] as const,
   mfaStatus: () => [...adminKeys.all, "mfa-status"] as const,
   impersonationStatus: () => [...adminKeys.all, "impersonation-status"] as const,
+  outreach: (cursor: string | null, status: string | null, adminBlocked: boolean | null) =>
+    [...adminKeys.all, "outreach", cursor, status, adminBlocked] as const,
+  outreachMessage: (id: string) => [...adminKeys.all, "outreach", id] as const,
 };
