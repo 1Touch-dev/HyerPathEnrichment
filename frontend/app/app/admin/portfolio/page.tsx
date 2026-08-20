@@ -1,4 +1,4 @@
-import { PortfolioModerationPanel } from "@/features/admin/components/PortfolioModerationPanel";
+import { PortfolioModerationPanel } from "@/features/admin";
 
 export default function AdminPortfolioPage() {
   return (

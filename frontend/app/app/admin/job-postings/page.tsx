@@ -1,4 +1,4 @@
-import { JobPostingsModerationPanel } from "@/features/admin/components/JobPostingsModerationPanel";
+import { JobPostingsModerationPanel } from "@/features/admin";
 
 export default function AdminJobPostingsPage() {
   return (

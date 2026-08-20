@@ -1,4 +1,4 @@
-import { DocumentsModerationPanel } from "@/features/admin/components/DocumentsModerationPanel";
+import { DocumentsModerationPanel } from "@/features/admin";
 
 export default function AdminDocumentsPage() {
   return (

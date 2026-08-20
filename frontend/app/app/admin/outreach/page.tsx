@@ -1,4 +1,4 @@
-import { OutreachModerationPanel } from "@/features/admin/components/OutreachModerationPanel";
+import { OutreachModerationPanel } from "@/features/admin";
 
 export default function AdminOutreachPage() {
   return (

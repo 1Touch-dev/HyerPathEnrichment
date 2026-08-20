@@ -1,4 +1,4 @@
-import { ReviewQueueTable } from "@/features/admin/components/ReviewQueueTable";
+import { ReviewQueueTable } from "@/features/admin";
 
 export default function AdminReviewQueuePage() {
   return (

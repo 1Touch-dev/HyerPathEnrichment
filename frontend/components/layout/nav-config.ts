@@ -17,6 +17,11 @@ import {
   Flag,
   ListTodo,
   BarChart3,
+  Inbox,
+  Building2,
+  FileSearch,
+  Layers,
+  MailCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -68,5 +73,10 @@ export const adminNav: NavSection = {
     { href: "/app/admin/feature-flags", label: "Feature flags", icon: Flag },
     { href: "/app/admin/queues", label: "Queues", icon: ListTodo },
     { href: "/app/admin/analytics", label: "Analytics", icon: BarChart3 },
+    { href: "/app/admin/review-queue", label: "Review queue", icon: Inbox },
+    { href: "/app/admin/job-postings", label: "Job postings", icon: Building2 },
+    { href: "/app/admin/documents", label: "Documents", icon: FileSearch },
+    { href: "/app/admin/portfolio", label: "Portfolio", icon: Layers },
+    { href: "/app/admin/outreach", label: "Outreach", icon: MailCheck },
   ],
 };
