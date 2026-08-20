@@ -402,6 +402,91 @@ export type ImpersonationStatus = {
   expiresAt: string | null;
 };
 
+// Admin portfolio moderation (mirrors backend/app/modules/admin/portfolio_router.py,
+// camelCase). Distinct from the candidate-facing `PortfolioProfile`/`PortfolioItem`
+// below — the admin variants expose moderation fields (`adminHidden`) and are never
+// shaped for the public /p/{slug} page.
+
+export type AdminPortfolioItem = {
+  itemId: string;
+  itemType: string;
+  title: string;
+  description: string | null;
+  url: string;
+  imageUrl: string | null;
+  displayOrder: number;
+  createdAt: string;
+};
+
+export type AdminPortfolioProfile = {
+  profileId: string;
+  userId: string;
+  slug: string;
+  displayName: string | null;
+  headline: string | null;
+  bio: string | null;
+  isPublished: boolean;
+  adminHidden: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminPortfolioProfileDetail = AdminPortfolioProfile & {
+  items: AdminPortfolioItem[];
+};
+
+export type AdminPortfolioProfileListResponse = {
+  items: AdminPortfolioProfile[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+// Backend (snake_case) counterparts for the admin portfolio moderation types above.
+// backend/app/modules/admin/portfolio_router.py defines these models inline (no
+// dedicated schemas.py for the admin portfolio module), and this router isn't in
+// the committed OpenAPI schema yet, so — following this file's own convention for
+// not-yet-generated backend routes (see the `Raw*Response` types further below) —
+// these are hand-declared here rather than imported from `generated/api-schemas.ts`.
+
+export type BackendAdminPortfolioItem = {
+  item_id: string;
+  item_type: string;
+  title: string;
+  description: string | null;
+  url: string;
+  image_url: string | null;
+  display_order: number;
+  created_at: string;
+};
+
+export type BackendAdminPortfolioProfile = {
+  profile_id: string;
+  user_id: string;
+  slug: string;
+  display_name: string | null;
+  headline: string | null;
+  bio: string | null;
+  is_published: boolean;
+  admin_hidden: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BackendAdminPortfolioProfileDetail = BackendAdminPortfolioProfile & {
+  items: BackendAdminPortfolioItem[];
+};
+
+export type BackendAdminPortfolioProfileListResponse = {
+  items: BackendAdminPortfolioProfile[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
+export type BackendModeratePortfolioRequest = {
+  admin_hidden: boolean;
+  reason?: string | null;
+};
+
 // Documents module: candidate document upload, processing, and search
 // (mirrors backend/app/modules/documents/schemas.py, camelCase).
 

@@ -1,9 +1,18 @@
 import {
   AdminAuditLogEntry,
   AdminAuditLogListResponse,
+  AdminPortfolioItem,
+  AdminPortfolioProfile,
+  AdminPortfolioProfileDetail,
+  AdminPortfolioProfileListResponse,
   AdminRoleWithPermissions,
   AdminUser,
   AdminUserListResponse,
+  BackendAdminPortfolioItem,
+  BackendAdminPortfolioProfile,
+  BackendAdminPortfolioProfileDetail,
+  BackendAdminPortfolioProfileListResponse,
+  BackendModeratePortfolioRequest,
   CandidateDocument,
   CandidateDocumentDetail,
   CandidateJobPreferences,
@@ -116,6 +125,17 @@ export type {
   BackendSystemHealthResponse,
   BackendUpdateUserStatusRequest,
 } from "@/src/lib/generated/api-schemas";
+
+// Not yet in the generated OpenAPI schema (see the hand-declared types.ts comment
+// above these types' definitions) — re-exported here so BFF routes can import
+// them from this file, consistent with the generated Backend* re-exports above.
+export type {
+  BackendAdminPortfolioItem,
+  BackendAdminPortfolioProfile,
+  BackendAdminPortfolioProfileDetail,
+  BackendAdminPortfolioProfileListResponse,
+  BackendModeratePortfolioRequest,
+};
 
 function normalizeJobStatus(status: string): JobStatus {
   if (
@@ -472,6 +492,55 @@ export function mapBackendAdminUser(raw: BackendAdminUserResponse): AdminUser {
 export function mapBackendAdminUserList(raw: BackendAdminUserListResponse): AdminUserListResponse {
   return {
     items: raw.items.map(mapBackendAdminUser),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+function mapBackendAdminPortfolioItem(raw: BackendAdminPortfolioItem): AdminPortfolioItem {
+  return {
+    itemId: raw.item_id,
+    itemType: raw.item_type,
+    title: raw.title,
+    description: raw.description,
+    url: raw.url,
+    imageUrl: raw.image_url,
+    displayOrder: raw.display_order,
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendAdminPortfolioProfile(
+  raw: BackendAdminPortfolioProfile,
+): AdminPortfolioProfile {
+  return {
+    profileId: raw.profile_id,
+    userId: raw.user_id,
+    slug: raw.slug,
+    displayName: raw.display_name,
+    headline: raw.headline,
+    bio: raw.bio,
+    isPublished: raw.is_published,
+    adminHidden: raw.admin_hidden,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+export function mapBackendAdminPortfolioProfileDetail(
+  raw: BackendAdminPortfolioProfileDetail,
+): AdminPortfolioProfileDetail {
+  return {
+    ...mapBackendAdminPortfolioProfile(raw),
+    items: raw.items.map(mapBackendAdminPortfolioItem),
+  };
+}
+
+export function mapBackendAdminPortfolioProfileList(
+  raw: BackendAdminPortfolioProfileListResponse,
+): AdminPortfolioProfileListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminPortfolioProfile),
     nextCursor: raw.next_cursor,
     hasMore: raw.has_more,
   };

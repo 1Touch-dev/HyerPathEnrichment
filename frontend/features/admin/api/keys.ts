@@ -1,3 +1,5 @@
+import type { AdminPortfolioFilters } from "./client";
+
 export const adminKeys = {
   all: ["admin"] as const,
   users: (cursor: string | null, isActive: boolean | null) =>
@@ -12,4 +14,13 @@ export const adminKeys = {
   analytics: () => [...adminKeys.all, "analytics", "job-matches"] as const,
   mfaStatus: () => [...adminKeys.all, "mfa-status"] as const,
   impersonationStatus: () => [...adminKeys.all, "impersonation-status"] as const,
+  portfolio: (cursor: string | null, filters: AdminPortfolioFilters = {}) =>
+    [
+      ...adminKeys.all,
+      "portfolio",
+      cursor,
+      filters.isPublished ?? null,
+      filters.adminHidden ?? null,
+    ] as const,
+  portfolioProfile: (profileId: string) => [...adminKeys.all, "portfolio", profileId] as const,
 };
