@@ -59,6 +59,7 @@ def main() -> None:
                     QUEUE_DOCUMENT,
                     QUEUE_EMBEDDING,
                     QUEUE_FEEDBACK,
+                    QUEUE_INTERVIEW_REMINDERS,  # NEW
                     QUEUE_NAME,
                     QUEUE_OUTREACH,  # NEW
                     QUEUE_QUESTION_GENERATION,
@@ -70,6 +71,7 @@ def main() -> None:
                         QUEUE_QUESTION_GENERATION, connection=connection
                     ),  # Week 2 Module 3: question pre-gen
                     Queue(QUEUE_OUTREACH, connection=connection),  # NEW — Module 2
+                    Queue(QUEUE_INTERVIEW_REMINDERS, connection=connection),  # NEW — Module D
                     Queue(QUEUE_DOCUMENT, connection=connection),  # Week 1: Document processing
                     Queue(QUEUE_EMBEDDING, connection=connection),  # Week 1: Embeddings
                     Queue(QUEUE_CV_EXTRACTION, connection=connection),  # Week 1: CV extraction
