@@ -1,7 +1,7 @@
 """Add composite index for the corrected question-recency exclusion query.
 
-Revision ID: 034_question_recency_index
-Revises: 033_question_attempt_fk_and_personalization
+Revision ID: 037_question_recency_index
+Revises: 036_question_attempt_fk_and_personalization
 Create Date: 2026-08-14
 
 """
@@ -10,8 +10,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "034_question_recency_index"
-down_revision: str | Sequence[str] | None = "033_question_attempt_fk_and_personalization"
+revision: str = "037_question_recency_index"
+down_revision: str | Sequence[str] | None = "036_question_attempt_fk_and_personalization"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

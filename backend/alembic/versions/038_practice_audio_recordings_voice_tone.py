@@ -1,7 +1,7 @@
 """Add optional voice_tone_signals column to practice_audio_recordings.
 
-Revision ID: 035_practice_audio_recordings_voice_tone
-Revises: 034_question_recency_index
+Revision ID: 038_practice_audio_recordings_voice_tone
+Revises: 037_question_recency_index
 Create Date: 2026-08-14
 
 """
@@ -13,8 +13,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "035_practice_audio_recordings_voice_tone"
-down_revision: str | Sequence[str] | None = "034_question_recency_index"
+revision: str = "038_practice_audio_recordings_voice_tone"
+down_revision: str | Sequence[str] | None = "037_question_recency_index"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

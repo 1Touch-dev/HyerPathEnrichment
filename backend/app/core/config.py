@@ -275,6 +275,44 @@ class Settings(BaseSettings):
     MONTHLY_COST_THRESHOLD_USD: float = Field(default=2000.0, alias="MONTHLY_COST_THRESHOLD_USD")
     ENABLE_BUDGET_ALERTS: bool = Field(default=True, alias="ENABLE_BUDGET_ALERTS")
 
+    # Module A — job matching fallback relaxation
+    job_matching_min_results: int = Field(default=10, alias="JOB_MATCHING_MIN_RESULTS")
+
+    # Module B — apply-click tracking / redirect
+    apply_redirect_base_url: str = Field(default="", alias="APPLY_REDIRECT_BASE_URL")
+    # empty => derive from app_public_base_url; see Module B §5.3
+
+    # Module C — application tracker (no new settings; reuses existing pagination/limit conventions)
+
+    # Module D — interview scheduling, calendar, notifications
+    interview_reminder_hours_before: int = Field(
+        default=24, alias="INTERVIEW_REMINDER_HOURS_BEFORE"
+    )
+    interview_ics_organizer_email: str = Field(
+        default="", alias="INTERVIEW_ICS_ORGANIZER_EMAIL"
+    )  # falls back to sendgrid_from_email if empty
+
+    # Module E — JD-aware interview practice
+    jd_question_generation_daily_limit_per_user: int = Field(
+        default=10, alias="JD_QUESTION_GENERATION_DAILY_LIMIT_PER_USER"
+    )  # separate budget from question_generation_daily_limit_per_user (Module 3) since
+    # JD-tailored generation always bypasses the shared bank (§9.3) and is therefore
+    # more expensive per request; kept as an independent knob rather than reusing
+    # question_generation_daily_limit_per_user so ops can tune them independently.
+
+    # Module F — manual job entry (no new settings)
+
+    # Module G — multi-channel outreach messages
+    outreach_linkedin_inmail_body_max_chars: int = Field(
+        default=1900, alias="OUTREACH_LINKEDIN_INMAIL_BODY_MAX_CHARS"
+    )
+    outreach_linkedin_inmail_subject_max_chars: int = Field(
+        default=200, alias="OUTREACH_LINKEDIN_INMAIL_SUBJECT_MAX_CHARS"
+    )
+    outreach_linkedin_connection_note_max_chars: int = Field(
+        default=300, alias="OUTREACH_LINKEDIN_CONNECTION_NOTE_MAX_CHARS"
+    )
+
 
 _TIER1_PROD_ENVS = frozenset({"production", "staging"})
 

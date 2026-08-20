@@ -1,7 +1,7 @@
 """Add FK from question_attempts.question_id to interview_questions, and
 personalization columns to interview_questions.
 
-Revision ID: 033_question_attempt_fk_and_personalization
+Revision ID: 036_question_attempt_fk_and_personalization
 Revises: 032_portfolio_item_image_url
 Create Date: 2026-08-14
 
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "033_question_attempt_fk_and_personalization"
+revision: str = "036_question_attempt_fk_and_personalization"
 down_revision: str | Sequence[str] | None = "032_portfolio_item_image_url"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
