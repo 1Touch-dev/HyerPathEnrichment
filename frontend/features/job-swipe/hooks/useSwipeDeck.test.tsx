@@ -28,6 +28,8 @@ const sampleDeck: SwipeDeck = {
       overallScore: 88,
       explanation: null,
       belowSimilarityThreshold: false,
+      sourceUrl: null,
+      appliedAt: null,
     },
     {
       matchId: "m2",
@@ -42,6 +44,8 @@ const sampleDeck: SwipeDeck = {
       overallScore: 75,
       explanation: null,
       belowSimilarityThreshold: false,
+      sourceUrl: null,
+      appliedAt: null,
     },
   ],
   hasMore: false,

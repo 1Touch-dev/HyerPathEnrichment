@@ -41,6 +41,20 @@ export async function submitMatchFeedback(matchId: string, feedback: "up" | "dow
   if (!res.ok) throw new Error(`Failed to submit match feedback: ${res.status}`);
 }
 
+export async function markApplied(matchId: string, applied: boolean): Promise<void> {
+  const res = await fetch(`/api/matches/${matchId}/mark-applied`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ applied }),
+  });
+  if (!res.ok) throw new Error(`Failed to mark match applied: ${res.status}`);
+}
+
+/** Pure string builder for an `<a href>`/`<Button asChild>` target — not called programmatically. */
+export function getApplyRedirectUrl(matchId: string): string {
+  return `/api/matches/${matchId}/apply-redirect`;
+}
+
 export async function triggerScan(): Promise<{ scanEnqueued: boolean }> {
   const res = await fetch("/api/job-matching/scan", { method: "POST" });
   if (!res.ok) throw new Error(`Failed to trigger scan: ${res.status}`);
