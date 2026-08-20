@@ -3,11 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Plus } from "lucide-react";
 import {
   TrackerFilterBar,
   TrackedMatchRow,
   useTrackedMatches,
 } from "@/features/application-tracker";
+import { AddManualJobDialog } from "@/features/manual-jobs";
 import { EmptyState } from "@/components/console/EmptyState";
 import { Button } from "@/components/ui/button";
 import type { ApplicationStatus } from "@/src/lib/types";
@@ -33,15 +35,34 @@ export function TrackerView() {
   const sort = searchParams.get("sort") ?? "newest";
 
   const [offset, setOffset] = useState(0);
+  const [addJobDialogOpen, setAddJobDialogOpen] = useState(false);
   const limit = 20;
 
   const { data, isLoading, isError, refetch } = useTrackedMatches(status, sort, limit, offset);
 
+  // Rendered once and reused across every loading/error/empty/success branch below, so
+  // "Add a job manually" is always reachable — a candidate with a broken/empty tracker
+  // load shouldn't lose the ability to add a job while that's being sorted out.
+  const addJobDialog = (
+    <AddManualJobDialog open={addJobDialogOpen} onOpenChange={setAddJobDialogOpen} />
+  );
+
+  const header = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h1 className="text-2xl font-semibold">Applications</h1>
+      <Button variant="outline" size="sm" onClick={() => setAddJobDialogOpen(true)}>
+        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+        Add a job manually
+      </Button>
+    </div>
+  );
+
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold">Applications</h1>
+        {header}
         <div className="animate-pulse h-96 rounded-lg bg-muted" />
+        {addJobDialog}
       </div>
     );
   }
@@ -49,12 +70,13 @@ export function TrackerView() {
   if (isError) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold">Applications</h1>
+        {header}
         <EmptyState
           title="Couldn't load your applications"
           description="Please try again shortly."
           action={<Button onClick={() => refetch()}>Retry</Button>}
         />
+        {addJobDialog}
       </div>
     );
   }
@@ -65,16 +87,17 @@ export function TrackerView() {
     if (status) {
       return (
         <div className="space-y-4">
-          <h1 className="text-2xl font-semibold">Applications</h1>
+          {header}
           <TrackerFilterBar />
           <EmptyState title={`No applications with status '${status}' yet`} />
+          {addJobDialog}
         </div>
       );
     }
 
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold">Applications</h1>
+        {header}
         <EmptyState
           title="No applications tracked yet"
           description="Swipe or browse matches to start tracking."
@@ -84,13 +107,14 @@ export function TrackerView() {
             </Button>
           }
         />
+        {addJobDialog}
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Applications</h1>
+      {header}
       <TrackerFilterBar />
 
       <div className="grid gap-3">
@@ -115,6 +139,7 @@ export function TrackerView() {
           Next
         </Button>
       </div>
+      {addJobDialog}
     </div>
   );
 }

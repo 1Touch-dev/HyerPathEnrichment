@@ -574,3 +574,19 @@ export interface JdPracticeResponse {
   jobMatchId: string;
   practiceSessionId: string;
 }
+
+// Module 4, Module F: manually-added job entries (phase2_module4_application_lifecycle_and_interview_prep.md §10.7)
+// Mirrors the backend's real `ManualJobEntryResponse` (backend/app/modules/manual_jobs/schemas.py).
+// v1 is create-only — no edit/delete affordance anywhere for this type (§14 non-goal).
+export interface ManualJobEntry {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  sourceLabel: string | null;
+  sourceUrl: string | null;
+  notes: string | null;
+  /** The auto-created tracker row's id — lets the frontend navigate straight to it. */
+  jobMatchId: string;
+  createdAt: string;
+}
