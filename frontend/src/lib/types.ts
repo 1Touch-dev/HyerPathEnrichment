@@ -258,6 +258,8 @@ export type JobMatch = {
   viewedAt: string | null;
   feedback: "up" | "down" | null;
   createdAt: string;
+  applyClickedAt: string | null;
+  appliedAt: string | null;
 };
 
 export type JobMatchListResponse = {
@@ -383,6 +385,8 @@ export interface SwipeCard {
   overallScore: number;
   explanation: string | null;
   belowSimilarityThreshold: boolean;
+  sourceUrl: string | null;
+  appliedAt: string | null;
 }
 
 export interface SwipeDeck {

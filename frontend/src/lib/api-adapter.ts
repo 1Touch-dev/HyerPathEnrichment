@@ -327,6 +327,8 @@ export function mapBackendJobMatchItem(item: BackendJobMatchResponse): JobMatch 
     viewedAt: item.viewed_at,
     feedback: item.feedback,
     createdAt: item.created_at,
+    applyClickedAt: item.apply_clicked_at ?? null,
+    appliedAt: item.applied_at ?? null,
   };
 }
 
@@ -556,6 +558,8 @@ interface RawSwipeCardResponse {
   overall_score: number;
   explanation: string | null;
   below_similarity_threshold: boolean;
+  source_url: string | null;
+  applied_at: string | null;
 }
 
 interface RawSwipeDeckResponse {
@@ -719,6 +723,8 @@ export function adaptSwipeDeck(raw: RawSwipeDeckResponse): SwipeDeck {
       overallScore: c.overall_score,
       explanation: c.explanation,
       belowSimilarityThreshold: c.below_similarity_threshold,
+      sourceUrl: c.source_url,
+      appliedAt: c.applied_at,
     })),
     hasMore: raw.has_more,
   };

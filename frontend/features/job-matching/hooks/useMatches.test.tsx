@@ -32,6 +32,8 @@ const sampleMatchList: JobMatchListResponse = {
       viewedAt: null,
       feedback: null,
       createdAt: "2026-01-01T00:00:00Z",
+      applyClickedAt: null,
+      appliedAt: null,
     },
   ],
   total: 1,

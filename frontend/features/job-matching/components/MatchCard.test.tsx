@@ -30,6 +30,8 @@ const baseMatch: JobMatch = {
   viewedAt: null,
   feedback: null,
   createdAt: "2026-01-01T00:00:00Z",
+  applyClickedAt: null,
+  appliedAt: null,
 };
 
 describe("MatchCard", () => {
@@ -37,6 +39,7 @@ describe("MatchCard", () => {
     vi.restoreAllMocks();
     vi.spyOn(client, "markMatchViewed").mockResolvedValue(undefined);
     vi.spyOn(client, "submitMatchFeedback").mockResolvedValue(undefined);
+    vi.spyOn(client, "markApplied").mockResolvedValue(undefined);
   });
 
   it("renders the score badge and explanation", () => {
@@ -77,5 +80,35 @@ describe("MatchCard", () => {
     render(<MatchCard match={baseMatch} />, { wrapper });
     fireEvent.click(screen.getByLabelText("Not a good match"));
     await waitFor(() => expect(client.submitMatchFeedback).toHaveBeenCalledWith("m1", "down"));
+  });
+
+  it("renders an Apply link with rel=noopener noreferrer, target=_blank, and the correct href", () => {
+    render(<MatchCard match={baseMatch} />, { wrapper });
+    const applyLink = screen.getByRole("link", { name: "Apply" });
+    expect(applyLink).toHaveAttribute("href", "/api/matches/m1/apply-redirect");
+    expect(applyLink).toHaveAttribute("target", "_blank");
+    expect(applyLink).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("Mark-as-applied checkbox is unchecked when appliedAt is null", () => {
+    render(<MatchCard match={baseMatch} />, { wrapper });
+    expect(screen.getByRole("checkbox", { name: "Mark as applied" })).not.toBeChecked();
+  });
+
+  it("Mark-as-applied checkbox is checked when appliedAt is set", () => {
+    render(<MatchCard match={{ ...baseMatch, appliedAt: "2026-01-02T00:00:00Z" }} />, { wrapper });
+    expect(screen.getByRole("checkbox", { name: "Mark as applied" })).toBeChecked();
+  });
+
+  it("calls markApplied with applied=true when the Mark-as-applied checkbox is toggled on", async () => {
+    render(<MatchCard match={baseMatch} />, { wrapper });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mark as applied" }));
+    await waitFor(() => expect(client.markApplied).toHaveBeenCalledWith("m1", true));
+  });
+
+  it("calls markApplied with applied=false when the Mark-as-applied checkbox is toggled off", async () => {
+    render(<MatchCard match={{ ...baseMatch, appliedAt: "2026-01-02T00:00:00Z" }} />, { wrapper });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mark as applied" }));
+    await waitFor(() => expect(client.markApplied).toHaveBeenCalledWith("m1", false));
   });
 });

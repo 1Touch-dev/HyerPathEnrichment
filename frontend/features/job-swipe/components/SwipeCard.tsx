@@ -3,7 +3,11 @@
 import { motion, useMotionValue, useTransform, type PanInfo } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import type { SwipeCard as SwipeCardData, SwipeDirection } from "@/src/lib/types";
+import { getApplyRedirectUrl } from "@/features/job-matching/api/client";
+import { useMarkApplied } from "@/features/job-matching/hooks/useMatches";
 
 interface SwipeCardProps {
   card: SwipeCardData;
@@ -33,6 +37,7 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
   const likeOpacity = useTransform(x, [20, SWIPE_THRESHOLD_X], [0, 1]);
   const passOpacity = useTransform(x, [-SWIPE_THRESHOLD_X, -20], [1, 0]);
   const superLikeOpacity = useTransform(y, [SWIPE_THRESHOLD_Y, -20], [1, 0]);
+  const markApplied = useMarkApplied();
 
   function handleDragEnd(_event: unknown, info: PanInfo) {
     if (info.offset.y < SWIPE_THRESHOLD_Y && Math.abs(info.offset.x) < Math.abs(info.offset.y)) {
@@ -114,17 +119,44 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
         )}
 
         {isTop && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDraftOutreach(card.matchId, card.company);
-            }}
-            className="mt-2"
-          >
-            Draft outreach
-          </Button>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDraftOutreach(card.matchId, card.company);
+              }}
+            >
+              Draft outreach
+            </Button>
+            <Button size="sm" asChild>
+              <a
+                href={getApplyRedirectUrl(card.matchId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Apply
+              </a>
+            </Button>
+            <div
+              className="flex items-center gap-2"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <Checkbox
+                id={`applied-${card.matchId}`}
+                checked={card.appliedAt !== null}
+                onCheckedChange={(checked) =>
+                  markApplied.mutate({ matchId: card.matchId, applied: checked === true })
+                }
+              />
+              <Label htmlFor={`applied-${card.matchId}`} className="text-sm text-muted-foreground">
+                Mark as applied
+              </Label>
+            </div>
+          </div>
         )}
       </div>
     </motion.div>
