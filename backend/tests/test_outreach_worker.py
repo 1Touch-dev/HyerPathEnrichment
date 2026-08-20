@@ -122,6 +122,94 @@ async def test_generate_outreach_draft_job_success(
     }
 
 
+async def test_generate_outreach_draft_job_calls_flag_if_needed(
+    db: AsyncSession, worker_user: User, worker_document: CandidateDocument
+) -> None:
+    """`flag_if_needed` must be called after the `OutreachMessage` row is
+    committed, with the message's own resource_type/resource_id/text_fields.
+    `flag_if_needed`'s own internals are covered by
+    `test_admin_moderation_flagging.py` — this only asserts call-site wiring.
+    """
+    with (
+        _patched_worker_session(db),
+        patch("app.workers.tasks.outreach.close_redis", new=AsyncMock()),
+        patch("app.workers.tasks.outreach.engine") as mock_engine,
+        patch(
+            "app.workers.tasks.outreach.PerplexityClient.get_company_context",
+            new=AsyncMock(
+                return_value={
+                    "summary": "Acme builds widgets",
+                    "source": "perplexity",
+                    "citations": [],
+                }
+            ),
+        ),
+        patch(
+            "app.workers.tasks.outreach._draft_with_llm",
+            new=AsyncMock(return_value=("Interested in Acme", "Hello, I would love to join Acme.")),
+        ),
+        patch("app.workers.tasks.outreach.flag_if_needed", new_callable=AsyncMock) as mock_flag,
+    ):
+        mock_engine.dispose = AsyncMock()
+        await _generate_outreach_draft_job(
+            str(worker_user.id), str(worker_document.id), "Acme", "Engineer", None
+        )
+
+    result = await db.execute(
+        select(OutreachMessage).where(OutreachMessage.user_id == worker_user.id)
+    )
+    message = result.scalar_one()
+
+    mock_flag.assert_called_once()
+    _, kwargs = mock_flag.call_args
+    assert kwargs["resource_type"] == "outreach_message"
+    assert kwargs["resource_id"] == message.id
+    assert kwargs["text_fields"] == ["Interested in Acme", "Hello, I would love to join Acme."]
+
+
+async def test_generate_outreach_draft_job_flag_if_needed_failure_does_not_break_draft(
+    db: AsyncSession, worker_user: User, worker_document: CandidateDocument
+) -> None:
+    """The most important guarantee this chunk is responsible for: if
+    `flag_if_needed` raises an unexpected exception, draft generation must
+    still complete successfully and persist the `OutreachMessage` row."""
+    with (
+        _patched_worker_session(db),
+        patch("app.workers.tasks.outreach.close_redis", new=AsyncMock()),
+        patch("app.workers.tasks.outreach.engine") as mock_engine,
+        patch(
+            "app.workers.tasks.outreach.PerplexityClient.get_company_context",
+            new=AsyncMock(
+                return_value={
+                    "summary": "Acme builds widgets",
+                    "source": "perplexity",
+                    "citations": [],
+                }
+            ),
+        ),
+        patch(
+            "app.workers.tasks.outreach._draft_with_llm",
+            new=AsyncMock(return_value=("Interested in Acme", "Hello, I would love to join Acme.")),
+        ),
+        patch(
+            "app.workers.tasks.outreach.flag_if_needed",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("simulated flagging bug"),
+        ),
+    ):
+        mock_engine.dispose = AsyncMock()
+        await _generate_outreach_draft_job(
+            str(worker_user.id), str(worker_document.id), "Acme", "Engineer", None
+        )
+
+    result = await db.execute(
+        select(OutreachMessage).where(OutreachMessage.user_id == worker_user.id)
+    )
+    message = result.scalar_one()
+    assert message.status == "draft"
+    assert message.subject == "Interested in Acme"
+
+
 async def test_generate_outreach_draft_job_missing_document_raises(
     db: AsyncSession, worker_user: User
 ) -> None:
