@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Literal, cast
 from urllib.parse import urlparse
 from uuid import UUID
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import NotFoundError
 from app.modules.application_tracker import repository as application_tracker_repository
 from app.modules.job_matching import repository
+from app.modules.job_matching.models import JobMatch
 from app.modules.job_matching.schemas import (
     JobMatchListResponse,
     JobMatchResponse,
@@ -160,3 +162,27 @@ class JobMatchingService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to enqueue scan: {exc}",
             )
+
+
+_STATUS_ORDER: dict[str, int] = {
+    "new": 0,
+    "applied": 1,
+    "replied": 2,
+    "interview": 3,
+    "offer": 4,
+    "rejected": 4,
+}
+
+
+async def advance_application_status_if_earlier(
+    db: AsyncSession, match: JobMatch, *, target: str
+) -> None:
+    """Forward-fill-only status advance, shared by Module B (mark-applied) and
+    Module D (schedule-interview) — the "never downgrade a further-along status"
+    rule lives in exactly one place instead of being reimplemented per module.
+    """
+    if _STATUS_ORDER[target] > _STATUS_ORDER[match.application_status]:
+        match.application_status = target
+        match.status_updated_at = datetime.now(UTC)
+        await db.flush()
+        await db.commit()

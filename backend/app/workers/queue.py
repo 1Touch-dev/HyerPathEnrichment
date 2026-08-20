@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime
 
 from redis import Redis
 from rq import Queue
@@ -29,11 +30,15 @@ QUEUE_JOB_MATCHING = "job_matching"
 # Module 2: Tinder-Style Job Board + CV Management (outreach drafting, §8.15)
 QUEUE_OUTREACH = "outreach_generation"
 
+# Module 4, Module D: interview scheduling reminders
+QUEUE_INTERVIEW_REMINDERS = "interview_reminders"
+
 # Queue priorities (higher = processed first)
 QUEUE_PRIORITIES = {
     QUEUE_EMAIL: 10,  # Highest (user-facing)
     QUEUE_CV_EXTRACTION: 8,  # High (user-facing)
     QUEUE_FEEDBACK: 7,  # High (user-facing feedback)
+    QUEUE_INTERVIEW_REMINDERS: 7,  # NEW — same tier as QUEUE_FEEDBACK: user-facing, time-sensitive
     QUEUE_JOB_MATCHING: 6,  # Between feedback (7) and document (5) — user-facing but async
     QUEUE_OUTREACH: 6,  # NEW — user-facing but not time-critical; below feedback, above document/embedding
     QUEUE_DOCUMENT: 5,  # Medium (async)
@@ -278,6 +283,88 @@ def enqueue_email(
     except Exception as e:
         logger.error(f"Failed to enqueue email: {template}", extra={"error": str(e)}, exc_info=True)
         raise
+
+
+def enqueue_interview_reminder(interview_schedule_id: str, send_at: datetime) -> None:
+    """Enqueue a one-off interview reminder at `send_at`, mirroring
+    `fan_out_daily_scans`'s existing use of `Scheduler.enqueue_at` for staggered
+    per-candidate jobs. Per §8.6: if `send_at` is already in the past (interview
+    scheduled with less than `interview_reminder_hours_before` notice), the
+    reminder enqueues immediately instead of being skipped — a same-day interview
+    still deserves a reminder, just sent right away rather than not at all.
+
+    The RQ job's id is deterministically derived from `interview_schedule_id` so
+    `cancel_interview_reminder` below can look it up without needing to persist
+    a separate RQ job id anywhere.
+    """
+    from rq_scheduler import Scheduler
+
+    from app.workers.tasks.interview_reminders import send_interview_reminder_job
+
+    connection = get_redis_connection()
+    job_id = f"interview-reminder-{interview_schedule_id}"
+
+    try:
+        if send_at <= datetime.now(UTC):
+            queue = Queue(QUEUE_INTERVIEW_REMINDERS, connection=connection)
+            queue.enqueue(
+                send_interview_reminder_job,
+                interview_schedule_id,
+                job_id=job_id,
+                job_timeout=60,
+            )
+            logger.info(
+                f"Enqueued interview reminder immediately for schedule: {interview_schedule_id}"
+            )
+            return
+
+        scheduler = Scheduler(queue_name=QUEUE_INTERVIEW_REMINDERS, connection=connection)
+        scheduler.enqueue_at(
+            send_at,
+            send_interview_reminder_job,
+            interview_schedule_id,
+            job_id=job_id,
+            timeout=60,
+        )
+        logger.info(
+            f"Enqueued interview reminder for schedule: {interview_schedule_id} at {send_at}"
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to enqueue interview reminder for schedule {interview_schedule_id}",
+            extra={"error": str(e), "error_type": type(e).__name__},
+            exc_info=True,
+        )
+        raise
+
+
+def cancel_interview_reminder(schedule_id: str) -> None:
+    """Best-effort cancellation of a pending interview-reminder job — wraps
+    `rq_scheduler.Scheduler.cancel` and swallows `rq.exceptions.NoSuchJobError`
+    (the job already fired, or never existed — both are fine, cancellation is
+    best-effort, same idempotent-cancel pattern as job_matching's existing
+    scan-cancellation path).
+    """
+    from rq.exceptions import NoSuchJobError
+    from rq_scheduler import Scheduler
+
+    connection = get_redis_connection()
+    job_id = f"interview-reminder-{schedule_id}"
+
+    try:
+        scheduler = Scheduler(queue_name=QUEUE_INTERVIEW_REMINDERS, connection=connection)
+        scheduler.cancel(job_id)
+        logger.info(f"Cancelled interview reminder for schedule: {schedule_id}")
+    except NoSuchJobError:
+        logger.warning(
+            "Interview reminder job already fired or never existed — nothing to cancel",
+            extra={"schedule_id": schedule_id},
+        )
+    except Exception as e:
+        logger.warning(
+            f"Failed to cancel interview reminder for schedule {schedule_id}",
+            extra={"error": str(e), "error_type": type(e).__name__},
+        )
 
 
 def register_scheduled_jobs() -> None:
