@@ -12,4 +12,7 @@ export const adminKeys = {
   analytics: () => [...adminKeys.all, "analytics", "job-matches"] as const,
   mfaStatus: () => [...adminKeys.all, "mfa-status"] as const,
   impersonationStatus: () => [...adminKeys.all, "impersonation-status"] as const,
+  documents: (cursor: string | null, processingStatus: string | null, deleted: boolean | null) =>
+    [...adminKeys.all, "documents", cursor, processingStatus, deleted] as const,
+  document: (id: string) => [...adminKeys.all, "documents", id] as const,
 };

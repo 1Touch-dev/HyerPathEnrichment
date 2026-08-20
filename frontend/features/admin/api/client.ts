@@ -1,5 +1,9 @@
 import type {
   AdminAuditLogListResponse,
+  AdminDocument,
+  AdminDocumentFilters,
+  AdminDocumentListResponse,
+  AdminDocumentModerateAction,
   AdminUserListResponse,
   AdminRole,
   FailedJob,
@@ -156,4 +160,34 @@ export async function endImpersonation(): Promise<void> {
 export async function fetchImpersonationStatus(): Promise<ImpersonationStatus> {
   const res = await fetch("/api/admin/impersonation/status");
   return unwrap(res, "Failed to fetch impersonation status");
+}
+
+export async function fetchAdminDocuments(
+  cursor: string | null,
+  filters: AdminDocumentFilters = { processingStatus: null, deleted: null },
+): Promise<AdminDocumentListResponse> {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  if (filters.processingStatus) params.set("processing_status", filters.processingStatus);
+  if (filters.deleted !== null) params.set("deleted", String(filters.deleted));
+  const res = await fetch(`/api/admin/documents?${params.toString()}`);
+  return unwrap(res, "Failed to fetch documents");
+}
+
+export async function fetchAdminDocument(id: string): Promise<AdminDocument> {
+  const res = await fetch(`/api/admin/documents/${id}`);
+  return unwrap(res, "Failed to fetch document");
+}
+
+export async function moderateDocument(
+  id: string,
+  action: AdminDocumentModerateAction,
+  reason?: string,
+): Promise<AdminDocument> {
+  const res = await fetch(`/api/admin/documents/${id}/moderate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, reason }),
+  });
+  return unwrap(res, "Failed to moderate document");
 }
