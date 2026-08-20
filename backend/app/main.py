@@ -18,6 +18,8 @@ from app.modules.dsar.router import router as dsar_router
 from app.modules.email.router import router as email_router
 from app.modules.enrichment.router import router as enrich_router
 from app.modules.health.router import router as health_router
+from app.modules.interview_scheduling.router import router as interview_scheduling_router
+from app.modules.jd_practice.router import router as jd_practice_router
 from app.modules.job_matching.router import router as job_matching_router
 from app.modules.job_swipe.router import router as job_swipe_router
 from app.modules.opt_out.router import router as opt_out_router
@@ -88,6 +90,8 @@ app.include_router(questions_router, dependencies=[Depends(current_verified_user
 app.include_router(practice_audio_router, dependencies=[Depends(current_verified_user)])
 app.include_router(job_matching_router, dependencies=[Depends(current_verified_user)])
 app.include_router(application_tracker_router, dependencies=[Depends(current_verified_user)])
+app.include_router(interview_scheduling_router, dependencies=[Depends(current_verified_user)])
+app.include_router(jd_practice_router, dependencies=[Depends(current_verified_user)])
 app.include_router(portfolio_router, dependencies=[Depends(current_verified_user)])
 app.include_router(portfolio_public_router)
 app.include_router(job_swipe_router, dependencies=[Depends(current_verified_user)])
