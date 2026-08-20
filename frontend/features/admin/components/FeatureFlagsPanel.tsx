@@ -69,10 +69,7 @@ export function FeatureFlagsPanel() {
       ) : (
         <div className="flex flex-col gap-2">
           {(flags ?? []).map((flag) => (
-            <div
-              key={flag.key}
-              className="flex items-center justify-between rounded-lg border p-4"
-            >
+            <div key={flag.key} className="flex items-center justify-between rounded-lg border p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-sm font-medium">{flag.key}</span>

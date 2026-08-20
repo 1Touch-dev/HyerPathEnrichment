@@ -40,7 +40,9 @@ export function AnalyticsPanel() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Job match analytics</h2>
-          <p className="text-sm text-muted-foreground">Aggregate stats, not a full analytics suite.</p>
+          <p className="text-sm text-muted-foreground">
+            Aggregate stats, not a full analytics suite.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={data.cacheHit ? "secondary" : "outline"}>
@@ -61,7 +63,9 @@ export function AnalyticsPanel() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total postings</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total postings
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">{data.totalPostings.toLocaleString()}</p>
@@ -69,7 +73,9 @@ export function AnalyticsPanel() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total matches</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total matches
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">{data.totalMatches.toLocaleString()}</p>
@@ -77,7 +83,9 @@ export function AnalyticsPanel() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Avg salary range</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Avg salary range
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-lg font-semibold">
@@ -87,7 +95,9 @@ export function AnalyticsPanel() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Avg match score</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Avg match score
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">

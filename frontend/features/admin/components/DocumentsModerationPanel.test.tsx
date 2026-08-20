@@ -48,7 +48,9 @@ function mockUseAdminDocuments(overrides: Partial<UseQueryResult<AdminDocumentLi
 
 const moderateMutate = vi.fn();
 
-function mockModerateDocument(overrides: Partial<ReturnType<typeof useDocumentsModerationHooks.useModerateDocument>> = {}) {
+function mockModerateDocument(
+  overrides: Partial<ReturnType<typeof useDocumentsModerationHooks.useModerateDocument>> = {},
+) {
   vi.spyOn(useDocumentsModerationHooks, "useModerateDocument").mockReturnValue({
     mutate: moderateMutate,
     isPending: false,
@@ -112,7 +114,9 @@ describe("DocumentsModerationPanel", () => {
   });
 
   it("enables the Next page button when hasMore is true", () => {
-    mockUseAdminDocuments({ data: { items: [activeDocument], nextCursor: "cursor2", hasMore: true } });
+    mockUseAdminDocuments({
+      data: { items: [activeDocument], nextCursor: "cursor2", hasMore: true },
+    });
     render(<DocumentsModerationPanel />, { wrapper });
     expect(screen.getByText("Next page")).not.toBeDisabled();
   });

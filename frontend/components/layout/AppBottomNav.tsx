@@ -17,7 +17,11 @@ function isPathActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppBottomNav({ pathname, matchesUnreadCount = 0, isAdmin = false }: AppBottomNavProps) {
+export function AppBottomNav({
+  pathname,
+  matchesUnreadCount = 0,
+  isAdmin = false,
+}: AppBottomNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreSections = isAdmin ? [systemNav, adminNav] : [systemNav];
   const moreActive = moreSections
@@ -76,27 +80,29 @@ export function AppBottomNav({ pathname, matchesUnreadCount = 0, isAdmin = false
             <SheetTitle>More</SheetTitle>
           </SheetHeader>
           <ul className="mt-4 space-y-1">
-            {moreSections.flatMap((section) => section.items).map((item) => {
-              const Icon = item.icon;
-              const active = isPathActive(pathname, item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={() => setMoreOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors",
-                      active
-                        ? "bg-secondary text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
+            {moreSections
+              .flatMap((section) => section.items)
+              .map((item) => {
+                const Icon = item.icon;
+                const active = isPathActive(pathname, item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={() => setMoreOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors",
+                        active
+                          ? "bg-secondary text-primary"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
           </ul>
         </SheetContent>
       </Sheet>

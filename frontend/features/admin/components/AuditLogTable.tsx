@@ -121,7 +121,9 @@ export function AuditLogTable({ targetId }: AuditLogTableProps) {
                     {formatDate(entry.createdAt)}
                   </TableCell>
                   <TableCell className="font-mono text-xs">
-                    {entry.actorUserId ? emailByUserId.get(entry.actorUserId) ?? entry.actorUserId : "—"}
+                    {entry.actorUserId
+                      ? (emailByUserId.get(entry.actorUserId) ?? entry.actorUserId)
+                      : "—"}
                   </TableCell>
                   <TableCell>{entry.action}</TableCell>
                   <TableCell className="font-mono text-xs">

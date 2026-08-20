@@ -94,7 +94,9 @@ describe("QueueMonitor", () => {
 
   it("expands the failed-job sub-table when clicking a queue's failed-count badge", async () => {
     render(<QueueMonitor />, { wrapper });
-    const defaultRow = screen.getAllByRole("row").find((row) => row.textContent?.includes("default"));
+    const defaultRow = screen
+      .getAllByRole("row")
+      .find((row) => row.textContent?.includes("default"));
     expect(defaultRow).toBeDefined();
     fireEvent.click(within(defaultRow!).getByRole("button"));
     await waitFor(() => expect(screen.getByText("job1")).toBeInTheDocument());
@@ -112,7 +114,9 @@ describe("QueueMonitor", () => {
 
   it("calls useRetryFailedJob when Retry is clicked on a failed job", async () => {
     render(<QueueMonitor />, { wrapper });
-    const defaultRow = screen.getAllByRole("row").find((row) => row.textContent?.includes("default"));
+    const defaultRow = screen
+      .getAllByRole("row")
+      .find((row) => row.textContent?.includes("default"));
     expect(defaultRow).toBeDefined();
     fireEvent.click(within(defaultRow!).getByRole("button"));
     await waitFor(() => expect(screen.getByText("Retry")).toBeInTheDocument());

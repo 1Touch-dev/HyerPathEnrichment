@@ -35,7 +35,11 @@ export function AppShell({ children }: AppShellProps) {
         <VerificationBanner />
         <ImpersonationBanner />
         <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">{children}</main>
-        <AppBottomNav pathname={pathname} matchesUnreadCount={matchesUnreadCount} isAdmin={isAdmin} />
+        <AppBottomNav
+          pathname={pathname}
+          matchesUnreadCount={matchesUnreadCount}
+          isAdmin={isAdmin}
+        />
       </div>
     </div>
   );

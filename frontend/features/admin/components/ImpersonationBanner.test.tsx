@@ -51,7 +51,9 @@ function mockUseImpersonationStatus(overrides: Partial<UseQueryResult<Impersonat
   } as UseQueryResult<ImpersonationStatus>);
 }
 
-function mockUseEndImpersonation(overrides: Partial<ReturnType<typeof useImpersonationHooks.useEndImpersonation>> = {}) {
+function mockUseEndImpersonation(
+  overrides: Partial<ReturnType<typeof useImpersonationHooks.useEndImpersonation>> = {},
+) {
   vi.spyOn(useImpersonationHooks, "useEndImpersonation").mockReturnValue({
     mutateAsync: endMutateAsync,
     isPending: false,
