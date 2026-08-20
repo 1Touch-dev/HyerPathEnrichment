@@ -555,6 +555,7 @@ interface RawSwipeCardResponse {
   salary_currency: string | null;
   overall_score: number;
   explanation: string | null;
+  below_similarity_threshold: boolean;
 }
 
 interface RawSwipeDeckResponse {
@@ -717,6 +718,7 @@ export function adaptSwipeDeck(raw: RawSwipeDeckResponse): SwipeDeck {
       salaryCurrency: c.salary_currency,
       overallScore: c.overall_score,
       explanation: c.explanation,
+      belowSimilarityThreshold: c.below_similarity_threshold,
     })),
     hasMore: raw.has_more,
   };

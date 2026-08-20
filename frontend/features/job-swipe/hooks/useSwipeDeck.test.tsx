@@ -27,6 +27,7 @@ const sampleDeck: SwipeDeck = {
       salaryCurrency: null,
       overallScore: 88,
       explanation: null,
+      belowSimilarityThreshold: false,
     },
     {
       matchId: "m2",
@@ -40,6 +41,7 @@ const sampleDeck: SwipeDeck = {
       salaryCurrency: null,
       overallScore: 75,
       explanation: null,
+      belowSimilarityThreshold: false,
     },
   ],
   hasMore: false,

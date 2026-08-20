@@ -57,6 +57,7 @@ const baseCard: SwipeCardData = {
   salaryCurrency: null,
   overallScore: 88,
   explanation: "Great fit for your skills.",
+  belowSimilarityThreshold: false,
 };
 
 function makePanInfo(x: number, y: number): PanInfo {
@@ -80,6 +81,13 @@ describe("SwipeCard", () => {
     expect(screen.getByText("Acme")).toBeInTheDocument();
     expect(screen.getByText("Great fit for your skills.")).toBeInTheDocument();
     expect(screen.getByText("88/100")).toBeInTheDocument();
+  });
+
+  it('renders a "Broader match" badge instead of the score badge when belowSimilarityThreshold is true', () => {
+    const relaxedCard: SwipeCardData = { ...baseCard, belowSimilarityThreshold: true };
+    render(<SwipeCard card={relaxedCard} onSwiped={() => {}} onDraftOutreach={() => {}} isTop />);
+    expect(screen.getByText("Broader match")).toBeInTheDocument();
+    expect(screen.queryByText("88/100")).not.toBeInTheDocument();
   });
 
   it('calls onSwiped("right") when dragged right past the x threshold', () => {

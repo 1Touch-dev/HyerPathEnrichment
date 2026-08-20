@@ -21,6 +21,7 @@ function scoreColor(score: number): string {
 export function MatchCard({ match }: MatchCardProps) {
   const markViewed = useMarkMatchViewed();
   const submitFeedback = useSubmitFeedback();
+  const belowSimilarityThreshold = match.scoreBreakdown.below_similarity_threshold === true;
 
   useEffect(() => {
     if (match.isNew) {
@@ -32,9 +33,13 @@ export function MatchCard({ match }: MatchCardProps) {
   return (
     <div className="relative rounded-lg border p-4">
       <div className="absolute right-4 top-4">
-        <Badge className={scoreColor(match.overallScore)}>
-          {Math.round(match.overallScore)}/100
-        </Badge>
+        {belowSimilarityThreshold ? (
+          <Badge className="bg-muted text-muted-foreground">Broader match</Badge>
+        ) : (
+          <Badge className={scoreColor(match.overallScore)}>
+            {Math.round(match.overallScore)}/100
+          </Badge>
+        )}
       </div>
 
       <JobCard
