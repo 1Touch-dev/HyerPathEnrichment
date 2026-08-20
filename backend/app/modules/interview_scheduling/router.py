@@ -1,7 +1,7 @@
 """FastAPI router for interview scheduling API endpoints (Module 4, Module D).
 
-Not yet registered in app/main.py — a later reconciliation step registers this
-router alongside Track E's, per the Phase 3 orchestration plan.
+Registered in app/main.py alongside Track E's jd_practice_router as part of
+the Phase 3.5 reconciliation step.
 """
 
 from __future__ import annotations
