@@ -1,3 +1,5 @@
+import type { JobPostingFilters } from "./client";
+
 export const adminKeys = {
   all: ["admin"] as const,
   users: (cursor: string | null, isActive: boolean | null) =>
@@ -12,4 +14,7 @@ export const adminKeys = {
   analytics: () => [...adminKeys.all, "analytics", "job-matches"] as const,
   mfaStatus: () => [...adminKeys.all, "mfa-status"] as const,
   impersonationStatus: () => [...adminKeys.all, "impersonation-status"] as const,
+  jobPostings: (cursor: string | null, filters: JobPostingFilters) =>
+    [...adminKeys.all, "job-postings", cursor, filters] as const,
+  jobPosting: (id: string) => [...adminKeys.all, "job-postings", id] as const,
 };

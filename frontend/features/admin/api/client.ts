@@ -1,5 +1,7 @@
 import type {
   AdminAuditLogListResponse,
+  AdminJobPosting,
+  AdminJobPostingListResponse,
   AdminUserListResponse,
   AdminRole,
   FailedJob,
@@ -8,6 +10,7 @@ import type {
   JobMatchAnalytics,
   MfaEnrollResult,
   MfaStatus,
+  ModerationStatus,
   QueueSnapshot,
   SystemHealthSnapshot,
 } from "@/src/lib/types";
@@ -49,6 +52,45 @@ export async function assignUserRole(userId: string, roleId: string | null): Pro
     body: JSON.stringify({ role_id: roleId }),
   });
   if (!res.ok) throw new Error(`Failed to assign role: ${res.status}`);
+}
+
+export type JobPostingFilters = {
+  moderationStatus?: ModerationStatus | null;
+  source?: string | null;
+  isActive?: boolean | null;
+};
+
+export async function fetchAdminJobPostings(
+  cursor: string | null,
+  filters: JobPostingFilters = {},
+): Promise<AdminJobPostingListResponse> {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  if (filters.moderationStatus) params.set("moderation_status", filters.moderationStatus);
+  if (filters.source) params.set("source", filters.source);
+  if (filters.isActive !== null && filters.isActive !== undefined) {
+    params.set("is_active", String(filters.isActive));
+  }
+  const res = await fetch(`/api/admin/job-postings?${params.toString()}`);
+  return unwrap(res, "Failed to fetch job postings");
+}
+
+export async function fetchAdminJobPosting(id: string): Promise<AdminJobPosting> {
+  const res = await fetch(`/api/admin/job-postings/${id}`);
+  return unwrap(res, "Failed to fetch job posting");
+}
+
+export async function moderateJobPosting(
+  id: string,
+  moderationStatus: ModerationStatus,
+  reason?: string,
+): Promise<AdminJobPosting> {
+  const res = await fetch(`/api/admin/job-postings/${id}/moderate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ moderation_status: moderationStatus, reason }),
+  });
+  return unwrap(res, "Failed to moderate job posting");
 }
 
 export async function fetchRoles(): Promise<AdminRole[]> {
