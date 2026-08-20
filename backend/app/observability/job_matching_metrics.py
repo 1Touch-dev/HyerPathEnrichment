@@ -65,3 +65,9 @@ job_matching_push_notifications_total = Counter(
 job_matching_scan_duration_seconds = Histogram(
     "job_matching_scan_duration_seconds", "Duration of a single candidate scan"
 )
+
+job_matching_similarity_fallback_fired_total = Counter(
+    "job_matching_similarity_fallback_fired_total",
+    "Total times the similarity-threshold relaxation fallback fired (strict pass returned "
+    "fewer than min_results)",
+)

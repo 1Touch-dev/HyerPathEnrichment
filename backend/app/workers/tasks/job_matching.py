@@ -248,7 +248,7 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                 }
 
                 matches_scored = 0
-                for matched_posting_id, similarity_score in similar_postings:
+                for matched_posting_id, similarity_score, passed_threshold in similar_postings:
                     posting_row = await session.get(JobPosting, matched_posting_id)
                     if posting_row is None:
                         # Defensive: posting could theoretically have been removed between
@@ -263,6 +263,8 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                     }
                     rule_score, breakdown = compute_rule_score(posting_dict, preferences_dict)
                     overall_score = compute_overall_score(similarity_score, rule_score)
+                    if not passed_threshold:
+                        breakdown["below_similarity_threshold"] = True
 
                     await repository.upsert_match(
                         session,
