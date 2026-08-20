@@ -21,6 +21,7 @@ import {
   JobMatch,
   JobMatchListResponse,
   JobStatus,
+  ManualJobEntry,
   OptOutInput,
   OutreachMessage,
   PortfolioItem,
@@ -983,5 +984,38 @@ export function mapBackendJdPracticeResponse(raw: BackendJdPracticeResponse): Jd
     questions: raw.questions.map(mapBackendJdPracticeQuestionItem),
     jobMatchId: raw.job_match_id,
     practiceSessionId: raw.practice_session_id,
+  };
+}
+
+// Module 4, Module F: manually-added job entries (phase2_module4_application_lifecycle_and_interview_prep.md §10.7)
+//
+// Mirrors the backend's real `ManualJobEntryResponse` (backend/app/modules/manual_jobs/schemas.py)
+// — hand-declared per this file's own convention (see the `Raw*Response` section above) since
+// that module has no generated schema yet. Must be deleted and replaced with real
+// `npm run openapi:gen` output once the backend route is registered in the OpenAPI export.
+
+export interface BackendManualJobEntryResponse {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  source_label: string | null;
+  source_url: string | null;
+  notes: string | null;
+  job_match_id: string;
+  created_at: string;
+}
+
+export function mapBackendManualJobEntry(raw: BackendManualJobEntryResponse): ManualJobEntry {
+  return {
+    id: raw.id,
+    title: raw.title,
+    company: raw.company,
+    location: raw.location,
+    sourceLabel: raw.source_label,
+    sourceUrl: raw.source_url,
+    notes: raw.notes,
+    jobMatchId: raw.job_match_id,
+    createdAt: raw.created_at,
   };
 }

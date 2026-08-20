@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
@@ -34,11 +35,24 @@ export function TrackedMatchRow({ match }: TrackedMatchRowProps) {
   const updateStatus = useUpdateApplicationStatus();
   const markApplied = useMarkApplied();
 
+  // Module F: manual entries have no similarity/rule score to compute — `overallScore`
+  // is the only field the backend guarantees is `null` exclusively for these rows
+  // (§10.6), so it doubles as the "is this a manually-added entry" signal here rather
+  // than introducing a second, redundant `isManual` flag.
+  const isManualEntry = match.overallScore === null;
+
   return (
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex flex-wrap items-center gap-4">
         <div className="min-w-[12rem] flex-1">
-          <p className="font-medium">{match.title}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{match.title}</p>
+            {isManualEntry && (
+              <Badge variant="secondary" title="Added manually — not from an automated scan">
+                Manually added
+              </Badge>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">{match.company}</p>
           {(match.location || match.remote) && (
             <p className="text-xs text-muted-foreground">
@@ -81,11 +95,29 @@ export function TrackedMatchRow({ match }: TrackedMatchRowProps) {
         </Select>
 
         <div className="ml-auto flex items-center gap-3">
-          <Button size="sm" asChild>
-            <a href={getApplyRedirectUrl(match.matchId)} target="_blank" rel="noopener noreferrer">
-              Apply
-            </a>
-          </Button>
+          {isManualEntry ? (
+            // Module B's apply-redirect endpoint is job_posting_id-keyed and manual
+            // entries have none — a manual row gets a plain link to whatever URL the
+            // candidate provided (no click-tracking redirect), and no Apply affordance
+            // at all if they didn't provide one, rather than a broken redirect (§10.7).
+            match.sourceUrl && (
+              <Button size="sm" asChild>
+                <a href={match.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  Apply
+                </a>
+              </Button>
+            )
+          ) : (
+            <Button size="sm" asChild>
+              <a
+                href={getApplyRedirectUrl(match.matchId)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Apply
+              </a>
+            </Button>
+          )}
 
           <div className="flex items-center gap-2">
             <Checkbox
