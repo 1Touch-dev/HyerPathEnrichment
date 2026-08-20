@@ -46,8 +46,12 @@ async def test_seed_migration_creates_support_and_admin_roles(db_session):
 
 
 async def test_seed_migration_grants_expected_permissions_to_support_role(db_session):
-    """Regression guard for migration 038's ROLE_PERMISSIONS mapping: 'support'
-    gets read + suspend only, never a write/config permission."""
+    """Regression guard for migration 038's ROLE_PERMISSIONS mapping ('support'
+    gets read + suspend only, never a write/config permission) extended by
+    migration 041, which additionally grants 'support' every read-only action
+    across the new Phase 2 + Module 3 resources (READ_ONLY_ACTIONS in
+    041_admin_seed_phase2_permissions.py), never the paired moderate/decide
+    action on those same resources."""
     from sqlalchemy import select
 
     from app.modules.admin.models import Permission, Role, RolePermission
@@ -64,6 +68,14 @@ async def test_seed_migration_grants_expected_permissions_to_support_role(db_ses
         ("users", "suspend"),
         ("audit_logs", "read"),
         ("system_health", "read"),
+        ("job_postings", "read"),
+        ("documents", "read"),
+        ("job_swipe", "read"),
+        ("portfolio", "read"),
+        ("outreach", "read"),
+        ("content_review", "read"),
+        ("questions", "read"),
+        ("practice_audio", "read"),
     }
 
 
