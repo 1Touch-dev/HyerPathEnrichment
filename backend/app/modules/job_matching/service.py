@@ -12,6 +12,7 @@ from rq import Queue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError
+from app.modules.application_tracker import repository as application_tracker_repository
 from app.modules.job_matching import repository
 from app.modules.job_matching.schemas import (
     JobMatchListResponse,
@@ -137,6 +138,12 @@ class JobMatchingService:
         found = await repository.set_applied(self.db, UUID(match_id), user_id, applied)
         if not found:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
+        if applied:
+            owned = await repository.get_owned_match(self.db, UUID(match_id), user_id)
+            if owned is not None and owned[0].application_status == "new":
+                await application_tracker_repository.update_status(
+                    self.db, UUID(match_id), user_id, "applied"
+                )
 
     async def trigger_scan(self, user_id: UUID) -> ScanTriggerResponse:
         """Manual on-demand scan trigger (in addition to the daily cron, §7.7)."""

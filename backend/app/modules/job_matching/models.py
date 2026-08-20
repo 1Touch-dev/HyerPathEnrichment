@@ -149,6 +149,14 @@ class JobMatch(Base):
         DateTime(timezone=True), nullable=True
     )
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # "new"|"applied"|"replied"|"interview"|"offer"|"rejected" — enforced at app layer,
+    # same convention as explanation_status/feedback above.
+    application_status: Mapped[str] = mapped_column(
+        String(20), default="new", nullable=False, index=True
+    )
+    status_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
