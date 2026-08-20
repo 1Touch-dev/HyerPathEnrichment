@@ -17,6 +17,7 @@ from app.auth.models import (
 from app.compliance.models import AuditLog, DsarRecord, SuppressionRecord
 from app.database.base import Base
 from app.modules.enrichment.models import JobRecord
+from app.modules.interview_scheduling.models import InterviewSchedule
 from app.modules.job_matching.models import (
     CandidateJobPreferences,
     JobMatch,
@@ -24,6 +25,7 @@ from app.modules.job_matching.models import (
     JobPostingEmbedding,
     PushSubscription,
 )
+from app.modules.manual_jobs.models import ManualJobEntry
 from app.modules.sessions.models import PracticeSession, QuestionAttempt
 from app.modules.signals.models import SignalRecord
 from app.storage.models import PhotoCacheRecord
@@ -49,6 +51,8 @@ _ = (
     JobPosting,
     JobPostingEmbedding,
     PushSubscription,
+    InterviewSchedule,
+    ManualJobEntry,
 )
 
 # Re-export for alembic env after patch
@@ -59,11 +63,13 @@ __all__ = [
     "CandidateJobPreferences",
     "DsarRecord",
     "EmailVerificationToken",
+    "InterviewSchedule",
     "JobMatch",
     "JobPosting",
     "JobPostingEmbedding",
     "JobRecord",
     "LoggedOutToken",
+    "ManualJobEntry",
     "OAuthAccount",
     "PhotoCacheRecord",
     "PracticeSession",
