@@ -290,6 +290,53 @@ async def set_feedback(db: AsyncSession, match_id: UUID, user_id: UUID, feedback
     return bool(result.rowcount > 0)  # type: ignore[attr-defined]
 
 
+async def get_owned_match(
+    db: AsyncSession, match_id: UUID, user_id: UUID
+) -> tuple[JobMatch, JobPosting | None] | None:
+    """Single indexed lookup of one match owned by this exact user, outer-joined against
+    JobPosting (forward-compat for Module F's manual entries, which have no posting row —
+    see Module B §6.5's design note). Reused as-is by Module C and Module E rather than
+    duplicated.
+    """
+    result = await db.execute(
+        select(JobMatch, JobPosting)
+        .outerjoin(JobPosting, JobMatch.job_posting_id == JobPosting.id)
+        .where(JobMatch.id == match_id, JobMatch.user_id == user_id)
+    )
+    row = result.first()
+    if row is None:
+        return None
+    match, posting = row
+    return match, posting
+
+
+async def record_apply_click(db: AsyncSession, match_id: UUID) -> JobMatch | None:
+    """Idempotent: only sets apply_clicked_at the first time (never overwrites a later
+    click with an earlier one via repeated calls — CURRENT_TIMESTAMP semantics aren't
+    needed here since we want the FIRST click time for funnel analysis, not the latest).
+    """
+    result = await db.execute(select(JobMatch).where(JobMatch.id == match_id))
+    match = result.scalar_one_or_none()
+    if match is None:
+        return None
+    if match.apply_clicked_at is None:
+        match.apply_clicked_at = datetime.now(UTC)
+        await db.commit()
+        await db.refresh(match)
+    return match
+
+
+async def set_applied(db: AsyncSession, match_id: UUID, user_id: UUID, applied: bool) -> bool:
+    """Toggle applied_at on/off (unmarking is allowed — candidates make mistakes)."""
+    result = await db.execute(
+        update(JobMatch)
+        .where(JobMatch.id == match_id, JobMatch.user_id == user_id)
+        .values(applied_at=datetime.now(UTC) if applied else None)
+    )
+    await db.commit()
+    return bool(result.rowcount > 0)  # type: ignore[attr-defined]
+
+
 async def _find_similar_postings_pass(
     db: AsyncSession,
     query_embedding: list[float],

@@ -63,6 +63,8 @@ class JobMatchResponse(BaseModel):
     is_new: bool  # notified_at is None
     viewed_at: datetime | None
     feedback: Literal["up", "down"] | None
+    apply_clicked_at: datetime | None
+    applied_at: datetime | None
     created_at: datetime
 
 
@@ -75,6 +77,10 @@ class JobMatchListResponse(BaseModel):
 
 class JobMatchFeedbackRequest(BaseModel):
     feedback: Literal["up", "down"]
+
+
+class MarkAppliedRequest(BaseModel):
+    applied: bool
 
 
 class ScanTriggerResponse(BaseModel):

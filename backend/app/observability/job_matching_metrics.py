@@ -71,3 +71,7 @@ job_matching_similarity_fallback_fired_total = Counter(
     "Total times the similarity-threshold relaxation fallback fired (strict pass returned "
     "fewer than min_results)",
 )
+
+job_matching_apply_clicks_total = Counter(
+    "job_matching_apply_clicks_total", "Total Apply-button clicks recorded"
+)
