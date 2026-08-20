@@ -1,0 +1,124 @@
+"""Data-access layer for the application tracker. Extends job_matching's list_matches_for_user
+with status filter + sort options, and owns the single-flight status UPDATE."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any, Literal
+from uuid import UUID
+
+from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.modules.application_tracker.schemas import _ALL_STATUSES, ApplicationStatus
+from app.modules.job_matching.models import JobMatch, JobPosting
+from app.modules.job_matching.repository import get_owned_match  # re-exported for
+# this module's service.py — Module C never redefines the owned-single-match
+# lookup; it imports Module B's get_owned_match (job_matching/repository.py,
+# §6.5) directly, same read-only cross-module convention as everywhere else.
+
+__all__ = [
+    "get_owned_match",
+    "list_tracked_matches",
+    "update_status",
+    "count_by_status",
+]
+
+_SORT_COLUMNS: dict[str, Any] = {
+    "newest": JobMatch.created_at.desc(),
+    "oldest": JobMatch.created_at.asc(),
+    # Manual entries (Module F) sentinel overall_score=0.0 must never be conflated
+    # with a real low score in "score" sort — ORDER BY expression puts NULL/manual
+    # rows last regardless of dialect (Postgres sorts NULL last on DESC by default;
+    # SQLite does NOT — SQLite sorts NULL first always, so the explicit
+    # `.is_(None)` tie-break below is REQUIRED for cross-dialect correctness, not
+    # just a Postgres nicety).
+    "score": (JobMatch.overall_score.is_(None), JobMatch.overall_score.desc()),
+    "recently_updated": (
+        JobMatch.status_updated_at.is_(None),
+        JobMatch.status_updated_at.desc(),
+        JobMatch.created_at.desc(),  # tie-break for rows never manually updated
+    ),
+}
+
+
+async def list_tracked_matches(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    status: ApplicationStatus | None,
+    sort: Literal["newest", "oldest", "score", "recently_updated"],
+    limit: int,
+    offset: int,
+) -> tuple[list[tuple[JobMatch, JobPosting | None]], int]:
+    """Extends job_matching's list_matches_for_user with status filter + sort options.
+    Deliberately NOT added to job_matching/repository.py itself (see §7.4 rationale).
+
+    Uses outerjoin (not join) from day one — Module F (§10) later widens
+    JobMatch.job_posting_id to nullable for manual entries; building this query
+    with an inner join now would mean silently dropping every manual-entry row
+    the moment Module F ships, with no error surfaced anywhere. Cheaper to write
+    the correct join shape once than to remember to revisit this file later.
+    """
+    order_by = _SORT_COLUMNS[sort]
+    order_clauses = order_by if isinstance(order_by, tuple) else (order_by,)
+
+    stmt = (
+        select(JobMatch, JobPosting)
+        .outerjoin(JobPosting, JobMatch.job_posting_id == JobPosting.id)
+        .where(JobMatch.user_id == user_id)
+    )
+    if status is not None:
+        stmt = stmt.where(JobMatch.application_status == status)
+    stmt = stmt.order_by(*order_clauses).limit(limit).offset(offset)
+
+    result = await db.execute(stmt)
+    rows = [(m, p) for m, p in result.all()]
+
+    count_stmt = select(func.count()).select_from(JobMatch).where(JobMatch.user_id == user_id)
+    if status is not None:
+        count_stmt = count_stmt.where(JobMatch.application_status == status)
+    total = (await db.execute(count_stmt)).scalar_one()
+
+    return rows, total
+
+
+async def update_status(
+    db: AsyncSession, match_id: UUID, user_id: UUID, new_status: ApplicationStatus
+) -> JobMatch | None:
+    """Single-flight UPDATE (not read-then-write) so two concurrent PATCHes from
+    the same candidate (e.g. a double-click before the button disables, or two
+    browser tabs) can never race into an inconsistent read-modify-write — the
+    UPDATE...WHERE is atomic at the database level regardless of how many
+    concurrent requests hit it, and RETURNING gives us the fresh row in the same
+    round-trip.
+    """
+    result = await db.execute(
+        update(JobMatch)
+        .where(JobMatch.id == match_id, JobMatch.user_id == user_id)
+        .values(application_status=new_status, status_updated_at=datetime.now(UTC))
+        .returning(JobMatch)
+    )
+    row = result.first()
+    if row is None:
+        return None
+    await db.commit()
+    match: JobMatch = row[0]
+    return match
+
+
+async def count_by_status(db: AsyncSession, user_id: UUID) -> dict[str, int]:
+    """One GROUP BY query for the tab/column badge counts — avoids 6 separate
+    COUNT(*) round-trips from the frontend rendering 6 status tabs. Zero-fills
+    every status not present in the result (a candidate with no rejected
+    applications yet must see rejected: 0, not a missing key the frontend has
+    to guard against with `?? 0` at every call site).
+    """
+    result = await db.execute(
+        select(JobMatch.application_status, func.count())
+        .where(JobMatch.user_id == user_id)
+        .group_by(JobMatch.application_status)
+    )
+    counts: dict[str, int] = {status: 0 for status in _ALL_STATUSES}
+    counts.update({row[0]: row[1] for row in result.all()})
+    return counts

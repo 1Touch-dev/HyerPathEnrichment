@@ -12,6 +12,7 @@ from app.core.logging import RequestContextMiddleware
 from app.dependencies.rate_limit import enforce_compliance_rate_limit
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.modules.admin.router import router as admin_router
+from app.modules.application_tracker.router import router as application_tracker_router
 from app.modules.documents.router import router as documents_router
 from app.modules.dsar.router import router as dsar_router
 from app.modules.email.router import router as email_router
@@ -86,6 +87,7 @@ app.include_router(sessions_router, dependencies=[Depends(current_verified_user)
 app.include_router(questions_router, dependencies=[Depends(current_verified_user)])
 app.include_router(practice_audio_router, dependencies=[Depends(current_verified_user)])
 app.include_router(job_matching_router, dependencies=[Depends(current_verified_user)])
+app.include_router(application_tracker_router, dependencies=[Depends(current_verified_user)])
 app.include_router(portfolio_router, dependencies=[Depends(current_verified_user)])
 app.include_router(portfolio_public_router)
 app.include_router(job_swipe_router, dependencies=[Depends(current_verified_user)])
