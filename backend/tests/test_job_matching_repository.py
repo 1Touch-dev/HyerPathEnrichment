@@ -22,6 +22,7 @@ from app.auth.password import hash_password
 from app.modules.job_matching import repository
 from app.modules.job_matching.models import PGVECTOR_AVAILABLE, JobPosting, JobPostingEmbedding
 from app.modules.job_matching.scorer import compute_dedup_key
+from app.modules.manual_jobs.models import ManualJobEntry
 from app.observability.job_matching_metrics import job_matching_similarity_fallback_fired_total
 
 
@@ -75,6 +76,54 @@ async def _make_posting(db: AsyncSession, **overrides) -> JobPosting:
     await db.commit()
     await db.refresh(posting)
     return posting
+
+
+async def _make_manual_entry(db: AsyncSession, user_id: uuid.UUID, **overrides) -> ManualJobEntry:
+    """Create and commit a ManualJobEntry row (Module F, §10.5) with sensible defaults."""
+    fields = {
+        "user_id": user_id,
+        "title": "Self-Sourced Engineer",
+        "company": "Referral Co",
+        "location": "Remote",
+        "source_label": "Referral",
+        "source_url": "https://example.com/careers/manual",
+        "notes": None,
+    }
+    fields.update(overrides)
+    entry = ManualJobEntry(**fields)
+    db.add(entry)
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+async def _make_manual_match(
+    db: AsyncSession, user_id: uuid.UUID, entry: ManualJobEntry, **overrides
+) -> Any:
+    """Create and commit a JobMatch row wired to a manual entry (job_posting_id=None,
+    manual_job_entry_id set) — the exact shape manual_jobs/repository.py's
+    create_manual_entry() produces (Module F, §10.5), used here directly rather than
+    going through the manual_jobs module to keep these repository tests scoped to
+    job_matching only.
+    """
+    from app.modules.job_matching.models import JobMatch
+
+    fields = {
+        "user_id": user_id,
+        "job_posting_id": None,
+        "manual_job_entry_id": entry.id,
+        "similarity_score": 0.0,
+        "rule_score": 0.0,
+        "overall_score": 0.0,
+        "score_breakdown": {},
+        "application_status": "new",
+    }
+    fields.update(overrides)
+    match = JobMatch(**fields)
+    db.add(match)
+    await db.commit()
+    await db.refresh(match)
+    return match
 
 
 class TestPreferencesRepository:
@@ -304,6 +353,50 @@ class TestJobMatchRepository:
         assert len(page2) == 1
         assert page2[0][0].overall_score == 10.0
 
+    async def test_list_matches_for_user_includes_manual_entry_with_no_crash(
+        self, db: AsyncSession, test_user: User
+    ):
+        """Regression test (Module F, §10.6): a manual-entry JobMatch (job_posting_id
+        NULL, manual_job_entry_id set) must not be silently dropped by an inner join,
+        and must not raise when the row is unpacked — it comes back with posting=None
+        and the manual entry populated, sourced separately.
+        """
+        entry = await _make_manual_entry(
+            db, test_user.id, title="Self-Sourced Role", company="Referral Co"
+        )
+        manual_match = await _make_manual_match(db, test_user.id, entry)
+
+        posting = await _make_posting(db)
+        real_match = await repository.upsert_match(
+            db,
+            test_user.id,
+            posting.id,
+            similarity_score=0.5,
+            rule_score=0.5,
+            overall_score=50.0,
+            score_breakdown={},
+        )
+
+        rows, total = await repository.list_matches_for_user(db, test_user.id, limit=10, offset=0)
+        assert total == 2
+
+        rows_by_id = {m.id: (m, p, e) for m, p, e in rows}
+        manual_row = rows_by_id[manual_match.id]
+        assert manual_row[1] is None  # no JobPosting row
+        assert manual_row[2] is not None  # ManualJobEntry row is populated
+        assert manual_row[2].title == "Self-Sourced Role"
+        assert manual_row[2].company == "Referral Co"
+
+        real_row = rows_by_id[real_match.id]
+        assert real_row[1] is not None
+        assert real_row[2] is None
+
+        title, company, location, source_url = repository.resolve_match_display_fields(
+            manual_row[1], manual_row[2]
+        )
+        assert title == "Self-Sourced Role"
+        assert company == "Referral Co"
+
     async def test_get_top_unexplained_matches_filters_explained_and_respects_top_n(
         self, db: AsyncSession, test_user: User
     ):
@@ -335,6 +428,34 @@ class TestJobMatchRepository:
         limited = await repository.get_top_unexplained_matches(db, test_user.id, top_n=1)
         assert len(limited) == 1
         assert limited[0][0].id == matches[1].id  # highest-scoring remaining unexplained match
+
+    async def test_get_top_unexplained_matches_excludes_manual_entries_with_no_crash(
+        self, db: AsyncSession, test_user: User
+    ):
+        """Regression test (Module F, §10.6): manual entries have no JD-embedding to
+        explain a similarity match against, so they must never surface here — and the
+        (now inner-joined-with-a-NULL-guard) query must not raise on their presence.
+        """
+        entry = await _make_manual_entry(db, test_user.id)
+        await _make_manual_match(db, test_user.id, entry, overall_score=999.0)
+
+        posting = await _make_posting(db)
+        real_match = await repository.upsert_match(
+            db,
+            test_user.id,
+            posting.id,
+            similarity_score=0.5,
+            rule_score=0.5,
+            overall_score=10.0,
+            score_breakdown={},
+        )
+
+        top = await repository.get_top_unexplained_matches(db, test_user.id, top_n=5)
+        top_ids = {m.id for m, _ in top}
+        assert real_match.id in top_ids
+        # The manual entry's sentinel overall_score=999.0 would otherwise rank first —
+        # confirming its absence also confirms it isn't merely sorted last.
+        assert len(top) == 1
 
     async def test_save_explanation_sets_fields(self, db: AsyncSession, test_user: User):
         posting = await _make_posting(db)

@@ -209,6 +209,47 @@ async def test_get_job_description_returns_none_without_job_match_id(db: AsyncSe
     assert result is None
 
 
+async def test_get_job_description_returns_none_for_manual_entry_match_with_no_crash(
+    db: AsyncSession, worker_user: User
+) -> None:
+    """Regression test (Module F, §10.6): a JobMatch for a manually-added job
+    (job_posting_id NULL, manual_job_entry_id set) has no JobPosting row to look up a
+    description from. Before this fix, this hit an unconditional `select(JobPosting)
+    .where(JobPosting.id == match.job_posting_id)` — this asserts the early-return
+    guard added for `job_posting_id is None` returns cleanly, not just that the
+    (already-defensive) `if not posting` check downstream happens to save it.
+    """
+    from app.modules.job_matching.models import JobMatch
+    from app.modules.manual_jobs.models import ManualJobEntry
+    from app.workers.tasks.outreach import _get_job_description
+
+    entry = ManualJobEntry(
+        id=uuid4(),
+        user_id=worker_user.id,
+        title="Self-Sourced Role",
+        company="Referral Co",
+    )
+    db.add(entry)
+    await db.flush()
+
+    match = JobMatch(
+        id=uuid4(),
+        user_id=worker_user.id,
+        job_posting_id=None,
+        manual_job_entry_id=entry.id,
+        similarity_score=0.0,
+        rule_score=0.0,
+        overall_score=0.0,
+        score_breakdown={},
+        application_status="new",
+    )
+    db.add(match)
+    await db.commit()
+
+    result = await _get_job_description(db, str(match.id), worker_user.id)
+    assert result is None
+
+
 async def test_generate_outreach_draft_job_includes_job_description_from_match(
     db: AsyncSession, worker_user: User, worker_document: CandidateDocument
 ) -> None:

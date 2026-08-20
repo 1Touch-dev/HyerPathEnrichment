@@ -18,6 +18,7 @@ from app.modules.job_matching.models import (  # Module 1 — see §4.1 dependen
 )
 from app.modules.job_swipe.schemas import SwipeActionRequest
 from app.modules.job_swipe.service import JobSwipeService
+from app.modules.manual_jobs.models import ManualJobEntry
 
 
 @pytest.fixture
@@ -95,6 +96,41 @@ async def test_get_deck_empty_for_user_with_no_matches(db, test_user):
     deck = await service.get_deck(test_user.id)
     assert deck.cards == []
     assert deck.has_more is False
+
+
+async def test_get_deck_excludes_manual_entries_with_no_crash(db, test_user):
+    """Regression test (Module F, §10.6/§10.7): a manual entry (job_posting_id NULL,
+    manual_job_entry_id set) is added straight to the tracker, bypassing swipe-to-match
+    entirely — it must never appear in the swipe deck, and the deck query (previously an
+    inner join on JobPosting) must not raise when a manual-entry row exists for the user.
+    """
+    entry = ManualJobEntry(
+        id=uuid4(),
+        user_id=test_user.id,
+        title="Self-Sourced Role",
+        company="Referral Co",
+    )
+    db.add(entry)
+    await db.flush()
+    manual_match = JobMatch(
+        id=uuid4(),
+        user_id=test_user.id,
+        job_posting_id=None,
+        manual_job_entry_id=entry.id,
+        similarity_score=0.0,
+        rule_score=0.0,
+        overall_score=999.0,  # would sort first if it leaked into the deck
+        score_breakdown={},
+        application_status="new",
+    )
+    db.add(manual_match)
+    await db.commit()
+
+    service = JobSwipeService(db)
+    deck = await service.get_deck(test_user.id)
+
+    assert str(manual_match.id) not in {card.match_id for card in deck.cards}
+    assert deck.cards == []
 
 
 async def test_get_deck_flags_below_similarity_threshold_matches(db, test_user):
