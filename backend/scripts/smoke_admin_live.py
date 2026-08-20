@@ -321,24 +321,12 @@ def run_smoke(base_url: str) -> bool:
         )
         impersonation_started_ok = resp.status_code == 200
 
-        # KNOWN BUG (found live, out of this script's scope to fix): impersonation.py
-        # hardcodes `secure=True` on the replacement access_token cookie, unlike every
-        # other set_cookie() call in this codebase which uses `settings.COOKIE_SECURE`
-        # (default False for local/dev per .env.example). Any RFC-6265-compliant HTTP
-        # client — httpx included — silently drops a Secure cookie on a plain-HTTP
-        # connection, so impersonation appears to succeed (200) but the swapped
-        # identity never actually takes effect for the rest of the session over HTTP.
-        # Grab the raw cookie value from the response itself (not the client jar,
-        # which correctly refuses to re-send it) so the remaining steps can still
-        # exercise the server-side impersonation logic end-to-end.
-        impersonation_cookie = (
-            resp.cookies.get("access_token") if impersonation_started_ok else None
-        )
-
-        if impersonation_started_ok and impersonation_cookie:
-            resp = client.get(
-                "/api/admin/impersonation/status", cookies={"access_token": impersonation_cookie}
-            )
+        # The impersonation-start response replaces the access_token cookie via a
+        # normal Set-Cookie header (secure=settings.COOKIE_SECURE, False in dev/test —
+        # see impersonation.py), so the client's own cookie jar picks it up and resends
+        # it on the requests below with no manual cookie handling required.
+        if impersonation_started_ok:
+            resp = client.get("/api/admin/impersonation/status")
             status_data = resp.json().get("data", {}) if resp.status_code == 200 else {}
             _record(
                 "GET /api/admin/impersonation/status (is_impersonating=True as target)",
@@ -346,21 +334,21 @@ def run_smoke(base_url: str) -> bool:
                 f"data={status_data}",
             )
 
-            resp = client.post(
-                "/api/admin/impersonation/end", cookies={"access_token": impersonation_cookie}
-            )
+            resp = client.post("/api/admin/impersonation/end")
             _record(
                 "POST /api/admin/impersonation/end",
                 resp.status_code == 204,
                 f"status={resp.status_code}",
             )
-        elif impersonation_started_ok:
+        else:
             _record(
                 "GET /api/admin/impersonation/status (is_impersonating=True as target)",
                 False,
-                "impersonation cookie missing from start response",
+                "impersonation start did not return 200",
             )
-            _record("POST /api/admin/impersonation/end", False, "no impersonation cookie captured")
+            _record(
+                "POST /api/admin/impersonation/end", False, "impersonation start did not return 200"
+            )
 
         # Impersonation end clears the access_token cookie entirely — re-login as
         # superuser to restore an authenticated session for the remaining checks.
