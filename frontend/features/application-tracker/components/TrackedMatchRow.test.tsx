@@ -35,6 +35,7 @@ describe("TrackedMatchRow", () => {
     vi.restoreAllMocks();
     vi.spyOn(trackerClient, "updateApplicationStatus").mockResolvedValue(baseMatch);
     vi.spyOn(matchingClient, "markApplied").mockResolvedValue(undefined);
+    vi.spyOn(matchingClient, "getApplyRedirectUrl");
     // InterviewScheduleCard (Module D) is only rendered when applicationStatus ===
     // "interview"; stub its query so those rows don't trigger a real network call.
     vi.spyOn(useInterviewScheduleHooks, "useInterviewSchedule").mockReturnValue({
@@ -76,6 +77,57 @@ describe("TrackedMatchRow", () => {
     render(<TrackedMatchRow match={baseMatch} />, { wrapper });
     const applyLink = screen.getByRole("link", { name: "Apply" });
     expect(applyLink).toHaveAttribute("href", "/api/matches/m1/apply-redirect");
+  });
+
+  describe("manual-entry Apply affordance degradation (Module F, §10.7-8)", () => {
+    const manualMatch: TrackedMatch = {
+      ...baseMatch,
+      overallScore: null,
+      sourceUrl: "https://startup.example.com/careers/growth-marketer",
+    };
+
+    it("renders a plain link to sourceUrl (not the redirect-tracked Apply button) for a manual row with a sourceUrl", () => {
+      render(<TrackedMatchRow match={manualMatch} />, { wrapper });
+
+      const applyLink = screen.getByRole("link", { name: "Apply" });
+      // Points straight at the candidate-provided URL, not Module B's apply-redirect
+      // BFF route — a manual entry has no job_posting_id for that endpoint to key off.
+      expect(applyLink).toHaveAttribute("href", manualMatch.sourceUrl);
+      expect(applyLink).not.toHaveAttribute("href", "/api/matches/m1/apply-redirect");
+      // If the degradation logic were removed and this row fell through to the
+      // real-posting branch, getApplyRedirectUrl would be called to build the href —
+      // confirm it never was, rather than only asserting on the resulting href string.
+      expect(matchingClient.getApplyRedirectUrl).not.toHaveBeenCalled();
+    });
+
+    it("renders no Apply affordance at all for a manual row without a sourceUrl", () => {
+      render(<TrackedMatchRow match={{ ...manualMatch, sourceUrl: null }} />, { wrapper });
+
+      // Distinct from the real-posting case (which always renders a link named
+      // "Apply") and from the manual-with-sourceUrl case above — no link, and no
+      // fallback button either.
+      expect(screen.queryByRole("link", { name: "Apply" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
+      expect(matchingClient.getApplyRedirectUrl).not.toHaveBeenCalled();
+    });
+
+    it("distinguishes the manual-entry link from the real-posting Apply button's redirect href", () => {
+      // Sanity check that the two code paths are genuinely different, not just two
+      // assertions that happen to both pass: the real-posting row's href must be the
+      // apply-redirect BFF route, while the manual row's href must be its own sourceUrl.
+      const { unmount } = render(<TrackedMatchRow match={baseMatch} />, { wrapper });
+      expect(screen.getByRole("link", { name: "Apply" })).toHaveAttribute(
+        "href",
+        "/api/matches/m1/apply-redirect",
+      );
+      unmount();
+
+      render(<TrackedMatchRow match={manualMatch} />, { wrapper });
+      expect(screen.getByRole("link", { name: "Apply" })).toHaveAttribute(
+        "href",
+        manualMatch.sourceUrl,
+      );
+    });
   });
 
   it("renders no interview chip when nextInterviewAt is null", () => {

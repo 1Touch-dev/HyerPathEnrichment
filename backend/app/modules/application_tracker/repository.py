@@ -30,13 +30,15 @@ __all__ = [
 _SORT_COLUMNS: dict[str, Any] = {
     "newest": JobMatch.created_at.desc(),
     "oldest": JobMatch.created_at.asc(),
-    # Manual entries (Module F) sentinel overall_score=0.0 must never be conflated
-    # with a real low score in "score" sort — ORDER BY expression puts NULL/manual
-    # rows last regardless of dialect (Postgres sorts NULL last on DESC by default;
-    # SQLite does NOT — SQLite sorts NULL first always, so the explicit
-    # `.is_(None)` tie-break below is REQUIRED for cross-dialect correctness, not
-    # just a Postgres nicety).
-    "score": (JobMatch.overall_score.is_(None), JobMatch.overall_score.desc()),
+    # Manual entries (Module F) store a 0.0 sentinel in overall_score (the column
+    # is nullable=False, so `.is_(None)` is always False and contributes nothing
+    # to the ORDER BY — that sentinel can collide with a real match that
+    # legitimately scores 0.0, e.g. via compute_overall_score's clamp). Tie-break
+    # on `job_posting_id IS NULL` instead (True only for manual entries, per the
+    # ck_job_matches_exactly_one_source invariant — same manual-entry check used
+    # in job_matching/repository.py's join logic), so manual entries always sort
+    # last regardless of dialect NULL-ordering or a 0.0/0.0 sentinel collision.
+    "score": (JobMatch.job_posting_id.is_(None), JobMatch.overall_score.desc()),
     "recently_updated": (
         JobMatch.status_updated_at.is_(None),
         JobMatch.status_updated_at.desc(),
