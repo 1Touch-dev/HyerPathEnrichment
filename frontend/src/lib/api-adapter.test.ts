@@ -27,6 +27,9 @@ describe("adaptSwipeDeck", () => {
           salary_currency: null,
           overall_score: 88,
           explanation: null,
+          below_similarity_threshold: false,
+          source_url: "https://example.com/job/1",
+          applied_at: null,
         },
       ],
       has_more: true,
@@ -37,6 +40,9 @@ describe("adaptSwipeDeck", () => {
     expect(deck.hasMore).toBe(true);
     expect(deck.cards).toHaveLength(1);
     expect(deck.cards[0]).not.toHaveProperty("scoreBreakdown");
+    expect(deck.cards[0].belowSimilarityThreshold).toBe(false);
+    expect(deck.cards[0].sourceUrl).toBe("https://example.com/job/1");
+    expect(deck.cards[0].appliedAt).toBeNull();
   });
 
   it("maps has_more: false", () => {

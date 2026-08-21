@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_documents_upload_rate_limit
 from app.modules.documents.cv_chat_service import CvChatService
 from app.modules.documents.schemas import (
     AcceptBulletRequest,
@@ -38,6 +39,7 @@ router = APIRouter(prefix="/api/documents", tags=["documents"], route_class=Enve
     "/upload",
     response_model=DocumentUploadResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(enforce_documents_upload_rate_limit)],
 )
 async def upload_document(
     current_user: CurrentUser,
@@ -303,4 +305,6 @@ async def accept_cv_feedback_bullet(
 ) -> CvFeedbackResponse:
     """Explicitly accept one rewritten bullet — the only way a suggestion is endorsed (Decision 3)."""
     service = DocumentService(db)
-    return await service.accept_cv_feedback_bullet(document_id, current_user.id, report_id, body.bullet_index)
+    return await service.accept_cv_feedback_bullet(
+        document_id, current_user.id, report_id, body.bullet_index
+    )

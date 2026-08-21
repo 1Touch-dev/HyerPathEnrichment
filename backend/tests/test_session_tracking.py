@@ -1,6 +1,7 @@
 """Comprehensive tests for session tracking system."""
 
 from datetime import UTC, datetime
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -345,6 +346,79 @@ class TestQuestionAttempts:
         assert str(response.audio_recording_id) == audio_id  # Compare as strings
         assert response.ai_score == 88.5
 
+    async def test_add_audio_attempt_backfills_text_response_from_transcription(
+        self,
+        session_manager: SessionManager,
+        sample_session: PracticeSession,
+        test_user_id: UUID,
+        db: AsyncSession,
+    ):
+        """Regression test: `POST /api/practice/audio` transcribes
+        synchronously and returns before `add_attempt` is ever called, so the
+        recording is already "completed" by then. Without backfilling
+        `text_response` here, every audio attempt's `text_response` stayed
+        `None` forever, so `add_attempt`'s "enqueue feedback if text_response"
+        check never fired for audio answers — real users saw every audio
+        question's score/feedback stuck at "Pending..." with no error."""
+        from app.modules.sessions.models import PracticeAudioRecording
+
+        recording = PracticeAudioRecording(
+            id=uuid4(),
+            user_id=test_user_id,
+            practice_session_id=sample_session.id,
+            storage_path="practice-audio/u/s/r.webm",
+            file_size_bytes=1234,
+            audio_format="audio/webm",
+            transcription="This is my spoken answer.",
+            transcription_status="completed",
+        )
+        db.add(recording)
+        await db.flush()
+
+        request = QuestionAttemptRequest(
+            response_type="audio",
+            audio_recording_id=recording.id,
+        )
+        with patch("app.services.session_manager.enqueue_feedback") as mock_enqueue:
+            response = await session_manager.add_attempt(sample_session.id, request, test_user_id)
+
+        assert response.text_response == "This is my spoken answer."
+        mock_enqueue.assert_called_once_with(str(response.id))
+
+    async def test_add_audio_attempt_with_pending_transcription_has_no_text_response(
+        self,
+        session_manager: SessionManager,
+        sample_session: PracticeSession,
+        test_user_id: UUID,
+        db: AsyncSession,
+    ):
+        """A recording that hasn't finished transcribing (or failed) yields no
+        `text_response` — no feedback job should be enqueued yet, since there's
+        nothing to score."""
+        from app.modules.sessions.models import PracticeAudioRecording
+
+        recording = PracticeAudioRecording(
+            id=uuid4(),
+            user_id=test_user_id,
+            practice_session_id=sample_session.id,
+            storage_path="practice-audio/u/s/r2.webm",
+            file_size_bytes=1234,
+            audio_format="audio/webm",
+            transcription_status="failed",
+        )
+        db.add(recording)
+        await db.flush()
+
+        request = QuestionAttemptRequest(
+            response_type="audio",
+            audio_recording_id=recording.id,
+        )
+        with patch("app.services.session_manager.enqueue_feedback") as mock_enqueue:
+            response = await session_manager.add_attempt(sample_session.id, request, test_user_id)
+
+        assert response.text_response is None
+        mock_enqueue.assert_not_called()
+
     async def test_add_attempt_updates_session_metrics(
         self, session_manager: SessionManager, sample_session: PracticeSession, test_user_id: UUID
     ):
@@ -445,6 +519,108 @@ class TestEdgeCases:
         assert session.questions_attempted == 3
         assert session.questions_completed == 3
         assert len(session.attempts) == 3
+
+    async def test_overall_score_defaults_to_average_of_scored_attempts(
+        self, session_manager: SessionManager, sample_session: PracticeSession, test_user_id: UUID
+    ):
+        """`overall_score` is never set explicitly (no PATCH call, no
+        session-completion flow) for a real practice session — it must fall
+        back to the average of scored attempts instead of staying `None`
+        forever (frontend showed "Overall score: Pending..." indefinitely)."""
+        for score in (10.0, 80.0, 60.0):
+            request = QuestionAttemptRequest(
+                response_type="text", text_response="answer", ai_score=score
+            )
+            await session_manager.add_attempt(sample_session.id, request, test_user_id)
+
+        session = await session_manager.get_session(sample_session.id, test_user_id)
+        assert session.overall_score == 50.0  # (10 + 80 + 60) / 3
+
+    async def test_overall_score_stays_none_with_no_scored_attempts(
+        self, session_manager: SessionManager, sample_session: PracticeSession, test_user_id: UUID
+    ):
+        """No attempts scored yet (feedback job still pending) means "Pending"
+        is still the correct UI state — must not default to 0."""
+        request = QuestionAttemptRequest(response_type="text", text_response="answer")
+        await session_manager.add_attempt(sample_session.id, request, test_user_id)
+
+        session = await session_manager.get_session(sample_session.id, test_user_id)
+        assert session.overall_score is None
+
+    async def test_explicit_overall_score_is_not_overridden_by_average(
+        self, session_manager: SessionManager, sample_session: PracticeSession, test_user_id: UUID
+    ):
+        """An explicit PATCH-set `overall_score` (e.g. a future "finish
+        session" flow) always wins over the computed average."""
+        request = QuestionAttemptRequest(
+            response_type="text", text_response="answer", ai_score=10.0
+        )
+        await session_manager.add_attempt(sample_session.id, request, test_user_id)
+
+        update = SessionUpdateRequest(overall_score=99.0)
+        await session_manager.update_session(sample_session.id, update, test_user_id)
+
+        session = await session_manager.get_session(sample_session.id, test_user_id)
+        assert session.overall_score == 99.0
+
+    async def test_attempt_question_text_is_populated_from_question_bank(
+        self,
+        session_manager: SessionManager,
+        sample_session: PracticeSession,
+        test_user_id: UUID,
+        db: AsyncSession,
+    ):
+        """The report page needs the actual question wording next to a
+        candidate's answer, not just `question_id` — both `add_attempt`'s
+        return value and `get_session`'s attempts must carry `question_text`
+        looked up from `interview_questions` (see session_manager.py's
+        `_fetch_question_texts`)."""
+        from app.models import InterviewQuestion
+
+        question = InterviewQuestion(
+            id=uuid4(),
+            question_text="Tell me about a time you disagreed with a teammate.",
+            question_category="behavioral",
+            difficulty="medium",
+            job_roles=["software_engineer"],
+            technologies=[],
+        )
+        db.add(question)
+        await db.flush()
+
+        try:
+            request = QuestionAttemptRequest(
+                question_id=question.id, response_type="text", text_response="answer"
+            )
+            added = await session_manager.add_attempt(sample_session.id, request, test_user_id)
+            assert added.question_text == "Tell me about a time you disagreed with a teammate."
+
+            session = await session_manager.get_session(sample_session.id, test_user_id)
+            assert len(session.attempts) == 1
+            assert (
+                session.attempts[0].question_text
+                == "Tell me about a time you disagreed with a teammate."
+            )
+        finally:
+            # `add_attempt` above commits (not just flushes), so this row survives
+            # the `db` fixture's end-of-test rollback and leaks into the shared
+            # SQLite test database used by other test modules (e.g.
+            # test_question_bank.py's unscoped `job_role="software_engineer"`
+            # queries) unless explicitly deleted here.
+            await db.delete(question)
+            await db.commit()
+
+    async def test_attempt_question_text_is_none_without_question_id(
+        self, session_manager: SessionManager, sample_session: PracticeSession, test_user_id: UUID
+    ):
+        """No `question_id` on the attempt (e.g. free-form practice) means no
+        lookup happens and `question_text` stays `None` rather than erroring."""
+        request = QuestionAttemptRequest(response_type="text", text_response="answer")
+        added = await session_manager.add_attempt(sample_session.id, request, test_user_id)
+        assert added.question_text is None
+
+        session = await session_manager.get_session(sample_session.id, test_user_id)
+        assert session.attempts[0].question_text is None
 
 
 class TestUserIdUuidCoercion:

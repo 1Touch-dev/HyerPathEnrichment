@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.database.orm_registry  # noqa: F401
 from app.database.session import SessionLocal, engine
 from app.infrastructure.redis import close_redis
+from app.modules.admin.moderation_flagging import flag_if_needed
 from app.modules.documents.models import CandidateDocument
 from app.modules.job_matching import events, repository
 from app.modules.job_matching.models import CandidateJobPreferences, JobPosting
@@ -213,6 +214,32 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                     )
                     stats["new_postings"] += 1
 
+                    # Soft-moderation flagging (Batch 1 admin module): gated on the same
+                    # "never embedded before" condition as the embedding step above, i.e.
+                    # only postings genuinely new to this scan (not every re-upsert of an
+                    # already-seen posting on a later scan day) get a flagging pass. A
+                    # scraped job board re-upserts the same postings repeatedly, so
+                    # flagging on every upsert would repeatedly re-flag/LLM-call postings
+                    # that were already screened once. Placed inside its own try/except:
+                    # flag_if_needed is internally fail-open, but this call site is
+                    # defensive against the test suite mocking flag_if_needed directly
+                    # (which bypasses that internal safety net) or a future regression in
+                    # its own fail-open guarantee — a moderation-side failure must never
+                    # abort or slow-fail this scan.
+                    try:
+                        await flag_if_needed(
+                            session,
+                            resource_type="job_posting",
+                            resource_id=posting.id,
+                            text_fields=[title, company, description],
+                        )
+                    except Exception:
+                        logger.warning(
+                            "flag_if_needed raised unexpectedly; ignoring (fail-open)",
+                            exc_info=True,
+                            extra={"posting_id": str(posting.id)},
+                        )
+
             # Stage 1 (Decision 1): pgvector similarity search using the candidate's CV
             # embedding, restricted to just the postings scraped in this scan.
             cv_embedding = await _get_cv_embedding(session, cv_doc.id)
@@ -248,7 +275,7 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                 }
 
                 matches_scored = 0
-                for matched_posting_id, similarity_score in similar_postings:
+                for matched_posting_id, similarity_score, passed_threshold in similar_postings:
                     posting_row = await session.get(JobPosting, matched_posting_id)
                     if posting_row is None:
                         # Defensive: posting could theoretically have been removed between
@@ -263,6 +290,8 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                     }
                     rule_score, breakdown = compute_rule_score(posting_dict, preferences_dict)
                     overall_score = compute_overall_score(similarity_score, rule_score)
+                    if not passed_threshold:
+                        breakdown["below_similarity_threshold"] = True
 
                     await repository.upsert_match(
                         session,
@@ -448,7 +477,7 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
         rows, _total = await repository.list_matches_for_user(
             session, UUID(user_id), limit=100, offset=0
         )
-        unnotified = [(m, p) for m, p in rows if m.notified_at is None]
+        unnotified = [(m, p, e) for m, p, e in rows if m.notified_at is None]
 
         if not unnotified:
             return {"sent": 0}
@@ -461,14 +490,19 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
                 extra={"user_id": user_id[:8], "channels": prefs.notification_channels},
             )
 
+        # Manual entries (Module F, §10.6) have no JobPosting row — title/company/
+        # location/source_url are resolved from the joined ManualJobEntry instead,
+        # computed once per row rather than re-derived per payload shape below.
+        display_fields = [(m, repository.resolve_match_display_fields(p, e)) for m, p, e in top_5]
+
         match_payload = [
             {
-                "title": p.title,
-                "company": p.company,
+                "title": title,
+                "company": company,
                 "overall_score": m.overall_score,
-                "source_url": p.source_url or "",
+                "source_url": source_url or "",
             }
-            for m, p in top_5
+            for m, (title, company, _location, source_url) in display_fields
         ]
 
         if "email" in prefs.notification_channels:
@@ -484,14 +518,14 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
                     context={
                         "matches": [
                             {
-                                "title": p.title,
-                                "company": p.company,
-                                "location": p.location,
+                                "title": title,
+                                "company": company,
+                                "location": location,
                                 "overall_score": m.overall_score,
                                 "explanation": m.explanation or "",
-                                "source_url": p.source_url or "",
+                                "source_url": source_url or "",
                             }
-                            for m, p in top_5
+                            for m, (title, company, location, source_url) in display_fields
                         ],
                     },
                 )
@@ -532,7 +566,7 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
                     extra={"user_id": user_id[:8]},
                 )
 
-        await repository.mark_notified(session, [m.id for m, _ in top_5])
+        await repository.mark_notified(session, [m.id for m, _p, _e in top_5])
         return {"sent": len(top_5)}
 
 

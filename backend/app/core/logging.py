@@ -31,6 +31,32 @@ _job_id_ctx: ContextVar[str | None] = ContextVar("log_job_id", default=None)
 
 _configured = False
 
+# Every attribute stdlib `logging.LogRecord` sets on itself. Anything else on a
+# record (i.e. what callers pass via `extra={...}`) is a custom field callers
+# actually want logged. Without this, `extra=` was a complete no-op for every
+# call site outside this module — `question_generator.py`'s "response":
+# "<the actual OpenAI error body>", the audio/feedback tracing fields added
+# for interview-practice debugging, etc. all vanished. Only the two ad-hoc
+# `request_id`/`job_id` fields were ever hand-picked out below; that undocumented
+# allowlist is exactly why "why is my extra= data missing from the log line"
+# kept coming up.
+_STANDARD_LOG_RECORD_ATTRS = frozenset(
+    logging.LogRecord(
+        name="", level=0, pathname="", lineno=0, msg="", args=(), exc_info=None
+    ).__dict__
+) | {"message", "asctime", "taskName"}
+
+
+def _extra_fields(record: logging.LogRecord) -> dict[str, Any]:
+    """Return whatever a caller passed via ``extra={...}``, correlation
+    fields excluded (those are handled separately by ``_correlation_fields``).
+    """
+    return {
+        key: value
+        for key, value in record.__dict__.items()
+        if key not in _STANDARD_LOG_RECORD_ATTRS and key not in ("request_id", "job_id")
+    }
+
 
 def get_request_id() -> str | None:
     return _request_id_ctx.get()
@@ -92,6 +118,7 @@ class JsonFormatter(logging.Formatter):
             "service": self.service,
         }
         payload.update(_correlation_fields(record))
+        payload.update(_extra_fields(record))
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=False, default=str)
@@ -115,7 +142,17 @@ class TextFormatter(logging.Formatter):
             parts.append(f"request_id={extras['request_id']}")
         if "job_id" in extras:
             parts.append(f"job_id={extras['job_id']}")
-        return f"{base} ({' '.join(parts)})"
+        suffix = f"({' '.join(parts)})"
+
+        custom_fields = _extra_fields(record)
+        if not custom_fields:
+            return f"{base} {suffix}"
+
+        # Multi-line JSON blob (e.g. a full OpenAI error body, or interview
+        # feedback's question/answer/raw-LLM-response tracing) is unreadable
+        # crammed onto the base line — indent it on its own line instead.
+        extras_json = json.dumps(custom_fields, ensure_ascii=False, default=str, indent=2)
+        return f"{base} {suffix}\n  extra: {extras_json}"
 
 
 def configure_logging(

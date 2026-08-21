@@ -44,6 +44,7 @@ from app.modules.job_matching.models import (
     PushSubscription,
 )
 from app.modules.job_matching.scorer import compute_dedup_key
+from app.modules.manual_jobs.models import ManualJobEntry
 from app.workers.tasks.job_matching import (
     _build_search_term,
     check_worker_health,
@@ -206,6 +207,43 @@ def _create_match(user_id, job_posting_id, **overrides) -> JobMatch:
             "rule_score": 0.6,
             "overall_score": 74.0,
             "score_breakdown": {"salary_fit": 1.0, "location_fit": 0.5},
+        }
+        fields.update(overrides)
+        match = JobMatch(**fields)
+        session.add(match)
+        session.commit()
+        session.refresh(match)
+        return match
+
+
+def _create_manual_entry(user_id, **overrides) -> ManualJobEntry:
+    with SyncSessionLocal() as session:
+        fields = {
+            "user_id": user_id,
+            "title": "Self-Sourced Role",
+            "company": "Referral Co",
+            "location": "Remote",
+        }
+        fields.update(overrides)
+        entry = ManualJobEntry(**fields)
+        session.add(entry)
+        session.commit()
+        session.refresh(entry)
+        return entry
+
+
+def _create_manual_match(user_id, manual_entry_id, **overrides) -> JobMatch:
+    """Manual-entry JobMatch (Module F, §10.6): job_posting_id NULL, manual_job_entry_id
+    set, overall_score sentinel 0.0 (the column is nullable=False)."""
+    with SyncSessionLocal() as session:
+        fields = {
+            "user_id": user_id,
+            "job_posting_id": None,
+            "manual_job_entry_id": manual_entry_id,
+            "similarity_score": 0.0,
+            "rule_score": 0.0,
+            "overall_score": 0.0,
+            "score_breakdown": {},
         }
         fields.update(overrides)
         match = JobMatch(**fields)
@@ -452,6 +490,67 @@ class TestScanJobsForCandidate:
                 operation="job_match_explanation",
             )
 
+    def test_marks_below_similarity_threshold_in_score_breakdown_end_to_end(self):
+        """Module A (§5.4): when `repository.find_similar_postings` flags a triple's
+        `passed_threshold=False` (i.e. it was only surfaced via the relaxed fallback
+        pass), `_scan_jobs_for_candidate_async` must set
+        `score_breakdown["below_similarity_threshold"] = True` on the persisted match —
+        and must leave that key unset for triples that passed the strict threshold.
+
+        `repository.find_similar_postings` itself is stubbed here (rather than engineered
+        via real embeddings) so this test isolates exactly the worker's triple-unpacking/
+        breakdown-flagging behavior, independent of the repository's own fallback logic
+        (already covered by `test_job_matching_repository.py::TestFindSimilarPostingsFallback`).
+        """
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+        unique_rows = [
+            {**row, "title": f"{row['title']} {uuid.uuid4().hex[:8]}"} for row in FAKE_JOBSPY_ROWS
+        ]
+
+        captured_posting_ids: list = []
+
+        async def fake_find_similar_postings(
+            session, cv_embedding, limit, similarity_threshold, posting_ids
+        ):
+            captured_posting_ids.extend(posting_ids)
+            # First posting passes the strict threshold normally; second is only
+            # surfaced via the relaxed fallback pass (passed_threshold=False).
+            return [(posting_ids[0], 0.9, True), (posting_ids[1], 0.2, False)]
+
+        with (
+            _mock_jobspy_scrape(unique_rows),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            patch(
+                "app.modules.job_matching.repository.find_similar_postings",
+                side_effect=fake_find_similar_postings,
+            ),
+        ):
+            stats = scan_jobs_for_candidate(str(user.id))
+
+        assert stats["matches_scored"] == 2
+        assert len(captured_posting_ids) == 2
+
+        with SyncSessionLocal() as session:
+            matches = {
+                m.job_posting_id: m
+                for m in session.execute(
+                    select(JobMatch).where(JobMatch.job_posting_id.in_(captured_posting_ids))
+                )
+                .scalars()
+                .all()
+            }
+
+        above_threshold_match = matches[captured_posting_ids[0]]
+        below_threshold_match = matches[captured_posting_ids[1]]
+
+        assert "below_similarity_threshold" not in above_threshold_match.score_breakdown
+        assert below_threshold_match.score_breakdown["below_similarity_threshold"] is True
+
     def test_skips_embedding_when_posting_already_has_stored_embedding(self):
         """A posting scraped in this scan that already has a `JobPostingEmbedding` row
         from a prior scan must not trigger another `generate_embedding` call, and must
@@ -620,6 +719,125 @@ class TestScanJobsForCandidate:
 
         assert stats == {"scraped": 0, "new_postings": 0, "matches_scored": 0, "explanations": 0}
         mock_scrape.assert_not_called()
+
+
+class TestScanJobsForCandidateFlagging:
+    """Soft-moderation flagging (Batch 1 admin module) integration at the
+    call site in `_scan_jobs_for_candidate_async`. `flag_if_needed`'s own
+    internals are covered by `test_admin_moderation_flagging.py` — these
+    tests only assert the call-site wiring and its fail-open guarantee.
+    """
+
+    def test_calls_flag_if_needed_for_newly_embedded_posting(self):
+        """A posting with no prior embedding (i.e. genuinely new to this scan)
+        must trigger `flag_if_needed` with the posting's own id and text
+        fields, gated on the same `has_posting_embedding` condition as the
+        embedding step above it."""
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+        unique_rows = [
+            {
+                **FAKE_JOBSPY_ROWS[0],
+                "title": f"{FAKE_JOBSPY_ROWS[0]['title']} {uuid.uuid4().hex[:8]}",
+            }
+        ]
+
+        with (
+            _mock_jobspy_scrape(unique_rows),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            _mock_track_embedding_cost(),
+            _mock_track_llm_cost(),
+            patch(
+                "app.workers.tasks.job_matching.flag_if_needed", new_callable=AsyncMock
+            ) as mock_flag,
+        ):
+            scan_jobs_for_candidate(str(user.id))
+
+        mock_flag.assert_called_once()
+        _, kwargs = mock_flag.call_args
+        assert kwargs["resource_type"] == "job_posting"
+        assert kwargs["text_fields"] == [
+            unique_rows[0]["title"],
+            unique_rows[0]["company"],
+            unique_rows[0]["description"],
+        ]
+        posting = next(p for p in _get_postings() if p.title == unique_rows[0]["title"])
+        assert kwargs["resource_id"] == posting.id
+
+    def test_does_not_call_flag_if_needed_for_already_embedded_posting(self):
+        """A posting already embedded from a prior scan (re-upserted, not
+        genuinely new) must not trigger another flagging pass — matches the
+        embedding step's own dedup gate immediately above."""
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+
+        row = {
+            **FAKE_JOBSPY_ROWS[0],
+            "title": f"{FAKE_JOBSPY_ROWS[0]['title']} {uuid.uuid4().hex[:8]}",
+        }
+        dedup_key = compute_dedup_key(row["title"], row["location"], "linkedin")
+        existing_posting = _create_posting(
+            dedup_key=dedup_key,
+            title=row["title"],
+            company=row["company"],
+            location=row["location"],
+            remote=True,
+            source="linkedin",
+            sources_seen=["linkedin"],
+        )
+        _create_posting_embedding(existing_posting.id)
+
+        with (
+            _mock_jobspy_scrape([row]),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            patch(
+                "app.workers.tasks.job_matching.flag_if_needed", new_callable=AsyncMock
+            ) as mock_flag,
+        ):
+            scan_jobs_for_candidate(str(user.id))
+
+        mock_flag.assert_not_called()
+
+    def test_flag_if_needed_failure_does_not_break_scan(self):
+        """The most important guarantee this chunk is responsible for: if
+        `flag_if_needed` raises an unexpected exception, the scan must still
+        complete successfully and return its normal stats."""
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+        unique_rows = [
+            {
+                **FAKE_JOBSPY_ROWS[0],
+                "title": f"{FAKE_JOBSPY_ROWS[0]['title']} {uuid.uuid4().hex[:8]}",
+            }
+        ]
+
+        with (
+            _mock_jobspy_scrape(unique_rows),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            _mock_track_embedding_cost(),
+            _mock_track_llm_cost(),
+            patch(
+                "app.workers.tasks.job_matching.flag_if_needed",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("simulated flagging bug"),
+            ),
+        ):
+            stats = scan_jobs_for_candidate(str(user.id))
+
+        assert stats["scraped"] == len(unique_rows)
+        assert stats["new_postings"] == 1
 
 
 class TestGenerateExplanationsForCandidate:
@@ -1089,10 +1307,80 @@ class TestSendMatchDigest:
                 rows, _total = await repository.list_matches_for_user(
                     session, user.id, limit=100, offset=0
                 )
-                return {m.id for m, _p in rows if m.notified_at is None}
+                return {m.id for m, _p, _e in rows if m.notified_at is None}
 
         still_unnotified = asyncio.run(_list_still_unnotified())
         assert still_unnotified == remaining_ids
+
+    def test_digest_includes_manual_entry_with_resolved_title_and_company_no_crash(self):
+        """Regression test (Module F, §10.6 test-coverage gap): a manual-entry JobMatch
+        (job_posting_id NULL, manual_job_entry_id set) included among the matches to
+        notify must not crash `_send_match_digest_async` when building the digest
+        email/webhook/push payloads (`resolve_match_display_fields` must resolve
+        title/company from the joined `ManualJobEntry`, not attempt `None.title` on a
+        missing `JobPosting`)."""
+        user = _create_user(email=f"digest-manual-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(
+            user.id,
+            notification_channels=["email", "webhook"],
+            webhook_url="https://hooks.example.com/job-matches",
+        )
+        entry = _create_manual_entry(
+            user.id,
+            title="Growth Marketer",
+            company="Startup Co",
+            source_url="https://startup.example.com/careers/growth-marketer",
+        )
+        manual_match = _create_manual_match(user.id, entry.id, notified_at=None)
+
+        with (
+            _mock_enqueue_email() as mock_enqueue,
+            _mock_notify_job_match(return_value=True) as mock_notify,
+        ):
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+
+        mock_enqueue.assert_called_once()
+        _, email_kwargs = mock_enqueue.call_args
+        email_match_payload = email_kwargs["context"]["matches"][0]
+        assert email_match_payload["title"] == "Growth Marketer"
+        assert email_match_payload["company"] == "Startup Co"
+        assert email_match_payload["source_url"] == entry.source_url
+
+        mock_notify.assert_called_once()
+        _, webhook_kwargs = mock_notify.call_args
+        webhook_match_payload = webhook_kwargs["matches"][0]
+        assert webhook_match_payload["title"] == "Growth Marketer"
+        assert webhook_match_payload["company"] == "Startup Co"
+        assert webhook_match_payload["overall_score"] == 0.0
+        assert webhook_match_payload["source_url"] == entry.source_url
+
+        refreshed = _get_match(manual_match.id)
+        assert refreshed is not None
+        assert refreshed.notified_at is not None
+
+    def test_digest_manual_entry_without_source_url_defaults_to_empty_string_no_crash(self):
+        """A manual entry with no `source_url` (candidate typed in a job without a
+        posting link) must still produce a sane payload — `source_url` falls back to
+        `""`, never `None` leaking into the payload or raising."""
+        user = _create_user(email=f"digest-manual-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(user.id, notification_channels=["email"])
+        entry = _create_manual_entry(
+            user.id, title="Referral Role", company="Friend's Startup", source_url=None
+        )
+        _create_manual_match(user.id, entry.id, notified_at=None)
+
+        with _mock_enqueue_email() as mock_enqueue:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        mock_enqueue.assert_called_once()
+        _, kwargs = mock_enqueue.call_args
+        match_payload = kwargs["context"]["matches"][0]
+        assert match_payload["title"] == "Referral Role"
+        assert match_payload["company"] == "Friend's Startup"
+        assert match_payload["source_url"] == ""
 
 
 class TestCheckWorkerHealth:

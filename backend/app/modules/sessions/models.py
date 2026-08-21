@@ -114,3 +114,47 @@ class QuestionAttempt(Base):
         Index("idx_attempts_session", "session_id"),
         Index("idx_attempts_user", "user_id"),
     )
+
+
+class PracticeAudioRecording(Base):
+    """Maps the practice_audio_recordings table (migration 017) - previously
+    accessed only via raw SQL in workers/tasks/audio_cleanup.py; this is the
+    first ORM-mapped access to this table.
+    """
+
+    __tablename__ = "practice_audio_recordings"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    practice_session_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("practice_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    storage_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    duration_seconds: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    audio_format: Mapped[str] = mapped_column(String(20), nullable=False)
+    transcription: Mapped[str | None] = mapped_column(Text, nullable=True)
+    transcription_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    analysis_data: Mapped[dict[str, Any] | None] = mapped_column(JsonDoc, nullable=True)
+    voice_tone_signals: Mapped[dict[str, Any] | None] = mapped_column(JsonDoc, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Admin Module 3 moderation (migration 045). Mirrors the
+    # moderation_status/moderated_by/moderated_at shape used by JobPosting
+    # (migration 040) for consistency across admin moderation surfaces.
+    moderation_status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    moderated_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    session: Mapped[PracticeSession] = relationship("PracticeSession")

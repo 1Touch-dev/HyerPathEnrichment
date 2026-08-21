@@ -48,6 +48,11 @@ class JobSwipeService:
                     overall_score=m.overall_score,
                     explanation=m.explanation,
                     created_at=m.created_at,
+                    below_similarity_threshold=bool(
+                        m.score_breakdown.get("below_similarity_threshold", False)
+                    ),
+                    source_url=p.source_url,
+                    applied_at=m.applied_at,
                 )
                 for m, p in rows
             ],

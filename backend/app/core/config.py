@@ -32,6 +32,57 @@ class Settings(BaseSettings):
     max_compliance_requests_per_minute: int = Field(
         default=20, alias="MAX_COMPLIANCE_REQUESTS_PER_MINUTE"
     )
+    max_auth_requests_per_minute: int = Field(default=5, alias="MAX_AUTH_REQUESTS_PER_MINUTE")
+    max_documents_upload_requests_per_minute: int = Field(
+        default=10, alias="MAX_DOCUMENTS_UPLOAD_REQUESTS_PER_MINUTE"
+    )
+    max_signals_webhook_requests_per_minute: int = Field(
+        default=30, alias="MAX_SIGNALS_WEBHOOK_REQUESTS_PER_MINUTE"
+    )
+    max_job_matching_scan_requests_per_minute: int = Field(
+        default=5, alias="MAX_JOB_MATCHING_SCAN_REQUESTS_PER_MINUTE"
+    )
+
+    # Admin module rate limits (Step 5: brute-force/abuse-sensitive admin endpoints).
+    max_admin_impersonation_start_requests_per_minute: int = Field(
+        default=5, alias="MAX_ADMIN_IMPERSONATION_START_REQUESTS_PER_MINUTE"
+    )
+    max_admin_mfa_verify_requests_per_minute: int = Field(
+        default=5, alias="MAX_ADMIN_MFA_VERIFY_REQUESTS_PER_MINUTE"
+    )
+    max_admin_review_queue_decide_requests_per_minute: int = Field(
+        default=30, alias="MAX_ADMIN_REVIEW_QUEUE_DECIDE_REQUESTS_PER_MINUTE"
+    )
+    max_admin_moderation_requests_per_minute: int = Field(
+        default=30, alias="MAX_ADMIN_MODERATION_REQUESTS_PER_MINUTE"
+    )
+
+    # Module 3/4 rate limits (Step 5). Distinct per-minute caps from any existing
+    # daily/quota-style caps enforced in the service layer.
+    max_questions_requests_per_minute: int = Field(
+        default=20, alias="MAX_QUESTIONS_REQUESTS_PER_MINUTE"
+    )
+    max_practice_audio_upload_requests_per_minute: int = Field(
+        default=10, alias="MAX_PRACTICE_AUDIO_UPLOAD_REQUESTS_PER_MINUTE"
+    )
+    max_jd_practice_requests_per_minute: int = Field(
+        default=20, alias="MAX_JD_PRACTICE_REQUESTS_PER_MINUTE"
+    )
+    max_application_tracker_status_update_requests_per_minute: int = Field(
+        default=30, alias="MAX_APPLICATION_TRACKER_STATUS_UPDATE_REQUESTS_PER_MINUTE"
+    )
+    max_interview_scheduling_requests_per_minute: int = Field(
+        default=20, alias="MAX_INTERVIEW_SCHEDULING_REQUESTS_PER_MINUTE"
+    )
+    max_manual_job_entry_create_requests_per_minute: int = Field(
+        default=20, alias="MAX_MANUAL_JOB_ENTRY_CREATE_REQUESTS_PER_MINUTE"
+    )
+    max_outreach_send_requests_per_minute: int = Field(
+        default=20, alias="MAX_OUTREACH_SEND_REQUESTS_PER_MINUTE"
+    )
+    max_job_matching_apply_requests_per_minute: int = Field(
+        default=30, alias="MAX_JOB_MATCHING_APPLY_REQUESTS_PER_MINUTE"
+    )
 
     # Provider mode switches (Phase 0): the only flags that flip free -> paid.
     # Defaults = fully free / self-hosted. See app/providers/.
@@ -160,10 +211,12 @@ class Settings(BaseSettings):
     litellm_fallbacks: str = Field(default="", alias="LITELLM_FALLBACKS")
 
     # Module 2: Tinder-Style Job Board + CV Management (portfolio public URL)
-    # NOTE: portfolio_public_base_url, cv_chat_max_turns, and cv_feedback_model
-    # are added here because portfolio/service.py, cv_chat_service.py, and
-    # feedback_generator.py already read them and need them to be non-blocking
-    # per the reviewer gate.
+    # NOTE: all Module 2 §7 settings have now landed with the chunks that
+    # consume them (Phase B) — portfolio/service.py, cv_chat_service.py,
+    # feedback_generator.generate_cv_improvement() (§8.8), and
+    # clients/perplexity.py + modules/outreach/service.py (§8.12-8.14) all
+    # read the fields below and need them to be non-blocking per the
+    # reviewer gate.
     portfolio_public_base_url: str = Field(default="", alias="PORTFOLIO_PUBLIC_BASE_URL")
     app_public_base_url: str = Field(default="", alias="APP_PUBLIC_BASE_URL")
     cv_chat_max_turns: int = Field(default=12, alias="CV_CHAT_MAX_TURNS")
@@ -181,6 +234,14 @@ class Settings(BaseSettings):
     # OpenAI API (for CV extraction, embeddings, etc.)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     enable_embeddings: bool = Field(default=True, alias="ENABLE_EMBEDDINGS")
+
+    # Interview practice (Phase 2, Module 3) — question generation + voice tone.
+    hume_api_key: str = Field(default="", alias="HUME_API_KEY")
+    hume_prosody_timeout_seconds: int = Field(default=30, alias="HUME_PROSODY_TIMEOUT_SECONDS")
+    question_generation_daily_limit_per_user: int = Field(
+        default=10, alias="QUESTION_GENERATION_DAILY_LIMIT_PER_USER"
+    )
+    practice_audio_max_upload_mb: int = Field(default=25, alias="PRACTICE_AUDIO_MAX_UPLOAD_MB")
     embedding_chunk_size: int = Field(
         default=512,
         alias="EMBEDDING_CHUNK_SIZE",
@@ -253,6 +314,19 @@ class Settings(BaseSettings):
     # Frontend URL (for email links)
     FRONTEND_URL: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")
 
+    # CORS allowlist — comma-separated origins, e.g. "https://app.example.com,https://admin.example.com".
+    # Optional/opt-in: when unset, falls back to FRONTEND_URL (or localhost) so existing
+    # single-origin deployments keep working unchanged. See cors_allowed_origins below.
+    CORS_ALLOWED_ORIGINS: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
+
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        """Parsed CORS allowlist, falling back to FRONTEND_URL (or localhost) when unset."""
+        origins = [o.strip() for o in self.CORS_ALLOWED_ORIGINS.split(",") if o.strip()]
+        if origins:
+            return origins
+        return [self.FRONTEND_URL] if self.FRONTEND_URL else ["http://localhost:3000"]
+
     # Cookie settings
     COOKIE_SECURE: bool = Field(default=False, alias="COOKIE_SECURE")
     COOKIE_DOMAIN: str | None = Field(default=None, alias="COOKIE_DOMAIN")
@@ -264,6 +338,62 @@ class Settings(BaseSettings):
     DAILY_COST_THRESHOLD_USD: float = Field(default=100.0, alias="DAILY_COST_THRESHOLD_USD")
     MONTHLY_COST_THRESHOLD_USD: float = Field(default=2000.0, alias="MONTHLY_COST_THRESHOLD_USD")
     ENABLE_BUDGET_ALERTS: bool = Field(default=True, alias="ENABLE_BUDGET_ALERTS")
+
+    # Admin Module: RBAC, audit log, feature flags, cached aggregates, MFA, impersonation
+    # (phase2_admin_module.md §7) — only admin_aggregate_cache_ttl_seconds is read by
+    # this chunk's files (cache.py); the rest are added now since core/config.py is a
+    # single shared file and later phases' service.py/mfa.py/impersonation.py need them.
+    admin_audit_log_retention_days: int = Field(
+        default=1825, alias="ADMIN_AUDIT_LOG_RETENTION_DAYS"
+    )
+    admin_aggregate_cache_ttl_seconds: int = Field(
+        default=300, alias="ADMIN_AGGREGATE_CACHE_TTL_SECONDS"
+    )
+    admin_default_page_size: int = Field(default=20, alias="ADMIN_DEFAULT_PAGE_SIZE")
+    admin_max_page_size: int = Field(default=100, alias="ADMIN_MAX_PAGE_SIZE")
+    admin_mfa_issuer_name: str = Field(default="Hyrepath Admin", alias="ADMIN_MFA_ISSUER_NAME")
+    admin_impersonation_max_duration_minutes: int = Field(
+        default=30, alias="ADMIN_IMPERSONATION_MAX_DURATION_MINUTES"
+    )
+    prometheus_query_url: str = Field(default="", alias="PROMETHEUS_QUERY_URL")
+
+    # Module A — job matching fallback relaxation
+    job_matching_min_results: int = Field(default=10, alias="JOB_MATCHING_MIN_RESULTS")
+
+    # Module B — apply-click tracking / redirect
+    apply_redirect_base_url: str = Field(default="", alias="APPLY_REDIRECT_BASE_URL")
+    # empty => derive from app_public_base_url; see Module B §5.3
+
+    # Module C — application tracker (no new settings; reuses existing pagination/limit conventions)
+
+    # Module D — interview scheduling, calendar, notifications
+    interview_reminder_hours_before: int = Field(
+        default=24, alias="INTERVIEW_REMINDER_HOURS_BEFORE"
+    )
+    interview_ics_organizer_email: str = Field(
+        default="", alias="INTERVIEW_ICS_ORGANIZER_EMAIL"
+    )  # falls back to sendgrid_from_email if empty
+
+    # Module E — JD-aware interview practice
+    jd_question_generation_daily_limit_per_user: int = Field(
+        default=10, alias="JD_QUESTION_GENERATION_DAILY_LIMIT_PER_USER"
+    )  # separate budget from question_generation_daily_limit_per_user (Module 3) since
+    # JD-tailored generation always bypasses the shared bank (§9.3) and is therefore
+    # more expensive per request; kept as an independent knob rather than reusing
+    # question_generation_daily_limit_per_user so ops can tune them independently.
+
+    # Module F — manual job entry (no new settings)
+
+    # Module G — multi-channel outreach messages
+    outreach_linkedin_inmail_body_max_chars: int = Field(
+        default=1900, alias="OUTREACH_LINKEDIN_INMAIL_BODY_MAX_CHARS"
+    )
+    outreach_linkedin_inmail_subject_max_chars: int = Field(
+        default=200, alias="OUTREACH_LINKEDIN_INMAIL_SUBJECT_MAX_CHARS"
+    )
+    outreach_linkedin_connection_note_max_chars: int = Field(
+        default=300, alias="OUTREACH_LINKEDIN_CONNECTION_NOTE_MAX_CHARS"
+    )
 
 
 _TIER1_PROD_ENVS = frozenset({"production", "staging"})

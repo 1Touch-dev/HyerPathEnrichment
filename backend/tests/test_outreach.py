@@ -169,6 +169,7 @@ async def test_send_message_appends_disclosure_footer_and_marks_sent(db, test_us
         subject="Hi",
         body="Original body with no footer.",
         status="draft",
+        message_type="email",
     )
     db.add(message)
     await db.commit()
@@ -183,6 +184,33 @@ async def test_send_message_appends_disclosure_footer_and_marks_sent(db, test_us
     assert "jane@example.com" in result.body
     assert result.sent_at is not None
     assert "/app/privacy" in result.body
+
+
+@pytest.mark.parametrize("message_type", ["linkedin", "generic", "custom"])
+async def test_send_message_omits_disclosure_footer_for_non_email_types(
+    db, test_user, message_type
+):
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Original body with no footer.",
+        status="draft",
+        message_type=message_type,
+    )
+    db.add(message)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    result = await service.send_message(
+        test_user.id, str(message.id), sender_email="jane@example.com", sender_name="jane"
+    )
+
+    assert result.status == "sent"
+    assert result.body == "Original body with no footer."
+    assert "unsubscribe" not in result.body.lower()
+    assert "prefer not to receive" not in result.body.lower()
 
 
 async def test_send_message_rejects_already_sent(db, test_user):
@@ -204,6 +232,53 @@ async def test_send_message_rejects_already_sent(db, test_user):
             test_user.id, str(message.id), sender_email="jane@example.com", sender_name="jane"
         )
     assert exc_info.value.status_code == 409
+
+
+async def test_send_message_rejects_admin_blocked_message(db, test_user):
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Body",
+        status="draft",
+        admin_blocked=True,
+    )
+    db.add(message)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.send_message(
+            test_user.id, str(message.id), sender_email="jane@example.com", sender_name="jane"
+        )
+    assert exc_info.value.status_code == 403
+
+    await db.refresh(message)
+    assert message.status == "draft"
+    assert message.sent_at is None
+
+
+async def test_send_message_allows_message_with_admin_blocked_false(db, test_user):
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Original body with no footer.",
+        status="draft",
+        message_type="email",
+        admin_blocked=False,
+    )
+    db.add(message)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    result = await service.send_message(
+        test_user.id, str(message.id), sender_email="jane@example.com", sender_name="jane"
+    )
+
+    assert result.status == "sent"
 
 
 async def test_send_message_uses_absolute_privacy_url_when_configured(db, test_user, monkeypatch):
@@ -406,3 +481,238 @@ async def test_to_response_marks_research_degraded_false_when_source_perplexity(
     result = await service.list_my_messages(test_user.id)
     assert len(result.messages) == 1
     assert result.messages[0].research_degraded is False
+
+
+async def test_request_draft_rejects_custom_type_missing_instruction(db, test_user):
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme", document_id=str(uuid4()), message_type="custom"
+            ),
+        )
+    assert exc_info.value.status_code == 400
+
+
+async def test_request_draft_rejects_custom_type_blank_instruction(db, test_user):
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme",
+                document_id=str(uuid4()),
+                message_type="custom",
+                custom_instruction="   ",
+            ),
+        )
+    assert exc_info.value.status_code == 400
+
+
+async def test_request_draft_concurrent_lock_scoped_per_message_type(db, test_user):
+    """Two simultaneous requests for the same company but different message_types must
+    both succeed — the lock key includes message_type so they don't collide."""
+    doc = CandidateDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        document_type="cv",
+        original_filename="cv.pdf",
+        storage_path="documents/x/y.pdf",
+        file_hash=f"outreach-{uuid4().hex}",
+        file_size_bytes=1000,
+        raw_text="Jane Doe",
+        processing_status="completed",
+    )
+    db.add(doc)
+    await db.commit()
+
+    mock_queue_cls = MagicMock()
+    mock_queue_instance = MagicMock()
+    mock_queue_instance.enqueue.return_value = MagicMock(id="rq-job-123")
+    mock_queue_cls.return_value = mock_queue_instance
+
+    real_locks: dict[str, str] = {}
+
+    def _fake_set(key, value, nx=False, ex=None):
+        if nx and key in real_locks:
+            return None
+        real_locks[key] = value
+        return True
+
+    redis_conn = MagicMock()
+    redis_conn.set.side_effect = _fake_set
+
+    service = OutreachService(db, redis_conn=redis_conn)
+    with patch("app.modules.outreach.service.Queue", mock_queue_cls):
+        email_result = await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme", document_id=str(doc.id), message_type="email"
+            ),
+        )
+        linkedin_result = await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme", document_id=str(doc.id), message_type="linkedin"
+            ),
+        )
+
+    assert email_result["rq_job_id"] == "rq-job-123"
+    assert linkedin_result["rq_job_id"] == "rq-job-123"
+    assert mock_queue_instance.enqueue.call_count == 2
+
+
+async def test_request_draft_concurrent_lock_rejects_same_message_type(db, test_user):
+    """Two simultaneous requests for the same company AND same message_type — the
+    second must be rejected, exactly like the pre-Module-G behavior."""
+    doc = CandidateDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        document_type="cv",
+        original_filename="cv.pdf",
+        storage_path="documents/x/y.pdf",
+        file_hash=f"outreach-{uuid4().hex}",
+        file_size_bytes=1000,
+        raw_text="Jane Doe",
+        processing_status="completed",
+    )
+    db.add(doc)
+    await db.commit()
+
+    mock_queue_cls = MagicMock()
+    mock_queue_instance = MagicMock()
+    mock_queue_instance.enqueue.return_value = MagicMock(id="rq-job-123")
+    mock_queue_cls.return_value = mock_queue_instance
+
+    redis_conn = MagicMock()
+    redis_conn.set.side_effect = [True, None]
+
+    service = OutreachService(db, redis_conn=redis_conn)
+    with patch("app.modules.outreach.service.Queue", mock_queue_cls):
+        first_result = await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme", document_id=str(doc.id), message_type="linkedin"
+            ),
+        )
+        assert first_result["rq_job_id"] == "rq-job-123"
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.request_draft(
+                test_user.id,
+                OutreachDraftRequest(
+                    company_name="Acme", document_id=str(doc.id), message_type="linkedin"
+                ),
+            )
+
+    assert exc_info.value.status_code == 409
+    mock_queue_instance.enqueue.assert_called_once()
+
+
+async def test_edit_draft_rejects_oversized_linkedin_subject(db, test_user):
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Body",
+        status="draft",
+        message_type="linkedin",
+    )
+    db.add(message)
+    await db.commit()
+
+    oversized_subject = "S" * (settings.outreach_linkedin_inmail_subject_max_chars + 1)
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.edit_draft(
+            test_user.id,
+            str(message.id),
+            OutreachEditRequest(subject=oversized_subject, body="fine"),
+        )
+    assert exc_info.value.status_code == 422
+    assert "LinkedIn messages are limited to" in exc_info.value.detail
+
+
+async def test_edit_draft_rejects_oversized_linkedin_body(db, test_user):
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Body",
+        status="draft",
+        message_type="linkedin",
+    )
+    db.add(message)
+    await db.commit()
+
+    oversized_body = "B" * (settings.outreach_linkedin_inmail_body_max_chars + 1)
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.edit_draft(
+            test_user.id,
+            str(message.id),
+            OutreachEditRequest(subject="fine", body=oversized_body),
+        )
+    assert exc_info.value.status_code == 422
+    assert "LinkedIn messages are limited to" in exc_info.value.detail
+
+
+async def test_edit_draft_accepts_valid_length_linkedin_edit(db, test_user):
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Body",
+        status="draft",
+        message_type="linkedin",
+    )
+    db.add(message)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    result = await service.edit_draft(
+        test_user.id,
+        str(message.id),
+        OutreachEditRequest(subject="Short subject", body="Short body"),
+    )
+    assert result.subject == "Short subject"
+    assert result.body == "Short body"
+
+
+@pytest.mark.parametrize("message_type", ["email", "generic", "custom"])
+async def test_edit_draft_linkedin_guard_does_not_apply_to_other_types(db, test_user, message_type):
+    """Non-LinkedIn message types must be unaffected by the LinkedIn length guard, even
+    with a body far longer than the LinkedIn InMail limit."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Body",
+        status="draft",
+        message_type=message_type,
+    )
+    db.add(message)
+    await db.commit()
+
+    oversized_body = "B" * (settings.outreach_linkedin_inmail_body_max_chars + 500)
+    service = OutreachService(db, redis_conn=MagicMock())
+    result = await service.edit_draft(
+        test_user.id,
+        str(message.id),
+        OutreachEditRequest(subject="fine", body=oversized_body),
+    )
+    assert result.body == oversized_body

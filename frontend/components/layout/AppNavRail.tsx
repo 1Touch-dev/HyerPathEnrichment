@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { cn } from "@/src/lib/utils";
-import { allNavSections } from "./nav-config";
+import { adminNav, allNavSections } from "./nav-config";
 
 type AppNavRailProps = {
   pathname: string;
   matchesUnreadCount?: number;
+  isAdmin?: boolean;
 };
 
-export function AppNavRail({ pathname, matchesUnreadCount = 0 }: AppNavRailProps) {
+export function AppNavRail({ pathname, matchesUnreadCount = 0, isAdmin = false }: AppNavRailProps) {
+  const sections = isAdmin ? [...allNavSections, adminNav] : allNavSections;
+
   return (
     <aside className="hidden h-full w-[72px] flex-col items-center justify-between border-r border-border bg-card py-4 md:flex lg:hidden">
       <div className="flex w-full flex-col items-center gap-4">
@@ -20,7 +23,7 @@ export function AppNavRail({ pathname, matchesUnreadCount = 0 }: AppNavRailProps
           H
         </Link>
         <nav className="flex w-full flex-col gap-2 px-2">
-          {allNavSections
+          {sections
             .flatMap((section) => section.items)
             .map((item) => {
               const Icon = item.icon;

@@ -27,11 +27,29 @@ export default defineConfig({
     {
       name: "integration",
       testMatch: "integration/**/*.spec.ts",
-      testIgnore: "integration/auth.setup.ts",
+      testIgnore: [
+        "integration/auth.setup.ts",
+        "integration/admin.setup.ts",
+        "integration/admin.spec.ts",
+      ],
       dependencies: ["integration-setup"],
       use: {
         ...devices["Desktop Chrome"],
         storageState: "e2e/integration/.auth/user.json",
+      },
+    },
+    {
+      name: "integration-admin-setup",
+      testMatch: "integration/admin.setup.ts",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "integration-admin",
+      testMatch: "integration/admin.spec.ts",
+      dependencies: ["integration-admin-setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/integration/.auth/admin-user.json",
       },
     },
   ],

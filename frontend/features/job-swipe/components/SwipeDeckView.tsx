@@ -1,10 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/console/EmptyState";
-import { useDraftOutreachForMatch } from "@/features/outreach";
-import type { SwipeDirection } from "@/src/lib/types";
+import { DraftOutreachDialog, useDraftOutreachForMatch } from "@/features/outreach";
+import type { OutreachMessageType, SwipeDirection } from "@/src/lib/types";
 import { useSubmitSwipe, useSwipeDeck } from "../hooks/useSwipeDeck";
 import { SwipeCard } from "./SwipeCard";
 
@@ -14,6 +15,9 @@ export function SwipeDeckView() {
   const { data, isLoading, isError, refetch, isRefetching } = useSwipeDeck();
   const submitSwipe = useSubmitSwipe();
   const draftOutreach = useDraftOutreachForMatch();
+  const [draftTarget, setDraftTarget] = useState<{ matchId: string; companyName: string } | null>(
+    null,
+  );
 
   if (isLoading) return <div className="animate-pulse h-[32rem] rounded-2xl bg-muted" />;
   if (isError)
@@ -51,13 +55,28 @@ export function SwipeDeckView() {
   }
 
   function handleDraftOutreach(matchId: string, companyName: string) {
+    setDraftTarget({ matchId, companyName });
+  }
+
+  function handleConfirmDraft(payload: {
+    messageType: OutreachMessageType;
+    customInstruction?: string;
+  }) {
+    if (!draftTarget) return;
     draftOutreach.mutate(
-      { companyName, jobMatchId: matchId },
       {
-        onSuccess: () =>
+        companyName: draftTarget.companyName,
+        jobMatchId: draftTarget.matchId,
+        messageType: payload.messageType,
+        customInstruction: payload.customInstruction,
+      },
+      {
+        onSuccess: () => {
+          setDraftTarget(null);
           toast.success("Drafting outreach...", {
             description: "Your draft will appear on the Outreach page shortly.",
-          }),
+          });
+        },
         onError: (error) =>
           toast.error("Couldn't start drafting outreach", { description: error.message }),
       },
@@ -81,6 +100,15 @@ export function SwipeDeckView() {
             />
           );
         })}
+      <DraftOutreachDialog
+        open={draftTarget !== null}
+        companyName={draftTarget?.companyName ?? null}
+        isPending={draftOutreach.isPending}
+        onOpenChange={(open) => {
+          if (!open) setDraftTarget(null);
+        }}
+        onConfirm={handleConfirmDraft}
+      />
     </div>
   );
 }

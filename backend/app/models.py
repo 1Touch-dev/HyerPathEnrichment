@@ -45,6 +45,24 @@ class InterviewQuestion(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
+    # Personalization (migration 033, phase2_module3.md Decision 1). NULL means
+    # this question is shared across the general rotation pool; set means it
+    # was generated for one candidate's résumé and must be excluded from
+    # everyone else's selection (see question_selector.py's leak guard).
+    personalized_for_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    generation_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Admin Module 3 moderation (migration 045). Mirrors the
+    # moderation_status/moderated_by/moderated_at shape used by JobPosting
+    # (migration 040) for consistency across admin moderation surfaces.
+    moderation_status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    moderated_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     def __repr__(self) -> str:
         return (
             f"<InterviewQuestion(id={self.id}, category={self.question_category}, "

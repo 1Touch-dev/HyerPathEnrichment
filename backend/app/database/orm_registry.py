@@ -16,7 +16,16 @@ from app.auth.models import (
 )
 from app.compliance.models import AuditLog, DsarRecord, SuppressionRecord
 from app.database.base import Base
+from app.modules.admin.models import (
+    AdminAuditLog,
+    FeatureFlag,
+    ImpersonationSession,
+    Permission,
+    Role,
+    RolePermission,
+)
 from app.modules.enrichment.models import JobRecord
+from app.modules.interview_scheduling.models import InterviewSchedule
 from app.modules.job_matching.models import (
     CandidateJobPreferences,
     JobMatch,
@@ -24,6 +33,7 @@ from app.modules.job_matching.models import (
     JobPostingEmbedding,
     PushSubscription,
 )
+from app.modules.manual_jobs.models import ManualJobEntry
 from app.modules.sessions.models import PracticeSession, QuestionAttempt
 from app.modules.signals.models import SignalRecord
 from app.storage.models import PhotoCacheRecord
@@ -49,27 +59,43 @@ _ = (
     JobPosting,
     JobPostingEmbedding,
     PushSubscription,
+    Role,
+    Permission,
+    RolePermission,
+    AdminAuditLog,
+    FeatureFlag,
+    ImpersonationSession,
+    InterviewSchedule,
+    ManualJobEntry,
 )
 
 # Re-export for alembic env after patch
 __all__ = [
+    "AdminAuditLog",
     "AuditLog",
     "AuthAuditLog",
     "Base",
     "CandidateJobPreferences",
     "DsarRecord",
     "EmailVerificationToken",
+    "FeatureFlag",
+    "ImpersonationSession",
+    "InterviewSchedule",
     "JobMatch",
     "JobPosting",
     "JobPostingEmbedding",
     "JobRecord",
     "LoggedOutToken",
+    "ManualJobEntry",
     "OAuthAccount",
+    "Permission",
     "PhotoCacheRecord",
     "PracticeSession",
     "PushSubscription",
     "QuestionAttempt",
     "RefreshToken",
+    "Role",
+    "RolePermission",
     "SignalRecord",
     "SuppressionRecord",
     "TokenBlacklist",

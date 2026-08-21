@@ -14,6 +14,10 @@ export const dynamic = "force-dynamic";
  * `document_id` are required; `recipient_role_title` and `job_match_id` are optional.
  * There is no `job_posting_id` field anywhere in the outreach module.
  *
+ * Module 4, Module G (§11.4/§11.7): `message_type` (default `"email"`) and optional
+ * `custom_instruction` (required by the service layer when `message_type === "custom"`,
+ * validated backend-side, not here) were added to the same request schema.
+ *
  * Drafting is async (OutreachService.request_draft enqueues an RQ job and returns
  * `{rq_job_id, message}` immediately — the draft itself appears later via `GET /api/outreach`
  * once the worker finishes), so there is no `OutreachMessage` to adapt here.
@@ -38,6 +42,8 @@ export async function POST(request: NextRequest) {
         document_id: body.documentId,
         recipient_role_title: body.recipientRoleTitle ?? null,
         job_match_id: body.jobMatchId ?? null,
+        message_type: body.messageType ?? "email",
+        custom_instruction: body.customInstruction ?? null,
       }),
     });
   } catch {

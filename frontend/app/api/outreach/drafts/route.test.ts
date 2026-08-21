@@ -48,6 +48,8 @@ describe("POST /api/outreach/drafts", () => {
         document_id: "doc-1",
         recipient_role_title: "Hiring Manager",
         job_match_id: "m1",
+        message_type: "email",
+        custom_instruction: null,
       }),
     });
     expect(response.status).toBe(202);

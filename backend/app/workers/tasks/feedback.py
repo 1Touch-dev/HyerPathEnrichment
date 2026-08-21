@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.database.session import SyncSessionLocal
+from app.models import InterviewQuestion
 from app.modules.sessions.models import QuestionAttempt
 from app.observability.cost_tracking import track_llm_cost, track_llm_failure
 from app.services.feedback_generator import generate_interview_feedback
@@ -48,12 +49,28 @@ def _generate_feedback_sync(attempt_id: str, db: Session) -> None:
         logger.warning(f"No text response for attempt {attempt_id}, skipping feedback")
         return
 
-    # For now, we need a question - in production this would come from a questions table
-    # Using attempt_metadata as a workaround for foundation week
-    # If question_id is null, pass None to enable general evaluation mode
-    question_text = None
-    if isinstance(attempt.attempt_metadata, dict):
-        question_text = attempt.attempt_metadata.get("question_text")
+    # Look up question text via the real FK (question_attempts.question_id ->
+    # interview_questions.id). If question_id is null, pass None to enable
+    # general evaluation mode.
+    question_text: str | None = None
+    if attempt.question_id is not None:
+        question_stmt = select(InterviewQuestion.question_text).where(
+            InterviewQuestion.id == attempt.question_id
+        )
+        question_text = db.scalar(question_stmt)
+
+    # DEBUG: `question_text`/`answer_text` are candidate-authored content, so
+    # this must not run at INFO in staging/production (extra= fields render
+    # directly into the log stream — see core/logging.py's `_extra_fields`).
+    logger.debug(
+        "Feedback generation input",
+        extra={
+            "attempt_id": attempt_id,
+            "response_type": attempt.response_type,
+            "question_text": question_text,
+            "answer_text": attempt.text_response,
+        },
+    )
 
     # Generate feedback (run async function in event loop)
     logger.info(f"Calling feedback service for attempt {attempt_id}")
@@ -69,6 +86,26 @@ def _generate_feedback_sync(attempt_id: str, db: Session) -> None:
         )
     finally:
         loop.close()
+
+    # `overall_score` alone is safe at INFO; the rest (detailed_feedback,
+    # strengths, improvements) can quote/paraphrase the candidate's answer.
+    logger.info(
+        "Feedback generation output",
+        extra={
+            "attempt_id": attempt_id,
+            "overall_score": feedback["overall_score"],
+        },
+    )
+    logger.debug(
+        "Feedback generation output detail",
+        extra={
+            "attempt_id": attempt_id,
+            "dimension_scores": feedback["dimension_scores"],
+            "detailed_feedback": feedback["detailed_feedback"],
+            "strengths": feedback["strengths"],
+            "improvements": feedback["improvements"],
+        },
+    )
 
     # Update attempt with feedback
     attempt.ai_score = float(feedback["overall_score"])

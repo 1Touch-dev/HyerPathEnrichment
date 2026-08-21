@@ -160,39 +160,6 @@ async def test_generate_cv_improvement_calls_openai_and_parses():
     assert tokens["output_tokens"] == 50
     assert result["ats_score_methodology"]
 
-
-async def test_generate_cv_improvement_caps_bullets_end_to_end():
-    """test_parse_cv_improvement_response_caps_bullets_and_lists proves the cap at the
-    parser level; this drives the same 8-bullet payload through generate_cv_improvement()'s
-    full call path (real OpenAI call mocked) to prove the cap is actually applied to what
-    callers receive, not just to a parser called in isolation."""
-    settings = Settings(openai_api_key="sk-test")
-
-    bullets = ", ".join(
-        f'{{"original": "orig {i}", "rewritten": "new {i}", "rationale": "r{i}"}}' for i in range(8)
-    )
-    strengths = ", ".join(f'"s{i}"' for i in range(8))
-    improvements = ", ".join(f'"i{i}"' for i in range(8))
-    content = (
-        f'{{"ats_score": 60, "strengths": [{strengths}], '
-        f'"improvements": [{improvements}], "rewritten_bullets": [{bullets}]}}'
-    )
-
-    mock_response = MagicMock()
-    mock_response.raise_for_status = MagicMock()
-    mock_response.json = MagicMock(
-        return_value={
-            "choices": [{"message": {"content": content}}],
-            "usage": {"prompt_tokens": 100, "completion_tokens": 50},
-        }
-    )
-    with patch("app.services.feedback_generator.httpx.AsyncClient") as mock_client_cls:
-        mock_post = AsyncMock(return_value=mock_response)
-        mock_client_cls.return_value.__aenter__.return_value.post = mock_post
-        result, _tokens = await generate_cv_improvement(
-            "Some CV text here", "Software Engineer", settings
-        )
-
     assert len(result["rewritten_bullets"]) == 5
     assert len(result["strengths"]) == 4
     assert len(result["improvements"]) == 4

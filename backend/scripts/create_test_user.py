@@ -24,7 +24,9 @@ if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
 
-async def _create_or_update_user(email: str, password: str, first_name: str, last_name: str) -> None:
+async def _create_or_update_user(
+    email: str, password: str, first_name: str, last_name: str, *, is_superuser: bool = False
+) -> None:
     from sqlalchemy import select
 
     import app.database.orm_registry  # noqa: F401  (registers all ORM models/relationships)
@@ -46,6 +48,7 @@ async def _create_or_update_user(email: str, password: str, first_name: str, las
                 last_name=last_name,
                 is_verified=True,
                 is_active=True,
+                is_superuser=is_superuser,
             )
             session.add(user)
         else:
@@ -53,6 +56,7 @@ async def _create_or_update_user(email: str, password: str, first_name: str, las
             user.is_verified = True
             user.is_active = True
             user.deleted_at = None
+            user.is_superuser = is_superuser
 
         await session.commit()
 
@@ -63,9 +67,23 @@ def main() -> int:
     parser.add_argument("--password", default="IntegrationTest123")
     parser.add_argument("--first-name", default="E2E")
     parser.add_argument("--last-name", default="Integration")
+    parser.add_argument(
+        "--is-superuser",
+        action="store_true",
+        default=False,
+        help="Create/update the user as a superuser (grants all admin RBAC permissions).",
+    )
     args = parser.parse_args()
 
-    asyncio.run(_create_or_update_user(args.email, args.password, args.first_name, args.last_name))
+    asyncio.run(
+        _create_or_update_user(
+            args.email,
+            args.password,
+            args.first_name,
+            args.last_name,
+            is_superuser=args.is_superuser,
+        )
+    )
 
     print(json.dumps({"email": args.email, "password": args.password}))
     return 0

@@ -6,6 +6,8 @@ import {
   SuccessEnvelope,
 } from "@/src/lib/api-envelope";
 import {
+  AudioRecordingStatus,
+  AudioUploadResult,
   CvChatSession,
   CvCompleteness,
   CvFeedbackReport,
@@ -22,9 +24,14 @@ import {
   OutreachListResponse,
   OutreachDraftAccepted,
   OutreachMessage,
+  OutreachMessageType,
   PortfolioItem,
   PortfolioProfile,
+  PracticeAttempt,
+  PracticeSession,
+  PracticeSessionListResult,
   PublicPortfolioProfile,
+  QuestionListResult,
   SignalListResponse,
   SwipeDeck,
   SwipeDirection,
@@ -331,6 +338,8 @@ export async function draftOutreach(payload: {
   documentId: string;
   recipientRoleTitle?: string;
   jobMatchId?: string;
+  messageType?: OutreachMessageType;
+  customInstruction?: string;
 }): Promise<SuccessEnvelope<OutreachDraftAccepted>> {
   return request<OutreachDraftAccepted>("/api/outreach/drafts", {
     method: "POST",
@@ -340,6 +349,10 @@ export async function draftOutreach(payload: {
       documentId: payload.documentId,
       recipientRoleTitle: payload.recipientRoleTitle ?? null,
       jobMatchId: payload.jobMatchId ?? null,
+      // Module 4, Module G (§11.7): forwarded to the BFF route, which maps these
+      // to the backend's snake_case `message_type`/`custom_instruction` fields.
+      messageType: payload.messageType ?? "email",
+      customInstruction: payload.customInstruction ?? null,
     }),
   });
 }
@@ -358,4 +371,113 @@ export async function editOutreachDraft(
 
 export async function sendOutreach(messageId: string): Promise<SuccessEnvelope<OutreachMessage>> {
   return request<OutreachMessage>(`/api/outreach/${messageId}/send`, { method: "POST" });
+}
+
+// Module 3: Interview Prep (phase2_module3.md §10.4)
+// Snake_case→camelCase adaptation already happens inside the BFF routes (§10.3),
+// so these functions only need the frontend-shaped types.
+
+export async function createPracticeSession(
+  sessionType: string,
+  metadata?: Record<string, unknown>,
+): Promise<SuccessEnvelope<PracticeSession>> {
+  return request<PracticeSession>("/api/practice/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_type: sessionType, session_metadata: metadata ?? {} }),
+  });
+}
+
+export async function listPracticeSessions(
+  params: { limit?: number; offset?: number } = {},
+): Promise<SuccessEnvelope<PracticeSessionListResult>> {
+  const search = new URLSearchParams();
+  if (params.limit !== undefined) search.set("limit", String(params.limit));
+  if (params.offset !== undefined) search.set("offset", String(params.offset));
+
+  const query = search.toString();
+  return request<PracticeSessionListResult>(`/api/practice/sessions${query ? `?${query}` : ""}`);
+}
+
+export async function getPracticeSession(id: string): Promise<SuccessEnvelope<PracticeSession>> {
+  return request<PracticeSession>(`/api/practice/sessions/${id}`);
+}
+
+/**
+ * Sent as snake_case to match the backend's `QuestionAttemptRequest`
+ * (backend/app/modules/sessions/schemas.py) — this request body is proxied through as-is
+ * by the BFF route (§10.3's `[id]/attempts/route.ts`), not passed through a `toBackend*`
+ * adapter helper, since none exists for this shape in `api-adapter.ts`.
+ */
+export async function addPracticeAttempt(
+  sessionId: string,
+  payload: {
+    questionId?: string;
+    responseType: "text" | "audio";
+    textResponse?: string;
+    audioRecordingId?: string;
+    timeTakenSeconds?: number;
+  },
+): Promise<SuccessEnvelope<PracticeAttempt>> {
+  return request<PracticeAttempt>(`/api/practice/sessions/${sessionId}/attempts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question_id: payload.questionId ?? null,
+      response_type: payload.responseType,
+      text_response: payload.textResponse ?? null,
+      audio_recording_id: payload.audioRecordingId ?? null,
+      time_taken_seconds: payload.timeTakenSeconds ?? null,
+    }),
+  });
+}
+
+export async function fetchQuestions(payload: {
+  jobRole: string;
+  count?: number;
+  category?: string;
+  difficulty?: string;
+  personalize?: boolean;
+}): Promise<SuccessEnvelope<QuestionListResult>> {
+  return request<QuestionListResult>("/api/practice/questions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      job_role: payload.jobRole,
+      count: payload.count ?? undefined,
+      category: payload.category ?? undefined,
+      difficulty: payload.difficulty ?? undefined,
+      personalize: payload.personalize ?? undefined,
+    }),
+  });
+}
+
+/**
+ * Multipart upload — deliberately does not go through the shared `request()` helper's
+ * usual JSON body pattern, since `FormData` needs the browser to set its own
+ * `Content-Type: multipart/form-data; boundary=...` header. `request()` never forces a
+ * JSON content-type itself (callers set that header explicitly), so it is reused here
+ * unchanged; this function just omits the header and passes `FormData` as the body.
+ */
+export async function uploadPracticeAudio(
+  practiceSessionId: string,
+  audioFormat: string,
+  file: Blob,
+  filename: string,
+): Promise<SuccessEnvelope<AudioUploadResult>> {
+  const formData = new FormData();
+  formData.set("practice_session_id", practiceSessionId);
+  formData.set("audio_format", audioFormat);
+  formData.set("file", file, filename);
+
+  return request<AudioUploadResult>("/api/practice/audio", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function getPracticeAudioStatus(
+  id: string,
+): Promise<SuccessEnvelope<AudioRecordingStatus>> {
+  return request<AudioRecordingStatus>(`/api/practice/audio/${id}`);
 }

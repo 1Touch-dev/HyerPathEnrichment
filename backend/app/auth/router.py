@@ -41,6 +41,7 @@ from app.auth.verification import (
 )
 from app.core.config import get_settings
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_auth_rate_limit
 from app.infrastructure.redis import get_redis_client
 
 logger = logging.getLogger(__name__)
@@ -117,7 +118,12 @@ async def log_auth_event(
     await db.commit()
 
 
-@router.post("/register", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
 async def register(
     request: Request,
     user_data: UserCreate,
@@ -177,7 +183,11 @@ async def register(
     )
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
 async def login(
     request: Request,
     credentials: LoginRequest,
@@ -558,7 +568,11 @@ async def get_current_user(current_user: CurrentUser) -> UserRead:
     return UserRead.model_validate(current_user)
 
 
-@router.post("/verify-email", response_model=MessageResponse)
+@router.post(
+    "/verify-email",
+    response_model=MessageResponse,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
 async def verify_email(
     http_request: Request,
     db: AsyncSession = Depends(get_db_session),
@@ -603,7 +617,11 @@ async def verify_email(
     return MessageResponse(message="Email verified successfully. You can now log in.")
 
 
-@router.post("/resend-verification", response_model=MessageResponse)
+@router.post(
+    "/resend-verification",
+    response_model=MessageResponse,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
 async def resend_verification(
     request: ResendVerificationRequest,
     db: AsyncSession = Depends(get_db_session),

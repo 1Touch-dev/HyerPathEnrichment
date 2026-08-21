@@ -3,7 +3,7 @@
 Hyrepath Enrichment backend — architecture reference for the FastAPI service under `backend/`.
 
 **Version:** 0.4 (August 2026)
-**Last verified against code:** 2026-08-13
+**Last verified against code:** 2026-08-19
 **Repo layout:** `HyerEnrichment/backend/` (split from the Next.js frontend in `frontend/`)
 
 ---
@@ -60,7 +60,14 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Outreach has its own dedicated worker container | It does not — shares the generic `worker` container's `QUEUE_OUTREACH` (`outreach_generation`, added to the existing fixed-priority list in `rq_worker.py` right after `QUEUE_FEEDBACK`), unlike Module 1's `job_matching`, which does have a dedicated container. See `phase2_module2.md` §10 and ADR 0014 for why these two decisions differ. |
 | Portfolio pages are all behind auth | `GET /api/portfolio/public/{slug}` (and its frontend counterpart `/p/[slug]`) are deliberately public — see ADR 0014. Every other portfolio/outreach/CV-chat/swipe route requires an authenticated, verified user (`Depends(current_verified_user)` at the `app.include_router` call in `main.py`). |
 | "Send" on an outreach message actually emails the recipient | It does not, in v1 — `send_message()` in `app/modules/outreach/service.py` appends the mandatory CAN-SPAM disclosure footer and marks the message `sent`, but never transmits over SMTP; the candidate copies/sends the drafted text themselves. Real outbound send-as-the-candidate infrastructure (deliverability, SPF/DKIM) is explicitly out of scope for v1. |
-| Module 2 shipped a CV upload widget | It did not — `frontend/app/app/documents/DocumentsView.tsx` only lists and links into existing documents; it explicitly assumes a generic upload widget that, as of this writing, still does not exist anywhere in `frontend/` (same gap `phase2_module1.md` §11.10 already flagged, still open after Module 2). |
+| Module 2 shipped a CV upload widget | It did not — `frontend/app/app/documents/DocumentsView.tsx` only lists and links into existing documents; it explicitly assumes a generic upload widget that, as of this writing, still does not exist anywhere in `frontend/` (same gap `phase2_module1.md` §11.10 already flagged, still open after Module 2 and Module 3). |
+| Admin RBAC replaces `is_superuser` | It does not. `is_superuser` remains the highest-privilege override; `Role`/`Permission` only add narrower grants for non-superuser admins (ADR 0015, Decision 1). |
+| Admin audit log and compliance audit log are the same table | They are not. `admin_audit_logs` (admin-write trail) is distinct from `compliance.models.AuditLog` (candidate compliance/DSAR trail) — see `phase2_admin_module.md` §5. |
+| Prometheus golden-signals panel always populated | Only when `PROMETHEUS_QUERY_URL` is set; otherwise the System Health page shows self-checks only and an explanatory empty state (§8.12, §12.4). |
+| `LLM_MODE=stub` silences all LLM spend | It does not, for every caller — `question_generator.py` and `feedback_generator.py` (Module 3, like Module 2's `cv_chat_service.py`/`generate_cv_improvement()` before them) call `api.openai.com` directly via raw `httpx`, bypassing `LLM_MODE`/LiteLLM entirely. They require `OPENAI_API_KEY` to be genuinely unset to produce no spend, not `LLM_MODE=stub` — see `.env.example`'s "Direct OpenAI usage" block. |
+| Interview practice has a dedicated worker container by default | It does not — `feedback`/`question_generation` run on the existing generic `worker` container's fixed-priority queue list by default (`rq_worker.py`), same as Module 2's `outreach_generation`. An optional `worker-interview-ai` overlay (`docker-compose.week2-ai.yml`) isolates them, but requires an operator to explicitly add that compose file — see ADR 0017 Decision 4. |
+| `InterviewAttempt` (`app/models.py`) is the source of truth for question recency | It is not, and never was — no code path writes to it. `question_selector.py`'s recency-exclusion query now reads `question_attempts` (populated by `session_manager.add_attempt()`) instead. `InterviewAttempt` is deprecated dead code, kept for now rather than dropped in this PR (see ADR 0017 Consequences). |
+| Voice-tone analysis produces a hire/no-hire or "confidence" signal | It does not, by design — `voice_tone_signals` (nullable, `HUME_API_KEY`-gated, off by default) is surfaced only as coaching-framed descriptive text, never a numeric score, never fed into `ai_score` or any ranking (ADR 0017 Decision 2). |
 
 ### Task routing — where to start
 
@@ -380,7 +387,7 @@ Configured via `REDIS_URL`. Present in docker-compose. A shared async client exi
 **Wired today:**
 
 - *Suppression fast path.* `add_suppression()` writes SQL first (durable record), then `SADD suppression:hashes`. `check_suppression()` tries `SISMEMBER` first; on a miss or Redis error it falls back to the authoritative SQL table and backfills Redis on a hit. Opt-out is never weakened by a Redis outage — no TTL on suppression hashes.
-- *Rate limiting.* Fixed-window counters via `check_rate_limit()`. `POST /enrich` enforces `MAX_ASYNC_REQUESTS_PER_MINUTE` and `POST /enrich/sync` enforces `MAX_SYNC_REQUESTS_PER_MINUTE` scoped per API token (`ratelimit:{sync|async}:{token-hash}`). Opt-out and DSAR enforce `MAX_COMPLIANCE_REQUESTS_PER_MINUTE` scoped per client IP (`ratelimit:compliance:{host-hash}`). Dependencies live in `app/routes/rate_limit.py`. Over-limit returns `429`. **Fails open** on Redis error — protection, not correctness. Raw tokens and IPs are never logged (hashed to 16 hex chars).
+- *Rate limiting.* Weighted sliding-window counters via `check_rate_limit()` (`app/infrastructure/redis.py`) — an atomic Lua script blends a decaying-weighted estimate of the previous window's count into the current window's check-then-increment, closing the boundary-burst gap a plain fixed-window counter has (full `limit` at the tail of one window + full `limit` at the head of the next). `POST /enrich` enforces `MAX_ASYNC_REQUESTS_PER_MINUTE` and `POST /enrich/sync` enforces `MAX_SYNC_REQUESTS_PER_MINUTE` scoped per API token (`ratelimit:{sync|async}:{token-hash}`). Opt-out and DSAR enforce `MAX_COMPLIANCE_REQUESTS_PER_MINUTE` scoped per client IP (`ratelimit:compliance:{host-hash}`). `POST /auth/register|login|verify-email|resend-verification` share one `MAX_AUTH_REQUESTS_PER_MINUTE` bucket scoped per client IP (`ratelimit:auth:{host-hash}`). `POST /api/documents/upload` (`MAX_DOCUMENTS_UPLOAD_REQUESTS_PER_MINUTE`) and `POST /api/job-matching/scan` (`MAX_JOB_MATCHING_SCAN_REQUESTS_PER_MINUTE`) are scoped per API token; `POST /api/signals/changedetection` (`MAX_SIGNALS_WEBHOOK_REQUESTS_PER_MINUTE`) is scoped per client IP. Dependencies live in `app/dependencies/rate_limit.py`. Over-limit returns `429`. **Fails open** on Redis error — protection, not correctness. Raw tokens and IPs are never logged (hashed to 16 hex chars).
 - *Job queue (RQ).* `POST /enrich` enqueues to the `enrichment` queue via `app/workers/queue.py` (synchronous `redis-py` connection — RQ is not async-compatible). The worker (`app/workers/rq_worker.py`) dequeues and calls `run_enrichment_job` (`app/workers/jobs.py`), which bridges to the async orchestrator with `asyncio.run` and a fresh DB session. Because each job gets its own event loop, the job disposes the shared async Redis client and DB engine pool in a `finally` — loop-bound connections leaking into the next job cause "Event loop is closed" failures. Enqueue failure marks the job `failed` and returns `503`.
 
 **Redis roles now wired:** suppression fast path, rate limiting, job queue. Compliance audit trail is in SQL (`audit_logs`).
@@ -528,15 +535,37 @@ Copy `backend/.env.example` → `backend/.env`.
 | `OPENAI_API_KEY`, `GEMINI_API_KEY` | Vendor keys on **litellm container only** (`env_file`) |
 | `DISAMBIGUATION_THRESHOLD` | Default `0.7` |
 
-### Rate limits (Redis fixed-window counters)
+### Rate limits (Redis weighted sliding-window counters, atomic Lua script — see `app/infrastructure/redis.py`)
 
 | Variable | Default | Scope |
 |----------|---------|-------|
 | `MAX_SYNC_REQUESTS_PER_MINUTE` | 10 | Per API token (`/enrich/sync`) |
 | `MAX_ASYNC_REQUESTS_PER_MINUTE` | 30 | Per API token (`/enrich`) |
 | `MAX_COMPLIANCE_REQUESTS_PER_MINUTE` | 20 | Per client IP (opt-out + DSAR) |
+| `MAX_AUTH_REQUESTS_PER_MINUTE` | 5 | Per client IP, one shared bucket across `/auth/register`, `/auth/login`, `/auth/verify-email`, `/auth/resend-verification` |
+| `MAX_DOCUMENTS_UPLOAD_REQUESTS_PER_MINUTE` | 10 | Per API token (`POST /api/documents/upload`) |
+| `MAX_SIGNALS_WEBHOOK_REQUESTS_PER_MINUTE` | 30 | Per client IP (`POST /api/signals/changedetection`) |
+| `MAX_JOB_MATCHING_SCAN_REQUESTS_PER_MINUTE` | 5 | Per API token (`POST /api/job-matching/scan`) |
+| `MAX_ADMIN_IMPERSONATION_START_REQUESTS_PER_MINUTE` | 5 | Per API token (`POST /api/admin/impersonation/start/{user_id}`) — brute-force-sensitive |
+| `MAX_ADMIN_MFA_VERIFY_REQUESTS_PER_MINUTE` | 5 | Per API token (`POST /api/admin/mfa/confirm`) — brute-force-sensitive |
+| `MAX_ADMIN_REVIEW_QUEUE_DECIDE_REQUESTS_PER_MINUTE` | 30 | Per API token (`POST /api/admin/review-queue/{item_id}/decide`) |
+| `MAX_ADMIN_MODERATION_REQUESTS_PER_MINUTE` | 30 | Per API token, shared bucket across all admin moderation routers (documents, outreach, portfolio, job_postings `/moderate` actions) |
+| `MAX_QUESTIONS_REQUESTS_PER_MINUTE` | 20 | Per API token (`POST /api/questions`), distinct from any service-layer daily quota |
+| `MAX_PRACTICE_AUDIO_UPLOAD_REQUESTS_PER_MINUTE` | 10 | Per API token (`POST /api/practice/audio`) |
+| `MAX_JD_PRACTICE_REQUESTS_PER_MINUTE` | 20 | Per API token (`POST /api/jd-practice/questions`), distinct from any service-layer daily quota |
+| `MAX_APPLICATION_TRACKER_STATUS_UPDATE_REQUESTS_PER_MINUTE` | 30 | Per API token (`PATCH /api/application-tracker/matches/{match_id}/status`) |
+| `MAX_INTERVIEW_SCHEDULING_REQUESTS_PER_MINUTE` | 20 | Per API token (`POST /api/interviews/matches/{match_id}/schedule`) |
+| `MAX_MANUAL_JOB_ENTRY_CREATE_REQUESTS_PER_MINUTE` | 20 | Per API token (`POST /api/manual-jobs`) |
+| `MAX_OUTREACH_SEND_REQUESTS_PER_MINUTE` | 20 | Per API token (`POST /api/outreach/{message_id}/send`) |
+| `MAX_JOB_MATCHING_APPLY_REQUESTS_PER_MINUTE` | 30 | Per API token, shared bucket across `GET /api/job-matching/matches/{match_id}/apply-redirect` and `POST /api/job-matching/matches/{match_id}/mark-applied` |
 | `LINKEDIN_PHOTO_TTL_SECONDS` | 86400 | — |
 | `USERNAME_LOOKUP_TTL_SECONDS` | 3600 | — |
+
+### CORS
+
+`CORS_ALLOWED_ORIGINS` — comma-separated origin allowlist for `CORSMiddleware` (`app/main.py`); falls back to `FRONTEND_URL`, then `http://localhost:3000`, when unset. `allow_methods` and `allow_headers` are an explicit tightened set (`GET, POST, PUT, PATCH, DELETE, OPTIONS`; `Authorization, Content-Type`), not wildcards, since `allow_credentials=True` forbids a wildcard origin/credentials combination anyway. Preflight responses are cached client-side for 600s (`max_age=600`).
+
+The Admin Module UI (`/app/admin/*` routes) is served from this same Next.js frontend, not a separate host/subdomain — so no additional entry in `CORS_ALLOWED_ORIGINS` is needed for admin traffic. If the admin console is ever split out to its own origin, add it to the allowlist alongside the candidate-facing frontend origin.
 
 ---
 
@@ -698,6 +727,14 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Candidate portfolio (Module 2) | `app/modules/portfolio/` | Real, implemented per `phase2_module2.md`. Only Module 2 feature with an unauthenticated public route (`GET /api/portfolio/public/{slug}`, ADR 0014) — served by a separate `public_router` with no auth dependency, and a distinct `PublicPortfolioResponse` schema with no `user_id` field. |
 | Job swipe deck (Module 2) | `app/modules/job_swipe/` | Real, implemented per `phase2_module2.md`. Read-only against Module 1's `job_matches`/`job_postings` (joined in `repository.py`) — never writes to either table; only writes its own `job_swipe_actions`. Depends on Module 1 shipping first. |
 | Personalized outreach (Module 2) | `app/modules/outreach/`, `app/clients/perplexity.py` | Real, implemented per `phase2_module2.md`. New external dependency: Perplexity Sonar API (ADR 0014), degrades to a generic draft on failure. Every message starts `status="draft"`; "send" appends the mandatory CAN-SPAM disclosure footer and marks `sent`, but does not transmit email itself — the candidate copies/sends it externally (v1 scope; see `outreach/service.py`). |
+| Admin Module (RBAC, audit, flags, impersonation) | `app/modules/admin/`, 4 new `users` columns | Real, scaffolded per `phase2_admin_module.md` (ADR 0015). `is_superuser` unchanged and still authoritative; `Role`-based permissions are an additive, narrower grant checked only when `is_superuser` is false. No new Docker service or queue — runs inside `api`, reads existing Redis/RQ queues read-only. |
+| Interview question bank + selection (Module 3) | `app/modules/questions/`, `app/services/question_selector.py`, `app/services/question_generator.py` | Real, implemented per `phase2_module3.md`. `question_selector.py`'s recency-exclusion query now reads `question_attempts` (the table `session_manager.add_attempt()` actually writes), not the never-populated `interview_attempts` table it read before — see `InterviewAttempt` deprecation note below. Personalized questions (`InterviewQuestion.personalized_for_user_id`) are excluded from every other user's rotation (ADR 0017). |
+| Interview feedback question-text lookup fix (Module 3) | `app/workers/tasks/feedback.py` | Real, implemented per `phase2_module3.md`. Previously read a nonexistent `attempt_metadata["question_text"]` key and always silently got `None`; now looks up `InterviewQuestion.question_text` via `question_attempts.question_id`'s new FK constraint (migration `033`). |
+| Practice audio upload + transcription (Module 3) | `app/modules/practice_audio/`, `app/modules/sessions/models.py` (`PracticeAudioRecording`) | Real, implemented per `phase2_module3.md`. First ORM mapping for the `practice_audio_recordings` table (migration `017`, previously raw-SQL-only via `workers/tasks/audio_cleanup.py`, which still uses raw SQL — not migrated to the ORM in this PR). Optional Hume AI voice-tone signal (`voice_tone_signals`, migration `035`) stays `NULL` unless `HUME_API_KEY` is set; framed as a coaching hint, never a score (ADR 0017 Decision 2). |
+| Interview/CV LLM retry hardening (Module 3) | `app/services/question_generator.py`, `app/services/feedback_generator.py` | Real, implemented per `phase2_module3.md`. Both wrap their `httpx.AsyncClient.post()` call in `with_transient_retry()` (`app/clients/retry.py`), the same helper already used by `outreach.py`/`cv_chat_service.py`/`perplexity.py`/`sidecar.py`/`generate_cv_improvement()` (ADR 0017 Decision 3). |
+| Personalized question pre-generation queue (Module 3) | `app/workers/queue.py`, `app/workers/tasks/question_generation.py`, `docker/docker-compose.week2-ai.yml` | Real, implemented per `phase2_module3.md`. New `QUEUE_QUESTION_GENERATION` runs on the existing generic worker by default (zero Docker change required); an optional `worker-interview-ai` overlay (`docker-compose.week2-ai.yml`) isolates it from Week 1's document/embedding queues for operators who want that (ADR 0017 Decision 4, RQ's fixed-priority queue behavior — [rq/rq#1420](https://github.com/rq/rq/issues/1420)). |
+| Admin moderation for Module 3 (`questions`, `practice_audio`) | `app/modules/admin/questions_router.py`, `app/modules/admin/practice_audio_router.py` | Implemented — previously 501-stub placeholders, now real list/detail/moderate endpoints backed by migration `045`'s `moderation_status`/`moderated_by`/`moderated_at` columns on `InterviewQuestion`/`PracticeAudioRecording`. |
+| Admin surfaces for Module 4 (`applications`, `interview_schedules`, `manual_job_entries`) | `app/modules/admin/applications_router.py`, `app/modules/admin/interview_schedules_router.py`, `app/modules/admin/manual_job_entries_router.py` | Implemented — `applications` is read-only visibility into the application tracker; `interview_schedules` and `manual_job_entries` add moderate actions; permissions seeded by migration `046`. |
 
 Use this table when reviewing PRs, running `GRILLME.md` sessions, or planning the next delivery slice.
 

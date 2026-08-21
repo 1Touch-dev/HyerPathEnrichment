@@ -18,13 +18,21 @@ export type BackendEnrichmentRequest = Schemas['EnrichmentRequest'];
 export type BackendSuppressionRequest = Schemas['SuppressionRequest'];
 export type BackendJobPreferencesRequest = Schemas['JobPreferencesRequest'];
 export type BackendJobPreferencesResponse = Schemas['JobPreferencesResponse'];
-export type BackendJobMatchResponse = Schemas['JobMatchResponse'];
+// `apply_clicked_at`/`applied_at` are added ahead of the backend's Module 4 §6 (apply
+// tracking) landing and the openapi:gen regeneration that will follow it — same pattern
+// as BackendJobResponse's `& { error?: string }` above. Drop this intersection once
+// `openapi:gen` picks up the real fields from the backend's committed OpenAPI schema.
+export type BackendJobMatchResponse = Schemas['JobMatchResponse'] & {
+  apply_clicked_at?: string | null;
+  applied_at?: string | null;
+};
 export type BackendJobMatchListResponse = Schemas['JobMatchListResponse'];
 export type BackendScanTriggerResponse = Schemas['ScanTriggerResponse'];
-export type BackendDocumentMetadata = Schemas['DocumentMetadata'];
-export type BackendDocumentDetailResponse = Schemas['DocumentDetailResponse'];
-export type BackendDocumentUploadResponse = Schemas['DocumentUploadResponse'];
-export type BackendJobStatusResponse = Schemas['JobStatusResponse'];
-export type BackendCVDataResponse = Schemas['CVDataResponse'];
-export type BackendSearchResult = Schemas['SearchResult'];
-export type BackendSearchResponse = Schemas['SearchResponse'];
+export type BackendQuestionRequest = Schemas['QuestionRequest'];
+export type BackendQuestionItem = Schemas['QuestionItem'];
+export type BackendQuestionListResponse = Schemas['QuestionListResponse'];
+export type BackendAudioUploadResponse = Schemas['AudioUploadResponse'];
+export type BackendAudioStatusResponse = Schemas['AudioStatusResponse'];
+export type BackendQuestionAttemptResponse = Schemas['QuestionAttemptResponse'];
+export type BackendSessionResponse = Schemas['SessionResponse'];
+export type BackendSessionListResponse = Schemas['SessionListResponse'];

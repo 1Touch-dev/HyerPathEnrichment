@@ -115,6 +115,55 @@ def test_text_mode_is_human_readable() -> None:
         json.loads(rendered)
 
 
+def test_json_line_includes_custom_extra_fields() -> None:
+    """Regression test: `extra={...}` fields (e.g. an OpenAI error body) were
+    silently dropped before `_extra_fields` existed — only `request_id`/
+    `job_id` ever made it into the output. See `_extra_fields`'s docstring.
+    """
+    settings = Settings(APP_ENV="development", LOG_FORMAT="json", LOG_LEVEL="INFO")
+    configure_logging(settings, force=True)
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(JsonFormatter(service="hyrepath-enrichment"))
+    logger = logging.getLogger("tests.structured_logging.json.extra")
+    logger.handlers.clear()
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    logger.error(
+        "OpenAI API request failed",
+        extra={"status_code": 429, "response": '{"error": {"code": "credit_balance_exhausted"}}'},
+    )
+
+    payload = json.loads(stream.getvalue().strip())
+    assert payload["status_code"] == 429
+    assert payload["response"] == '{"error": {"code": "credit_balance_exhausted"}}'
+
+
+def test_text_mode_includes_custom_extra_fields() -> None:
+    from app.core.logging import TextFormatter
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(TextFormatter(service="hyrepath-enrichment"))
+    logger = logging.getLogger("tests.structured_logging.text.extra")
+    logger.handlers.clear()
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    logger.error(
+        "OpenAI API request failed", extra={"status_code": 429, "response": "quota exceeded"}
+    )
+
+    rendered = stream.getvalue()
+    assert "status_code" in rendered
+    assert "429" in rendered
+    assert "quota exceeded" in rendered
+
+
 def test_lifespan_configures_logging_without_error() -> None:
     app = FastAPI(lifespan=lifespan)
     with (

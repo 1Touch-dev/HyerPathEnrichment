@@ -5,6 +5,7 @@ import {
   fetchOutreachMessages,
   sendOutreach,
 } from "@/src/lib/api-client";
+import type { OutreachMessageType } from "@/src/lib/types";
 import { outreachKeys } from "../api/keys";
 
 export function useOutreachMessages(options: { poll?: boolean } = {}) {
@@ -25,6 +26,8 @@ export function useDraftOutreach() {
       documentId: string;
       recipientRoleTitle?: string;
       jobMatchId?: string;
+      messageType?: OutreachMessageType;
+      customInstruction?: string;
     }) => draftOutreach(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: outreachKeys.list() }),
   });
@@ -67,6 +70,8 @@ export function useDraftOutreachForMatch() {
       companyName: string;
       jobMatchId?: string;
       recipientRoleTitle?: string;
+      messageType?: OutreachMessageType;
+      customInstruction?: string;
     }) => {
       const documentId = await fetchMostRecentCompletedDocumentId();
       return draftOutreach({ ...payload, documentId });

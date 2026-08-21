@@ -28,6 +28,8 @@ class EmailTemplate(str, Enum):
     JOB_MATCH_DIGEST = "job_match_digest"
     CV_COMPLETENESS_REMINDER = "cv_completeness_reminder"
     PORTFOLIO_PUBLISHED = "portfolio_published"
+    INTERVIEW_SCHEDULED = "interview_scheduled"
+    INTERVIEW_REMINDER = "interview_reminder"
 
 
 class EmailService:
@@ -163,6 +165,8 @@ class EmailService:
             EmailTemplate.JOB_MATCH_DIGEST: self._render_job_match_digest,
             EmailTemplate.CV_COMPLETENESS_REMINDER: self._render_cv_completeness_reminder,
             EmailTemplate.PORTFOLIO_PUBLISHED: self._render_portfolio_published,
+            EmailTemplate.INTERVIEW_SCHEDULED: self._render_interview_scheduled,
+            EmailTemplate.INTERVIEW_REMINDER: self._render_interview_reminder,
         }
 
         renderer = templates.get(template)
@@ -626,6 +630,132 @@ class EmailService:
         Your public portfolio page has been published and is ready to share.
 
         View your portfolio: {portfolio_url}
+
+        ---
+        Hyrepath Enrichment | support@hyrepath.com
+        """
+
+        return html, text, subject
+
+    def _render_interview_scheduled(self, ctx: dict[str, Any]) -> tuple[str, str, str]:
+        """Render the interview-scheduled confirmation email (Module 4, Module D §8.4/§8.5).
+
+        CTA links to both the .ics download and the prefilled Google Calendar link —
+        no OAuth, just a plain link/anchor, per Module D's "no OAuth in v1" decision.
+        """
+        title = ctx.get("title", "your role")
+        company = ctx.get("company", "the company")
+        scheduled_at = ctx.get("scheduled_at", "")
+        ics_download_url = ctx.get("ics_download_url", "#")
+        google_calendar_link = ctx.get("google_calendar_link", "#")
+
+        subject = f"Interview scheduled: {title} at {company}"
+
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2c3e50;">Your interview is scheduled!</h2>
+            <p>Your interview for <strong>{title}</strong> at <strong>{company}</strong> is confirmed.</p>
+
+            <table style="border: 1px solid #ddd; border-collapse: collapse; width: 100%; margin: 20px 0;">
+                <tr style="background: #f8f9fa;">
+                    <td style="padding: 12px; border: 1px solid #ddd;"><strong>When:</strong></td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{scheduled_at}</td>
+                </tr>
+            </table>
+
+            <p style="text-align: center; margin: 30px 0;">
+                <a href="{ics_download_url}"
+                   style="background: #4CAF50; color: white; padding: 12px 24px;
+                          text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
+                    Download .ics
+                </a>
+                <a href="{google_calendar_link}"
+                   style="background: #4285F4; color: white; padding: 12px 24px;
+                          text-decoration: none; border-radius: 4px; display: inline-block;">
+                    Add to Google Calendar
+                </a>
+            </p>
+
+            <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+                Hyrepath Enrichment | support@hyrepath.com
+            </p>
+        </body>
+        </html>
+        """
+
+        text = f"""
+        Your interview is scheduled!
+
+        Your interview for {title} at {company} is confirmed.
+
+        When: {scheduled_at}
+
+        Download .ics: {ics_download_url}
+        Add to Google Calendar: {google_calendar_link}
+
+        ---
+        Hyrepath Enrichment | support@hyrepath.com
+        """
+
+        return html, text, subject
+
+    def _render_interview_reminder(self, ctx: dict[str, Any]) -> tuple[str, str, str]:
+        """Render the interview reminder email (Module 4, Module D §8.6), sent
+        `interview_reminder_hours_before` (default 24h) ahead of the scheduled time —
+        same CTA shape as the confirmation email above.
+        """
+        title = ctx.get("title", "your role")
+        company = ctx.get("company", "the company")
+        scheduled_at = ctx.get("scheduled_at", "")
+        ics_download_url = ctx.get("ics_download_url", "#")
+        google_calendar_link = ctx.get("google_calendar_link", "#")
+
+        subject = f"Reminder: upcoming interview for {title} at {company}"
+
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2c3e50;">Your interview is coming up!</h2>
+            <p>This is a reminder that your interview for <strong>{title}</strong> at
+               <strong>{company}</strong> is coming up.</p>
+
+            <table style="border: 1px solid #ddd; border-collapse: collapse; width: 100%; margin: 20px 0;">
+                <tr style="background: #f8f9fa;">
+                    <td style="padding: 12px; border: 1px solid #ddd;"><strong>When:</strong></td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{scheduled_at}</td>
+                </tr>
+            </table>
+
+            <p style="text-align: center; margin: 30px 0;">
+                <a href="{ics_download_url}"
+                   style="background: #4CAF50; color: white; padding: 12px 24px;
+                          text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
+                    Download .ics
+                </a>
+                <a href="{google_calendar_link}"
+                   style="background: #4285F4; color: white; padding: 12px 24px;
+                          text-decoration: none; border-radius: 4px; display: inline-block;">
+                    Add to Google Calendar
+                </a>
+            </p>
+
+            <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+                Hyrepath Enrichment | support@hyrepath.com
+            </p>
+        </body>
+        </html>
+        """
+
+        text = f"""
+        Your interview is coming up!
+
+        This is a reminder that your interview for {title} at {company} is coming up.
+
+        When: {scheduled_at}
+
+        Download .ics: {ics_download_url}
+        Add to Google Calendar: {google_calendar_link}
 
         ---
         Hyrepath Enrichment | support@hyrepath.com
