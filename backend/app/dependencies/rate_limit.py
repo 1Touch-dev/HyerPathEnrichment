@@ -100,3 +100,136 @@ async def enforce_job_matching_scan_rate_limit(
         f"job_matching:{_client_id(authorization)}",
         settings.max_job_matching_scan_requests_per_minute,
     )
+
+
+# Admin module (Step 5): brute-force/abuse-sensitive admin endpoints.
+
+
+async def enforce_admin_impersonation_start_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"admin_impersonation_start:{_client_id(authorization)}",
+        settings.max_admin_impersonation_start_requests_per_minute,
+    )
+
+
+async def enforce_admin_mfa_verify_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"admin_mfa_verify:{_client_id(authorization)}",
+        settings.max_admin_mfa_verify_requests_per_minute,
+    )
+
+
+async def enforce_admin_review_queue_decide_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"admin_review_queue_decide:{_client_id(authorization)}",
+        settings.max_admin_review_queue_decide_requests_per_minute,
+    )
+
+
+async def enforce_admin_moderation_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """Shared scope for admin moderation mutating endpoints (documents, outreach,
+    portfolio, job_postings) — a moderator hitting one moderation router hard
+    shares the same abuse budget as hitting another, rather than each domain
+    getting its own independent allowance."""
+    await _enforce(
+        f"admin_moderation:{_client_id(authorization)}",
+        settings.max_admin_moderation_requests_per_minute,
+    )
+
+
+# Module 3/4 (Step 5): distinct per-minute caps from any existing daily/quota-style
+# caps enforced in the service layer.
+
+
+async def enforce_questions_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"questions:{_client_id(authorization)}",
+        settings.max_questions_requests_per_minute,
+    )
+
+
+async def enforce_practice_audio_upload_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"practice_audio_upload:{_client_id(authorization)}",
+        settings.max_practice_audio_upload_requests_per_minute,
+    )
+
+
+async def enforce_jd_practice_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"jd_practice:{_client_id(authorization)}",
+        settings.max_jd_practice_requests_per_minute,
+    )
+
+
+async def enforce_application_tracker_status_update_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"application_tracker_status_update:{_client_id(authorization)}",
+        settings.max_application_tracker_status_update_requests_per_minute,
+    )
+
+
+async def enforce_interview_scheduling_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"interview_scheduling:{_client_id(authorization)}",
+        settings.max_interview_scheduling_requests_per_minute,
+    )
+
+
+async def enforce_manual_job_entry_create_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"manual_job_entry_create:{_client_id(authorization)}",
+        settings.max_manual_job_entry_create_requests_per_minute,
+    )
+
+
+async def enforce_outreach_send_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    await _enforce(
+        f"outreach_send:{_client_id(authorization)}",
+        settings.max_outreach_send_requests_per_minute,
+    )
+
+
+async def enforce_job_matching_apply_rate_limit(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """Shared scope for the apply-redirect and mark-applied routes — both are
+    candidate-initiated application-lifecycle actions on the same abuse budget."""
+    await _enforce(
+        f"job_matching_apply:{_client_id(authorization)}",
+        settings.max_job_matching_apply_requests_per_minute,
+    )

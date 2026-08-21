@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_application_tracker_status_update_rate_limit
 from app.modules.application_tracker import service
 from app.modules.application_tracker.schemas import (
     ApplicationStatus,
@@ -41,7 +42,11 @@ async def list_tracked_matches_endpoint(
     )
 
 
-@router.patch("/matches/{match_id}/status", response_model=TrackedMatchResponse)
+@router.patch(
+    "/matches/{match_id}/status",
+    response_model=TrackedMatchResponse,
+    dependencies=[Depends(enforce_application_tracker_status_update_rate_limit)],
+)
 async def update_application_status(
     match_id: str,
     payload: UpdateApplicationStatusRequest,

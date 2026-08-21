@@ -12,13 +12,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_manual_job_entry_create_rate_limit
 from app.modules.manual_jobs import service
 from app.modules.manual_jobs.schemas import CreateManualJobEntryRequest, ManualJobEntryResponse
 
 router = APIRouter(prefix="/api/manual-jobs", tags=["manual-jobs"], route_class=EnvelopeAPIRoute)
 
 
-@router.post("", response_model=ManualJobEntryResponse)
+@router.post(
+    "",
+    response_model=ManualJobEntryResponse,
+    dependencies=[Depends(enforce_manual_job_entry_create_rate_limit)],
+)
 async def create_manual_job_entry(
     request: CreateManualJobEntryRequest,
     current_user: CurrentUser,

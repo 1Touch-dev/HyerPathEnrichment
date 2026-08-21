@@ -12,13 +12,16 @@ from app.auth.dependencies import VerifiedUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import Settings, get_settings
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_questions_rate_limit
 from app.modules.questions.schemas import QuestionListResponse, QuestionRequest
 from app.modules.questions.service import get_questions
 
 router = APIRouter(prefix="/api/questions", tags=["questions"], route_class=EnvelopeAPIRoute)
 
 
-@router.post("", response_model=QuestionListResponse)
+@router.post(
+    "", response_model=QuestionListResponse, dependencies=[Depends(enforce_questions_rate_limit)]
+)
 async def list_questions(
     request: QuestionRequest,
     user: VerifiedUser,

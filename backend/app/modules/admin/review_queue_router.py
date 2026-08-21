@@ -32,6 +32,7 @@ from app.auth.dependencies import get_client_ip
 from app.auth.models import User
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_admin_review_queue_decide_rate_limit
 from app.modules.admin.audit import record_admin_action
 from app.modules.admin.models import AdminReviewQueueItem
 from app.modules.admin.pagination import decode_cursor, encode_cursor
@@ -287,7 +288,11 @@ async def get_review_queue_item(
     )
 
 
-@router.post("/{item_id}/decide", response_model=ReviewQueueItemResponse)
+@router.post(
+    "/{item_id}/decide",
+    response_model=ReviewQueueItemResponse,
+    dependencies=[Depends(enforce_admin_review_queue_decide_rate_limit)],
+)
 async def decide_review_queue_item(
     item_id: UUID,
     payload: ReviewQueueDecideRequest,

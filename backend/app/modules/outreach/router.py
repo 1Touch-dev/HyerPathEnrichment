@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_outreach_send_rate_limit
 from app.modules.outreach.schemas import (
     OutreachDraftRequest,
     OutreachEditRequest,
@@ -23,7 +24,9 @@ router = APIRouter(prefix="/api/outreach", tags=["outreach"], route_class=Envelo
 
 @router.post("/drafts")
 async def request_draft(
-    body: OutreachDraftRequest, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+    body: OutreachDraftRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     return await OutreachService(db).request_draft(current_user.id, body)
 
@@ -45,11 +48,18 @@ async def edit_draft(
     return await OutreachService(db).edit_draft(current_user.id, message_id, body)
 
 
-@router.post("/{message_id}/send", response_model=OutreachMessageResponse)
+@router.post(
+    "/{message_id}/send",
+    response_model=OutreachMessageResponse,
+    dependencies=[Depends(enforce_outreach_send_rate_limit)],
+)
 async def send_message(
     message_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
 ) -> OutreachMessageResponse:
     """Appends the mandatory disclosure footer (Decision 5) and marks the draft as sent."""
     return await OutreachService(db).send_message(
-        current_user.id, message_id, sender_email=current_user.email, sender_name=current_user.email.split("@")[0]
+        current_user.id,
+        message_id,
+        sender_email=current_user.email,
+        sender_name=current_user.email.split("@")[0],
     )

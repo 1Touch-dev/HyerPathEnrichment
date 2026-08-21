@@ -9,7 +9,10 @@ from starlette.responses import RedirectResponse, StreamingResponse
 from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
-from app.dependencies.rate_limit import enforce_job_matching_scan_rate_limit
+from app.dependencies.rate_limit import (
+    enforce_job_matching_apply_rate_limit,
+    enforce_job_matching_scan_rate_limit,
+)
 from app.modules.job_matching import events, push, repository
 from app.modules.job_matching.schemas import (
     JobMatchFeedbackRequest,
@@ -74,7 +77,10 @@ async def submit_match_feedback(
     await service.set_feedback(match_id, current_user.id, payload.feedback)
 
 
-@router.get("/matches/{match_id}/apply-redirect")
+@router.get(
+    "/matches/{match_id}/apply-redirect",
+    dependencies=[Depends(enforce_job_matching_apply_rate_limit)],
+)
 async def apply_redirect(
     match_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
 ) -> RedirectResponse:
@@ -93,7 +99,11 @@ async def apply_redirect(
     return RedirectResponse(url=target_url, status_code=status.HTTP_302_FOUND)
 
 
-@router.post("/matches/{match_id}/mark-applied", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/matches/{match_id}/mark-applied",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_job_matching_apply_rate_limit)],
+)
 async def mark_applied(
     match_id: str,
     payload: MarkAppliedRequest,

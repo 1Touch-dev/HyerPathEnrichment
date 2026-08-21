@@ -16,6 +16,7 @@ from app.auth.dependencies import VerifiedUser, get_client_ip
 from app.auth.models import User
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_admin_impersonation_start_rate_limit
 from app.modules.admin import impersonation, repository
 from app.modules.admin.models import ImpersonationSession
 from app.modules.admin.permissions import require_permission
@@ -43,7 +44,11 @@ async def _get_active_session(
     return result.scalars().first()
 
 
-@router.post("/start/{user_id}", response_model=ImpersonationStartResponse)
+@router.post(
+    "/start/{user_id}",
+    response_model=ImpersonationStartResponse,
+    dependencies=[Depends(enforce_admin_impersonation_start_rate_limit)],
+)
 async def start_impersonation(
     user_id: UUID,
     payload: ImpersonationStartRequest,

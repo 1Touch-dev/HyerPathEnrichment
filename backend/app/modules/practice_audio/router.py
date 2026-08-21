@@ -13,6 +13,7 @@ from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import Settings, get_settings
 from app.core.errors import NotFoundError
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_practice_audio_upload_rate_limit
 from app.modules.practice_audio.schemas import AudioStatusResponse, AudioUploadResponse
 from app.modules.practice_audio.service import upload_and_process_audio
 from app.modules.sessions.models import PracticeAudioRecording
@@ -22,7 +23,11 @@ router = APIRouter(
 )
 
 
-@router.post("", response_model=AudioUploadResponse)
+@router.post(
+    "",
+    response_model=AudioUploadResponse,
+    dependencies=[Depends(enforce_practice_audio_upload_rate_limit)],
+)
 async def upload_audio(
     user: VerifiedUser,
     practice_session_id: UUID = Form(...),

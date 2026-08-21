@@ -17,6 +17,7 @@ from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import get_settings
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_interview_scheduling_rate_limit
 from app.modules.interview_scheduling import repository
 from app.modules.interview_scheduling.ics_builder import build_ics
 from app.modules.interview_scheduling.schemas import (
@@ -34,7 +35,11 @@ router = APIRouter(
 )
 
 
-@router.post("/matches/{match_id}/schedule", response_model=InterviewScheduleResponse)
+@router.post(
+    "/matches/{match_id}/schedule",
+    response_model=InterviewScheduleResponse,
+    dependencies=[Depends(enforce_interview_scheduling_rate_limit)],
+)
 async def schedule_interview(
     match_id: str,
     payload: ScheduleInterviewRequest,

@@ -25,6 +25,7 @@ from app.auth.dependencies import get_client_ip
 from app.auth.models import User
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_admin_moderation_rate_limit
 from app.modules.admin.audit import record_admin_action
 from app.modules.admin.pagination import decode_cursor, encode_cursor
 from app.modules.admin.permissions import require_permission
@@ -124,7 +125,11 @@ async def get_outreach_message(
     return _to_response(message)
 
 
-@router.post("/{message_id}/moderate", response_model=AdminOutreachMessageResponse)
+@router.post(
+    "/{message_id}/moderate",
+    response_model=AdminOutreachMessageResponse,
+    dependencies=[Depends(enforce_admin_moderation_rate_limit)],
+)
 async def moderate_outreach_message(
     message_id: UUID,
     payload: ModerateOutreachMessageRequest,

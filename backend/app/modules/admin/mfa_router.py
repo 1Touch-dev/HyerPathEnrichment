@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import VerifiedUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_admin_mfa_verify_rate_limit
 from app.modules.admin import mfa
 from app.modules.admin.schemas import MfaEnrollResponse, MfaStatusResponse, MfaVerifyRequest
 
@@ -23,7 +24,11 @@ async def enroll_mfa(
     return await mfa.enroll_mfa(db, current_user)
 
 
-@router.post("/confirm", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/confirm",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_admin_mfa_verify_rate_limit)],
+)
 async def confirm_mfa_enrollment(
     payload: MfaVerifyRequest,
     current_user: VerifiedUser,

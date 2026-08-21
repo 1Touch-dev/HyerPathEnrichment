@@ -546,12 +546,26 @@ Copy `backend/.env.example` → `backend/.env`.
 | `MAX_DOCUMENTS_UPLOAD_REQUESTS_PER_MINUTE` | 10 | Per API token (`POST /api/documents/upload`) |
 | `MAX_SIGNALS_WEBHOOK_REQUESTS_PER_MINUTE` | 30 | Per client IP (`POST /api/signals/changedetection`) |
 | `MAX_JOB_MATCHING_SCAN_REQUESTS_PER_MINUTE` | 5 | Per API token (`POST /api/job-matching/scan`) |
+| `MAX_ADMIN_IMPERSONATION_START_REQUESTS_PER_MINUTE` | 5 | Per API token (`POST /api/admin/impersonation/start/{user_id}`) — brute-force-sensitive |
+| `MAX_ADMIN_MFA_VERIFY_REQUESTS_PER_MINUTE` | 5 | Per API token (`POST /api/admin/mfa/confirm`) — brute-force-sensitive |
+| `MAX_ADMIN_REVIEW_QUEUE_DECIDE_REQUESTS_PER_MINUTE` | 30 | Per API token (`POST /api/admin/review-queue/{item_id}/decide`) |
+| `MAX_ADMIN_MODERATION_REQUESTS_PER_MINUTE` | 30 | Per API token, shared bucket across all admin moderation routers (documents, outreach, portfolio, job_postings `/moderate` actions) |
+| `MAX_QUESTIONS_REQUESTS_PER_MINUTE` | 20 | Per API token (`POST /api/questions`), distinct from any service-layer daily quota |
+| `MAX_PRACTICE_AUDIO_UPLOAD_REQUESTS_PER_MINUTE` | 10 | Per API token (`POST /api/practice/audio`) |
+| `MAX_JD_PRACTICE_REQUESTS_PER_MINUTE` | 20 | Per API token (`POST /api/jd-practice/questions`), distinct from any service-layer daily quota |
+| `MAX_APPLICATION_TRACKER_STATUS_UPDATE_REQUESTS_PER_MINUTE` | 30 | Per API token (`PATCH /api/application-tracker/matches/{match_id}/status`) |
+| `MAX_INTERVIEW_SCHEDULING_REQUESTS_PER_MINUTE` | 20 | Per API token (`POST /api/interviews/matches/{match_id}/schedule`) |
+| `MAX_MANUAL_JOB_ENTRY_CREATE_REQUESTS_PER_MINUTE` | 20 | Per API token (`POST /api/manual-jobs`) |
+| `MAX_OUTREACH_SEND_REQUESTS_PER_MINUTE` | 20 | Per API token (`POST /api/outreach/{message_id}/send`) |
+| `MAX_JOB_MATCHING_APPLY_REQUESTS_PER_MINUTE` | 30 | Per API token, shared bucket across `GET /api/job-matching/matches/{match_id}/apply-redirect` and `POST /api/job-matching/matches/{match_id}/mark-applied` |
 | `LINKEDIN_PHOTO_TTL_SECONDS` | 86400 | — |
 | `USERNAME_LOOKUP_TTL_SECONDS` | 3600 | — |
 
 ### CORS
 
 `CORS_ALLOWED_ORIGINS` — comma-separated origin allowlist for `CORSMiddleware` (`app/main.py`); falls back to `FRONTEND_URL`, then `http://localhost:3000`, when unset. `allow_methods` and `allow_headers` are an explicit tightened set (`GET, POST, PUT, PATCH, DELETE, OPTIONS`; `Authorization, Content-Type`), not wildcards, since `allow_credentials=True` forbids a wildcard origin/credentials combination anyway. Preflight responses are cached client-side for 600s (`max_age=600`).
+
+The Admin Module UI (`/app/admin/*` routes) is served from this same Next.js frontend, not a separate host/subdomain — so no additional entry in `CORS_ALLOWED_ORIGINS` is needed for admin traffic. If the admin console is ever split out to its own origin, add it to the allowlist alongside the candidate-facing frontend origin.
 
 ---
 

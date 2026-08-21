@@ -43,6 +43,47 @@ class Settings(BaseSettings):
         default=5, alias="MAX_JOB_MATCHING_SCAN_REQUESTS_PER_MINUTE"
     )
 
+    # Admin module rate limits (Step 5: brute-force/abuse-sensitive admin endpoints).
+    max_admin_impersonation_start_requests_per_minute: int = Field(
+        default=5, alias="MAX_ADMIN_IMPERSONATION_START_REQUESTS_PER_MINUTE"
+    )
+    max_admin_mfa_verify_requests_per_minute: int = Field(
+        default=5, alias="MAX_ADMIN_MFA_VERIFY_REQUESTS_PER_MINUTE"
+    )
+    max_admin_review_queue_decide_requests_per_minute: int = Field(
+        default=30, alias="MAX_ADMIN_REVIEW_QUEUE_DECIDE_REQUESTS_PER_MINUTE"
+    )
+    max_admin_moderation_requests_per_minute: int = Field(
+        default=30, alias="MAX_ADMIN_MODERATION_REQUESTS_PER_MINUTE"
+    )
+
+    # Module 3/4 rate limits (Step 5). Distinct per-minute caps from any existing
+    # daily/quota-style caps enforced in the service layer.
+    max_questions_requests_per_minute: int = Field(
+        default=20, alias="MAX_QUESTIONS_REQUESTS_PER_MINUTE"
+    )
+    max_practice_audio_upload_requests_per_minute: int = Field(
+        default=10, alias="MAX_PRACTICE_AUDIO_UPLOAD_REQUESTS_PER_MINUTE"
+    )
+    max_jd_practice_requests_per_minute: int = Field(
+        default=20, alias="MAX_JD_PRACTICE_REQUESTS_PER_MINUTE"
+    )
+    max_application_tracker_status_update_requests_per_minute: int = Field(
+        default=30, alias="MAX_APPLICATION_TRACKER_STATUS_UPDATE_REQUESTS_PER_MINUTE"
+    )
+    max_interview_scheduling_requests_per_minute: int = Field(
+        default=20, alias="MAX_INTERVIEW_SCHEDULING_REQUESTS_PER_MINUTE"
+    )
+    max_manual_job_entry_create_requests_per_minute: int = Field(
+        default=20, alias="MAX_MANUAL_JOB_ENTRY_CREATE_REQUESTS_PER_MINUTE"
+    )
+    max_outreach_send_requests_per_minute: int = Field(
+        default=20, alias="MAX_OUTREACH_SEND_REQUESTS_PER_MINUTE"
+    )
+    max_job_matching_apply_requests_per_minute: int = Field(
+        default=30, alias="MAX_JOB_MATCHING_APPLY_REQUESTS_PER_MINUTE"
+    )
+
     # Provider mode switches (Phase 0): the only flags that flip free -> paid.
     # Defaults = fully free / self-hosted. See app/providers/.
     proxy_mode: str = Field(default="none", alias="PROXY_MODE")  # none|scrapoxy|paid

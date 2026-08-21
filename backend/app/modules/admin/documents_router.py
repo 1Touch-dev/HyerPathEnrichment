@@ -20,6 +20,7 @@ from app.auth.dependencies import get_client_ip
 from app.auth.models import User
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_admin_moderation_rate_limit
 from app.modules.admin.audit import record_admin_action
 from app.modules.admin.pagination import decode_cursor, encode_cursor
 from app.modules.admin.permissions import require_permission
@@ -127,7 +128,11 @@ async def get_document(
     return _document_to_response(document)
 
 
-@router.post("/{document_id}/moderate", response_model=AdminDocumentResponse)
+@router.post(
+    "/{document_id}/moderate",
+    response_model=AdminDocumentResponse,
+    dependencies=[Depends(enforce_admin_moderation_rate_limit)],
+)
 async def moderate_document(
     document_id: UUID,
     payload: ModerateDocumentRequest,
