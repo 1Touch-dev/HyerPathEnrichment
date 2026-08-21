@@ -170,10 +170,12 @@ class Settings(BaseSettings):
     litellm_fallbacks: str = Field(default="", alias="LITELLM_FALLBACKS")
 
     # Module 2: Tinder-Style Job Board + CV Management (portfolio public URL)
-    # NOTE: portfolio_public_base_url, cv_chat_max_turns, and cv_feedback_model
-    # are added here because portfolio/service.py, cv_chat_service.py, and
-    # feedback_generator.py already read them and need them to be non-blocking
-    # per the reviewer gate.
+    # NOTE: all Module 2 §7 settings have now landed with the chunks that
+    # consume them (Phase B) — portfolio/service.py, cv_chat_service.py,
+    # feedback_generator.generate_cv_improvement() (§8.8), and
+    # clients/perplexity.py + modules/outreach/service.py (§8.12-8.14) all
+    # read the fields below and need them to be non-blocking per the
+    # reviewer gate.
     portfolio_public_base_url: str = Field(default="", alias="PORTFOLIO_PUBLIC_BASE_URL")
     app_public_base_url: str = Field(default="", alias="APP_PUBLIC_BASE_URL")
     cv_chat_max_turns: int = Field(default=12, alias="CV_CHAT_MAX_TURNS")
@@ -191,6 +193,14 @@ class Settings(BaseSettings):
     # OpenAI API (for CV extraction, embeddings, etc.)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     enable_embeddings: bool = Field(default=True, alias="ENABLE_EMBEDDINGS")
+
+    # Interview practice (Phase 2, Module 3) — question generation + voice tone.
+    hume_api_key: str = Field(default="", alias="HUME_API_KEY")
+    hume_prosody_timeout_seconds: int = Field(default=30, alias="HUME_PROSODY_TIMEOUT_SECONDS")
+    question_generation_daily_limit_per_user: int = Field(
+        default=10, alias="QUESTION_GENERATION_DAILY_LIMIT_PER_USER"
+    )
+    practice_audio_max_upload_mb: int = Field(default=25, alias="PRACTICE_AUDIO_MAX_UPLOAD_MB")
     embedding_chunk_size: int = Field(
         default=512,
         alias="EMBEDDING_CHUNK_SIZE",
@@ -305,6 +315,44 @@ class Settings(BaseSettings):
         default=30, alias="ADMIN_IMPERSONATION_MAX_DURATION_MINUTES"
     )
     prometheus_query_url: str = Field(default="", alias="PROMETHEUS_QUERY_URL")
+
+    # Module A — job matching fallback relaxation
+    job_matching_min_results: int = Field(default=10, alias="JOB_MATCHING_MIN_RESULTS")
+
+    # Module B — apply-click tracking / redirect
+    apply_redirect_base_url: str = Field(default="", alias="APPLY_REDIRECT_BASE_URL")
+    # empty => derive from app_public_base_url; see Module B §5.3
+
+    # Module C — application tracker (no new settings; reuses existing pagination/limit conventions)
+
+    # Module D — interview scheduling, calendar, notifications
+    interview_reminder_hours_before: int = Field(
+        default=24, alias="INTERVIEW_REMINDER_HOURS_BEFORE"
+    )
+    interview_ics_organizer_email: str = Field(
+        default="", alias="INTERVIEW_ICS_ORGANIZER_EMAIL"
+    )  # falls back to sendgrid_from_email if empty
+
+    # Module E — JD-aware interview practice
+    jd_question_generation_daily_limit_per_user: int = Field(
+        default=10, alias="JD_QUESTION_GENERATION_DAILY_LIMIT_PER_USER"
+    )  # separate budget from question_generation_daily_limit_per_user (Module 3) since
+    # JD-tailored generation always bypasses the shared bank (§9.3) and is therefore
+    # more expensive per request; kept as an independent knob rather than reusing
+    # question_generation_daily_limit_per_user so ops can tune them independently.
+
+    # Module F — manual job entry (no new settings)
+
+    # Module G — multi-channel outreach messages
+    outreach_linkedin_inmail_body_max_chars: int = Field(
+        default=1900, alias="OUTREACH_LINKEDIN_INMAIL_BODY_MAX_CHARS"
+    )
+    outreach_linkedin_inmail_subject_max_chars: int = Field(
+        default=200, alias="OUTREACH_LINKEDIN_INMAIL_SUBJECT_MAX_CHARS"
+    )
+    outreach_linkedin_connection_note_max_chars: int = Field(
+        default=300, alias="OUTREACH_LINKEDIN_CONNECTION_NOTE_MAX_CHARS"
+    )
 
 
 _TIER1_PROD_ENVS = frozenset({"production", "staging"})

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
 from app.core.config import Settings
@@ -235,7 +236,10 @@ async def test_generate_interview_feedback_success():
         assert "https://api.openai.com" in call_args.args[0]
         assert call_kwargs["headers"]["Authorization"] == "Bearer test-key"
         assert call_kwargs["json"]["model"] == "gpt-4o-mini"
-        assert call_kwargs["json"]["response_format"]["type"] == "json_object"
+        # Structured Outputs (strict json_schema) — see feedback_generator.py's
+        # _FEEDBACK_JSON_SCHEMA docstring for why plain json_object mode isn't used.
+        assert call_kwargs["json"]["response_format"]["type"] == "json_schema"
+        assert call_kwargs["json"]["response_format"]["json_schema"]["strict"] is True
         assert call_kwargs["json"]["temperature"] == 0.3
 
         # Verify feedback structure
@@ -273,6 +277,67 @@ async def test_generate_interview_feedback_api_error():
                 answer="REST is...",
                 settings=settings,
             )
+
+
+@pytest.mark.asyncio
+async def test_generate_interview_feedback_retries_on_connect_error():
+    """A transient httpx.ConnectError on the first attempt is retried and
+    succeeds on the second call, per §3 Decision 2 / with_transient_retry()
+    (backend/app/clients/retry.py), which retries transient httpx errors
+    (ConnectError, ReadTimeout, WriteTimeout, PoolTimeout, and 429/502/503/504
+    HTTPStatusError) up to max_retries=2 additional attempts."""
+    settings = Settings.model_construct(openai_api_key="test-key")
+
+    mock_response = {
+        "choices": [
+            {
+                "message": {
+                    "content": """
+                    {
+                        "overall_score": 78.0,
+                        "dimension_scores": {
+                            "clarity": 20.0,
+                            "technical_accuracy": 19.0,
+                            "completeness": 19.0,
+                            "communication_skills": 20.0
+                        },
+                        "strengths": ["Clear explanation"],
+                        "improvements": ["Add more depth"],
+                        "detailed_feedback": "Solid answer overall."
+                    }
+                    """
+                }
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+        },
+    }
+
+    with patch("httpx.AsyncClient") as mock_client_class:
+        # Create mock client instance
+        mock_client = AsyncMock()
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+
+        # First call raises a transient connection error, second call succeeds
+        mock_response_obj = AsyncMock()
+        mock_response_obj.raise_for_status = lambda: None
+        mock_response_obj.json = lambda: mock_response
+        mock_client.post = AsyncMock(side_effect=[httpx.ConnectError("boom"), mock_response_obj])
+
+        feedback, _ = await generate_interview_feedback(
+            question="Explain REST",
+            answer="REST is...",
+            settings=settings,
+        )
+
+        # Verify the retry actually happened (one failure, one success)
+        assert mock_client.post.call_count == 2
+
+        # Verify the retried call's response was used
+        assert feedback["overall_score"] == 78.0
+        assert feedback["overall_score"] >= 0
 
 
 def test_feedback_structure_type():

@@ -252,12 +252,14 @@ export type JobMatch = {
   salaryMax: number | null;
   salaryCurrency: string | null;
   overallScore: number;
-  scoreBreakdown: Record<string, number>;
+  scoreBreakdown: Record<string, number | boolean>;
   explanation: string | null;
   isNew: boolean;
   viewedAt: string | null;
   feedback: "up" | "down" | null;
   createdAt: string;
+  applyClickedAt: string | null;
+  appliedAt: string | null;
 };
 
 export type JobMatchListResponse = {
@@ -546,7 +548,7 @@ export type BackendAdminJobPostingListResponse = {
 // Admin documents moderation: soft-delete/restore of candidate documents
 // (mirrors backend/app/modules/admin/documents_router.py's inline Pydantic
 // models — distinct from the candidate-facing CandidateDocument/CandidateDocumentDetail
-// types above, which come from app/modules/documents/schemas.py instead).
+// types below, which come from app/modules/documents/schemas.py instead).
 
 export type AdminDocumentModerateAction = "soft_delete" | "restore";
 
@@ -777,17 +779,6 @@ export type DocumentUploadResult = {
   message: string;
 };
 
-export type DocumentJobStatus = {
-  jobId: string;
-  status: string;
-  progress: number;
-  documentId: string | null;
-  result: Record<string, unknown> | null;
-  error: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type CvData = {
   documentId: string;
   extractedData: Record<string, unknown>;
@@ -807,6 +798,49 @@ export type DocumentSearchResult = {
 export type DocumentSearchResponse = {
   results: DocumentSearchResult[];
 };
+
+// Module 4, Module C: Job application tracking board (phase2_module4_application_lifecycle_and_interview_prep.md §7.6)
+
+export type ApplicationStatus = "new" | "applied" | "replied" | "interview" | "offer" | "rejected";
+
+export type TrackedMatch = {
+  matchId: string;
+  jobPostingId: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  sourceUrl: string | null;
+  overallScore: number | null; // null for Module F manual entries (§10)
+  applicationStatus: ApplicationStatus;
+  applyClickedAt: string | null;
+  appliedAt: string | null;
+  statusUpdatedAt: string | null;
+  createdAt: string;
+  nextInterviewAt: string | null; // Module D
+};
+
+export type TrackedMatchListResponse = {
+  matches: TrackedMatch[];
+  total: number;
+  limit: number;
+  offset: number;
+  countsByStatus: Record<ApplicationStatus, number>;
+};
+
+// Module 4, Module D: Interview scheduling, calendar, and notifications
+// (phase2_module4_application_lifecycle_and_interview_prep.md §8.7/§8.8)
+
+export interface InterviewSchedule {
+  id: string;
+  jobMatchId: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  notes: string | null;
+  icsDownloadUrl: string;
+  googleCalendarLink: string;
+  createdAt: string;
+}
 
 // Module 2: Tinder-Style Job Board + CV Management (phase2_module2.md §11.2)
 
@@ -850,6 +884,18 @@ export interface CvFeedbackReport {
   /** Indices into `rewrittenBullets` the user has already accepted (backend's `accepted_bullet_indices`). */
   acceptedBulletIndices: number[];
   createdAt: string;
+}
+
+/** Mirrors the backend's `JobStatusResponse` (backend/app/modules/documents/schemas.py). */
+export interface DocumentJobStatus {
+  jobId: string;
+  status: string;
+  progress: number;
+  documentId: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** Mirrors the backend's `DocumentMetadata` (backend/app/modules/documents/schemas.py). */
@@ -908,6 +954,9 @@ export interface SwipeCard {
   salaryCurrency: string | null;
   overallScore: number;
   explanation: string | null;
+  belowSimilarityThreshold: boolean;
+  sourceUrl: string | null;
+  appliedAt: string | null;
 }
 
 export interface SwipeDeck {
@@ -918,6 +967,10 @@ export interface SwipeDeck {
 
 export type SwipeDirection = "left" | "right" | "up";
 
+// Module 4, Module G: multi-channel outreach message types
+// (phase2_module4_application_lifecycle_and_interview_prep.md §11.4/§11.7).
+export type OutreachMessageType = "email" | "linkedin" | "generic" | "custom";
+
 export interface OutreachMessage {
   messageId: string;
   companyName: string;
@@ -925,6 +978,7 @@ export interface OutreachMessage {
   subject: string;
   body: string;
   status: "draft" | "sent";
+  messageType: OutreachMessageType;
   createdAt: string;
   sentAt: string | null;
 }
@@ -942,4 +996,124 @@ export interface OutreachListResponse {
 export interface OutreachDraftAccepted {
   rqJobId: string;
   message: string;
+}
+
+/**
+ * Module 4, Module G: request payload for `POST /api/outreach/drafts`
+ * (phase2_module4_application_lifecycle_and_interview_prep.md §11.4/§11.7).
+ * `documentId` is required by the backend's `OutreachDraftRequest`, but
+ * `useDraftOutreachForMatch` resolves it internally before calling `draftOutreach`,
+ * so callers of that hook only supply `Omit<RequestOutreachDraftInput, "documentId">`.
+ * `customInstruction` is only meaningful (and required, per §11.6's service-layer
+ * guard) when `messageType === "custom"`.
+ */
+export interface RequestOutreachDraftInput {
+  companyName: string;
+  documentId: string;
+  recipientRoleTitle?: string;
+  jobMatchId?: string;
+  messageType?: OutreachMessageType;
+  customInstruction?: string;
+}
+
+export interface InterviewQuestion {
+  id: string;
+  questionText: string;
+  category: "behavioral" | "technical" | "system_design";
+  difficulty: "easy" | "medium" | "hard";
+  jobRoles: string[];
+  technologies: string[];
+  isPersonalized: boolean;
+}
+
+export interface QuestionListResult {
+  questions: InterviewQuestion[];
+  source: "question_bank" | "generated" | "mixed";
+}
+
+export interface PracticeAttempt {
+  id: string;
+  sessionId: string;
+  userId: string;
+  questionId: string | null;
+  questionText: string | null;
+  responseType: "text" | "audio";
+  textResponse: string | null;
+  audioRecordingId: string | null;
+  aiScore: number | null;
+  scoreBreakdown: Record<string, unknown> | null;
+  aiFeedback: string | null;
+  timeTakenSeconds: number | null;
+  attemptedAt: string;
+}
+
+export interface PracticeSession {
+  id: string;
+  sessionType: string;
+  status: "pending" | "in_progress" | "completed" | "failed" | "abandoned";
+  questionsAttempted: number;
+  questionsCompleted: number;
+  overallScore: number | null;
+  startedAt: string;
+  completedAt: string | null;
+  attempts: PracticeAttempt[];
+}
+
+export interface PracticeSessionListResult {
+  sessions: PracticeSession[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AudioUploadResult {
+  id: string;
+  practiceSessionId: string;
+  fileSizeBytes: number;
+  transcriptionStatus: string;
+  createdAt: string;
+}
+
+export interface AudioRecordingStatus {
+  id: string;
+  transcriptionStatus: "pending" | "processing" | "completed" | "failed" | string;
+  transcription: string | null;
+  analysisData: { fillerWordCount?: number; wordsPerMinute?: number; clarityScore?: number } | null;
+  voiceToneSignals: Record<string, unknown> | null;
+  durationSeconds: number | null;
+}
+
+// Module 4E: JD-aware interview practice (phase2_module4 §9.6)
+
+export interface JdPracticeQuestion {
+  id: string;
+  questionText: string;
+  category: "behavioral" | "technical" | "system_design";
+  difficulty: "easy" | "medium" | "hard";
+  // Returned by the API for every question up front (backend/app/modules/jd_practice/schemas.py
+  // §9.4), but the frontend must not render this until the candidate has submitted an
+  // attempt for that question — a UI-layer discipline, not a schema-layer omission.
+  sampleAnswer: string;
+}
+
+export interface JdPracticeResponse {
+  questions: JdPracticeQuestion[];
+  jobMatchId: string;
+  practiceSessionId: string;
+}
+
+// Module 4, Module F: manually-added job entries (phase2_module4_application_lifecycle_and_interview_prep.md §10.7)
+// Mirrors the backend's real `ManualJobEntryResponse` (backend/app/modules/manual_jobs/schemas.py).
+// v1 is create-only — no edit/delete affordance anywhere for this type (§14 non-goal).
+export interface ManualJobEntry {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  sourceLabel: string | null;
+  sourceUrl: string | null;
+  notes: string | null;
+  /** The auto-created tracker row's id — lets the frontend navigate straight to it. */
+  jobMatchId: string;
+  createdAt: string;
 }

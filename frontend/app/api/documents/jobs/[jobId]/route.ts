@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { BackendJobStatusResponse, mapBackendDocumentJobStatus } from "@/src/lib/api-adapter";
+import { adaptDocumentJobStatus } from "@/src/lib/api-adapter";
 import { backendFetch } from "@/src/lib/backend-client";
 import { bffServiceUnavailable, handleBackendJson } from "@/src/lib/bff-response";
 
@@ -22,7 +22,5 @@ export async function GET(
   } catch {
     return bffServiceUnavailable();
   }
-  return handleBackendJson(backendResponse, (payload: BackendJobStatusResponse) =>
-    mapBackendDocumentJobStatus(payload),
-  );
+  return handleBackendJson(backendResponse, adaptDocumentJobStatus);
 }

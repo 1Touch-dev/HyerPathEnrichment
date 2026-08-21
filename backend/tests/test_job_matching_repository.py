@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
@@ -21,6 +22,8 @@ from app.auth.password import hash_password
 from app.modules.job_matching import repository
 from app.modules.job_matching.models import PGVECTOR_AVAILABLE, JobPosting, JobPostingEmbedding
 from app.modules.job_matching.scorer import compute_dedup_key
+from app.modules.manual_jobs.models import ManualJobEntry
+from app.observability.job_matching_metrics import job_matching_similarity_fallback_fired_total
 
 
 @pytest.fixture
@@ -73,6 +76,54 @@ async def _make_posting(db: AsyncSession, **overrides) -> JobPosting:
     await db.commit()
     await db.refresh(posting)
     return posting
+
+
+async def _make_manual_entry(db: AsyncSession, user_id: uuid.UUID, **overrides) -> ManualJobEntry:
+    """Create and commit a ManualJobEntry row (Module F, §10.5) with sensible defaults."""
+    fields = {
+        "user_id": user_id,
+        "title": "Self-Sourced Engineer",
+        "company": "Referral Co",
+        "location": "Remote",
+        "source_label": "Referral",
+        "source_url": "https://example.com/careers/manual",
+        "notes": None,
+    }
+    fields.update(overrides)
+    entry = ManualJobEntry(**fields)
+    db.add(entry)
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+async def _make_manual_match(
+    db: AsyncSession, user_id: uuid.UUID, entry: ManualJobEntry, **overrides
+) -> Any:
+    """Create and commit a JobMatch row wired to a manual entry (job_posting_id=None,
+    manual_job_entry_id set) — the exact shape manual_jobs/repository.py's
+    create_manual_entry() produces (Module F, §10.5), used here directly rather than
+    going through the manual_jobs module to keep these repository tests scoped to
+    job_matching only.
+    """
+    from app.modules.job_matching.models import JobMatch
+
+    fields = {
+        "user_id": user_id,
+        "job_posting_id": None,
+        "manual_job_entry_id": entry.id,
+        "similarity_score": 0.0,
+        "rule_score": 0.0,
+        "overall_score": 0.0,
+        "score_breakdown": {},
+        "application_status": "new",
+    }
+    fields.update(overrides)
+    match = JobMatch(**fields)
+    db.add(match)
+    await db.commit()
+    await db.refresh(match)
+    return match
 
 
 class TestPreferencesRepository:
@@ -302,6 +353,50 @@ class TestJobMatchRepository:
         assert len(page2) == 1
         assert page2[0][0].overall_score == 10.0
 
+    async def test_list_matches_for_user_includes_manual_entry_with_no_crash(
+        self, db: AsyncSession, test_user: User
+    ):
+        """Regression test (Module F, §10.6): a manual-entry JobMatch (job_posting_id
+        NULL, manual_job_entry_id set) must not be silently dropped by an inner join,
+        and must not raise when the row is unpacked — it comes back with posting=None
+        and the manual entry populated, sourced separately.
+        """
+        entry = await _make_manual_entry(
+            db, test_user.id, title="Self-Sourced Role", company="Referral Co"
+        )
+        manual_match = await _make_manual_match(db, test_user.id, entry)
+
+        posting = await _make_posting(db)
+        real_match = await repository.upsert_match(
+            db,
+            test_user.id,
+            posting.id,
+            similarity_score=0.5,
+            rule_score=0.5,
+            overall_score=50.0,
+            score_breakdown={},
+        )
+
+        rows, total = await repository.list_matches_for_user(db, test_user.id, limit=10, offset=0)
+        assert total == 2
+
+        rows_by_id = {m.id: (m, p, e) for m, p, e in rows}
+        manual_row = rows_by_id[manual_match.id]
+        assert manual_row[1] is None  # no JobPosting row
+        assert manual_row[2] is not None  # ManualJobEntry row is populated
+        assert manual_row[2].title == "Self-Sourced Role"
+        assert manual_row[2].company == "Referral Co"
+
+        real_row = rows_by_id[real_match.id]
+        assert real_row[1] is not None
+        assert real_row[2] is None
+
+        title, company, location, source_url = repository.resolve_match_display_fields(
+            manual_row[1], manual_row[2]
+        )
+        assert title == "Self-Sourced Role"
+        assert company == "Referral Co"
+
     async def test_get_top_unexplained_matches_filters_explained_and_respects_top_n(
         self, db: AsyncSession, test_user: User
     ):
@@ -333,6 +428,34 @@ class TestJobMatchRepository:
         limited = await repository.get_top_unexplained_matches(db, test_user.id, top_n=1)
         assert len(limited) == 1
         assert limited[0][0].id == matches[1].id  # highest-scoring remaining unexplained match
+
+    async def test_get_top_unexplained_matches_excludes_manual_entries_with_no_crash(
+        self, db: AsyncSession, test_user: User
+    ):
+        """Regression test (Module F, §10.6): manual entries have no JD-embedding to
+        explain a similarity match against, so they must never surface here — and the
+        (now inner-joined-with-a-NULL-guard) query must not raise on their presence.
+        """
+        entry = await _make_manual_entry(db, test_user.id)
+        await _make_manual_match(db, test_user.id, entry, overall_score=999.0)
+
+        posting = await _make_posting(db)
+        real_match = await repository.upsert_match(
+            db,
+            test_user.id,
+            posting.id,
+            similarity_score=0.5,
+            rule_score=0.5,
+            overall_score=10.0,
+            score_breakdown={},
+        )
+
+        top = await repository.get_top_unexplained_matches(db, test_user.id, top_n=5)
+        top_ids = {m.id for m, _ in top}
+        assert real_match.id in top_ids
+        # The manual entry's sentinel overall_score=999.0 would otherwise rank first —
+        # confirming its absence also confirms it isn't merely sorted last.
+        assert len(top) == 1
 
     async def test_save_explanation_sets_fields(self, db: AsyncSession, test_user: User):
         posting = await _make_posting(db)
@@ -592,13 +715,18 @@ class TestFindSimilarPostings:
         await repository.store_posting_embedding(db, posting.id, [1.0, 0.0, 0.0], token_count=5)
 
         results = await repository.find_similar_postings(
-            db, query_embedding=[1.0, 0.0, 0.0], limit=10, similarity_threshold=0.5
+            db,
+            query_embedding=[1.0, 0.0, 0.0],
+            limit=10,
+            similarity_threshold=0.5,
+            min_results=1,
         )
 
         assert len(results) == 1
-        result_id, similarity = results[0]
+        result_id, similarity, passed_threshold = results[0]
         assert result_id == posting.id
         assert similarity == pytest.approx(1.0, abs=1e-6)
+        assert passed_threshold is True
 
     async def test_respects_similarity_threshold(self, db: AsyncSession):
         posting = await _make_posting(db)
@@ -607,13 +735,16 @@ class TestFindSimilarPostings:
 
         # Scope to this posting via posting_ids since the test DB persists committed
         # rows across tests (no per-test transaction rollback), so unscoped queries
-        # would also pick up matching postings from other tests.
+        # would also pick up matching postings from other tests. min_results=0 keeps
+        # the fallback pass from firing (it would otherwise relax the threshold and
+        # pull this posting back in, defeating the point of this test).
         results = await repository.find_similar_postings(
             db,
             query_embedding=[1.0, 0.0, 0.0],
             limit=10,
             similarity_threshold=0.5,
             posting_ids=[posting.id],
+            min_results=0,
         )
         assert results == []
 
@@ -629,6 +760,7 @@ class TestFindSimilarPostings:
             limit=10,
             similarity_threshold=0.5,
             posting_ids=[included.id],
+            min_results=1,
         )
 
         result_ids = {r[0] for r in results}
@@ -641,12 +773,14 @@ class TestFindSimilarPostings:
         # Scope to this posting via posting_ids for the same reason as above: it's
         # excluded by is_active regardless, but this avoids depending on other tests'
         # leftover active postings sharing the same embedding to prove the point.
+        # min_results=0 keeps the fallback pass from firing.
         results = await repository.find_similar_postings(
             db,
             query_embedding=[1.0, 0.0, 0.0],
             limit=10,
             similarity_threshold=0.5,
             posting_ids=[posting.id],
+            min_results=0,
         )
         assert results == []
 
@@ -656,7 +790,11 @@ class TestFindSimilarPostings:
             await repository.store_posting_embedding(db, posting.id, [1.0, 0.0, 0.0], token_count=5)
 
         results = await repository.find_similar_postings(
-            db, query_embedding=[1.0, 0.0, 0.0], limit=2, similarity_threshold=0.5
+            db,
+            query_embedding=[1.0, 0.0, 0.0],
+            limit=2,
+            similarity_threshold=0.5,
+            min_results=0,
         )
         assert len(results) == 2
 
@@ -689,10 +827,136 @@ class TestFindSimilarPostings:
         # The simulated failure makes it fall through to the Python/SQLite fallback path,
         # which still runs against this test's real (SQLite) session — that fallback
         # behavior isn't what's under test here, only the captured Postgres-branch call.
-        await repository.find_similar_postings(db, query_embedding=embedding, limit=5)
+        await repository.find_similar_postings(
+            db, query_embedding=embedding, limit=5, min_results=0
+        )
 
         assert "sql_text" in captured, "expected the Postgres branch to be exercised"
         assert "0.123456" not in captured["sql_text"]
         assert "-0.654321" not in captured["sql_text"]
         assert "0.999999" not in captured["sql_text"]
         assert captured["params"]["query_embedding"] == "[0.123456,-0.654321,0.999999]"
+
+
+class TestFindSimilarPostingsFallback:
+    """Module A: progressive-relaxation fallback when the strict pass returns fewer
+    than `min_results` matches (§5.2/§5.3 of the Module 4 plan).
+    """
+
+    async def _make_postings_with_embeddings(
+        self, db: AsyncSession, similarities: list[float]
+    ) -> list[JobPosting]:
+        """Create one posting per similarity value in `similarities`, with an
+        embedding engineered (via a 2D unit-circle construction) so its cosine
+        similarity to the query embedding [1.0, 0.0] is exactly the requested value.
+        """
+        import math
+
+        postings = []
+        for sim in similarities:
+            posting = await _make_posting(db)
+            angle = math.acos(max(-1.0, min(1.0, sim)))
+            embedding = [math.cos(angle), math.sin(angle)]
+            await repository.store_posting_embedding(db, posting.id, embedding, token_count=5)
+            postings.append(posting)
+        return postings
+
+    async def test_fallback_never_fires_when_strict_pass_has_enough_results(self, db: AsyncSession):
+        postings = await self._make_postings_with_embeddings(
+            db, [0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.52, 0.51]
+        )
+        posting_ids = [p.id for p in postings]
+
+        with patch.object(job_matching_similarity_fallback_fired_total, "inc") as mock_inc:
+            results = await repository.find_similar_postings(
+                db,
+                query_embedding=[1.0, 0.0],
+                limit=20,
+                similarity_threshold=0.5,
+                posting_ids=posting_ids,
+                min_results=10,
+            )
+
+        assert len(results) == 10
+        assert all(passed_threshold is True for _pid, _sim, passed_threshold in results)
+        mock_inc.assert_not_called()  # fallback did not fire
+
+    async def test_fallback_fires_and_merges_strict_and_relaxed_results(self, db: AsyncSession):
+        # 4 postings clear the 0.5 threshold ("strict"); 6 more sit below it but
+        # would be picked up by a relaxed (threshold-less) pass ordered by similarity.
+        strict_postings = await self._make_postings_with_embeddings(db, [0.9, 0.8, 0.7, 0.6])
+        relaxed_postings = await self._make_postings_with_embeddings(
+            db, [0.45, 0.4, 0.35, 0.3, 0.25, 0.2]
+        )
+        posting_ids = [p.id for p in strict_postings + relaxed_postings]
+
+        with patch.object(job_matching_similarity_fallback_fired_total, "inc") as mock_inc:
+            results = await repository.find_similar_postings(
+                db,
+                query_embedding=[1.0, 0.0],
+                limit=20,
+                similarity_threshold=0.5,
+                posting_ids=posting_ids,
+                min_results=10,
+            )
+
+        mock_inc.assert_called_once()  # counter incremented exactly once
+
+        assert len(results) == 10  # topped up to exactly min_results
+
+        strict_ids = {p.id for p in strict_postings}
+        result_by_id = {pid: (sim, passed) for pid, sim, passed in results}
+
+        # All 4 strict results are present, untouched, and still flagged passed_threshold=True.
+        for posting in strict_postings:
+            assert posting.id in result_by_id
+            assert result_by_id[posting.id][1] is True
+
+        # Exactly 6 relaxed results fill the remaining slots up to min_results=10,
+        # all flagged passed_threshold=False, and none of them duplicate a strict id.
+        relaxed_ids_in_results = set(result_by_id) - strict_ids
+        assert len(relaxed_ids_in_results) == 6
+        for pid in relaxed_ids_in_results:
+            assert result_by_id[pid][1] is False
+
+        # The highest-similarity relaxed postings (0.45 down to 0.2, all 6 of them)
+        # are exactly the ones that filled the gap, since relaxed_postings has only 6.
+        relaxed_id_set = {p.id for p in relaxed_postings}
+        assert relaxed_ids_in_results == relaxed_id_set
+
+    async def test_fallback_never_truncates_strict_results_to_make_room(self, db: AsyncSession):
+        """A candidate with 15 genuinely good (above-threshold) matches sees all 15,
+        not capped at min_results=10 (§5.2 point 3)."""
+        strict_postings = await self._make_postings_with_embeddings(
+            db,
+            [
+                0.9,
+                0.85,
+                0.8,
+                0.75,
+                0.7,
+                0.65,
+                0.6,
+                0.58,
+                0.56,
+                0.54,
+                0.52,
+                0.51,
+                0.505,
+                0.502,
+                0.501,
+            ],
+        )
+        posting_ids = [p.id for p in strict_postings]
+
+        results = await repository.find_similar_postings(
+            db,
+            query_embedding=[1.0, 0.0],
+            limit=20,
+            similarity_threshold=0.5,
+            posting_ids=posting_ids,
+            min_results=10,
+        )
+
+        assert len(results) == 15
+        assert all(passed_threshold is True for _pid, _sim, passed_threshold in results)

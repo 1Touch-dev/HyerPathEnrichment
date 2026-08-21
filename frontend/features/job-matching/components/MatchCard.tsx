@@ -3,9 +3,12 @@
 import { JobCard } from "@/components/dossier/JobCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import type { JobMatch } from "@/src/lib/types";
-import { useMarkMatchViewed, useSubmitFeedback } from "../hooks/useMatches";
+import { getApplyRedirectUrl } from "../api/client";
+import { useMarkApplied, useMarkMatchViewed, useSubmitFeedback } from "../hooks/useMatches";
 import { useEffect } from "react";
 
 interface MatchCardProps {
@@ -21,6 +24,8 @@ function scoreColor(score: number): string {
 export function MatchCard({ match }: MatchCardProps) {
   const markViewed = useMarkMatchViewed();
   const submitFeedback = useSubmitFeedback();
+  const markApplied = useMarkApplied();
+  const belowSimilarityThreshold = match.scoreBreakdown.below_similarity_threshold === true;
 
   useEffect(() => {
     if (match.isNew) {
@@ -32,9 +37,13 @@ export function MatchCard({ match }: MatchCardProps) {
   return (
     <div className="relative rounded-lg border p-4">
       <div className="absolute right-4 top-4">
-        <Badge className={scoreColor(match.overallScore)}>
-          {Math.round(match.overallScore)}/100
-        </Badge>
+        {belowSimilarityThreshold ? (
+          <Badge className="bg-muted text-muted-foreground">Broader match</Badge>
+        ) : (
+          <Badge className={scoreColor(match.overallScore)}>
+            {Math.round(match.overallScore)}/100
+          </Badge>
+        )}
       </div>
 
       <JobCard
@@ -51,17 +60,26 @@ export function MatchCard({ match }: MatchCardProps) {
         <p className="mt-2 text-sm text-muted-foreground">{match.explanation}</p>
       )}
 
-      <div className="mt-3 flex items-center gap-2">
-        {match.sourceUrl && (
-          <a
-            href={match.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            View posting
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button size="sm" asChild>
+          <a href={getApplyRedirectUrl(match.matchId)} target="_blank" rel="noopener noreferrer">
+            Apply
           </a>
-        )}
+        </Button>
+
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={`applied-${match.matchId}`}
+            checked={match.appliedAt !== null}
+            onCheckedChange={(checked) =>
+              markApplied.mutate({ matchId: match.matchId, applied: checked === true })
+            }
+          />
+          <Label htmlFor={`applied-${match.matchId}`} className="text-sm text-muted-foreground">
+            Mark as applied
+          </Label>
+        </div>
+
         <div className="ml-auto flex gap-1">
           <Button
             size="icon"

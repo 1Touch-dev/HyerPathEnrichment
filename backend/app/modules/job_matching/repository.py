@@ -18,6 +18,8 @@ from app.modules.job_matching.models import (
     JobPostingEmbedding,
     PushSubscription,
 )
+from app.modules.manual_jobs.models import ManualJobEntry
+from app.observability.job_matching_metrics import job_matching_similarity_fallback_fired_total
 from app.services.vector_search import cosine_similarity
 
 logger = logging.getLogger(__name__)
@@ -155,10 +157,18 @@ async def upsert_match(
 
 async def list_matches_for_user(
     db: AsyncSession, user_id: UUID, limit: int, offset: int
-) -> tuple[list[tuple[JobMatch, JobPosting]], int]:
+) -> tuple[list[tuple[JobMatch, JobPosting | None, ManualJobEntry | None]], int]:
+    """Outer-joined against both JobPosting and ManualJobEntry (Module F, §10.6): a
+    manual entry's job_posting_id is NULL, so an inner join here would silently drop
+    every manual-entry row from a candidate's own match list. Exactly one of
+    posting/manual_entry is populated per row, per ck_job_matches_exactly_one_source —
+    callers should use resolve_match_display_fields() below rather than assuming
+    `posting` is always present.
+    """
     result = await db.execute(
-        select(JobMatch, JobPosting)
-        .join(JobPosting, JobMatch.job_posting_id == JobPosting.id)
+        select(JobMatch, JobPosting, ManualJobEntry)
+        .outerjoin(JobPosting, JobMatch.job_posting_id == JobPosting.id)
+        .outerjoin(ManualJobEntry, JobMatch.manual_job_entry_id == ManualJobEntry.id)
         .where(JobMatch.user_id == user_id)
         .order_by(JobMatch.overall_score.desc(), JobMatch.created_at.desc())
         .limit(limit)
@@ -167,17 +177,51 @@ async def list_matches_for_user(
     rows = result.all()
     count_result = await db.execute(select(JobMatch).where(JobMatch.user_id == user_id))
     total = len(count_result.all())
-    return [(m, p) for m, p in rows], total
+    return [(m, p, e) for m, p, e in rows], total
+
+
+def resolve_match_display_fields(
+    posting: JobPosting | None, manual_entry: ManualJobEntry | None
+) -> tuple[str, str, str | None, str | None]:
+    """(title, company, location, source_url) for a JobMatch row joined against both
+    JobPosting and ManualJobEntry — sourced from whichever side is actually populated
+    (exactly one is, per ck_job_matches_exactly_one_source). Shared by job_matching's
+    own match-list mapping and the digest-notification worker task so the manual-entry
+    fallback logic lives in exactly one place.
+    """
+    if posting is not None:
+        return posting.title, posting.company, posting.location, posting.source_url
+    if manual_entry is not None:
+        return (
+            manual_entry.title,
+            manual_entry.company,
+            manual_entry.location,
+            manual_entry.source_url,
+        )
+    # Defensive fallback only — the CHECK constraint guarantees one side is always
+    # set for any real row; this branch should be unreachable in practice.
+    return "", "", None, None
 
 
 async def get_top_unexplained_matches(
     db: AsyncSession, user_id: UUID, top_n: int
 ) -> list[tuple[JobMatch, JobPosting]]:
-    """Top-N matches (by score) that don't have an LLM explanation yet — feeds Decision 1/3's LLM-last stage."""
+    """Top-N matches (by score) that don't have an LLM explanation yet — feeds Decision 1/3's LLM-last stage.
+
+    Manual entries (Module F, §10.6) are excluded via job_posting_id.is_not(None)
+    rather than widened into an outer join: there's no JD embedding/similarity score
+    to explain for a manually-added job in the first place, so "unexplained" isn't a
+    concept that applies to them at all — excluding is the correct fix, not a
+    degraded-field join.
+    """
     result = await db.execute(
         select(JobMatch, JobPosting)
         .join(JobPosting, JobMatch.job_posting_id == JobPosting.id)
-        .where(JobMatch.user_id == user_id, JobMatch.explanation_status == "not_explained")
+        .where(
+            JobMatch.user_id == user_id,
+            JobMatch.explanation_status == "not_explained",
+            JobMatch.job_posting_id.is_not(None),
+        )
         .order_by(JobMatch.overall_score.desc())
         .limit(top_n)
     )
@@ -289,17 +333,66 @@ async def set_feedback(db: AsyncSession, match_id: UUID, user_id: UUID, feedback
     return bool(result.rowcount > 0)  # type: ignore[attr-defined]
 
 
-async def find_similar_postings(
+async def get_owned_match(
+    db: AsyncSession, match_id: UUID, user_id: UUID
+) -> tuple[JobMatch, JobPosting | None] | None:
+    """Single indexed lookup of one match owned by this exact user, outer-joined against
+    JobPosting (forward-compat for Module F's manual entries, which have no posting row —
+    see Module B §6.5's design note). Reused as-is by Module C and Module E rather than
+    duplicated.
+    """
+    result = await db.execute(
+        select(JobMatch, JobPosting)
+        .outerjoin(JobPosting, JobMatch.job_posting_id == JobPosting.id)
+        .where(JobMatch.id == match_id, JobMatch.user_id == user_id)
+    )
+    row = result.first()
+    if row is None:
+        return None
+    match, posting = row
+    return match, posting
+
+
+async def record_apply_click(db: AsyncSession, match_id: UUID) -> JobMatch | None:
+    """Idempotent: only sets apply_clicked_at the first time (never overwrites a later
+    click with an earlier one via repeated calls — CURRENT_TIMESTAMP semantics aren't
+    needed here since we want the FIRST click time for funnel analysis, not the latest).
+    """
+    result = await db.execute(select(JobMatch).where(JobMatch.id == match_id))
+    match = result.scalar_one_or_none()
+    if match is None:
+        return None
+    if match.apply_clicked_at is None:
+        match.apply_clicked_at = datetime.now(UTC)
+        await db.commit()
+        await db.refresh(match)
+    return match
+
+
+async def set_applied(db: AsyncSession, match_id: UUID, user_id: UUID, applied: bool) -> bool:
+    """Toggle applied_at on/off (unmarking is allowed — candidates make mistakes)."""
+    result = await db.execute(
+        update(JobMatch)
+        .where(JobMatch.id == match_id, JobMatch.user_id == user_id)
+        .values(applied_at=datetime.now(UTC) if applied else None)
+    )
+    await db.commit()
+    return bool(result.rowcount > 0)  # type: ignore[attr-defined]
+
+
+async def _find_similar_postings_pass(
     db: AsyncSession,
     query_embedding: list[float],
-    limit: int = 20,
-    similarity_threshold: float = 0.5,
-    posting_ids: list[UUID] | None = None,
+    limit: int,
+    similarity_threshold: float,
+    posting_ids: list[UUID] | None,
+    apply_threshold: bool,
 ) -> list[tuple[UUID, float]]:
-    """Return (job_posting_id, similarity_score) pairs for active job postings whose
-    embedding is within similarity_threshold of query_embedding, restricted to
-    posting_ids if given. Postgres: pgvector cosine similarity. SQLite: Python
-    fallback using the same cosine_similarity() helper as vector_search.py.
+    """One similarity-search pass: today's `find_similar_postings` body, extracted
+    verbatim, with the `similarity >= similarity_threshold` clause/guard made
+    conditional on `apply_threshold` (see §5.2/§5.3's progressive-relaxation design —
+    the strict pass calls this with apply_threshold=True, the relaxed fallback pass
+    calls this with apply_threshold=False to drop the filter entirely).
     """
     settings = get_settings()
     is_postgres = "postgresql" in settings.database_url.lower()
@@ -316,6 +409,13 @@ async def find_similar_postings(
         embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
 
         posting_filter_sql = ""
+        threshold_filter_sql = (
+            """
+                AND (1 - (job_posting_embeddings.embedding <=> CAST(:query_embedding AS vector)))
+                    >= :similarity_threshold"""
+            if apply_threshold
+            else ""
+        )
         params: dict[str, Any] = {
             "query_embedding": embedding_str,
             "similarity_threshold": similarity_threshold,
@@ -334,8 +434,7 @@ async def find_similar_postings(
             FROM job_posting_embeddings
             JOIN job_postings ON job_postings.id = job_posting_embeddings.job_posting_id
             WHERE job_postings.is_active IS TRUE
-                AND (1 - (job_posting_embeddings.embedding <=> CAST(:query_embedding AS vector)))
-                    >= :similarity_threshold
+                {threshold_filter_sql}
                 {posting_filter_sql}
             ORDER BY similarity DESC
             LIMIT :result_limit
@@ -356,7 +455,7 @@ async def find_similar_postings(
                 f"pgvector posting search found {len(results)} results",
                 extra={
                     "num_results": len(results),
-                    "threshold": similarity_threshold,
+                    "threshold": similarity_threshold if apply_threshold else None,
                     "num_posting_ids": len(posting_ids) if posting_ids else None,
                 },
             )
@@ -389,7 +488,7 @@ async def find_similar_postings(
     scored_results: list[tuple[float, JobPostingEmbedding]] = []
     for emb in all_embeddings:
         similarity = cosine_similarity(query_embedding, emb.embedding)
-        if similarity >= similarity_threshold:
+        if not apply_threshold or similarity >= similarity_threshold:
             scored_results.append((similarity, emb))
 
     # Sort by similarity descending
@@ -405,8 +504,65 @@ async def find_similar_postings(
         extra={
             "total_checked": len(all_embeddings),
             "num_results": len(results),
-            "threshold": similarity_threshold,
+            "threshold": similarity_threshold if apply_threshold else None,
         },
     )
 
     return results
+
+
+async def find_similar_postings(
+    db: AsyncSession,
+    query_embedding: list[float],
+    limit: int = 20,
+    similarity_threshold: float = 0.5,
+    posting_ids: list[UUID] | None = None,
+    min_results: int | None = None,
+) -> list[tuple[UUID, float, bool]]:
+    """Return (job_posting_id, similarity_score, passed_threshold) triples.
+
+    Stage 1: strict threshold-filtered query (unchanged behavior/SQL from today).
+    Stage 2 (only runs if stage 1 returned fewer than `min_results`): the same
+    query shape with the WHERE similarity >= threshold clause dropped, ordered
+    by similarity DESC, LIMIT min_results. Stage-2-only rows are flagged
+    passed_threshold=False so callers can rank/label them as lower-confidence
+    without silently presenting a 0.1-similarity job as an equally strong match
+    (Module A design note re: candidate trust).
+
+    min_results defaults to settings.job_matching_min_results (10) when None —
+    accepting it as a parameter (rather than reading get_settings() inside this
+    function unconditionally) keeps this function testable with an explicit
+    value, matching every other threshold/limit parameter here already being
+    caller-supplied rather than read from settings internally.
+    """
+    settings = get_settings()
+    effective_min_results = (
+        min_results if min_results is not None else settings.job_matching_min_results
+    )
+
+    strict_results = await _find_similar_postings_pass(
+        db, query_embedding, limit, similarity_threshold, posting_ids, apply_threshold=True
+    )
+    strict_triples = [(pid, sim, True) for pid, sim in strict_results]
+
+    if len(strict_triples) >= effective_min_results:
+        return strict_triples
+
+    logger.info(
+        "Job-matching similarity fallback fired: strict pass returned fewer than "
+        "min_results, relaxing threshold",
+        extra={
+            "strict_count": len(strict_triples),
+            "min_results": effective_min_results,
+            "threshold": similarity_threshold,
+        },
+    )
+    job_matching_similarity_fallback_fired_total.inc()
+
+    relaxed_results = await _find_similar_postings_pass(
+        db, query_embedding, effective_min_results, 0.0, posting_ids, apply_threshold=False
+    )
+    strict_ids = {pid for pid, _ in strict_results}
+    relaxed_triples = [(pid, sim, False) for pid, sim in relaxed_results if pid not in strict_ids]
+
+    return strict_triples + relaxed_triples[: max(0, effective_min_results - len(strict_triples))]

@@ -1,37 +1,39 @@
 import {
   AdminAuditLogEntry,
   AdminAuditLogListResponse,
-  AdminJobPosting,
-  AdminJobPostingListResponse,
-  AdminReviewQueueDetail,
-  AdminReviewQueueItem,
-  AdminReviewQueueListResponse,
   AdminDocument,
   AdminDocumentListResponse,
+  AdminJobPosting,
+  AdminJobPostingListResponse,
+  AdminOutreachMessage,
+  AdminOutreachMessageListResponse,
   AdminPortfolioItem,
   AdminPortfolioProfile,
   AdminPortfolioProfileDetail,
   AdminPortfolioProfileListResponse,
-  AdminOutreachMessage,
-  AdminOutreachMessageListResponse,
+  AdminReviewQueueDetail,
+  AdminReviewQueueItem,
+  AdminReviewQueueListResponse,
   AdminRoleWithPermissions,
   AdminUser,
   AdminUserListResponse,
-  BackendAdminJobPostingListResponse,
-  BackendAdminJobPostingResponse,
-  BackendAdminReviewQueueDetail,
-  BackendAdminReviewQueueItem,
-  BackendAdminReviewQueueListResponse,
+  ApplicationStatus,
+  AudioRecordingStatus,
+  AudioUploadResult,
   BackendAdminDocumentListResponse,
   BackendAdminDocumentResponse,
+  BackendAdminJobPostingListResponse,
+  BackendAdminJobPostingResponse,
+  BackendAdminOutreachMessage,
+  BackendAdminOutreachMessageListResponse,
   BackendAdminPortfolioItem,
   BackendAdminPortfolioProfile,
   BackendAdminPortfolioProfileDetail,
   BackendAdminPortfolioProfileListResponse,
+  BackendAdminReviewQueueDetail,
+  BackendAdminReviewQueueItem,
+  BackendAdminReviewQueueListResponse,
   BackendModeratePortfolioRequest,
-  BackendAdminOutreachMessage,
-  BackendAdminOutreachMessageListResponse,
-  CandidateDocument,
   CandidateDocumentDetail,
   CandidateJobPreferences,
   CvChatSession,
@@ -51,20 +53,30 @@ import {
   FeatureFlag,
   HealthStatus,
   ImpersonationStatus,
+  InterviewQuestion,
+  InterviewSchedule,
+  JdPracticeQuestion,
+  JdPracticeResponse,
   JobListItem,
   JobListResponse,
   JobMatch,
   JobMatchAnalytics,
   JobMatchListResponse,
   JobStatus,
+  ManualJobEntry,
   MfaEnrollResult,
   MfaStatus,
+  ModerationStatus,
   OptOutInput,
   OutreachMessage,
   PortfolioItem,
   PortfolioProfile,
+  PracticeAttempt,
+  PracticeSession,
+  PracticeSessionListResult,
   PublicPortfolioProfile,
   QueueSnapshot,
+  QuestionListResult,
   RequestedTier,
   DsarInput,
   DsarResponse,
@@ -72,76 +84,45 @@ import {
   SignalListResponse,
   SwipeDeck,
   SystemHealthSnapshot,
+  TrackedMatch,
+  TrackedMatchListResponse,
 } from "@/src/lib/types";
 import type {
-  BackendAdminAuditLogEntryResponse,
-  BackendAdminAuditLogListResponse,
-  BackendAdminUserListResponse,
-  BackendAdminUserResponse,
-  BackendCVDataResponse,
-  BackendDocumentDetailResponse,
-  BackendDocumentMetadata,
-  BackendDocumentUploadResponse,
+  BackendAudioStatusResponse,
+  BackendAudioUploadResponse,
   BackendDossier,
   BackendDsarResponse,
-  BackendFailedJobResponse,
-  BackendFeatureFlagResponse,
   BackendHealthResponse,
-  BackendImpersonationStartResponse,
-  BackendImpersonationStatusResponse,
   BackendJobListItem,
   BackendJobListResponse,
-  BackendJobMatchAnalyticsResponse,
   BackendJobMatchListResponse,
   BackendJobMatchResponse,
   BackendJobPreferencesResponse,
   BackendJobResponse,
-  BackendJobStatusResponse,
-  BackendMfaEnrollResponse,
-  BackendMfaStatusResponse,
-  BackendQueueSnapshotResponse,
-  BackendRoleWithPermissionsResponse,
-  BackendSearchResponse,
-  BackendSearchResult,
+  BackendQuestionAttemptResponse,
+  BackendQuestionItem,
+  BackendQuestionListResponse,
+  BackendSessionListResponse,
+  BackendSessionResponse,
   BackendSignalListItem,
   BackendSignalListResponse,
-  BackendSystemHealthResponse,
 } from "@/src/lib/generated/api-schemas";
 
 export type {
-  BackendAdminAuditLogEntryResponse,
-  BackendAdminAuditLogListResponse,
-  BackendAdminUserListResponse,
-  BackendAdminUserResponse,
-  BackendAssignRoleRequest,
-  BackendCVDataResponse,
-  BackendDocumentDetailResponse,
-  BackendDocumentMetadata,
-  BackendDocumentUploadResponse,
+  BackendAudioStatusResponse,
+  BackendAudioUploadResponse,
   BackendDsarResponse,
-  BackendFailedJobResponse,
-  BackendFeatureFlagResponse,
   BackendHealthResponse,
-  BackendImpersonationStartRequest,
-  BackendImpersonationStartResponse,
-  BackendImpersonationStatusResponse,
   BackendJobListResponse,
-  BackendJobMatchAnalyticsResponse,
   BackendJobMatchListResponse,
   BackendJobMatchResponse,
   BackendJobPreferencesResponse,
   BackendJobResponse,
-  BackendJobStatusResponse,
-  BackendMfaEnrollResponse,
-  BackendMfaStatusResponse,
-  BackendMfaVerifyRequest,
-  BackendQueueSnapshotResponse,
-  BackendQueuesOverviewResponse,
-  BackendRoleWithPermissionsResponse,
-  BackendSearchResponse,
+  BackendQuestionAttemptResponse,
+  BackendQuestionListResponse,
+  BackendSessionListResponse,
+  BackendSessionResponse,
   BackendSignalListResponse,
-  BackendSystemHealthResponse,
-  BackendUpdateUserStatusRequest,
 } from "@/src/lib/generated/api-schemas";
 
 // Not yet in the generated OpenAPI schema (see the hand-declared types.ts comment
@@ -411,6 +392,8 @@ export function mapBackendJobMatchItem(item: BackendJobMatchResponse): JobMatch 
     viewedAt: item.viewed_at,
     feedback: item.feedback,
     createdAt: item.created_at,
+    applyClickedAt: item.apply_clicked_at ?? null,
+    appliedAt: item.applied_at ?? null,
   };
 }
 
@@ -422,6 +405,104 @@ export function mapBackendJobMatchListToFrontend(
     total: response.total,
     limit: response.limit,
     offset: response.offset,
+  };
+}
+
+/**
+ * Mirrors the backend's real `TrackedMatchResponse`
+ * (backend/app/modules/application_tracker/schemas.py, Module 4 §7.4) — hand-declared
+ * per this file's own convention (see the `Raw*Response` section below) since that
+ * module's routes are being implemented concurrently and have no generated schema yet.
+ * Must be deleted and replaced with real `npm run openapi:gen` output once the backend
+ * route exists.
+ */
+export interface BackendTrackedMatchResponse {
+  match_id: string;
+  job_posting_id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  source_url: string | null;
+  overall_score: number | null;
+  application_status: ApplicationStatus;
+  apply_clicked_at: string | null;
+  applied_at: string | null;
+  status_updated_at: string | null;
+  created_at: string;
+  next_interview_at: string | null;
+}
+
+export interface BackendTrackedMatchListResponse {
+  matches: BackendTrackedMatchResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+  counts_by_status: Record<ApplicationStatus, number>;
+}
+
+export function mapBackendTrackedMatchItem(item: BackendTrackedMatchResponse): TrackedMatch {
+  return {
+    matchId: item.match_id,
+    jobPostingId: item.job_posting_id,
+    title: item.title,
+    company: item.company,
+    location: item.location,
+    remote: item.remote,
+    sourceUrl: item.source_url,
+    overallScore: item.overall_score,
+    applicationStatus: item.application_status,
+    applyClickedAt: item.apply_clicked_at,
+    appliedAt: item.applied_at,
+    statusUpdatedAt: item.status_updated_at,
+    createdAt: item.created_at,
+    nextInterviewAt: item.next_interview_at,
+  };
+}
+
+export function mapBackendTrackedMatchListToFrontend(
+  response: BackendTrackedMatchListResponse,
+): TrackedMatchListResponse {
+  return {
+    matches: response.matches.map(mapBackendTrackedMatchItem),
+    total: response.total,
+    limit: response.limit,
+    offset: response.offset,
+    countsByStatus: response.counts_by_status,
+  };
+}
+
+/**
+ * Mirrors the backend's real `InterviewScheduleResponse`
+ * (backend/app/modules/interview_scheduling/schemas.py, Module 4 §8.3) — hand-declared
+ * per this file's own convention (see the `Raw*Response` section below) since that
+ * module's routes are being implemented concurrently and have no generated schema yet.
+ * Must be deleted and replaced with real `npm run openapi:gen` output once the backend
+ * route exists.
+ */
+export interface BackendInterviewScheduleResponse {
+  id: string;
+  job_match_id: string;
+  scheduled_at: string;
+  duration_minutes: number;
+  notes: string | null;
+  ics_download_url: string;
+  google_calendar_link: string;
+  created_at: string;
+}
+
+export function mapBackendInterviewSchedule(
+  raw: BackendInterviewScheduleResponse,
+): InterviewSchedule {
+  return {
+    id: raw.id,
+    jobMatchId: raw.job_match_id,
+    scheduledAt: raw.scheduled_at,
+    durationMinutes: raw.duration_minutes,
+    notes: raw.notes,
+    icsDownloadUrl: raw.ics_download_url,
+    googleCalendarLink: raw.google_calendar_link,
+    createdAt: raw.created_at,
   };
 }
 
@@ -489,6 +570,203 @@ export function mapBackendHealth(response: BackendHealthResponse): HealthStatus 
 }
 
 // Admin module (phase2_admin_module.md §11.3)
+//
+// AdminUserResponse/AdminAuditLog*/RoleWithPermissionsResponse/FeatureFlagResponse/
+// QueueSnapshotResponse/QueuesOverviewResponse/FailedJobResponse/SystemHealthResponse/
+// JobMatchAnalyticsResponse/Mfa*/Impersonation* (backend/app/modules/admin/schemas.py)
+// and DocumentDetailResponse/DocumentUploadResponse/CVDataResponse/SearchResult/
+// SearchResponse (backend/app/modules/documents/schemas.py) are real backend response
+// models, but admin's and documents' routers are not yet wired into the committed
+// OpenAPI schema (frontend/openapi/openapi.json) that `src/lib/generated/openapi.ts` is
+// built from — following this file's own `Raw*Response`/`BackendAdminPortfolioItem`-style
+// convention for not-yet-generated backend contracts, the shapes below are hand-declared
+// here rather than imported from `generated/api-schemas.ts`. Delete these and switch to
+// `Schemas['...']` aliases once `npm run openapi:gen` is re-run against the merged backend.
+
+interface BackendAdminUserResponse {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_active: boolean;
+  is_verified: boolean;
+  is_superuser: boolean;
+  role_id: string | null;
+  role_name: string | null;
+  mfa_enabled: boolean;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+interface BackendAdminUserListResponse {
+  items: BackendAdminUserResponse[];
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+export interface BackendUpdateUserStatusRequest {
+  is_active: boolean;
+  reason?: string | null;
+}
+
+export interface BackendAssignRoleRequest {
+  role_id: string | null;
+}
+
+interface BackendAdminAuditLogEntryResponse {
+  id: string;
+  actor_user_id: string | null;
+  impersonated_by: string | null;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  ip_address: string | null;
+  captured_by: string;
+  created_at: string;
+}
+
+interface BackendAdminAuditLogListResponse {
+  items: BackendAdminAuditLogEntryResponse[];
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+export interface BackendRoleWithPermissionsResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  is_system: boolean;
+  permissions: {
+    id: string;
+    resource: string;
+    action: string;
+    description: string | null;
+  }[];
+}
+
+export interface BackendFeatureFlagResponse {
+  key: string;
+  enabled: boolean;
+  value: Record<string, unknown> | null;
+  description: string | null;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+interface BackendQueueSnapshotResponse {
+  name: string;
+  priority: number;
+  queued_count: number;
+  failed_count: number;
+  oldest_queued_age_seconds: number | null;
+  workers_listening: number;
+}
+
+export interface BackendQueuesOverviewResponse {
+  queues: BackendQueueSnapshotResponse[];
+}
+
+export interface BackendFailedJobResponse {
+  job_id: string;
+  queue_name: string;
+  func_name: string | null;
+  enqueued_at: string | null;
+  failed_at: string | null;
+  exc_info: string | null;
+}
+
+interface BackendSystemHealthResponse {
+  database_ok: boolean;
+  database_latency_ms: number;
+  redis_ok: boolean;
+  redis_latency_ms: number;
+  prometheus_configured: boolean;
+  signals: Record<string, number | null>;
+}
+
+interface BackendJobMatchAnalyticsResponse {
+  total_postings: number;
+  total_matches: number;
+  postings_by_source: Record<string, number>;
+  top_companies: Record<string, unknown>[];
+  avg_salary_min: number | null;
+  avg_salary_max: number | null;
+  avg_overall_score: number | null;
+  computed_at: string;
+  cache_hit: boolean;
+}
+
+interface BackendMfaEnrollResponse {
+  secret: string;
+  provisioning_uri: string;
+}
+
+interface BackendMfaStatusResponse {
+  mfa_enabled: boolean;
+  mfa_enrolled_at: string | null;
+}
+
+export interface BackendMfaVerifyRequest {
+  code: string;
+}
+
+export interface BackendImpersonationStartRequest {
+  reason: string;
+  mfa_code?: string | null;
+}
+
+interface BackendImpersonationStartResponse {
+  target_user_id: string;
+  expires_at: string;
+}
+
+interface BackendImpersonationStatusResponse {
+  is_impersonating: boolean;
+  admin_user_id: string | null;
+  admin_email: string | null;
+  target_user_id: string | null;
+  expires_at: string | null;
+}
+
+export interface BackendDocumentDetailResponse {
+  document_id: string;
+  document_type: string;
+  original_filename: string;
+  file_size_bytes: number;
+  processing_status: string;
+  raw_text: string | null;
+  extracted_data: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BackendDocumentUploadResponse {
+  job_id: string;
+  document_id: string;
+  message: string;
+}
+
+export interface BackendCVDataResponse {
+  document_id: string;
+  extracted_data: Record<string, unknown>;
+  raw_text: string | null;
+  processing_status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BackendSearchResult {
+  document_id: string;
+  similarity_score: number;
+  cv_data: Record<string, unknown>;
+  excerpt: string;
+}
+
+export interface BackendSearchResponse {
+  results: BackendSearchResult[];
+}
 
 export function mapBackendAdminUser(raw: BackendAdminUserResponse): AdminUser {
   return {
@@ -838,21 +1116,6 @@ export function mapBackendImpersonationStart(raw: BackendImpersonationStartRespo
   };
 }
 
-export function mapBackendDocumentMetadata(raw: BackendDocumentMetadata): CandidateDocument {
-  return {
-    documentId: raw.document_id,
-    documentType: raw.document_type as DocumentType,
-    originalFilename: raw.original_filename,
-    fileSizeBytes: raw.file_size_bytes,
-    processingStatus: raw.processing_status,
-    createdAt: raw.created_at,
-  };
-}
-
-export function mapBackendDocumentList(raw: BackendDocumentMetadata[]): CandidateDocument[] {
-  return raw.map(mapBackendDocumentMetadata);
-}
-
 export function mapBackendDocumentDetail(
   raw: BackendDocumentDetailResponse,
 ): CandidateDocumentDetail {
@@ -876,19 +1139,6 @@ export function mapBackendDocumentUploadResponse(
     jobId: raw.job_id,
     documentId: raw.document_id,
     message: raw.message,
-  };
-}
-
-export function mapBackendDocumentJobStatus(raw: BackendJobStatusResponse): DocumentJobStatus {
-  return {
-    jobId: raw.job_id,
-    status: raw.status,
-    progress: raw.progress,
-    documentId: raw.document_id ?? null,
-    result: raw.result ?? null,
-    error: raw.error ?? null,
-    createdAt: raw.created_at,
-    updatedAt: raw.updated_at,
   };
 }
 
@@ -1071,6 +1321,9 @@ interface RawSwipeCardResponse {
   salary_currency: string | null;
   overall_score: number;
   explanation: string | null;
+  below_similarity_threshold: boolean;
+  source_url: string | null;
+  applied_at: string | null;
 }
 
 interface RawSwipeDeckResponse {
@@ -1085,6 +1338,8 @@ interface RawOutreachMessageResponse {
   subject: string;
   body: string;
   status: "draft" | "sent";
+  // Module 4, Module G (§11.4): backend default is "email" for pre-Module-G rows.
+  message_type: OutreachMessage["messageType"];
   sent_at: string | null;
   created_at: string;
 }
@@ -1236,6 +1491,9 @@ export function adaptSwipeDeck(raw: RawSwipeDeckResponse): SwipeDeck {
       salaryCurrency: c.salary_currency,
       overallScore: c.overall_score,
       explanation: c.explanation,
+      belowSimilarityThreshold: c.below_similarity_threshold,
+      sourceUrl: c.source_url,
+      appliedAt: c.applied_at,
     })),
     hasMore: raw.has_more,
   };
@@ -1249,7 +1507,177 @@ export function adaptOutreachMessage(raw: RawOutreachMessageResponse): OutreachM
     subject: raw.subject,
     body: raw.body,
     status: raw.status,
+    messageType: raw.message_type,
     createdAt: raw.created_at,
     sentAt: raw.sent_at,
+  };
+}
+
+export function mapBackendQuestionItem(raw: BackendQuestionItem): InterviewQuestion {
+  return {
+    id: raw.id,
+    questionText: raw.question_text,
+    category: raw.category,
+    difficulty: raw.difficulty,
+    jobRoles: raw.job_roles,
+    technologies: raw.technologies,
+    isPersonalized: raw.is_personalized,
+  };
+}
+
+export function mapBackendQuestionListResponse(
+  raw: BackendQuestionListResponse,
+): QuestionListResult {
+  return {
+    questions: raw.questions.map(mapBackendQuestionItem),
+    source: raw.source,
+  };
+}
+
+export function mapBackendQuestionAttempt(raw: BackendQuestionAttemptResponse): PracticeAttempt {
+  return {
+    id: raw.id,
+    sessionId: raw.session_id,
+    userId: raw.user_id,
+    questionId: raw.question_id,
+    // `question_text` is only populated by session_manager.py's read paths
+    // (get/list session, add_attempt) — see its docstring; `?? null` covers
+    // schema optionality and pre-existing attempts whose question was deleted.
+    questionText: raw.question_text ?? null,
+    // Backend's response_type is an unconstrained str; narrowed here since the
+    // DB CheckConstraint (check_response_type) guarantees only these two values exist.
+    responseType: raw.response_type as PracticeAttempt["responseType"],
+    textResponse: raw.text_response,
+    audioRecordingId: raw.audio_recording_id,
+    aiScore: raw.ai_score,
+    scoreBreakdown: raw.score_breakdown,
+    aiFeedback: raw.ai_feedback,
+    timeTakenSeconds: raw.time_taken_seconds,
+    attemptedAt: raw.attempted_at,
+  };
+}
+
+export function mapBackendPracticeSession(raw: BackendSessionResponse): PracticeSession {
+  return {
+    id: raw.id,
+    sessionType: raw.session_type,
+    // Backend's status is an unconstrained str; narrowed since the DB
+    // CheckConstraint (check_session_status) guarantees only these values exist.
+    status: raw.status as PracticeSession["status"],
+    questionsAttempted: raw.questions_attempted,
+    questionsCompleted: raw.questions_completed,
+    overallScore: raw.overall_score,
+    startedAt: raw.started_at,
+    completedAt: raw.completed_at,
+    attempts: (raw.attempts ?? []).map(mapBackendQuestionAttempt),
+  };
+}
+
+export function mapBackendPracticeSessionList(
+  raw: BackendSessionListResponse,
+): PracticeSessionListResult {
+  return {
+    sessions: raw.sessions.map(mapBackendPracticeSession),
+    total: raw.total,
+    limit: raw.limit,
+    offset: raw.offset,
+  };
+}
+
+export function mapBackendAudioUploadResponse(raw: BackendAudioUploadResponse): AudioUploadResult {
+  return {
+    id: raw.id,
+    practiceSessionId: raw.practice_session_id,
+    fileSizeBytes: raw.file_size_bytes,
+    transcriptionStatus: raw.transcription_status,
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendAudioStatusResponse(
+  raw: BackendAudioStatusResponse,
+): AudioRecordingStatus {
+  return {
+    id: raw.id,
+    transcriptionStatus: raw.transcription_status as AudioRecordingStatus["transcriptionStatus"],
+    transcription: raw.transcription,
+    analysisData: raw.analysis_data as AudioRecordingStatus["analysisData"],
+    voiceToneSignals: raw.voice_tone_signals,
+    durationSeconds: raw.duration_seconds,
+  };
+}
+
+// Module 4E: JD-aware interview practice (phase2_module4 §9.4/§9.6)
+//
+// Mirrors the backend's real `JdPracticeResponse`/`JdPracticeQuestionItem`
+// (backend/app/modules/jd_practice/schemas.py) — hand-declared per this file's own
+// convention (see the `Raw*Response` section above) since that module is being
+// implemented concurrently and has no generated schema yet. Must be deleted and
+// replaced with real `npm run openapi:gen` output once the backend route exists.
+
+export interface BackendJdPracticeQuestionItem {
+  id: string;
+  question_text: string;
+  category: JdPracticeQuestion["category"];
+  difficulty: JdPracticeQuestion["difficulty"];
+  sample_answer: string;
+}
+
+export interface BackendJdPracticeResponse {
+  questions: BackendJdPracticeQuestionItem[];
+  job_match_id: string;
+  practice_session_id: string;
+}
+
+export function mapBackendJdPracticeQuestionItem(
+  raw: BackendJdPracticeQuestionItem,
+): JdPracticeQuestion {
+  return {
+    id: raw.id,
+    questionText: raw.question_text,
+    category: raw.category,
+    difficulty: raw.difficulty,
+    sampleAnswer: raw.sample_answer,
+  };
+}
+
+export function mapBackendJdPracticeResponse(raw: BackendJdPracticeResponse): JdPracticeResponse {
+  return {
+    questions: raw.questions.map(mapBackendJdPracticeQuestionItem),
+    jobMatchId: raw.job_match_id,
+    practiceSessionId: raw.practice_session_id,
+  };
+}
+
+// Module 4, Module F: manually-added job entries (phase2_module4_application_lifecycle_and_interview_prep.md §10.7)
+//
+// Mirrors the backend's real `ManualJobEntryResponse` (backend/app/modules/manual_jobs/schemas.py)
+// — hand-declared per this file's own convention (see the `Raw*Response` section above) since
+// that module has no generated schema yet. Must be deleted and replaced with real
+// `npm run openapi:gen` output once the backend route is registered in the OpenAPI export.
+
+export interface BackendManualJobEntryResponse {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  source_label: string | null;
+  source_url: string | null;
+  notes: string | null;
+  job_match_id: string;
+  created_at: string;
+}
+
+export function mapBackendManualJobEntry(raw: BackendManualJobEntryResponse): ManualJobEntry {
+  return {
+    id: raw.id,
+    title: raw.title,
+    company: raw.company,
+    location: raw.location,
+    sourceLabel: raw.source_label,
+    sourceUrl: raw.source_url,
+    notes: raw.notes,
+    jobMatchId: raw.job_match_id,
+    createdAt: raw.created_at,
   };
 }

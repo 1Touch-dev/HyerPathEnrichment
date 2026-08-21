@@ -50,3 +50,4 @@ Add or update an ADR when you:
 | [0014](0014-cv-chat-portfolio-outreach.md) | CV chat, portfolio, and outreach — storage, queue, and external API choices (Module 2) | Accepted | 2026-08-13 |
 | [0015](0015-admin-module-rbac-audit-mfa.md) | RBAC, audit log, feature flags, and support impersonation (Admin Module) | Accepted | 2026-08-19 |
 | [0016](0016-phase2-moderation-review-queue.md) | Generic review queue + per-domain moderation columns (Phase 2 Moderation) | Accepted | 2026-08-20 |
+| [0017](0017-interview-practice-question-personalization-and-queue-isolation.md) | Interview practice question personalization, queue isolation, and voice-tone scope limits (Module 3) | Accepted | 2026-08-14 |

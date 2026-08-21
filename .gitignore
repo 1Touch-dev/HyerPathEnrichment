@@ -50,6 +50,9 @@ backend/artifacts/
 .e2e-results/
 .asset-cache/
 
+# Playwright e2e auth session state (contains credential material)
+frontend/e2e/integration/.auth/
+
 # Local Tier 1 canary profiles (copy from tier1_canary_set.example.json)
 backend/docs/tier1_canary_set.json
 backend/docs/tier1_retry_set.json

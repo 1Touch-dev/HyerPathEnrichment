@@ -6,6 +6,7 @@ tests/test_error_tracking.py's `test_worker_path_captures_and_reraises`.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -21,6 +22,10 @@ from app.domain.candidate import CVData
 from app.modules.documents.models import CandidateDocument
 from app.modules.outreach.models import OutreachMessage
 from app.workers.tasks.outreach import (
+    _CUSTOM_INSTRUCTION_PREFIX,
+    _EMAIL_SYSTEM_PROMPT,
+    _GENERIC_SYSTEM_PROMPT,
+    _LINKEDIN_SYSTEM_PROMPT,
     _draft_with_llm,
     _generate_outreach_draft_job,
     generate_outreach_draft_job,
@@ -230,7 +235,9 @@ def test_generate_outreach_draft_job_sync_wrapper_invokes_async_impl() -> None:
         "app.workers.tasks.outreach._generate_outreach_draft_job", new=AsyncMock()
     ) as mock_async_impl:
         generate_outreach_draft_job("user-1", "doc-1", "Acme", "Engineer", "match-1")
-    mock_async_impl.assert_called_once_with("user-1", "doc-1", "Acme", "Engineer", "match-1")
+    mock_async_impl.assert_called_once_with(
+        "user-1", "doc-1", "Acme", "Engineer", "match-1", "email", None
+    )
 
 
 async def test_draft_with_llm_returns_generic_message_without_api_key(
@@ -341,6 +348,47 @@ async def test_get_job_description_returns_none_without_job_match_id(db: AsyncSe
     assert result is None
 
 
+async def test_get_job_description_returns_none_for_manual_entry_match_with_no_crash(
+    db: AsyncSession, worker_user: User
+) -> None:
+    """Regression test (Module F, §10.6): a JobMatch for a manually-added job
+    (job_posting_id NULL, manual_job_entry_id set) has no JobPosting row to look up a
+    description from. Before this fix, this hit an unconditional `select(JobPosting)
+    .where(JobPosting.id == match.job_posting_id)` — this asserts the early-return
+    guard added for `job_posting_id is None` returns cleanly, not just that the
+    (already-defensive) `if not posting` check downstream happens to save it.
+    """
+    from app.modules.job_matching.models import JobMatch
+    from app.modules.manual_jobs.models import ManualJobEntry
+    from app.workers.tasks.outreach import _get_job_description
+
+    entry = ManualJobEntry(
+        id=uuid4(),
+        user_id=worker_user.id,
+        title="Self-Sourced Role",
+        company="Referral Co",
+    )
+    db.add(entry)
+    await db.flush()
+
+    match = JobMatch(
+        id=uuid4(),
+        user_id=worker_user.id,
+        job_posting_id=None,
+        manual_job_entry_id=entry.id,
+        similarity_score=0.0,
+        rule_score=0.0,
+        overall_score=0.0,
+        score_breakdown={},
+        application_status="new",
+    )
+    db.add(match)
+    await db.commit()
+
+    result = await _get_job_description(db, str(match.id), worker_user.id)
+    assert result is None
+
+
 async def test_generate_outreach_draft_job_includes_job_description_from_match(
     db: AsyncSession, worker_user: User, worker_document: CandidateDocument
 ) -> None:
@@ -374,7 +422,14 @@ async def test_generate_outreach_draft_job_includes_job_description_from_match(
     captured_kwargs: dict[str, Any] = {}
 
     async def _fake_draft_with_llm(
-        cv_data, company_name, role_title, company_context, job_description, settings
+        cv_data,
+        company_name,
+        role_title,
+        company_context,
+        job_description,
+        settings,
+        message_type="email",
+        custom_instruction=None,
     ):
         captured_kwargs["job_description"] = job_description
         return "Interested in Acme", "Hello, I would love to join Acme."
@@ -397,3 +452,122 @@ async def test_generate_outreach_draft_job_includes_job_description_from_match(
     assert captured_kwargs["job_description"] == (
         "We are looking for a backend engineer with Python and Redis experience."
     )
+
+
+def _mock_openai_client(content: str):
+    mock_response = AsyncMock()
+    mock_response.raise_for_status = lambda: None
+    mock_response.json = lambda: {"choices": [{"message": {"content": content}}]}
+
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client_cm = AsyncMock()
+    mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client_cm.__aexit__ = AsyncMock(return_value=False)
+    return mock_client, mock_client_cm
+
+
+@pytest.mark.parametrize(
+    "message_type,expected_prompt",
+    [
+        ("email", _EMAIL_SYSTEM_PROMPT),
+        ("linkedin", _LINKEDIN_SYSTEM_PROMPT),
+        ("generic", _GENERIC_SYSTEM_PROMPT),
+        ("custom", _EMAIL_SYSTEM_PROMPT),
+    ],
+)
+async def test_draft_with_llm_selects_system_prompt_per_message_type(
+    monkeypatch: pytest.MonkeyPatch, message_type: str, expected_prompt: str
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"])
+
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "Acme context",
+            "We need a Python expert.",
+            settings,
+            message_type,
+            "Mention I'm relocating" if message_type == "custom" else None,
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    system_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "system")
+    assert system_message == expected_prompt
+
+
+async def test_draft_with_llm_truncates_oversized_linkedin_subject_and_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"])
+
+    oversized_subject = "S" * (settings.outreach_linkedin_inmail_subject_max_chars + 50)
+    oversized_body = "B" * (settings.outreach_linkedin_inmail_body_max_chars + 500)
+    fake_content = json.dumps({"subject": oversized_subject, "body": oversized_body})
+
+    _, mock_client_cm = _mock_openai_client(fake_content)
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        subject, body = await _draft_with_llm(
+            cv_data, "Acme", "Backend Engineer", "", None, settings, "linkedin", None
+        )
+
+    assert len(subject) == settings.outreach_linkedin_inmail_subject_max_chars
+    assert subject.endswith("…")
+    assert len(body) == settings.outreach_linkedin_inmail_body_max_chars
+    assert body.endswith("…")
+
+
+async def test_draft_with_llm_does_not_truncate_linkedin_within_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"])
+
+    fake_content = json.dumps({"subject": "Short subject", "body": "Short body"})
+    _, mock_client_cm = _mock_openai_client(fake_content)
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        subject, body = await _draft_with_llm(
+            cv_data, "Acme", "Backend Engineer", "", None, settings, "linkedin", None
+        )
+
+    assert subject == "Short subject"
+    assert body == "Short body"
+
+
+async def test_draft_with_llm_custom_mode_includes_instruction_prefix_verbatim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"])
+
+    candidate_instruction = "Mention my open-source contributions and keep it upbeat."
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "Acme context",
+            "We need a Python expert.",
+            settings,
+            "custom",
+            candidate_instruction,
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+    assert _CUSTOM_INSTRUCTION_PREFIX in user_message
+    assert candidate_instruction in user_message

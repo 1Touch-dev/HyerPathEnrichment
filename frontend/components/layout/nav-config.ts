@@ -7,7 +7,6 @@ import {
   Bell,
   Search,
   Sparkles,
-  FileText,
   User,
   Mail,
   Briefcase,
@@ -22,6 +21,8 @@ import {
   FileSearch,
   Layers,
   MailCheck,
+  ClipboardList,
+  GraduationCap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -41,11 +42,13 @@ export const mainNav: NavSection = {
   title: "Main",
   items: [
     { href: "/app/enrich", label: "Look up", icon: Search },
-    { href: "/app/documents", label: "Documents", icon: FileText },
+    { href: "/app/documents", label: "My CV", icon: Sparkles },
+    { href: "/app/practice", label: "Interview Prep", icon: GraduationCap },
     { href: "/app/history", label: "History", icon: History },
     { href: "/app/signals", label: "Signals", icon: Bell },
     { href: "/app/matches", label: "Matches", icon: Sparkles },
     { href: "/app/matches/swipe", label: "Swipe jobs", icon: Briefcase },
+    { href: "/app/tracker", label: "Applications", icon: ClipboardList },
     { href: "/app/portfolio", label: "Portfolio", icon: User },
     { href: "/app/outreach", label: "Outreach", icon: Mail },
   ],

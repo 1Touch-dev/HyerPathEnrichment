@@ -33,6 +33,25 @@ def upgrade() -> None:
     bind = context.get_bind()
     is_sqlite = bind.dialect.name == "sqlite"
 
+    # Backfill any pre-existing NULL timestamps before enforcing NOT NULL below.
+    # Legacy pre-Alembic databases (stamped at baseline, never had a
+    # server_default on these columns) can have rows with NULL created_at /
+    # updated_at; without this, the ALTER COLUMN ... SET NOT NULL a few lines
+    # down fails with a NotNullViolation on any DB that actually has such rows.
+    for table, column in (
+        ("audit_logs", "created_at"),
+        ("dsar_requests", "created_at"),
+        ("jobs", "created_at"),
+        ("jobs", "updated_at"),
+        ("photo_cache", "uploaded_at"),
+        ("photo_cache", "expires_at"),
+        ("signals", "created_at"),
+        ("suppression_list", "created_at"),
+    ):
+        op.execute(
+            sa.text(f"UPDATE {table} SET {column} = CURRENT_TIMESTAMP WHERE {column} IS NULL")
+        )
+
     if is_sqlite:
         # SQLite: use batch operations
         with op.batch_alter_table("audit_logs", schema=None) as batch_op:

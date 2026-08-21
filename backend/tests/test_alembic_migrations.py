@@ -13,6 +13,7 @@ from app.database import session as db_mod
 from app.database.base import JsonDoc
 from app.modules.enrichment.models import JobRecord
 from tests.migration_helpers import (
+    alembic_config,
     column_udt,
     downgrade_base,
     drop_all_user_tables,
@@ -390,3 +391,60 @@ def test_job_record_model_uses_jsondoc() -> None:
     assert type(JobRecord.__table__.c.request_payload.type) is type(JsonDoc)
     assert type(JobRecord.__table__.c.dossier_payload.type) is type(JsonDoc)
     assert type(JobRecord.__table__.c.identifier_hashes.type) is type(JsonDoc)
+
+
+def test_036_037_038_are_in_the_migration_chain(sqlite_url: str) -> None:
+    """Renumbered Module 3 migrations must chain onto the real head, not fork it (§5).
+
+    Lighter-weight than the full idempotent-upgrade tests above: confirms the
+    tables these three revisions create/alter exist after ``upgrade_head``,
+    and confirms 036 is a genuine ancestor of the current head via Alembic's
+    own ``ScriptDirectory`` API (not string-matching revision ids).
+    """
+    from alembic.script import ScriptDirectory
+
+    upgrade_head(sqlite_url)
+    names = table_names(sqlite_url)
+    assert "question_attempts" in names
+    assert "practice_audio_recordings" in names
+
+    script_dir = ScriptDirectory.from_config(alembic_config(sqlite_url))
+    heads = script_dir.get_heads()
+    ancestor_revisions = {
+        rev.revision for rev in script_dir.walk_revisions(base="base", head=heads)
+    }
+    assert "036_question_attempt_fk_and_personalization" in ancestor_revisions
+    assert "037_question_recency_index" in ancestor_revisions
+    assert "038_practice_audio_recordings_voice_tone" in ancestor_revisions
+
+
+def test_migration_chain_has_single_head(sqlite_url: str) -> None:
+    """Regression guard for the 033-035/036-038 renumbering collision (Module 4 §2)."""
+    from alembic.script import ScriptDirectory
+
+    script_dir = ScriptDirectory.from_config(alembic_config(sqlite_url))
+    assert len(script_dir.get_heads()) == 1
+
+
+def test_question_attempts_question_id_has_fk_constraint(sqlite_url: str) -> None:
+    """§4.2 regression guard - the exact bug this plan fixes."""
+    upgrade_head(sqlite_url)
+    engine = sync_engine_for(sqlite_url)
+    try:
+        with engine.connect() as conn:
+            fks = inspect(conn).get_foreign_keys("question_attempts")
+    finally:
+        engine.dispose()
+    assert any(fk["referred_table"] == "interview_questions" for fk in fks)
+
+
+def test_interview_questions_has_personalization_columns(sqlite_url: str) -> None:
+    upgrade_head(sqlite_url)
+    engine = sync_engine_for(sqlite_url)
+    try:
+        with engine.connect() as conn:
+            columns = {c["name"] for c in inspect(conn).get_columns("interview_questions")}
+    finally:
+        engine.dispose()
+    assert "personalized_for_user_id" in columns
+    assert "generation_context" in columns

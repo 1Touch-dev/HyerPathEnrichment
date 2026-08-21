@@ -32,6 +32,10 @@ class OutreachMessage(Base):
         JsonDoc, default=dict, nullable=False
     )
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False, index=True)
+    message_type: Mapped[str] = mapped_column(
+        String(20), default="email", nullable=False, index=True
+    )
+    custom_instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)

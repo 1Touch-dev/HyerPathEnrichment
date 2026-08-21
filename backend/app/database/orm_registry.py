@@ -25,6 +25,7 @@ from app.modules.admin.models import (
     RolePermission,
 )
 from app.modules.enrichment.models import JobRecord
+from app.modules.interview_scheduling.models import InterviewSchedule
 from app.modules.job_matching.models import (
     CandidateJobPreferences,
     JobMatch,
@@ -32,6 +33,7 @@ from app.modules.job_matching.models import (
     JobPostingEmbedding,
     PushSubscription,
 )
+from app.modules.manual_jobs.models import ManualJobEntry
 from app.modules.sessions.models import PracticeSession, QuestionAttempt
 from app.modules.signals.models import SignalRecord
 from app.storage.models import PhotoCacheRecord
@@ -63,6 +65,8 @@ _ = (
     AdminAuditLog,
     FeatureFlag,
     ImpersonationSession,
+    InterviewSchedule,
+    ManualJobEntry,
 )
 
 # Re-export for alembic env after patch
@@ -76,11 +80,13 @@ __all__ = [
     "EmailVerificationToken",
     "FeatureFlag",
     "ImpersonationSession",
+    "InterviewSchedule",
     "JobMatch",
     "JobPosting",
     "JobPostingEmbedding",
     "JobRecord",
     "LoggedOutToken",
+    "ManualJobEntry",
     "OAuthAccount",
     "Permission",
     "PhotoCacheRecord",

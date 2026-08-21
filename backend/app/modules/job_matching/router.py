@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import StreamingResponse
+from starlette.responses import RedirectResponse, StreamingResponse
 
 from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
@@ -16,6 +16,7 @@ from app.modules.job_matching.schemas import (
     JobMatchListResponse,
     JobPreferencesRequest,
     JobPreferencesResponse,
+    MarkAppliedRequest,
     PushSubscriptionRequest,
     PushUnsubscribeRequest,
     ScanTriggerResponse,
@@ -71,6 +72,36 @@ async def submit_match_feedback(
 ) -> None:
     service = JobMatchingService(db)
     await service.set_feedback(match_id, current_user.id, payload.feedback)
+
+
+@router.get("/matches/{match_id}/apply-redirect")
+async def apply_redirect(
+    match_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> RedirectResponse:
+    """Records the click server-side, then 302s to the posting's own source_url.
+
+    Open-redirect guard (hard requirement): the ONLY URL ever redirected to is
+    `source_url` already stored on the JobPosting row joined through this exact
+    match_id + current_user.id pair — there is no query parameter or request body
+    input that influences the redirect target. A match_id belonging to a different
+    user 404s (never leaks another candidate's saved posting), and a posting with
+    no source_url (should not normally happen — JobSpy/JSearch rows always populate
+    it, but defensive) 404s rather than redirecting to a blank/relative URL.
+    """
+    service = JobMatchingService(db)
+    target_url = await service.record_apply_click_and_get_redirect_url(match_id, current_user.id)
+    return RedirectResponse(url=target_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.post("/matches/{match_id}/mark-applied", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_applied(
+    match_id: str,
+    payload: MarkAppliedRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    service = JobMatchingService(db)
+    await service.set_applied(match_id, current_user.id, payload.applied)
 
 
 @router.post(

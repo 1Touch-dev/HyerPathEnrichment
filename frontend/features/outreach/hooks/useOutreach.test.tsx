@@ -23,6 +23,7 @@ const sampleMessage: OutreachMessage = {
   subject: "Excited about the role",
   body: "Hello there",
   status: "draft",
+  messageType: "email",
   createdAt: "2026-01-01T00:00:00Z",
   sentAt: null,
 };

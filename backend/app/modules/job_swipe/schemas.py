@@ -21,6 +21,9 @@ class SwipeableMatchResponse(BaseModel):
     overall_score: float
     explanation: str | None
     created_at: datetime
+    below_similarity_threshold: bool
+    source_url: str | None
+    applied_at: datetime | None
 
 
 class SwipeDeckResponse(BaseModel):

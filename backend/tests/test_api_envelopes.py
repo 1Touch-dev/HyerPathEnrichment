@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from fastapi import APIRouter
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.errors import NotFoundError
@@ -55,8 +56,9 @@ def test_validation_error_envelope() -> None:
     assert isinstance(body["error"]["details"], list)
 
 
-def test_rate_limit_error_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_rate_limit_error_envelope(monkeypatch: pytest.MonkeyPatch, db: AsyncSession) -> None:
     from app.core.config import get_settings
+    from app.modules.enrichment.models import JobRecord
 
     # Stub tier2 enrichers so this stays a fast, offline test like the rest of
     # the suite (see tests/test_pipeline_shape.py's _offline_enrichers), rather
@@ -73,16 +75,31 @@ def test_rate_limit_error_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(app)
     body_payload = {"username": "envelope-rate", "requested_tiers": ["tier2"]}
 
-    assert_success(client.post("/enrich/sync", headers=AUTH_HEADERS, json=body_payload))
-    assert_success(client.post("/enrich/sync", headers=AUTH_HEADERS, json=body_payload))
-    body = assert_error(
-        client.post("/enrich/sync", headers=AUTH_HEADERS, json=body_payload),
-        429,
-        "RATE_LIMIT_EXCEEDED",
-    )
-    assert body["error"]["message"] == "rate limit exceeded"
-    assert body["meta"] is not None
-    assert body["meta"]["limit_per_minute"] == 2
+    created_job_ids: list[str] = []
+    try:
+        for _ in range(2):
+            data = assert_success(
+                client.post("/enrich/sync", headers=AUTH_HEADERS, json=body_payload)
+            )
+            created_job_ids.append(data["id"])
+        body = assert_error(
+            client.post("/enrich/sync", headers=AUTH_HEADERS, json=body_payload),
+            429,
+            "RATE_LIMIT_EXCEEDED",
+        )
+        assert body["error"]["message"] == "rate limit exceeded"
+        assert body["meta"] is not None
+        assert body["meta"]["limit_per_minute"] == 2
+    finally:
+        # /enrich/sync commits real JobRecord rows via its own session (not the `db`
+        # fixture's), so they'd otherwise leak into the shared test DB and pollute
+        # other tests that assert on absolute job counts/totals (e.g.
+        # test_child_job_visibility.py).
+        for job_id in created_job_ids:
+            job = await db.get(JobRecord, job_id)
+            if job is not None:
+                await db.delete(job)
+        await db.commit()
 
 
 def test_ready_error_envelope() -> None:

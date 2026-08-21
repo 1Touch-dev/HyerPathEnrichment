@@ -156,3 +156,15 @@ async def get_db_session_context() -> AsyncIterator[AsyncSession]:
     `db: AsyncSession = Depends(get_db_session)` the way routes do."""
     async with SessionLocal() as session:
         yield session
+
+
+@asynccontextmanager
+async def get_async_session_for_sync_context() -> AsyncIterator[AsyncSession]:
+    """One short-lived async session for a sync RQ task's event loop.
+
+    RQ tasks run sync, but modules like `app.modules.questions.service` are
+    async end-to-end (per RULE.md); this bridges the two without making the
+    async side sync just because one caller happens to be a worker.
+    """
+    async with SessionLocal() as session:
+        yield session

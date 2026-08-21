@@ -1,0 +1,74 @@
+# Week 2 - Interview Practice AI Services (Module 3)
+# Isolates feedback generation and personalized question pre-generation onto
+# their own worker, per phase2_module3.md Decision 6 / §4.9 (RQ is
+# fixed-priority, not fair-share - github.com/rq/rq/issues/1420 - so bundling
+# these with Week 1's document/embedding queues risks starving user-facing
+# feedback behind a batch embedding backlog).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.week2-ai.yml up
+#
+# NOTE: this overlay is additive. The base `worker` service (docker-compose.yml)
+# still listens to `feedback`/`question_generation` too (rq_worker.py's
+# general-purpose branch), so running both is safe (a job only runs once,
+# whichever worker BLPOPs it first) but does not fully isolate capacity for
+# an environment until that environment also removes `feedback`/
+# `question_generation` from the base worker's list or scales it down — see
+# backend/docs/ARCHITECTURE.md for the documented, opt-in migration note.
+#
+# DEVIATION FROM PLAN §8.3: no additive block was added to
+# docker-compose.prod.yml for this service. Verified directly: the
+# documented production deploy command is the 2-file
+# `docker compose -f docker-compose.yml -f docker-compose.prod.yml`
+# (backend/docs/evidence/prod-deploy-86.md:21); adding a `worker-interview-ai`
+# override to prod.yml makes THAT exact command fail with "service
+# worker-interview-ai has neither an image nor a build context specified"
+# whenever this overlay isn't also included, since Compose merges overrides
+# into services that must already exist in some included file. This matches
+# the precedent already set by docker-compose.foundation.yml's own
+# worker-document/worker-embedding/worker-job-matching: none of those have a
+# prod.yml block either — they are fully self-contained via ${VAR:-default}
+# substitution, same as this file. Production users of this overlay should
+# run all three files together:
+#   docker compose -f docker-compose.yml -f docker-compose.week2-ai.yml -f docker-compose.prod.yml up -d --build
+
+services:
+  worker-interview-ai:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    networks:
+      - default
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      HUME_API_KEY: ${HUME_API_KEY:-}
+      WORKER_QUEUE_MODE: single
+      WORKER_STARTUP_DELAY: "0"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+    command: ["rq", "worker", "feedback", "question_generation", "--url", "redis://redis:6379/0"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from app.workers.queue import get_redis_connection; from rq import Queue; c = get_redis_connection(); exit(0 if Queue('feedback', connection=c).count < 500 else 1)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

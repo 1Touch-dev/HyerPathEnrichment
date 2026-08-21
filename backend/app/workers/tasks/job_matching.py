@@ -275,7 +275,7 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                 }
 
                 matches_scored = 0
-                for matched_posting_id, similarity_score in similar_postings:
+                for matched_posting_id, similarity_score, passed_threshold in similar_postings:
                     posting_row = await session.get(JobPosting, matched_posting_id)
                     if posting_row is None:
                         # Defensive: posting could theoretically have been removed between
@@ -290,6 +290,8 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                     }
                     rule_score, breakdown = compute_rule_score(posting_dict, preferences_dict)
                     overall_score = compute_overall_score(similarity_score, rule_score)
+                    if not passed_threshold:
+                        breakdown["below_similarity_threshold"] = True
 
                     await repository.upsert_match(
                         session,
@@ -475,7 +477,7 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
         rows, _total = await repository.list_matches_for_user(
             session, UUID(user_id), limit=100, offset=0
         )
-        unnotified = [(m, p) for m, p in rows if m.notified_at is None]
+        unnotified = [(m, p, e) for m, p, e in rows if m.notified_at is None]
 
         if not unnotified:
             return {"sent": 0}
@@ -488,14 +490,19 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
                 extra={"user_id": user_id[:8], "channels": prefs.notification_channels},
             )
 
+        # Manual entries (Module F, §10.6) have no JobPosting row — title/company/
+        # location/source_url are resolved from the joined ManualJobEntry instead,
+        # computed once per row rather than re-derived per payload shape below.
+        display_fields = [(m, repository.resolve_match_display_fields(p, e)) for m, p, e in top_5]
+
         match_payload = [
             {
-                "title": p.title,
-                "company": p.company,
+                "title": title,
+                "company": company,
                 "overall_score": m.overall_score,
-                "source_url": p.source_url or "",
+                "source_url": source_url or "",
             }
-            for m, p in top_5
+            for m, (title, company, _location, source_url) in display_fields
         ]
 
         if "email" in prefs.notification_channels:
@@ -511,14 +518,14 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
                     context={
                         "matches": [
                             {
-                                "title": p.title,
-                                "company": p.company,
-                                "location": p.location,
+                                "title": title,
+                                "company": company,
+                                "location": location,
                                 "overall_score": m.overall_score,
                                 "explanation": m.explanation or "",
-                                "source_url": p.source_url or "",
+                                "source_url": source_url or "",
                             }
-                            for m, p in top_5
+                            for m, (title, company, location, source_url) in display_fields
                         ],
                     },
                 )
@@ -559,7 +566,7 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
                     extra={"user_id": user_id[:8]},
                 )
 
-        await repository.mark_notified(session, [m.id for m, _ in top_5])
+        await repository.mark_notified(session, [m.id for m, _p, _e in top_5])
         return {"sent": len(top_5)}
 
 
