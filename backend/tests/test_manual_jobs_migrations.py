@@ -26,6 +26,7 @@ from tests.migration_helpers import (
 REV_INTERVIEW_SCHEDULES = "042_interview_schedules"
 REV_MANUAL_JOB_ENTRIES = "043_manual_job_entries"
 REV_MERGE_ADMIN_AND_MODULE4_HEADS = "044_merge_admin_and_module4_heads"
+REV_CURRENT_SINGLE_HEAD = "046_admin_seed_module4_permissions"
 
 
 @pytest.fixture
@@ -322,9 +323,11 @@ class TestDowngrade:
 
 def test_043_is_in_the_migration_chain_and_is_the_single_head(sqlite_url: str) -> None:
     """Named after 043 (this module's own migration), but after the admin-module
-    merge (migration 044, a no-op fork-resolution) the single head is 044, with
-    043 as one of its two direct ancestors. This test still confirms 043 (and
-    042) are reachable from the single head, just not the head itself anymore.
+    merge (migration 044, a no-op fork-resolution) and the subsequent Module 3
+    (045) / Module 4 (046) admin-permission migrations, the single head is now
+    046, with 044 (and therefore 043) reachable as an ancestor. This test still
+    confirms 043 (and 042) are reachable from the single head, just not the
+    head itself anymore.
     """
     from alembic.script import ScriptDirectory
 
@@ -332,10 +335,11 @@ def test_043_is_in_the_migration_chain_and_is_the_single_head(sqlite_url: str) -
     script_dir = ScriptDirectory.from_config(alembic_config(sqlite_url))
     heads = script_dir.get_heads()
     assert len(heads) == 1
-    assert heads[0] == REV_MERGE_ADMIN_AND_MODULE4_HEADS
+    assert heads[0] == REV_CURRENT_SINGLE_HEAD
 
     ancestor_revisions = {
         rev.revision for rev in script_dir.walk_revisions(base="base", head=heads)
     }
+    assert REV_MERGE_ADMIN_AND_MODULE4_HEADS in ancestor_revisions
     assert REV_MANUAL_JOB_ENTRIES in ancestor_revisions
     assert REV_INTERVIEW_SCHEDULES in ancestor_revisions
