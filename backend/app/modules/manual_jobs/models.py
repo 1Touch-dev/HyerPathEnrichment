@@ -35,3 +35,6 @@ class ManualJobEntry(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+    # Admin Module (migration 046_admin_seed_module4_permissions): soft-delete
+    # column, same convention as `CandidateDocument.deleted_at`.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

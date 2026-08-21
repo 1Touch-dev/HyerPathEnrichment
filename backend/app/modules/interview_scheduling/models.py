@@ -45,3 +45,12 @@ class InterviewSchedule(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), onupdate=lambda: datetime.now(UTC)
     )
+    # Admin Module (migration 046_admin_seed_module4_permissions): a SOFT cancel,
+    # distinct from the candidate-facing hard-delete `cancel_interview` route —
+    # preserves the row for audit/history instead of removing it.
+    admin_cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    admin_cancelled_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )

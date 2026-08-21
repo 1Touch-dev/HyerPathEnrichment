@@ -5,10 +5,9 @@ or admin/service.py) since this chunk lands alongside six sibling moderation
 routers in parallel worktrees and must stay scoped to the single new file
 assigned to it — see the batch's shared-file avoidance list.
 
-Wiring `admin_blocked` to actually prevent `OutreachService.send_message()`
-from sending is explicitly out of scope here — that's the separate
-"async-flagging wiring" chunk (touches `workers/tasks/outreach.py`) in a
-later batch.
+`admin_blocked` is enforced in `OutreachService.send_message()`
+(`app/modules/outreach/service.py`), which raises a 403 if a candidate
+attempts to send a message an admin has blocked here.
 """
 
 from __future__ import annotations

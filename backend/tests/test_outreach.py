@@ -234,6 +234,53 @@ async def test_send_message_rejects_already_sent(db, test_user):
     assert exc_info.value.status_code == 409
 
 
+async def test_send_message_rejects_admin_blocked_message(db, test_user):
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Body",
+        status="draft",
+        admin_blocked=True,
+    )
+    db.add(message)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.send_message(
+            test_user.id, str(message.id), sender_email="jane@example.com", sender_name="jane"
+        )
+    assert exc_info.value.status_code == 403
+
+    await db.refresh(message)
+    assert message.status == "draft"
+    assert message.sent_at is None
+
+
+async def test_send_message_allows_message_with_admin_blocked_false(db, test_user):
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Original body with no footer.",
+        status="draft",
+        message_type="email",
+        admin_blocked=False,
+    )
+    db.add(message)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    result = await service.send_message(
+        test_user.id, str(message.id), sender_email="jane@example.com", sender_name="jane"
+    )
+
+    assert result.status == "sent"
+
+
 async def test_send_message_uses_absolute_privacy_url_when_configured(db, test_user, monkeypatch):
     from app.core.config import get_settings
 

@@ -41,7 +41,7 @@ class OutreachMessage(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     # Admin Module (Phase 2 moderation, migration 040): admin can block a message
-    # from being sent without deleting it. Wiring this into send_message()'s
-    # actual send-prevention check is out of scope here (see outreach_router.py
-    # module docstring) — that lands in a later batch's async-flagging chunk.
+    # from being sent without deleting it. Enforced in
+    # OutreachService.send_message() (service.py), which raises 403 when this
+    # flag is set instead of silently allowing the send.
     admin_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

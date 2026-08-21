@@ -54,6 +54,15 @@ class InterviewQuestion(Base):
     )
     generation_context: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Admin Module 3 moderation (migration 045). Mirrors the
+    # moderation_status/moderated_by/moderated_at shape used by JobPosting
+    # (migration 040) for consistency across admin moderation surfaces.
+    moderation_status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    moderated_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     def __repr__(self) -> str:
         return (
             f"<InterviewQuestion(id={self.id}, category={self.question_category}, "

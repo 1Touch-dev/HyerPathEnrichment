@@ -141,6 +141,13 @@ class OutreachService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Message already sent or discarded"
             )
+        # Closes the loop flagged in OutreachMessage.admin_blocked's docstring: an admin
+        # moderation decision must actually prevent sending, not just be recorded.
+        if message.admin_blocked:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This message has been blocked by an administrator and cannot be sent",
+            )
 
         footer = ""
         if message.message_type == "email":

@@ -147,5 +147,14 @@ class PracticeAudioRecording(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Admin Module 3 moderation (migration 045). Mirrors the
+    # moderation_status/moderated_by/moderated_at shape used by JobPosting
+    # (migration 040) for consistency across admin moderation surfaces.
+    moderation_status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    moderated_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     session: Mapped[PracticeSession] = relationship("PracticeSession")
