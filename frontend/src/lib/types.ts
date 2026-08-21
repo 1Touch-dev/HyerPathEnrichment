@@ -273,6 +273,478 @@ export type UnreadMatchCountEvent = {
   unreadCount: number;
 };
 
+// Admin module: user/role management, audit logs, feature flags, queue
+// introspection, system health, analytics, MFA, and impersonation
+// (mirrors backend/app/modules/admin/schemas.py, camelCase).
+
+export type AdminRole = {
+  id: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+};
+
+export type AdminPermission = {
+  id: string;
+  resource: string;
+  action: string;
+  description: string | null;
+};
+
+export type AdminRoleWithPermissions = AdminRole & {
+  permissions: AdminPermission[];
+};
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  isVerified: boolean;
+  isSuperuser: boolean;
+  roleId: string | null;
+  roleName: string | null;
+  mfaEnabled: boolean;
+  createdAt: string;
+  deletedAt: string | null;
+};
+
+export type AdminUserListResponse = {
+  items: AdminUser[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type AdminAuditLogEntry = {
+  id: string;
+  actorUserId: string | null;
+  impersonatedBy: string | null;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  ipAddress: string | null;
+  capturedBy: "explicit" | "fallback";
+  createdAt: string;
+};
+
+export type AdminAuditLogListResponse = {
+  items: AdminAuditLogEntry[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type FeatureFlag = {
+  key: string;
+  enabled: boolean;
+  value: Record<string, unknown> | null;
+  description: string | null;
+  updatedBy: string | null;
+  updatedAt: string;
+};
+
+export type QueueSnapshot = {
+  name: string;
+  priority: number;
+  queuedCount: number;
+  failedCount: number;
+  oldestQueuedAgeSeconds: number | null;
+  workersListening: number;
+};
+
+export type FailedJob = {
+  jobId: string;
+  queueName: string;
+  funcName: string | null;
+  enqueuedAt: string | null;
+  failedAt: string | null;
+  excInfo: string | null;
+};
+
+export type SystemHealthSnapshot = {
+  databaseOk: boolean;
+  databaseLatencyMs: number;
+  redisOk: boolean;
+  redisLatencyMs: number;
+  prometheusConfigured: boolean;
+  signals: Record<string, number | null>;
+};
+
+export type JobMatchAnalytics = {
+  totalPostings: number;
+  totalMatches: number;
+  postingsBySource: Record<string, number>;
+  topCompanies: { company: string; count: number }[];
+  avgSalaryMin: number | null;
+  avgSalaryMax: number | null;
+  avgOverallScore: number | null;
+  computedAt: string;
+  cacheHit: boolean;
+};
+
+export type MfaStatus = {
+  mfaEnabled: boolean;
+  mfaEnrolledAt: string | null;
+};
+
+export type MfaEnrollResult = {
+  secret: string;
+  provisioningUri: string;
+};
+
+export type ImpersonationStatus = {
+  isImpersonating: boolean;
+  adminUserId: string | null;
+  adminEmail: string | null;
+  targetUserId: string | null;
+  expiresAt: string | null;
+};
+
+// Generic moderation review queue (backend/app/modules/admin/review_queue_router.py).
+// This router is not yet exported to openapi.json/src/lib/generated (Batch 4's
+// centralized wiring), so — following this file's own "hand-declare, mirror the
+// backend snake_case shape, replace with real openapi:gen output later" convention
+// (see the Module 2 `Raw*Response` types in api-adapter.ts for the established
+// precedent) — the Backend* shapes live here as plain hand-written types instead.
+
+export type AdminReviewQueueResourceType =
+  | "job_posting"
+  | "document"
+  | "portfolio_item"
+  | "outreach_message"
+  | "question"
+  | "practice_audio";
+
+export type AdminReviewQueueStatus = "pending" | "approved" | "rejected";
+
+export type AdminReviewQueueFlagSource = "heuristic" | "llm_judge" | "user_report";
+
+export type BackendAdminReviewQueueItem = {
+  id: string;
+  resource_type: AdminReviewQueueResourceType;
+  resource_id: string;
+  status: AdminReviewQueueStatus;
+  flag_reason: string | null;
+  flag_source: AdminReviewQueueFlagSource;
+  flagged_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+};
+
+export type BackendAdminReviewQueueListResponse = {
+  items: BackendAdminReviewQueueItem[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
+export type BackendAdminReviewQueueDetail = {
+  item: BackendAdminReviewQueueItem;
+  resolved_resource: Record<string, unknown> | null;
+};
+
+export type BackendAdminReviewQueueDecideRequest = {
+  status: "approved" | "rejected";
+  review_notes?: string | null;
+};
+
+export type AdminReviewQueueItem = {
+  id: string;
+  resourceType: AdminReviewQueueResourceType;
+  resourceId: string;
+  status: AdminReviewQueueStatus;
+  flagReason: string | null;
+  flagSource: AdminReviewQueueFlagSource;
+  flaggedAt: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+};
+
+export type AdminReviewQueueListResponse = {
+  items: AdminReviewQueueItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type AdminReviewQueueDetail = {
+  item: AdminReviewQueueItem;
+  /** Best-effort snapshot of the flagged resource; null for Module-3 placeholders,
+   * unrecognized resource types, or a resource that no longer exists. */
+  resolvedResource: Record<string, unknown> | null;
+};
+
+// Job postings moderation (Admin Module Phase 2 — moderation layer,
+// mirrors backend/app/modules/admin/job_postings_router.py, camelCase).
+
+export type ModerationStatus = "active" | "hidden" | "removed";
+
+export type AdminJobPosting = {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  source: string;
+  sourceUrl: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+  postedAt: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  isActive: boolean;
+  moderationStatus: ModerationStatus;
+  moderatedBy: string | null;
+  moderatedAt: string | null;
+};
+
+export type AdminJobPostingListResponse = {
+  items: AdminJobPosting[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+/**
+ * Mirrors backend/app/modules/admin/job_postings_router.py's
+ * `AdminJobPostingResponse`/`AdminJobPostingListResponse` Pydantic models.
+ * Hand-declared here (snake_case, not generated) because `openapi/openapi.json`
+ * and `src/lib/generated/openapi.ts` are held back for centralized regeneration
+ * elsewhere in this plan — same rationale as the `Raw*Response` placeholders
+ * below for Module 2, but named `Backend*` since this backend route already
+ * exists (not speculative). Should be replaced by real generated types once
+ * `npm run openapi:gen` is re-run against the merged router.
+ */
+export type BackendAdminJobPostingResponse = {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  source: string;
+  source_url: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
+  posted_at: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+  is_active: boolean;
+  moderation_status: ModerationStatus;
+  moderated_by: string | null;
+  moderated_at: string | null;
+};
+
+export type BackendAdminJobPostingListResponse = {
+  items: BackendAdminJobPostingResponse[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
+// Admin documents moderation: soft-delete/restore of candidate documents
+// (mirrors backend/app/modules/admin/documents_router.py's inline Pydantic
+// models — distinct from the candidate-facing CandidateDocument/CandidateDocumentDetail
+// types above, which come from app/modules/documents/schemas.py instead).
+
+export type AdminDocumentModerateAction = "soft_delete" | "restore";
+
+/**
+ * Wire shape of `documents_router.py`'s `AdminDocumentResponse` — declared by hand
+ * here (not sourced from `src/lib/generated/api-schemas.ts`) because that router's
+ * inline Pydantic models are not part of the committed OpenAPI schema yet, matching
+ * this file's existing `Raw*Response` convention (see `api-adapter.ts`) for
+ * not-yet-generated backend contracts.
+ */
+export type BackendAdminDocumentResponse = {
+  id: string;
+  user_id: string;
+  document_type: string;
+  original_filename: string;
+  mime_type: string | null;
+  file_size_bytes: number;
+  processing_status: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type BackendAdminDocumentListResponse = {
+  items: BackendAdminDocumentResponse[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
+// Outreach moderation (mirrors backend/app/modules/admin/outreach_router.py's
+// AdminOutreachMessageResponse/AdminOutreachMessageListResponse). That router's schemas
+// are not yet in the committed OpenAPI schema (frontend/openapi/openapi.json), so — unlike
+// the other admin types above, whose Backend* counterparts live in
+// src/lib/generated/api-schemas.ts — the Backend* types below are hand-declared here.
+// Delete these and switch to generated types once `npm run openapi:gen` picks up this router.
+
+/** `OutreachMessage.status` is a free-form `String(20)` column on the backend model
+ * (backend/app/modules/outreach/models.py), not a fixed enum — currently observed values
+ * are "draft" and "sent", but this is intentionally typed as `string` rather than a union. */
+export type BackendAdminOutreachMessage = {
+  id: string;
+  user_id: string;
+  job_match_id: string | null;
+  recipient_role_title: string | null;
+  company_name: string;
+  subject: string;
+  body: string;
+  status: string;
+  admin_blocked: boolean;
+  sent_at: string | null;
+  created_at: string;
+};
+
+export type BackendAdminOutreachMessageListResponse = {
+  items: BackendAdminOutreachMessage[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
+export type BackendModerateJobPostingRequest = {
+  moderation_status: ModerationStatus;
+  reason?: string | null;
+};
+
+export type BackendModerateDocumentRequest = {
+  action: AdminDocumentModerateAction;
+  reason?: string | null;
+};
+
+export type AdminDocument = {
+  id: string;
+  userId: string;
+  documentType: string;
+  originalFilename: string;
+  mimeType: string | null;
+  fileSizeBytes: number;
+  processingStatus: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+};
+
+export type AdminDocumentListResponse = {
+  items: AdminDocument[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type AdminOutreachMessage = {
+  id: string;
+  userId: string;
+  jobMatchId: string | null;
+  recipientRoleTitle: string | null;
+  companyName: string;
+  subject: string;
+  body: string;
+  status: string;
+  adminBlocked: boolean;
+  sentAt: string | null;
+  createdAt: string;
+};
+
+export type AdminOutreachMessageListResponse = {
+  items: AdminOutreachMessage[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+// Admin portfolio moderation (mirrors backend/app/modules/admin/portfolio_router.py,
+// camelCase). Distinct from the candidate-facing `PortfolioProfile`/`PortfolioItem`
+// below — the admin variants expose moderation fields (`adminHidden`) and are never
+// shaped for the public /p/{slug} page.
+
+export type AdminPortfolioItem = {
+  itemId: string;
+  itemType: string;
+  title: string;
+  description: string | null;
+  url: string;
+  imageUrl: string | null;
+  displayOrder: number;
+  createdAt: string;
+};
+
+export type AdminPortfolioProfile = {
+  profileId: string;
+  userId: string;
+  slug: string;
+  displayName: string | null;
+  headline: string | null;
+  bio: string | null;
+  isPublished: boolean;
+  adminHidden: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminPortfolioProfileDetail = AdminPortfolioProfile & {
+  items: AdminPortfolioItem[];
+};
+
+export type AdminPortfolioProfileListResponse = {
+  items: AdminPortfolioProfile[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type AdminDocumentFilters = {
+  processingStatus: string | null;
+  deleted: boolean | null;
+};
+
+// Backend (snake_case) counterparts for the admin portfolio moderation types above.
+// backend/app/modules/admin/portfolio_router.py defines these models inline (no
+// dedicated schemas.py for the admin portfolio module), and this router isn't in
+// the committed OpenAPI schema yet, so — following this file's own convention for
+// not-yet-generated backend routes (see the `Raw*Response` types further below) —
+// these are hand-declared here rather than imported from `generated/api-schemas.ts`.
+
+export type BackendAdminPortfolioItem = {
+  item_id: string;
+  item_type: string;
+  title: string;
+  description: string | null;
+  url: string;
+  image_url: string | null;
+  display_order: number;
+  created_at: string;
+};
+
+export type BackendAdminPortfolioProfile = {
+  profile_id: string;
+  user_id: string;
+  slug: string;
+  display_name: string | null;
+  headline: string | null;
+  bio: string | null;
+  is_published: boolean;
+  admin_hidden: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BackendAdminPortfolioProfileDetail = BackendAdminPortfolioProfile & {
+  items: BackendAdminPortfolioItem[];
+};
+
+export type BackendAdminPortfolioProfileListResponse = {
+  items: BackendAdminPortfolioProfile[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
+export type BackendModeratePortfolioRequest = {
+  admin_hidden: boolean;
+  reason?: string | null;
+};
+
 // Documents module: candidate document upload, processing, and search
 // (mirrors backend/app/modules/documents/schemas.py, camelCase).
 

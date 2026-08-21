@@ -1,4 +1,36 @@
 import {
+  AdminAuditLogEntry,
+  AdminAuditLogListResponse,
+  AdminJobPosting,
+  AdminJobPostingListResponse,
+  AdminReviewQueueDetail,
+  AdminReviewQueueItem,
+  AdminReviewQueueListResponse,
+  AdminDocument,
+  AdminDocumentListResponse,
+  AdminPortfolioItem,
+  AdminPortfolioProfile,
+  AdminPortfolioProfileDetail,
+  AdminPortfolioProfileListResponse,
+  AdminOutreachMessage,
+  AdminOutreachMessageListResponse,
+  AdminRoleWithPermissions,
+  AdminUser,
+  AdminUserListResponse,
+  BackendAdminJobPostingListResponse,
+  BackendAdminJobPostingResponse,
+  BackendAdminReviewQueueDetail,
+  BackendAdminReviewQueueItem,
+  BackendAdminReviewQueueListResponse,
+  BackendAdminDocumentListResponse,
+  BackendAdminDocumentResponse,
+  BackendAdminPortfolioItem,
+  BackendAdminPortfolioProfile,
+  BackendAdminPortfolioProfileDetail,
+  BackendAdminPortfolioProfileListResponse,
+  BackendModeratePortfolioRequest,
+  BackendAdminOutreachMessage,
+  BackendAdminOutreachMessageListResponse,
   CandidateDocument,
   CandidateDocumentDetail,
   CandidateJobPreferences,
@@ -15,61 +47,113 @@ import {
   DocumentUploadResult,
   EnrichmentInput,
   EnrichmentJob,
+  FailedJob,
+  FeatureFlag,
   HealthStatus,
+  ImpersonationStatus,
   JobListItem,
   JobListResponse,
   JobMatch,
+  JobMatchAnalytics,
   JobMatchListResponse,
   JobStatus,
+  MfaEnrollResult,
+  MfaStatus,
   OptOutInput,
   OutreachMessage,
   PortfolioItem,
   PortfolioProfile,
   PublicPortfolioProfile,
+  QueueSnapshot,
   RequestedTier,
   DsarInput,
   DsarResponse,
   SignalListItem,
   SignalListResponse,
   SwipeDeck,
+  SystemHealthSnapshot,
 } from "@/src/lib/types";
 import type {
+  BackendAdminAuditLogEntryResponse,
+  BackendAdminAuditLogListResponse,
+  BackendAdminUserListResponse,
+  BackendAdminUserResponse,
   BackendCVDataResponse,
   BackendDocumentDetailResponse,
   BackendDocumentMetadata,
   BackendDocumentUploadResponse,
   BackendDossier,
   BackendDsarResponse,
+  BackendFailedJobResponse,
+  BackendFeatureFlagResponse,
   BackendHealthResponse,
+  BackendImpersonationStartResponse,
+  BackendImpersonationStatusResponse,
   BackendJobListItem,
   BackendJobListResponse,
+  BackendJobMatchAnalyticsResponse,
   BackendJobMatchListResponse,
   BackendJobMatchResponse,
   BackendJobPreferencesResponse,
   BackendJobResponse,
   BackendJobStatusResponse,
+  BackendMfaEnrollResponse,
+  BackendMfaStatusResponse,
+  BackendQueueSnapshotResponse,
+  BackendRoleWithPermissionsResponse,
   BackendSearchResponse,
   BackendSearchResult,
   BackendSignalListItem,
   BackendSignalListResponse,
+  BackendSystemHealthResponse,
 } from "@/src/lib/generated/api-schemas";
 
 export type {
+  BackendAdminAuditLogEntryResponse,
+  BackendAdminAuditLogListResponse,
+  BackendAdminUserListResponse,
+  BackendAdminUserResponse,
+  BackendAssignRoleRequest,
   BackendCVDataResponse,
   BackendDocumentDetailResponse,
   BackendDocumentMetadata,
   BackendDocumentUploadResponse,
   BackendDsarResponse,
+  BackendFailedJobResponse,
+  BackendFeatureFlagResponse,
   BackendHealthResponse,
+  BackendImpersonationStartRequest,
+  BackendImpersonationStartResponse,
+  BackendImpersonationStatusResponse,
   BackendJobListResponse,
+  BackendJobMatchAnalyticsResponse,
   BackendJobMatchListResponse,
   BackendJobMatchResponse,
   BackendJobPreferencesResponse,
   BackendJobResponse,
   BackendJobStatusResponse,
+  BackendMfaEnrollResponse,
+  BackendMfaStatusResponse,
+  BackendMfaVerifyRequest,
+  BackendQueueSnapshotResponse,
+  BackendQueuesOverviewResponse,
+  BackendRoleWithPermissionsResponse,
   BackendSearchResponse,
   BackendSignalListResponse,
+  BackendSystemHealthResponse,
+  BackendUpdateUserStatusRequest,
 } from "@/src/lib/generated/api-schemas";
+
+// Not yet in the generated OpenAPI schema (see the hand-declared types.ts comment
+// above these types' definitions) — re-exported here so BFF routes can import
+// them from this file, consistent with the generated Backend* re-exports above.
+export type {
+  BackendAdminPortfolioItem,
+  BackendAdminPortfolioProfile,
+  BackendAdminPortfolioProfileDetail,
+  BackendAdminPortfolioProfileListResponse,
+  BackendModeratePortfolioRequest,
+};
 
 function normalizeJobStatus(status: string): JobStatus {
   if (
@@ -401,6 +485,356 @@ export function mapBackendHealth(response: BackendHealthResponse): HealthStatus 
   return {
     status: response.status,
     service: response.service ?? "hyrepath-enrichment",
+  };
+}
+
+// Admin module (phase2_admin_module.md §11.3)
+
+export function mapBackendAdminUser(raw: BackendAdminUserResponse): AdminUser {
+  return {
+    id: raw.id,
+    email: raw.email,
+    firstName: raw.first_name,
+    lastName: raw.last_name,
+    isActive: raw.is_active,
+    isVerified: raw.is_verified,
+    isSuperuser: raw.is_superuser,
+    roleId: raw.role_id,
+    roleName: raw.role_name,
+    mfaEnabled: raw.mfa_enabled,
+    createdAt: raw.created_at,
+    deletedAt: raw.deleted_at,
+  };
+}
+
+export function mapBackendAdminUserList(raw: BackendAdminUserListResponse): AdminUserListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminUser),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAdminReviewQueueItem(
+  raw: BackendAdminReviewQueueItem,
+): AdminReviewQueueItem {
+  return {
+    id: raw.id,
+    resourceType: raw.resource_type,
+    resourceId: raw.resource_id,
+    status: raw.status,
+    flagReason: raw.flag_reason,
+    flagSource: raw.flag_source,
+    flaggedAt: raw.flagged_at,
+    reviewedBy: raw.reviewed_by,
+    reviewedAt: raw.reviewed_at,
+    reviewNotes: raw.review_notes,
+  };
+}
+
+export function mapBackendAdminReviewQueueList(
+  raw: BackendAdminReviewQueueListResponse,
+): AdminReviewQueueListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminReviewQueueItem),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAdminReviewQueueDetail(
+  raw: BackendAdminReviewQueueDetail,
+): AdminReviewQueueDetail {
+  return {
+    item: mapBackendAdminReviewQueueItem(raw.item),
+    resolvedResource: raw.resolved_resource,
+  };
+}
+
+export function mapBackendAdminJobPosting(raw: BackendAdminJobPostingResponse): AdminJobPosting {
+  return {
+    id: raw.id,
+    title: raw.title,
+    company: raw.company,
+    location: raw.location,
+    remote: raw.remote,
+    source: raw.source,
+    sourceUrl: raw.source_url,
+    salaryMin: raw.salary_min,
+    salaryMax: raw.salary_max,
+    salaryCurrency: raw.salary_currency,
+    postedAt: raw.posted_at,
+    firstSeenAt: raw.first_seen_at,
+    lastSeenAt: raw.last_seen_at,
+    isActive: raw.is_active,
+    moderationStatus: raw.moderation_status,
+    moderatedBy: raw.moderated_by,
+    moderatedAt: raw.moderated_at,
+  };
+}
+
+export function mapBackendAdminJobPostingList(
+  raw: BackendAdminJobPostingListResponse,
+): AdminJobPostingListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminJobPosting),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAdminDocument(raw: BackendAdminDocumentResponse): AdminDocument {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    documentType: raw.document_type,
+    originalFilename: raw.original_filename,
+    mimeType: raw.mime_type,
+    fileSizeBytes: raw.file_size_bytes,
+    processingStatus: raw.processing_status,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+    deletedAt: raw.deleted_at,
+  };
+}
+
+export function mapBackendAdminDocumentList(
+  raw: BackendAdminDocumentListResponse,
+): AdminDocumentListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminDocument),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+function mapBackendAdminPortfolioItem(raw: BackendAdminPortfolioItem): AdminPortfolioItem {
+  return {
+    itemId: raw.item_id,
+    itemType: raw.item_type,
+    title: raw.title,
+    description: raw.description,
+    url: raw.url,
+    imageUrl: raw.image_url,
+    displayOrder: raw.display_order,
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendAdminPortfolioProfile(
+  raw: BackendAdminPortfolioProfile,
+): AdminPortfolioProfile {
+  return {
+    profileId: raw.profile_id,
+    userId: raw.user_id,
+    slug: raw.slug,
+    displayName: raw.display_name,
+    headline: raw.headline,
+    bio: raw.bio,
+    isPublished: raw.is_published,
+    adminHidden: raw.admin_hidden,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+export function mapBackendAdminPortfolioProfileDetail(
+  raw: BackendAdminPortfolioProfileDetail,
+): AdminPortfolioProfileDetail {
+  return {
+    ...mapBackendAdminPortfolioProfile(raw),
+    items: raw.items.map(mapBackendAdminPortfolioItem),
+  };
+}
+
+export function mapBackendAdminPortfolioProfileList(
+  raw: BackendAdminPortfolioProfileListResponse,
+): AdminPortfolioProfileListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminPortfolioProfile),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAdminOutreachMessage(
+  raw: BackendAdminOutreachMessage,
+): AdminOutreachMessage {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    jobMatchId: raw.job_match_id,
+    recipientRoleTitle: raw.recipient_role_title,
+    companyName: raw.company_name,
+    subject: raw.subject,
+    body: raw.body,
+    status: raw.status,
+    adminBlocked: raw.admin_blocked,
+    sentAt: raw.sent_at,
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendAdminOutreachMessageList(
+  raw: BackendAdminOutreachMessageListResponse,
+): AdminOutreachMessageListResponse {
+  return {
+    items: raw.items.map(mapBackendAdminOutreachMessage),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAuditLogEntry(
+  raw: BackendAdminAuditLogEntryResponse,
+): AdminAuditLogEntry {
+  return {
+    id: raw.id,
+    actorUserId: raw.actor_user_id,
+    impersonatedBy: raw.impersonated_by,
+    action: raw.action,
+    targetType: raw.target_type,
+    targetId: raw.target_id,
+    before: raw.before,
+    after: raw.after,
+    ipAddress: raw.ip_address,
+    capturedBy: raw.captured_by as AdminAuditLogEntry["capturedBy"],
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendAuditLogList(
+  raw: BackendAdminAuditLogListResponse,
+): AdminAuditLogListResponse {
+  return {
+    items: raw.items.map(mapBackendAuditLogEntry),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendFeatureFlag(raw: BackendFeatureFlagResponse): FeatureFlag {
+  return {
+    key: raw.key,
+    enabled: raw.enabled,
+    value: raw.value,
+    description: raw.description,
+    updatedBy: raw.updated_by,
+    updatedAt: raw.updated_at,
+  };
+}
+
+export function toBackendFeatureFlagRequest(input: Partial<FeatureFlag>) {
+  return {
+    enabled: input.enabled,
+    value: input.value ?? null,
+    description: input.description ?? null,
+  };
+}
+
+export function mapBackendQueueSnapshot(raw: BackendQueueSnapshotResponse): QueueSnapshot {
+  return {
+    name: raw.name,
+    priority: raw.priority,
+    queuedCount: raw.queued_count,
+    failedCount: raw.failed_count,
+    oldestQueuedAgeSeconds: raw.oldest_queued_age_seconds,
+    workersListening: raw.workers_listening,
+  };
+}
+
+export function mapBackendSystemHealth(raw: BackendSystemHealthResponse): SystemHealthSnapshot {
+  return {
+    databaseOk: raw.database_ok,
+    databaseLatencyMs: raw.database_latency_ms,
+    redisOk: raw.redis_ok,
+    redisLatencyMs: raw.redis_latency_ms,
+    prometheusConfigured: raw.prometheus_configured,
+    signals: raw.signals,
+  };
+}
+
+export function mapBackendJobMatchAnalytics(
+  raw: BackendJobMatchAnalyticsResponse,
+): JobMatchAnalytics {
+  return {
+    totalPostings: raw.total_postings,
+    totalMatches: raw.total_matches,
+    postingsBySource: raw.postings_by_source,
+    topCompanies: raw.top_companies as JobMatchAnalytics["topCompanies"],
+    avgSalaryMin: raw.avg_salary_min,
+    avgSalaryMax: raw.avg_salary_max,
+    avgOverallScore: raw.avg_overall_score,
+    computedAt: raw.computed_at,
+    cacheHit: raw.cache_hit,
+  };
+}
+
+// The four mappers below are not given verbatim in §11.3's code block (which only
+// covers users/audit-logs/feature-flags/queues/system-health/analytics) but are
+// needed by §11.4's roles, queues/{name}/failed, and mfa/impersonation BFF routes,
+// which do have §11.2 frontend types (`AdminRoleWithPermissions`, `FailedJob`,
+// `MfaStatus`, `MfaEnrollResult`, `ImpersonationStatus`) but no listed adapter —
+// added here following the exact same `mapBackend*` naming/shape convention.
+
+export function mapBackendRoleWithPermissions(
+  raw: BackendRoleWithPermissionsResponse,
+): AdminRoleWithPermissions {
+  return {
+    id: raw.id,
+    name: raw.name,
+    description: raw.description,
+    isSystem: raw.is_system,
+    permissions: raw.permissions.map((permission) => ({
+      id: permission.id,
+      resource: permission.resource,
+      action: permission.action,
+      description: permission.description,
+    })),
+  };
+}
+
+export function mapBackendFailedJob(raw: BackendFailedJobResponse): FailedJob {
+  return {
+    jobId: raw.job_id,
+    queueName: raw.queue_name,
+    funcName: raw.func_name,
+    enqueuedAt: raw.enqueued_at,
+    failedAt: raw.failed_at,
+    excInfo: raw.exc_info,
+  };
+}
+
+export function mapBackendMfaEnrollResult(raw: BackendMfaEnrollResponse): MfaEnrollResult {
+  return {
+    secret: raw.secret,
+    provisioningUri: raw.provisioning_uri,
+  };
+}
+
+export function mapBackendMfaStatus(raw: BackendMfaStatusResponse): MfaStatus {
+  return {
+    mfaEnabled: raw.mfa_enabled,
+    mfaEnrolledAt: raw.mfa_enrolled_at,
+  };
+}
+
+export function mapBackendImpersonationStatus(
+  raw: BackendImpersonationStatusResponse,
+): ImpersonationStatus {
+  return {
+    isImpersonating: raw.is_impersonating,
+    adminUserId: raw.admin_user_id,
+    adminEmail: raw.admin_email,
+    targetUserId: raw.target_user_id,
+    expiresAt: raw.expires_at,
+  };
+}
+
+export function mapBackendImpersonationStart(raw: BackendImpersonationStartResponse) {
+  return {
+    targetUserId: raw.target_user_id,
+    expiresAt: raw.expires_at,
   };
 }
 

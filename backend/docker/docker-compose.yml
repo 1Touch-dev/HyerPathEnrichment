@@ -71,6 +71,14 @@ services:
       SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
       # OpenAI API for embeddings (document search)
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Admin Module: RBAC, audit log, feature flags, cached aggregates, MFA, impersonation
+      ADMIN_AUDIT_LOG_RETENTION_DAYS: ${ADMIN_AUDIT_LOG_RETENTION_DAYS:-1825}
+      ADMIN_AGGREGATE_CACHE_TTL_SECONDS: ${ADMIN_AGGREGATE_CACHE_TTL_SECONDS:-300}
+      ADMIN_DEFAULT_PAGE_SIZE: ${ADMIN_DEFAULT_PAGE_SIZE:-20}
+      ADMIN_MAX_PAGE_SIZE: ${ADMIN_MAX_PAGE_SIZE:-100}
+      ADMIN_MFA_ISSUER_NAME: ${ADMIN_MFA_ISSUER_NAME:-Hyrepath Admin}
+      ADMIN_IMPERSONATION_MAX_DURATION_MINUTES: ${ADMIN_IMPERSONATION_MAX_DURATION_MINUTES:-30}
+      PROMETHEUS_QUERY_URL: ${PROMETHEUS_QUERY_URL:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

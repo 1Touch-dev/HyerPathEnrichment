@@ -3,7 +3,7 @@
 Hyrepath Enrichment backend — architecture reference for the FastAPI service under `backend/`.
 
 **Version:** 0.4 (August 2026)
-**Last verified against code:** 2026-08-13
+**Last verified against code:** 2026-08-19
 **Repo layout:** `HyerEnrichment/backend/` (split from the Next.js frontend in `frontend/`)
 
 ---
@@ -61,6 +61,9 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Portfolio pages are all behind auth | `GET /api/portfolio/public/{slug}` (and its frontend counterpart `/p/[slug]`) are deliberately public — see ADR 0014. Every other portfolio/outreach/CV-chat/swipe route requires an authenticated, verified user (`Depends(current_verified_user)` at the `app.include_router` call in `main.py`). |
 | "Send" on an outreach message actually emails the recipient | It does not, in v1 — `send_message()` in `app/modules/outreach/service.py` appends the mandatory CAN-SPAM disclosure footer and marks the message `sent`, but never transmits over SMTP; the candidate copies/sends the drafted text themselves. Real outbound send-as-the-candidate infrastructure (deliverability, SPF/DKIM) is explicitly out of scope for v1. |
 | Module 2 shipped a CV upload widget | It did not — `frontend/app/app/documents/DocumentsView.tsx` only lists and links into existing documents; it explicitly assumes a generic upload widget that, as of this writing, still does not exist anywhere in `frontend/` (same gap `phase2_module1.md` §11.10 already flagged, still open after Module 2). |
+| Admin RBAC replaces `is_superuser` | It does not. `is_superuser` remains the highest-privilege override; `Role`/`Permission` only add narrower grants for non-superuser admins (ADR 0015, Decision 1). |
+| Admin audit log and compliance audit log are the same table | They are not. `admin_audit_logs` (admin-write trail) is distinct from `compliance.models.AuditLog` (candidate compliance/DSAR trail) — see `phase2_admin_module.md` §5. |
+| Prometheus golden-signals panel always populated | Only when `PROMETHEUS_QUERY_URL` is set; otherwise the System Health page shows self-checks only and an explanatory empty state (§8.12, §12.4). |
 
 ### Task routing — where to start
 
@@ -706,6 +709,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Candidate portfolio (Module 2) | `app/modules/portfolio/` | Real, implemented per `phase2_module2.md`. Only Module 2 feature with an unauthenticated public route (`GET /api/portfolio/public/{slug}`, ADR 0014) — served by a separate `public_router` with no auth dependency, and a distinct `PublicPortfolioResponse` schema with no `user_id` field. |
 | Job swipe deck (Module 2) | `app/modules/job_swipe/` | Real, implemented per `phase2_module2.md`. Read-only against Module 1's `job_matches`/`job_postings` (joined in `repository.py`) — never writes to either table; only writes its own `job_swipe_actions`. Depends on Module 1 shipping first. |
 | Personalized outreach (Module 2) | `app/modules/outreach/`, `app/clients/perplexity.py` | Real, implemented per `phase2_module2.md`. New external dependency: Perplexity Sonar API (ADR 0014), degrades to a generic draft on failure. Every message starts `status="draft"`; "send" appends the mandatory CAN-SPAM disclosure footer and marks `sent`, but does not transmit email itself — the candidate copies/sends it externally (v1 scope; see `outreach/service.py`). |
+| Admin Module (RBAC, audit, flags, impersonation) | `app/modules/admin/`, 4 new `users` columns | Real, scaffolded per `phase2_admin_module.md` (ADR 0015). `is_superuser` unchanged and still authoritative; `Role`-based permissions are an additive, narrower grant checked only when `is_superuser` is false. No new Docker service or queue — runs inside `api`, reads existing Redis/RQ queues read-only. |
 
 Use this table when reviewing PRs, running `GRILLME.md` sessions, or planning the next delivery slice.
 

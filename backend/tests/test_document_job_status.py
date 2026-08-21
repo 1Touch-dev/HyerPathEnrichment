@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import types
 import uuid
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -236,6 +236,64 @@ def test_failure_callback_marks_pending_job_failed():
 
     updated_doc = _get_document(doc.id)
     assert updated_doc.processing_status == "failed"
+
+
+def test_successful_processing_calls_flag_if_needed_with_correct_args():
+    """`flag_if_needed` must be called on the success path with the document's
+    resource_type/resource_id/extracted text, after the DB rows are already
+    committed as 'completed'."""
+    user = _create_user()
+    doc = _create_document(user.id)
+    job = _create_job(user.id, doc.id)
+
+    mock_processor = MagicMock()
+    mock_processor.process_document.return_value = dict(FAKE_EXTRACTION_RESULT)
+
+    with (
+        patch("app.workers.tasks.document.DocumentProcessor", return_value=mock_processor),
+        patch("app.workers.queue.get_redis_connection"),
+        patch("rq.Queue"),
+        patch("app.workers.tasks.document.flag_if_needed", new_callable=AsyncMock) as mock_flag,
+    ):
+        process_document_job(str(doc.id), b"%PDF-1.4 fake", "application/pdf", str(job.id))
+
+    mock_flag.assert_called_once()
+    _, kwargs = mock_flag.call_args
+    assert kwargs["resource_type"] == "document"
+    assert kwargs["resource_id"] == doc.id
+    assert kwargs["text_fields"] == [FAKE_EXTRACTION_RESULT["text"]]
+
+
+def test_flag_if_needed_failure_does_not_break_document_processing():
+    """The most important guarantee this chunk is responsible for: if
+    `flag_if_needed` raises an unexpected exception (simulating a bug that
+    somehow escaped its own internal fail-open), the underlying document
+    processing task must still complete successfully."""
+    user = _create_user()
+    doc = _create_document(user.id)
+    job = _create_job(user.id, doc.id)
+
+    mock_processor = MagicMock()
+    mock_processor.process_document.return_value = dict(FAKE_EXTRACTION_RESULT)
+
+    with (
+        patch("app.workers.tasks.document.DocumentProcessor", return_value=mock_processor),
+        patch("app.workers.queue.get_redis_connection"),
+        patch("rq.Queue"),
+        patch(
+            "app.workers.tasks.document.flag_if_needed",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("simulated flagging bug"),
+        ),
+    ):
+        process_document_job(str(doc.id), b"%PDF-1.4 fake", "application/pdf", str(job.id))
+
+    updated_job = _get_job(job.id)
+    assert updated_job.status == "completed"
+    assert updated_job.progress == 1.0
+
+    updated_doc = _get_document(doc.id)
+    assert updated_doc.processing_status == "completed"
 
 
 def test_failure_callback_is_noop_on_already_terminal_job():

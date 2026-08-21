@@ -28,3 +28,25 @@ export type BackendJobStatusResponse = Schemas['JobStatusResponse'];
 export type BackendCVDataResponse = Schemas['CVDataResponse'];
 export type BackendSearchResult = Schemas['SearchResult'];
 export type BackendSearchResponse = Schemas['SearchResponse'];
+
+// Admin module (backend/app/modules/admin/schemas.py)
+export type BackendAdminUserResponse = Schemas['AdminUserResponse'];
+export type BackendAdminUserListResponse = Schemas['AdminUserListResponse'];
+export type BackendUpdateUserStatusRequest = Schemas['UpdateUserStatusRequest'];
+export type BackendAssignRoleRequest = Schemas['AssignRoleRequest'];
+export type BackendAdminAuditLogEntryResponse = Schemas['AdminAuditLogEntryResponse'];
+export type BackendAdminAuditLogListResponse = Schemas['AdminAuditLogListResponse'];
+export type BackendRoleWithPermissionsResponse = Schemas['RoleWithPermissionsResponse'];
+export type BackendFeatureFlagResponse = Schemas['FeatureFlagResponse'];
+export type BackendUpsertFeatureFlagRequest = Schemas['UpsertFeatureFlagRequest'];
+export type BackendQueueSnapshotResponse = Schemas['QueueSnapshotResponse'];
+export type BackendQueuesOverviewResponse = Schemas['QueuesOverviewResponse'];
+export type BackendFailedJobResponse = Schemas['FailedJobResponse'];
+export type BackendSystemHealthResponse = Schemas['SystemHealthResponse'];
+export type BackendJobMatchAnalyticsResponse = Schemas['JobMatchAnalyticsResponse'];
+export type BackendMfaEnrollResponse = Schemas['MfaEnrollResponse'];
+export type BackendMfaStatusResponse = Schemas['MfaStatusResponse'];
+export type BackendMfaVerifyRequest = Schemas['MfaVerifyRequest'];
+export type BackendImpersonationStartRequest = Schemas['ImpersonationStartRequest'];
+export type BackendImpersonationStartResponse = Schemas['ImpersonationStartResponse'];
+export type BackendImpersonationStatusResponse = Schemas['ImpersonationStatusResponse'];

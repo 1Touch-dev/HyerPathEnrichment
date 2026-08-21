@@ -12,6 +12,9 @@ interface User {
   is_active: boolean;
   avatar_url?: string;
   created_at: string;
+  is_superuser: boolean;
+  role_name?: string | null;
+  mfa_enabled?: boolean;
 }
 
 interface AuthContextType {

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.base import Base, JsonDoc
 
 if TYPE_CHECKING:
+    from app.modules.admin.models import Role
     from app.modules.sessions.models import PracticeSession, QuestionAttempt
 
 
@@ -37,6 +38,14 @@ class User(Base):
     is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_superuser: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+    # Admin Module: RBAC role assignment + MFA (phase2_admin_module.md §8.8)
+    role_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("roles.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    mfa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mfa_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
+    mfa_enrolled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Email verification
     verification_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
@@ -68,6 +77,7 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    role: Mapped[Role | None] = relationship(lazy="joined")
 
 
 class OAuthAccount(Base):
