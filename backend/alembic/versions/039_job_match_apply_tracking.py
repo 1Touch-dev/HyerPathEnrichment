@@ -19,7 +19,9 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     with op.batch_alter_table("job_matches") as batch_op:
-        batch_op.add_column(sa.Column("apply_clicked_at", sa.DateTime(timezone=True), nullable=True))
+        batch_op.add_column(
+            sa.Column("apply_clicked_at", sa.DateTime(timezone=True), nullable=True)
+        )
         batch_op.add_column(sa.Column("applied_at", sa.DateTime(timezone=True), nullable=True))
 
 

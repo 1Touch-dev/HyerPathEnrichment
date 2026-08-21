@@ -27,7 +27,13 @@ def upgrade() -> None:
     op.create_table(
         "manual_job_entries",
         sa.Column("id", uuid_type, primary_key=True),
-        sa.Column("user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "user_id",
+            uuid_type,
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("title", sa.String(255), nullable=False),
         sa.Column("company", sa.String(255), nullable=False),
         sa.Column("location", sa.String(255), nullable=True),
@@ -41,7 +47,8 @@ def upgrade() -> None:
         batch_op.alter_column("job_posting_id", existing_type=uuid_type, nullable=True)
         batch_op.add_column(
             sa.Column(
-                "manual_job_entry_id", uuid_type,
+                "manual_job_entry_id",
+                uuid_type,
                 sa.ForeignKey(
                     "manual_job_entries.id",
                     ondelete="CASCADE",
