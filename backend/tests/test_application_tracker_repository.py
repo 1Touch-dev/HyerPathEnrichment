@@ -219,6 +219,48 @@ class TestListTrackedMatchesSortOrders:
 
         assert result_ids == [high.id, mid.id, low.id]
 
+    async def test_sort_score_manual_entry_sorts_last_despite_zero_score_tie(
+        self, db: AsyncSession, test_user: User
+    ):
+        """Regression test: `overall_score` is nullable=False, so a manual entry's
+        0.0 sentinel is indistinguishable from a real match that legitimately
+        scored 0.0 (e.g. via compute_overall_score's clamp) if the tie-break only
+        looks at `overall_score.is_(None)` (always False, dead code). The
+        tie-break must instead key off `job_posting_id IS NULL` so the manual
+        entry sorts last regardless of the 0.0/0.0 collision on the underlying
+        sentinel value, and regardless of insertion order.
+        """
+        posting = await _make_posting(db)
+        real_zero_score_match = await _make_match(db, test_user.id, posting, overall_score=0.0)
+        entry = await _make_manual_entry(db, test_user.id)
+        manual_match = await _make_manual_match(db, test_user.id, entry)
+
+        rows, _ = await repository.list_tracked_matches(
+            db, test_user.id, status=None, sort="score", limit=20, offset=0
+        )
+        result_ids = [m.id for m, _ in rows]
+
+        assert result_ids == [real_zero_score_match.id, manual_match.id]
+        assert result_ids[-1] == manual_match.id
+
+    async def test_sort_score_manual_entry_sorts_last_regardless_of_insertion_order(
+        self, db: AsyncSession, test_user: User
+    ):
+        """Same assertion as above, but with the manual entry inserted BEFORE the
+        real zero-score match, to confirm the ordering comes from the SQL
+        ORDER BY clause and not from insertion/row order."""
+        entry = await _make_manual_entry(db, test_user.id)
+        manual_match = await _make_manual_match(db, test_user.id, entry)
+        posting = await _make_posting(db)
+        real_zero_score_match = await _make_match(db, test_user.id, posting, overall_score=0.0)
+
+        rows, _ = await repository.list_tracked_matches(
+            db, test_user.id, status=None, sort="score", limit=20, offset=0
+        )
+        result_ids = [m.id for m, _ in rows]
+
+        assert result_ids == [real_zero_score_match.id, manual_match.id]
+
     async def test_sort_recently_updated_puts_never_updated_rows_last_regardless_of_dialect(
         self, db: AsyncSession, test_user: User
     ):
