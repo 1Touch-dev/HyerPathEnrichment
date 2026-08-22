@@ -38,6 +38,12 @@ services:
       DISAMBIGUATION_THRESHOLD: ${DISAMBIGUATION_THRESHOLD:-0.7}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
+      # Tier 4 job source: jobspy (free scraping) | jsearch (paid RapidAPI, reliable)
+      JOB_SOURCE_PROVIDER: ${JOB_SOURCE_PROVIDER:-jobspy}
+      JSEARCH_API_KEY: ${JSEARCH_API_KEY:-}
+      JSEARCH_API_HOST: ${JSEARCH_API_HOST:-jsearch.p.rapidapi.com}
+      JSEARCH_NUM_PAGES: ${JSEARCH_NUM_PAGES:-1}
+      JSEARCH_TIMEOUT_SECONDS: ${JSEARCH_TIMEOUT_SECONDS:-20.0}
       # Tier 3 â€” OSINT + email (free default-on sidecar + worker CLIs)
       GITRECON_SCRIPT: /opt/gitrecon/gitrecon.py
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
@@ -116,6 +122,12 @@ services:
       DISAMBIGUATION_THRESHOLD: ${DISAMBIGUATION_THRESHOLD:-0.7}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
+      # Tier 4 job source: jobspy (free scraping) | jsearch (paid RapidAPI, reliable)
+      JOB_SOURCE_PROVIDER: ${JOB_SOURCE_PROVIDER:-jobspy}
+      JSEARCH_API_KEY: ${JSEARCH_API_KEY:-}
+      JSEARCH_API_HOST: ${JSEARCH_API_HOST:-jsearch.p.rapidapi.com}
+      JSEARCH_NUM_PAGES: ${JSEARCH_NUM_PAGES:-1}
+      JSEARCH_TIMEOUT_SECONDS: ${JSEARCH_TIMEOUT_SECONDS:-20.0}
       GITRECON_SCRIPT: /opt/gitrecon/gitrecon.py
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       EMAIL_SLEUTH_BIN: email-sleuth

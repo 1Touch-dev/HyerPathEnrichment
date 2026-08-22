@@ -20,7 +20,7 @@ from app.modules.job_matching.models import JobMatch, JobPosting
 @pytest.fixture(scope="module", autouse=True)
 def skip_db_setup():
     """Skip database migrations for these unit tests."""
-    return None
+    return
 
 
 def _make_posting(**overrides) -> JobPosting:

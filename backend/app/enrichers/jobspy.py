@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
+
+import httpx
 
 from app.core.config import get_settings
 from app.domain.enrichment import EnrichmentRequest
@@ -12,6 +15,117 @@ logger = logging.getLogger(__name__)
 
 # JobSpy scrapes these concurrently (ThreadPoolExecutor). Exact site strings from python-jobspy.
 JOBSPY_SITES = ("linkedin", "indeed", "glassdoor", "google", "zip_recruiter")
+
+# _normalize_publisher() below emits exactly these 6 literal strings, never anything else.
+# This is a closed vocabulary agreed by convention (not shared code) with app/enrichers/merge.py,
+# which independently hardcodes its own literal filter set — do NOT add an import between this
+# module and merge.py for this purpose, and do NOT export a shared constant here. Keeping the
+# vocabulary closed (rather than one bespoke slug per unrecognized publisher) bounds Prometheus
+# metric label cardinality and job-posting dedup-key cardinality.
+_NORMALIZED_PUBLISHER_VOCAB = frozenset(
+    {"linkedin", "indeed", "glassdoor", "zip_recruiter", "google", "jsearch_other"}
+)
+
+# Substring aliases checked against the lowercased, stripped publisher string.
+_PUBLISHER_ALIASES: tuple[tuple[str, str], ...] = (
+    ("linkedin", "linkedin"),
+    ("indeed", "indeed"),
+    ("glassdoor", "glassdoor"),
+    ("zip recruiter", "zip_recruiter"),
+    ("ziprecruiter", "zip_recruiter"),
+    ("zip_recruiter", "zip_recruiter"),
+    ("google", "google"),
+)
+
+# JSearch's "country" query param requires an ISO 3166-1 alpha-2 code (e.g. "de"),
+# unlike JobSpy's country_indeed which took free-text country names. request.job_country
+# is a free-text field (frontend placeholder: "e.g., USA, Germany, Canada"), so full
+# names must be mapped down before hitting the API — sending "germany" verbatim is
+# accepted (HTTP 200) but silently returns zero jobs instead of erroring.
+_COUNTRY_NAME_TO_ISO2: dict[str, str] = {
+    "usa": "us",
+    "united states": "us",
+    "united states of america": "us",
+    "america": "us",
+    "uk": "gb",
+    "united kingdom": "gb",
+    "great britain": "gb",
+    "england": "gb",
+    "germany": "de",
+    "deutschland": "de",
+    "france": "fr",
+    "spain": "es",
+    "italy": "it",
+    "netherlands": "nl",
+    "the netherlands": "nl",
+    "holland": "nl",
+    "belgium": "be",
+    "switzerland": "ch",
+    "austria": "at",
+    "sweden": "se",
+    "norway": "no",
+    "denmark": "dk",
+    "finland": "fi",
+    "poland": "pl",
+    "portugal": "pt",
+    "ireland": "ie",
+    "canada": "ca",
+    "mexico": "mx",
+    "brazil": "br",
+    "india": "in",
+    "china": "cn",
+    "japan": "jp",
+    "south korea": "kr",
+    "korea": "kr",
+    "singapore": "sg",
+    "australia": "au",
+    "new zealand": "nz",
+    "united arab emirates": "ae",
+    "uae": "ae",
+    "south africa": "za",
+}
+
+
+def _country_to_iso2(country: str | None) -> str:
+    """Best-effort mapping of a free-text country name to an ISO alpha-2 code for JSearch.
+
+    Falls back to "us" (JSearch's own documented default) for unrecognized input rather
+    than forwarding an unusable value that would silently zero out the search.
+    """
+    if not country or not country.strip():
+        return "us"
+
+    normalized = country.strip().lower()
+    mapped = _COUNTRY_NAME_TO_ISO2.get(normalized)
+    if mapped:
+        return mapped
+
+    if len(normalized) == 2:
+        return normalized
+
+    logger.warning(f"JSearch: unrecognized country {country!r}, defaulting to 'us'")
+    return "us"
+
+
+def _normalize_publisher(raw: str | None) -> str:
+    """Map a free-text JSearch publisher/board name to one of a closed set of 6 literals.
+
+    The only values this function may ever return are: "linkedin", "indeed", "glassdoor",
+    "zip_recruiter", "google", or the catch-all "jsearch_other". This is a fixed vocabulary
+    agreed by convention with app/enrichers/merge.py's own hardcoded literal filter set —
+    there is intentionally no shared constant or import for this contract. Keeping the
+    vocabulary closed (instead of minting a bespoke slug per unrecognized publisher) bounds
+    Prometheus metric label cardinality and job-posting dedup-key cardinality.
+    """
+    if not raw or not raw.strip():
+        return "jsearch_other"
+
+    normalized = raw.strip().lower()
+    for alias, slug in _PUBLISHER_ALIASES:
+        if alias in normalized:
+            return slug
+
+    return "jsearch_other"
 
 
 class JobSpyEnricher(Enricher):
@@ -35,9 +149,12 @@ class JobSpyEnricher(Enricher):
             f"JobSpy search: term={search_term!r}, location={location!r}, country={country!r}"
         )
 
-        # Try LLM optimization first if enabled
+        # Try LLM optimization first if enabled. Skipped for JSearch: it takes one broad
+        # query rather than per-board optimized queries, so calling the LLM here would be
+        # a wasted API call.
         optimized_queries = None
-        if settings.llm_mode.strip().lower() == "litellm":
+        jsearch_mode = settings.job_source_provider == "jsearch"
+        if not jsearch_mode and settings.llm_mode.strip().lower() == "litellm":
             try:
                 from app.clients.llm import litellm_optimize_job_query
 
@@ -86,6 +203,10 @@ class JobSpyEnricher(Enricher):
         limit: int,
         optimized_queries: dict[str, dict[str, str]] | None = None,
     ) -> list[dict[str, Any]]:
+        settings = get_settings()
+        if settings.job_source_provider == "jsearch":
+            return self._scrape_jsearch(search_term, location, country, limit)
+
         try:
             from jobspy import scrape_jobs
         except ImportError:
@@ -131,6 +252,130 @@ class JobSpyEnricher(Enricher):
         )
 
         return valid_jobs
+
+    def _scrape_jsearch(
+        self,
+        search_term: str,
+        location: str | None,
+        country: str | None,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        """Fetch job postings from the JSearch RapidAPI endpoint.
+
+        Deliberately a plain sync method using a sync ``httpx.Client`` (not
+        ``httpx.AsyncClient``/``asyncio.run``): ``_scrape`` is called from two contexts —
+        `_fetch` and `job_matching.py::_scan_jobs_for_candidate_async` — and both currently
+        wrap the call in ``asyncio.to_thread``, but using a sync HTTP client here sidesteps
+        the "asyncio.run() cannot be called from a running event loop" failure mode entirely
+        rather than depending on both call sites never invoking `_scrape` directly from a
+        running loop. Self-sufficient retry/backoff below matches `_scrape`'s contract: never
+        raises, always returns a (possibly empty) list.
+        """
+        settings = get_settings()
+        if not settings.jsearch_api_key:
+            logger.warning("JSearch API key not configured")
+            return []
+
+        query = f"{search_term} in {location}" if location else search_term
+        params = {
+            "query": query,
+            "num_pages": str(settings.jsearch_num_pages),
+            "country": _country_to_iso2(country),
+            "date_posted": "all",
+        }
+        headers = {
+            "X-RapidAPI-Key": settings.jsearch_api_key,
+            "X-RapidAPI-Host": settings.jsearch_api_host,
+        }
+        # /search-v2 (not the legacy /search) reliably returns job_description inline,
+        # avoiding a second per-job /job-details call that would double API/token cost.
+        url = f"https://{settings.jsearch_api_host}/search-v2"
+
+        max_attempts = 3
+        response: httpx.Response | None = None
+        for attempt in range(max_attempts):
+            try:
+                with httpx.Client(timeout=settings.jsearch_timeout_seconds) as client:
+                    response = client.get(url, headers=headers, params=params)
+                    response.raise_for_status()
+                break
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code
+                if status == 429 or status >= 500:
+                    if attempt < max_attempts - 1:
+                        logger.warning(
+                            f"JSearch request failed with status {status}, "
+                            f"retrying (attempt {attempt + 1}/{max_attempts})"
+                        )
+                        time.sleep(2**attempt)
+                        continue
+                    logger.error(f"JSearch request failed after {max_attempts} attempts: {e}")
+                    return []
+                # Non-retryable 4xx (e.g. 401/403 bad key) - fail fast, no retry.
+                logger.error(f"JSearch request failed with non-retryable status {status}: {e}")
+                return []
+            except (httpx.TimeoutException, httpx.TransportError) as e:
+                if attempt < max_attempts - 1:
+                    logger.warning(
+                        f"JSearch request error: {e}, retrying (attempt {attempt + 1}/{max_attempts})"
+                    )
+                    time.sleep(2**attempt)
+                    continue
+                logger.error(f"JSearch request failed after {max_attempts} attempts: {e}")
+                return []
+            except Exception as e:
+                logger.error(f"JSearch request failed unexpectedly: {e}", exc_info=True)
+                return []
+
+        if response is None:
+            return []
+
+        try:
+            payload = response.json()
+        except Exception as e:
+            logger.error(f"Failed to parse JSearch response JSON: {e}")
+            return []
+
+        # /search-v2's "data" has been observed in two shapes: a flat list of job
+        # objects (legacy/documented shape), and {"jobs": [...], "cursor": ...}
+        # (current live shape, added for cursor-based pagination). Accept both so a
+        # future provider-side revert doesn't silently zero out every scrape again.
+        raw_data = payload.get("data") if isinstance(payload, dict) else None
+        if isinstance(raw_data, dict):
+            data = raw_data.get("jobs")
+        else:
+            data = raw_data
+        if not isinstance(data, list):
+            logger.warning("JSearch response missing 'data'/'data.jobs' array")
+            return []
+
+        rows: list[dict[str, Any]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                {
+                    "title": item.get("job_title") or "",
+                    "company": item.get("employer_name") or "",
+                    "location": ", ".join(
+                        filter(
+                            None,
+                            [
+                                item.get("job_city"),
+                                item.get("job_state"),
+                                item.get("job_country"),
+                            ],
+                        )
+                    )
+                    or (location or ""),
+                    "is_remote": bool(item.get("job_is_remote") or False),
+                    "site": _normalize_publisher(item.get("job_publisher") or ""),
+                    "description": item.get("job_description") or "",
+                }
+            )
+
+        logger.info(f"JSearch returned {len(rows)} jobs (limit={limit})")
+        return rows[:limit]
 
     def _format_location(self, location: str | None, country: str | None) -> str:
         """Format location for better job board compatibility.

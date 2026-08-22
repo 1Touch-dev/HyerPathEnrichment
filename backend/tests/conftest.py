@@ -171,7 +171,11 @@ class FakeRedis:
     async def get(self, key: str) -> str | None:
         return self._kv.get(key)
 
-    async def set(self, key: str, value: str, ex: int | None = None) -> bool:
+    async def set(
+        self, key: str, value: str, ex: int | None = None, nx: bool = False
+    ) -> bool | None:
+        if nx and key in self._kv:
+            return None
         self._kv[key] = value
         return True
 
@@ -330,6 +334,9 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     # lookup happens against the source module at call time. Patching the
     # source directly covers this and any other function-scoped import site.
     monkeypatch.setattr("app.infrastructure.redis.get_redis_client", lambda: fake)
+    # Patch outreach service's Redis usage (imported by name, so the
+    # `app.workers.queue` patch above doesn't reach this module's binding).
+    monkeypatch.setattr("app.modules.outreach.service.get_redis_connection", lambda: fake)
 
     # Mock RQ Queue for document processing tests
     class FakeRQJob:
@@ -377,6 +384,7 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     import rq
 
     monkeypatch.setattr("app.modules.documents.service.Queue", FakeQueue)
+    monkeypatch.setattr("app.modules.outreach.service.Queue", FakeQueue)
     monkeypatch.setattr(rq, "Queue", FakeQueue)  # Keep this for other potential uses
 
     return fake

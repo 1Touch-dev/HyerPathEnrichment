@@ -108,7 +108,7 @@ class OutreachService:
             if len(body.subject) > subject_max or len(body.body) > body_max:
                 limit = subject_max if len(body.subject) > subject_max else body_max
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=(
                         f"LinkedIn messages are limited to {limit} characters; "
                         "please shorten before saving"

@@ -13,10 +13,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from alembic import command
 from sqlalchemy import inspect
 from sqlalchemy import text as sa_text
 
+from alembic import command
 from tests.migration_helpers import (
     alembic_config,
     sqlite_file_url,

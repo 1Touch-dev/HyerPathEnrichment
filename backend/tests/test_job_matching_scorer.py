@@ -124,7 +124,7 @@ class TestComputeRuleScore:
             "desired_locations": ["NYC"],
             "remote_preference": "onsite",
         }
-        score, breakdown = compute_rule_score(posting, prefs)
+        score, _breakdown = compute_rule_score(posting, prefs)
         assert score == 0.0
 
 
