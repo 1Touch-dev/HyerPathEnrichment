@@ -150,16 +150,68 @@ dependency's side effect.)
 Update every retrofitted `enforce_*` function's signature to accept `org_id` via this dependency
 and pass it into `_org_scoped_id`.
 
+## Org-wide ceiling (closes the follow-up flagged above)
+
+Per-caller keys (`_org_scoped_id`) prevent one recruiter from starving another, but they do
+**not** cap an org's *total* traffic — ten recruiters at the same org, each individually under
+their own per-caller limit, could still collectively hammer the API far past what a single-org
+plan is meant to allow. This section specs the follow-up flagged in the "Ambiguities resolved"
+entry below (now resolved, not deferred): a **second**, additional Redis key checked *in addition
+to*, not instead of, the existing per-caller `_org_scoped_id` key.
+
+Add a second helper, next to `_org_scoped_id`:
+
+```python
+def _org_ceiling_id(org_id: UUID | None) -> str:
+    """Org-wide ceiling key — one bucket per org, shared across every recruiter at
+    that org, checked alongside (not instead of) _org_scoped_id's per-caller bucket.
+    org_id=None (direct candidates, no org) never hits this ceiling at all — there
+    is no "org" to cap traffic for; only _org_scoped_id's per-caller limit applies
+    to them, unchanged from the base retrofit above."""
+    return f"org_ceiling:{org_id}"
+```
+
+Each retrofitted `enforce_*` function performs **two** checks when `org_id is not None`: the
+existing per-caller check against `f"{scope}:{_org_scoped_id(authorization, org_id)}"`, and a new
+check against `f"{scope}:{_org_ceiling_id(org_id)}"` — both must pass; either one tripping is a
+429. This mirrors the existing multi-scope pattern already used elsewhere in this file for
+compound limits (check `check_rate_limit()`'s call signature for whether it already supports
+checking more than one key per call, or whether this requires two sequential
+`check_rate_limit()` calls per `enforce_*` function — follow whichever shape that function's
+current signature actually supports rather than assuming).
+
+The org-wide ceiling's numeric limit is read from `OrganizationSubscription.plan_tier`
+(`post-tenancy-features/01-billing-stripe-integration.md`'s model — `"free"|"starter"|"growth"|
+"enterprise"`), mapped to a requests-per-minute ceiling via a small lookup (implementer's choice
+of exact per-tier numbers, but document them in the PR description; a reasonable starting point
+is free=60, starter=300, growth=1000, enterprise=5000 req/min, adjustable later without a code
+change if moved into config). **This creates a soft dependency on the billing chunk**, which is
+dispatched much later than `machine-1` per the root README's merge order (`post-tenancy-features`
+only starts after the `post-tenancy-retrofit` hard gate). Resolve this the same way
+`machine-1-tenancy-core/05-org-invite-flow.md` resolves its own soft dependency on billing: if
+`OrganizationSubscription` doesn't exist yet (table not present, or no row for this org), default
+every org to a flat fallback ceiling via a new config value, following the exact same settings-
+field convention already used elsewhere in this file for `enable_org_cors_origins`:
+
+```python
+# Tenancy (docs/adr/0018-tenancy-model.md): org-wide rate-limit ceiling (req/min)
+# used when OrganizationSubscription (post-tenancy-features/01-billing-stripe-
+# integration.md) doesn't exist yet for an org, or billing is disabled. Applies
+# per-org, shared across every recruiter at that org (see _org_ceiling_id).
+default_org_rate_limit_per_minute: int = Field(
+    default=300, alias="DEFAULT_ORG_RATE_LIMIT_PER_MINUTE"
+)
+```
+
 ## Ambiguities resolved
 
 - **Should the org-level rate limit be a *separate*, additional ceiling (one per org, on top of
-  each recruiter's existing per-user ceiling) rather than just changing the key format?** Out of
-  scope for this chunk as specified — the key-format change alone (folding `org_id` into the
-  existing key) already prevents one org's total traffic from being invisible to any per-tenant
-  accounting, since keys are now grouped by org prefix in Redis (useful for future per-org
-  dashboards), but it does **not** add a new distinct ceiling. If a genuine "org quota" ceiling
-  (e.g. "this agency's plan allows 500 req/min total") is wanted, that is a follow-up task, not
-  part of this chunk — flag it in the PR description rather than silently adding it.
+  each recruiter's existing per-user ceiling) rather than just changing the key format?** Yes —
+  resolved above, not deferred. The key-format change alone (folding `org_id` into the existing
+  key) already prevents one org's total traffic from being invisible to any per-tenant
+  accounting (keys are grouped by org prefix in Redis, useful for future per-org dashboards), but
+  it does not, by itself, cap total org traffic — that gap is what the "Org-wide ceiling" section
+  above closes with a second, additive Redis key.
 
 ## Do not touch
 
@@ -169,6 +221,10 @@ and pass it into `_org_scoped_id`.
   uses) stays as-is.
 - Do not add a reverse-proxy/gateway container to `backend/docker/docker-compose.yml` in this
   chunk (see the ADR's Decision §5 — explicitly out of scope).
+- Do not import `backend/app/modules/billing/` directly if it does not exist yet at
+  implementation time (see the soft-dependency note above) — guard the `OrganizationSubscription`
+  lookup so its absence degrades to `default_org_rate_limit_per_minute`, it does not raise an
+  `ImportError` or otherwise break rate-limiting for every org.
 
 ## Verification
 
@@ -179,3 +235,11 @@ and pass it into `_org_scoped_id`.
   Org B's).
 - Add a test asserting `enable_org_cors_origins=False` (default) leaves CORS behavior byte-for-
   byte identical to before this chunk (regression safety for existing single-tenant deployments).
+- Add a test asserting one org's **total** traffic across multiple recruiters cannot exceed the
+  org ceiling even though each recruiter is individually under their own per-caller limit — e.g.
+  three different recruiters at the same org, each making requests comfortably under their own
+  per-caller ceiling, collectively trip the shared `_org_ceiling_id` bucket and the next request
+  (from any of the three) gets a 429, while a fourth recruiter at a *different* org is unaffected.
+- Add a test asserting the fallback path: with no `OrganizationSubscription` row for an org, the
+  org ceiling enforced is exactly `default_org_rate_limit_per_minute`, not unlimited and not a
+  hard failure.

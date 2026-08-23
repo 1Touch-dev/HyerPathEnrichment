@@ -203,6 +203,14 @@ touches the signup/invite flow this doc set never fully specified (see
 `machine-1-tenancy-core/03`'s "Org bootstrap on signup" section, which itself deferred invite-
 flow design) and is a reasonable, separate follow-up chunk.
 
+**Follow-up (closed):** this gap is now closed by `machine-1-tenancy-core/05-org-invite-flow.md`.
+The enforcement check lives at that chunk's `POST /api/orgs/{org_id}/invites` endpoint (the
+invite-creation path), not at signup itself — it rejects with 402 before a new invite is created
+whenever `(active org members) + (pending, unexpired invites) + 1 > OrganizationSubscription.
+seats_included`. A future reader landing on this section should treat seat enforcement as
+implemented, not still outstanding — see that chunk's file for the full rule (including the
+fail-open-only-on-absent-subscription exception and the resend/upsert edge case).
+
 ## Do not touch
 
 - `backend/app/modules/orgs/` — read-only reference (`Organization.id`), not modified by this
