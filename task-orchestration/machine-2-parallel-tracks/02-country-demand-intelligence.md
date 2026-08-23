@@ -218,3 +218,30 @@ gating pattern in `backend/app/integrations/multilogin/profile_pool.py` and else
   `backend/tests/test_jsearch_provider.py`, added by PR #243 — must still pass unmodified).
 - Integration test hitting `/api/demand-intelligence/top-countries` end-to-end against a seeded
   DB.
+- **India/Middle East resolution coverage (verified against `backend/app/enrichers/jobspy.py`'s
+  current `_COUNTRY_NAME_TO_ISO2` table, 2026-08-22):** add a unit test asserting
+  `country_to_iso2()`/`_country_to_iso2()` correctly resolves `"India"` → `"in"` and
+  `"UAE"`/`"United Arab Emirates"` → `"ae"` — both already present in today's mapping table, so
+  this is a regression-lock test, not new mapping work. **Also add `"Saudi Arabia"` → `"sa"` and
+  2-3 other Middle East country names (e.g. `"Qatar"` → `"qa"`, `"Israel"` → `"il"`, `"Egypt"` →
+  `"eg"`) to `_COUNTRY_NAME_TO_ISO2` itself** — these are genuinely missing from the table as of
+  the 2026-08-22 snapshot (only `"united arab emirates"`/`"uae"` exist among Middle East entries
+  today), so this is real mapping work, not only a test. Unrecognized-input entries still fall
+  back to `"us"` per the function's existing documented behavior — do not change that fallback.
+- **JSearch `language` parameter check (integration-level, not just unit):** the JSearch call site
+  (`_scrape_jsearch`, `backend/app/enrichers/jobspy.py` lines ~280-285) currently builds `params`
+  with `query`, `num_pages`, `country`, and `date_posted` — **no `language` parameter at all**,
+  meaning every request implicitly defaults to JSearch's English-language behavior regardless of
+  which country is targeted. Add an integration-level test/assertion that the JSearch call site
+  passes a correct, non-empty `language` parameter for non-English-primary markets (e.g. India,
+  UAE, Saudi Arabia) rather than leaving it blank/defaulted to English. **Cite the specific risk
+  this closes:** JSearch's own documentation warns that omitting or mis-setting `language` for a
+  non-English market causes silently fewer-or-zero results, not an HTTP error — a materially more
+  dangerous failure mode than an exception, because it looks like "this country just has no job
+  postings" (a plausible, easy-to-believe false negative) rather than "something is broken."
+  Implementing the actual per-country `language` parameter (mapping `country_iso2` to a sensible
+  default language code, e.g. `"in"` → `"en"` since India's JSearch-indexed postings are
+  predominantly English-language despite the country not being English-primary generally — verify
+  this assumption against JSearch's own documented supported-language list before hardcoding any
+  mapping) is in scope for this chunk's fix, not deferred to a follow-up, since the missing
+  parameter is a real, currently-shipped-with gap in the exact file this chunk already edits.
