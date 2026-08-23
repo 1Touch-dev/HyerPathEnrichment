@@ -46,11 +46,25 @@ If `machine-2-parallel-tracks/03,05,06` have already merged by the time this chu
 `OutreachMessage` will already have `strategy`, `referral_context`, `recipient_email`,
 `suppression_checked_at`, and possibly `recipient_linkedin_url` columns from those tracks. This
 chunk only adds `org_id` — it does not touch, rename, or reinterpret any of those columns.
+
 `LinkedInSendTask` (from `06`, if merged) is keyed by `outreach_message_id`, not directly by
-`user_id` — decide whether it needs its own `org_id` column or can be scoped transitively via a
-join to its parent `OutreachMessage.org_id`; a join-based transitive scope is preferred over a
-duplicate column if the query pattern allows it cleanly, to avoid two columns that could drift
-out of sync.
+`user_id`. **Decision (definitive, not implementer's choice): use a transitive join to
+`OutreachMessage.org_id`, do NOT add a duplicate `org_id` column to `LinkedInSendTask`.** This
+follows the same ownership-test rule
+`post-tenancy-retrofit/01-job-matching-and-swipe-tenant-scoping.md` establishes for
+`ManualJobEntry` (*does exactly one org's action create this row, and would a different org ever
+legitimately need to read it? If yes+no → needs `org_id`* — `LinkedInSendTask` is yes+no, so it
+does need org-scoped access control, but that does not automatically mean a duplicate stored
+column is the right mechanism to get there): every `LinkedInSendTask` row already has exactly one
+parent `OutreachMessage` via `outreach_message_id` (`ForeignKey("outreach_messages.id",
+ondelete="CASCADE")`, non-nullable), and that parent already carries the authoritative `org_id`
+after this chunk's retrofit. A join (`.join(OutreachMessage).where(OutreachMessage.org_id ==
+org_id)`) gets the same access-control guarantee as a duplicate column would, without the
+duplicate column's real risk: a second, independently-writable `org_id` value can drift out of
+sync with its parent row (e.g. a future bug that sets one but not the other, or a manual data
+fix that touches one table and not the other) — a state a join structurally cannot reach, because
+there is only ever one `org_id` value in play, read from the one place that actually owns it.
+Do not add `linkedin_send_tasks.org_id` in this chunk's migration.
 
 ## Documents-specific note: CV chat cascades
 

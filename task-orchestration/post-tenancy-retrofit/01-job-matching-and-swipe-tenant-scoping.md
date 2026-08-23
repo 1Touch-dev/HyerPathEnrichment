@@ -48,13 +48,24 @@ just because a different org's recruiter search first ingested them.
 - `JobPosting`, `JobPostingEmbedding` — **no `org_id` column added**. These are the shared,
   deduplicated (`dedup_key`) result of scraping public job boards; every org's recruiters search
   the same pool. Do not add `org_id` here even defensively — it would be actively wrong.
-- `ManualJobEntry` (Module F) — **check this one carefully at implementation time.** A manually-
-  entered job is entered *by* a specific recruiter/candidate — it likely should get `org_id`
-  scoping (it's closer to "owned data" than "shared platform data"). Read
-  `backend/app/modules/job_matching/models.py`'s `ManualJobEntry` definition (not shown in this
-  doc's verified excerpts — verify column list before implementing) and decide based on whether
-  it's keyed by `user_id` (owned → scope it) the same way `JobMatch`/`CandidateJobPreferences`
-  are.
+- `ManualJobEntry` (Module F) — **needs `org_id` scoping**, same treatment as `JobMatch`/
+  `CandidateJobPreferences`. This is a definitive decision, not a "check this one carefully at
+  implementation time" flag: a manually-entered job is created *by* one specific recruiter/
+  candidate acting on behalf of one specific org (or no org, for a direct candidate), and no
+  *other* org has a legitimate reason to read it — it is not scraped public data like
+  `JobPosting`. Read `backend/app/modules/job_matching/models.py`'s `ManualJobEntry` definition
+  to confirm its exact current column list before writing the migration, but the scoping decision
+  itself does not depend on what's found there.
+
+  **The reusable rule this decision follows** (apply it to any future "does this table need
+  `org_id`" question in this doc set, not just this one row): *does exactly one org's action
+  create this row, and would a different org ever legitimately need to read it? If yes + no →
+  needs `org_id`.* `ManualJobEntry` is yes+no (one recruiter enters it, no other org should ever
+  see it) → scoped. Contrast this with `JobPosting`: it is *not* created by any one org's action
+  (it's ingested from public job-board scraping, no recruiter "owns" the scrape), and *every* org's
+  recruiters legitimately need to read it (shared search pool) — the rule's first half (does one
+  org's action create it?) already answers "no," which is exactly why `JobPosting` is correctly
+  exempt from `org_id` scoping above, not an inconsistency with `ManualJobEntry`'s treatment.
 
 ## Repository retrofit pattern
 

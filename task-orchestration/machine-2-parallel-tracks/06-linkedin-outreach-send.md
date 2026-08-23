@@ -110,6 +110,17 @@ class LinkedInSendTask(Base):
     )
 ```
 
+**Future tenant-scoping note (definitive, not left open):** this table does not get its own
+`org_id` column when tenancy retrofitting later reaches it
+(`post-tenancy-retrofit/02-outreach-documents-portfolio-tenant-scoping.md`) — access control is
+enforced transitively via a join to `outreach_message_id`'s parent `OutreachMessage.org_id`
+instead. This chunk (`06`) does not need to do anything about this now (tenancy doesn't exist yet
+when `06` is dispatched, per `00-overview.md`'s parallel-safety design) — it's noted here only so
+a later implementer of the retrofit chunk doesn't have to rediscover this table's shape from
+scratch, and so nobody is tempted to add a duplicate `org_id` column to this table later "just in
+case." See that retrofit chunk's file for the full reasoning (the ownership-test rule and the
+column-drift risk a join structurally avoids).
+
 ## `backend/app/modules/outreach/linkedin_send_service.py`
 
 Key functions:
