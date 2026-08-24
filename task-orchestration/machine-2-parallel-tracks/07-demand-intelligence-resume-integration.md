@@ -32,6 +32,18 @@ country/role to pursue" feature is wanted later, that is a distinct, much larger
 its own ADR (per `docs/adr/README.md`'s "storage/layer-ownership" criteria), not an extension of
 this chunk.
 
+**Cross-reference: `10-resume-tailoring.md` now closes the "future consumer" promise.**
+`02-country-demand-intelligence.md`'s "India/Middle East resume-personalization consumer" section
+names `10-resume-tailoring.md` as a future consumer of this same `get_top_countries_for_role` read
+path. That promise was dangling (named but not built) until `10`'s own "Demand-intelligence
+context injection" section was added, which mirrors this chunk's `_demand_context_line` shape and
+contract exactly — same flag-gated, additive, byte-identical-when-disabled design, applied to the
+resume-tailoring prompt instead of this chunk's outreach-drafting prompt, under its own sibling
+flag `enable_demand_intelligence_in_resume_tailoring`. This chunk's own scope is unchanged by that
+addition — it does not import from or depend on `10`, the two chunks' `_demand_context_line*`
+helpers are independent, this note exists only so a reader following `02`'s promise through to
+its actual resolution lands here rather than at a dead end.
+
 ## Ground truth: where `desired_roles` actually lives (verified 2026-08-22)
 
 The task brief that generated this chunk referenced `machine-2-parallel-tracks/01-progressive-

@@ -9,6 +9,17 @@ the "target company" context this feature personalizes against — same client, 
 "empty summary, not an exception" contract). Also depends on `backend/app/domain/candidate.py`'s
 `CVData` as the input shape (read-only).
 
+**Closing a dangling promise:** `02-country-demand-intelligence.md`'s "India/Middle East
+resume-personalization consumer" section already names this file as a *future consumer* of its
+`get_top_countries_for_role()` read path, but until the "Demand-intelligence context injection"
+section below was added, this file's own dependency list never actually included `02` — the
+promise was one-directional and undischarged. This chunk now depends on `02-country-demand-
+intelligence.md`'s `get_top_countries_for_role(db, role_query, limit)` function (same read path,
+same signature, same "most recent snapshot, `role_bucket` case-insensitive substring match" read
+semantics `07-demand-intelligence-resume-integration.md` already established as the read-side
+convention) and mirrors `07`'s own `_demand_context_line` shape and flag-gated, additive,
+byte-identical-when-disabled contract — see "Demand-intelligence context injection" below.
+
 ## Goal — ephemeral, on-demand, explicitly NOT a new persisted document type
 
 Given a candidate's existing base resume/CV data and a target company (+ optional target role),
@@ -44,7 +55,9 @@ does not need to answer, because the feature works correctly without ever answer
 
 ## Files to edit
 
-- None outside the new module/task file above. No migration file — see Goal section.
+- `backend/app/core/config.py` — new `enable_demand_intelligence_in_resume_tailoring` flag, see
+  "Demand-intelligence context injection" below. No migration file — see Goal section (this flag
+  addition is config-only, not a schema change).
 
 ## Design: mirror outreach's RQ-job shape, but the RQ result IS the ephemeral store
 
@@ -227,6 +240,121 @@ Note the deliberate absence of any `session.add(...)`/`session.commit()` writing
 plain dict; it never persists the tailored output anywhere except RQ's own TTL-bound result
 store, per the Goal section.
 
+## Demand-intelligence context injection
+
+**Closes `02-country-demand-intelligence.md`'s dangling "future consumer" promise.** `02`'s own
+"India/Middle East resume-personalization consumer" section already names this file as a future
+consumer of its `CountryDemandSnapshot` data; this section is what actually discharges that
+promise. It mirrors `07-demand-intelligence-resume-integration.md`'s design for outreach drafting
+exactly — same flag-gated, additive, byte-identical-when-disabled contract, same
+`get_top_countries_for_role` read path — applied to this chunk's resume-tailoring prompt instead
+of outreach's drafting prompt.
+
+**Precedent.** LinkedIn's own Economic Graph/Skills Graph engineering work documents using
+aggregate labor-market/skills-demand data to steer job-seeker-facing guidance at platform scale
+(https://economicgraph.linkedin.com/blog/Quantifying-skills-gaps-with-the-economic-graph,
+https://www.linkedin.com/blog/engineering/skills-graph/building-linkedin-s-skills-graph-to-power-a-skills-first-world),
+and Indeed Hiring Lab's own large-sample research is explicit that skill/market strategy should
+vary by location, not be treated as one global signal
+(https://www.hiringlab.org/2026/04/09/skill-set-match-in-job-postings/). Both support the general
+principle this section applies (market-demand data should inform job-seeker-facing content,
+varying by location) — see "Ambiguities resolved" below for the honest limit of what these
+sources actually establish.
+
+**Config flag.** Add to `backend/app/core/config.py`, following the exact naming convention
+`07-demand-intelligence-resume-integration.md`'s own `enable_demand_intelligence_in_outreach`
+flag establishes (verified against that file directly — see its "Config flag" section):
+
+```python
+# Demand intelligence -> resume-tailoring integration (machine-2/10): inject a
+# short, factual country-demand context line into the resume-tailoring prompt
+# when a target role (or, absent that, one of the candidate's desired_roles) has
+# CountryDemandSnapshot data. Mirrors enable_demand_intelligence_in_outreach's
+# contract exactly (07-demand-intelligence-resume-integration.md). Default False
+# — additive, low-risk, but off until validated against real tailored output;
+# also has no effect unless enable_demand_intelligence (02's flag) is also True.
+enable_demand_intelligence_in_resume_tailoring: bool = Field(
+    default=False, alias="ENABLE_DEMAND_INTELLIGENCE_IN_RESUME_TAILORING"
+)
+```
+
+**Wiring.** Import the same read path `07` already established:
+
+```python
+from app.modules.demand_intelligence.service import get_top_countries_for_role
+```
+
+Add a helper in `backend/app/workers/tasks/resume_tailoring.py`, mirroring `07`'s
+`_demand_context_line` shape (same early-return-before-any-query contract, same "check role
+candidates in order, stop at the first one with snapshot data" behavior) but sourced from this
+chunk's own `target_role` parameter first — since a resume-tailoring request already carries an
+explicit target role, unlike outreach drafting, which only has the candidate's `desired_roles` to
+go on — falling back to `cv_data.desired_roles` when `target_role` is unset:
+
+```python
+async def _demand_context_line_for_tailoring(
+    cv_data: CVData, target_role: str | None, settings: Settings, db: AsyncSession
+) -> str | None:
+    """One short, factual line about job-market demand for the tailoring target role,
+    or (if no target_role given) the candidate's first desired_roles entry with actual
+    snapshot data; None if the flag is off, no role signal is available, or no
+    snapshot data exists for any candidate role. Mirrors
+    backend/app/workers/tasks/outreach.py's _demand_context_line
+    (07-demand-intelligence-resume-integration.md) exactly: same flag-gated,
+    additive, early-return-before-any-query contract, applied here to the
+    resume-tailoring prompt instead of the outreach-drafting prompt."""
+    if not settings.enable_demand_intelligence_in_resume_tailoring:
+        return None
+    role_candidates = ([target_role] if target_role else []) + list(cv_data.desired_roles or [])
+    if not role_candidates:
+        return None
+    for role in role_candidates:
+        snapshots = await get_top_countries_for_role(db, role, limit=3)
+        if snapshots:
+            countries = ", ".join(s.country_iso2.upper() for s in snapshots)
+            return (
+                f"Note: recent job-market data shows the highest current demand for "
+                f"{role} is in {countries}. If relevant to the candidate's own stated "
+                f"background, you may reflect this market context lightly (e.g. framing "
+                f"relevant experience/skills in a way that resonates with that market) — "
+                f"never state or imply the candidate is open to relocating or working "
+                f"remotely in a specific location unless the candidate's own background "
+                f"already says so."
+            )
+    return None
+```
+
+Threading `db: AsyncSession` into `_tailor_with_llm` is a signature change, same as `07`'s
+identical note for `_draft_with_llm` — `_tailor_with_llm` is currently called from
+`_tailor_resume_job`, which already holds an open `session` (`async with SessionLocal() as
+session:`, per the Design section above); pass that same session through rather than opening a
+second one. Append the returned line to `user_content` when not `None`, after the existing
+company-context line and before any closing instruction (this chunk's current `user_content`
+construction — see the Design section's `_tailor_with_llm` code above — has no closing
+instruction after the company-context line today, so in practice this is simply the new last
+line):
+
+```python
+    demand_line = await _demand_context_line_for_tailoring(cv_data, target_role, settings, db)
+    if demand_line:
+        user_content = f"{user_content}\n{demand_line}"
+```
+
+**Keyword-stuffing risk (named tradeoff).** Injecting market-demand language into a tailoring
+prompt raises the same risk any keyword-optimization mechanism raises: over-optimizing resume
+text for a machine-readable signal rather than a human reader. General resume-tooling guidance —
+this is secondary-source consensus circulating across resume-optimization commentary, **not**
+primary documentation from any specific named vendor, and this file is explicit about that
+distinction rather than attributing it to one — converges around roughly 1.5-3% keyword density
+as a rough ceiling before tailoring reads as stuffed, and a simpler practical test: "would a human
+reader notice this phrase is there for a machine, not for them?" This chunk's mitigation is the
+prompt language itself (`_TAILOR_SYSTEM_PROMPT`, unchanged by this section, already instructs
+"lightly rephrase, not fabricate") plus the demand line's own explicit "if relevant" framing above
+— this section does not add a numeric keyword-density check or scorer, since that would be new
+scope disproportionate to a one-line, flag-gated prompt addition; it is named here as a tradeoff
+the flag-gate and human review (mirroring `03`'s identical rollout recommendation for its own new
+LLM-prompt mechanism) should watch for before enabling broadly.
+
 ## `backend/app/modules/resume_tailoring/schemas.py`
 
 ```python
@@ -315,6 +443,24 @@ checked exactly like every other candidate-owned-document endpoint in this codeb
 - **What happens if the candidate's document is still processing?** Same 409 `CandidateDocument`
   ownership/completeness check as `OutreachService.request_draft` — this chunk does not invent a
   different completeness rule.
+- **Is the "inject one demand-data sentence into a resume-tailoring LLM prompt" mechanism itself
+  a proven, published pattern?** No, and this file says so honestly rather than overclaiming: no
+  source cited in "Demand-intelligence context injection" above (LinkedIn's Economic Graph/Skills
+  Graph blog posts, Indeed Hiring Lab's location-variance research) describes this *exact*
+  mechanism — injecting a single factual sentence into a resume-tailoring LLM prompt. Those
+  sources establish the general principle that market-demand data should inform job-seeker-facing
+  content and should vary by location; the specific "one-sentence prompt injection" delivery
+  mechanism is this doc set's own small, additive invention, directly analogous to (but no more
+  proven than) `07-demand-intelligence-resume-integration.md`'s identical invention for the
+  outreach-drafting prompt. Accordingly this section ships with the same posture `07` shipped
+  with: flag off by default (`enable_demand_intelligence_in_resume_tailoring`), byte-identical to
+  pre-change output when disabled, the injected line explicitly framed to the LLM as optional/
+  "if relevant" context (see the `_demand_context_line_for_tailoring` docstring/return value
+  above), and an explicit instruction never to fabricate relocation/remote-work willingness the
+  candidate has not themselves expressed — this last point is a resume-tailoring-specific risk
+  `07`'s outreach version did not need to guard against in the same way, since a resume is a
+  document a candidate submits as their own representation, not a message a candidate is actively
+  drafting and can immediately edit before sending.
 
 ## Do not touch
 
@@ -327,6 +473,21 @@ checked exactly like every other candidate-owned-document endpoint in this codeb
 - Do not add a new Alembic migration, table, or column anywhere in this chunk — see Goal section;
   this is the single most important boundary here.
 - `backend/app/clients/perplexity.py` — reused read-only via `get_company_context`; not modified.
+- `backend/app/modules/demand_intelligence/` (created by `02`) — read-only import of
+  `get_top_countries_for_role`; no changes to that module's models/service/router/schemas, the
+  identical Do-not-touch scope `07-demand-intelligence-resume-integration.md` already holds
+  itself to for the same import.
+- `backend/app/modules/outreach/models.py`, `schemas.py`, `service.py`,
+  `backend/app/workers/tasks/outreach.py` — this section reuses the *pattern* `07` established
+  for outreach, but does not import from or modify outreach's own module; the two
+  `_demand_context_line*` helpers are independent functions in independent files that happen to
+  share a shape.
+- Do not build any embedding, ranking, or "best country to target" scoring logic — see
+  `07-demand-intelligence-resume-integration.md`'s Goal section's explicit JUDE-architecture scope
+  cut, which this section inherits unchanged rather than re-litigating.
+- Do not add a keyword-density scorer/checker — see "Keyword-stuffing risk (named tradeoff)"
+  above for why this is named as a risk to watch for in human review, not built as an automated
+  gate in this chunk.
 
 ## Verification
 
@@ -345,3 +506,18 @@ checked exactly like every other candidate-owned-document endpoint in this codeb
   document and assert `extracted_data`/`updated_at` are unchanged; assert no new table this chunk
   might have been tempted to add actually exists in the schema) — enforces the "genuinely
   ephemeral, not persisted" requirement structurally, not just by omission in this doc.
+- **Regression test (required, byte-identical check) for demand-intelligence injection:** with
+  `enable_demand_intelligence_in_resume_tailoring` off (the default), assert the constructed
+  `user_content` for a given `cv_data`/`target_company`/`target_role`/company-context combination
+  is byte-identical to the `user_content` that would have been constructed before this section's
+  changes — the same regression bar `07-demand-intelligence-resume-integration.md` holds its own
+  identical flag to.
+- Test: with the flag on and a `target_role` (or, absent that, a `cv_data.desired_roles` entry)
+  that has `CountryDemandSnapshot` data, assert the prompt sent to the mocked LLM call includes
+  the demand-context line, formatted with the correct top-country codes.
+- Test: with the flag on but no `CountryDemandSnapshot` rows matching `target_role` or any of
+  `cv_data.desired_roles`, assert the prompt is unaffected (no stray "Note: ..." line, no
+  exception) — mirrors `07`'s identical no-match test.
+- Test: assert `_demand_context_line_for_tailoring` does not call `get_top_countries_for_role` at
+  all when the flag is off (mock/spy on the import and assert zero calls) — mirrors `07`'s
+  identical "zero extra DB round-trips when disabled" requirement.
