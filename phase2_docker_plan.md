@@ -81,7 +81,7 @@ Out of scope for **this** document — it is an Alembic migration (`backend/alem
 
 ### 3.3 Scheduler registration race (§5.3 of `architecture_phase2.md`)
 
-Every process running `rq_worker.py`'s `main()` calls `worker.work(with_scheduler=True)`. RQ-Scheduler dedupes cron registrations by job ID in Redis, so this does not double-fire — but §5 below adds two **more** processes (`worker-job-matching`, `worker-interview-ai`) that also call `.work(with_scheduler=True)` (per Module 1's own new entrypoint, `rq_worker_job_matching.py`). This remains an accepted, pre-existing pattern (not newly broken by this plan) — documented so it is not mistaken for a new bug introduced here.
+Every process running `rq_worker.py`'s `main()` calls `worker.work(with_scheduler=True)`. RQ-Scheduler dedupes cron registrations by job ID in Redis, so this does not double-fire — but §5 below adds **one more** such process (`worker-job-matching`, per Module 1's own new entrypoint, `rq_worker_job_matching.py`, which does call `.work(with_scheduler=True)`). This remains an accepted, pre-existing pattern (not newly broken by this plan) — documented so it is not mistaken for a new bug introduced here. (🔧 correction: an earlier version of this paragraph also named `worker-interview-ai` here — wrong, per §5.7's correction #3: `worker-interview-ai` runs the plain `rq worker` CLI, which never calls `register_scheduled_jobs()`/`with_scheduler=True` at all, so it isn't part of this race in any form, doubled or not.)
 
 ---
 
@@ -159,7 +159,7 @@ services:
       AUTH_TYPE: scram-sha-256   # matches postgres:16-alpine's default password encryption
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 1000
-      DEFAULT_POOL_SIZE: 25      # real backend connections PgBouncer opens to Postgres
+      DEFAULT_POOL_SIZE: 40      # real backend connections PgBouncer opens to Postgres — see §12 item 3 for the worked arithmetic behind this number (revised up from an unchecked 25)
       MIN_POOL_SIZE: 5
       ADMIN_USERS: hyrepath
     depends_on:
@@ -176,7 +176,7 @@ services:
 
 **Design notes:**
 - No `ports:` mapping — PgBouncer is reached over the bridge network by service name (`pgbouncer:5432`) from other containers, exactly like `postgres` is today; it does not need a host port unless you want to `psql` into it directly from the host for debugging (add `ports: ["127.0.0.1:6432:5432"]` locally if you need that — do not do this in `docker-compose.prod.yml`, matching the existing "loopback-only in prod" convention `docker-compose.prod.yml` already applies to `postgres`/`redis`).
-- `DEFAULT_POOL_SIZE: 25` is the real ceiling: **25 real Postgres backend connections total**, no matter how many application processes connect through PgBouncer, versus today's unbounded-by-container-count model. This is the number to raise if `pgbouncer` logs `no more connections allowed` under load — not `max_connections` on Postgres itself.
+- `DEFAULT_POOL_SIZE: 40` is the real ceiling: **40 real Postgres backend connections total**, no matter how many application processes connect through PgBouncer, versus today's unbounded-by-container-count model. This is the number to raise if `pgbouncer` logs `no more connections allowed` under load — not `max_connections` on Postgres itself. (See §12 item 3 for the explicit connection-count arithmetic across this plan's full topology that this number is sized against — an earlier draft of this file used an unchecked 25, which the arithmetic there shows is too tight for even a modest deployment.)
 - `AUTH_TYPE: scram-sha-256` — verified against `edoburu/docker-pgbouncer`'s own documented example for Postgres 14+ (this repo's `Dockerfile.postgres` is `postgres:16-alpine`, ✅ compatible). If you ever downgrade the Postgres major version below 10, this line must change to `md5` per the image's own README.
 
 **Which services must repoint `DATABASE_URL` at PgBouncer:** `api`, `migrate` (⚠️ **do not** point `migrate` at PgBouncer — Alembic's `CREATE INDEX CONCURRENTLY`/DDL and PgBouncer's transaction pooling do not mix well for schema migrations; `migrate` keeps talking to `postgres:5432` directly, unchanged), generic `worker`, `worker-email`, `worker-cleanup`, `worker-document`, `worker-embedding`, `worker-tier234`, and the two new Phase 2 workers from §5.5/§5.7 (`worker-job-matching`, `worker-interview-ai`). `worker-tier1` (host network) would point at `pgbouncer:5432` too, but host-network containers cannot use Docker DNS service names (§1.3) — see §8.1 for the host-network-specific PgBouncer wiring.
@@ -201,7 +201,7 @@ elif settings.database_url.startswith("postgresql"):
     # Explicit ceiling per architecture_phase2.md §5.1 — do not rely on
     # SQLAlchemy's library default (5 pooled + 10 overflow/process); with
     # PgBouncer (§5.1 of this plan) already capping real backend connections
-    # at DEFAULT_POOL_SIZE=25, each process's own client-side pool should stay
+    # at DEFAULT_POOL_SIZE=40, each process's own client-side pool should stay
     # small so PgBouncer — not this process — is the single source of truth
     # for the connection ceiling.
     _engine_kwargs["pool_size"] = int(os.environ.get("DATABASE_POOL_SIZE", "5"))
@@ -528,7 +528,7 @@ services:
       WORKER_STARTUP_DELAY: "0"
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
-    command: ["rq", "worker", "feedback", "question_generation", "--url", "redis://redis:6379/0"]
+    command: ["sh", "-c", "exec rq worker feedback question_generation --url \"$REDIS_URL\""]
     depends_on:
       pgbouncer:
         condition: service_healthy
@@ -560,6 +560,9 @@ services:
 1. `DATABASE_URL` repointed at `pgbouncer:5432` (§5.1), `depends_on` repointed at `pgbouncer` instead of `postgres` (same reasoning as §5.5's correction #2).
 2. `build.context`/`dockerfile` changed from the original's `context: ..` + `dockerfile: docker/Dockerfile.worker` (relative to a `backend/docker/` working directory) — verified this is actually **already correct** as originally written in `phase2_module3.md` (matches every other service's `context: ..`/`dockerfile: docker/Dockerfile.*` pattern in the base `docker-compose.yml`); no change needed here, noted only to confirm it was checked, not silently trusted.
 3. `command: ["rq", "worker", ...]` — verified the plain `rq worker` CLI (not `app.workers.rq_worker`'s `main()`) is a legitimate, independent entrypoint already used by `worker-email`/`worker-document`/`worker-embedding` in this exact form (verified in `docker-compose.yml`/`docker-compose.foundation.yml`). This CLI form does **not** call `register_scheduled_jobs()` — verified via the `rq` package's own CLI, which only calls `Worker(...).work()`. This means `worker-interview-ai` does **not** register any cron jobs, which is correct: Module 3 introduces no new cron job (`question_generation` is enqueued directly by application code via `enqueue_question_generation()`, per `phase2_module3.md` §7.5 — it is never scheduled), so no process needs to own scheduler registration for this overlay specifically.
+
+4. 🔧 **CORRECTION — `command:`'s `--url` was a hardcoded literal, silently ignoring this service's own `REDIS_URL` env var.** The original array-form command hardcoded `--url redis://redis:6379/0` as a literal string, while `environment.REDIS_URL` was set separately right above it and never actually consumed by the RQ CLI invocation. Every other worker in this fleet (`worker-email`/`worker-document`/`worker-embedding`, and the generic `worker` via `get_redis_connection()` inside `rq_worker.py`) correctly reads `REDIS_URL` at runtime; this one service silently didn't. The practical impact: overriding `REDIS_URL` for this service anywhere downstream — e.g. `docker-compose.prod.yml`'s §5.8 block, which sets `REDIS_URL: redis://redis:6379/0` again but would silently do nothing if that value ever needed to differ (a different Redis host/port/db in some future environment) — would have no effect, because the CLI never looked at the env var in the first place; it would keep connecting to whatever was baked into the YAML string.
+   Verified this repo's Compose schema (`docker-compose.yml` has no top-level `version:` key at all — Compose v2's schema-version-less format, confirmed by reading the file directly) does apply `${VAR}` interpolation to `command:` regardless of array or string form — **but that interpolation is resolved by the Compose CLI from the invoking shell's environment or a `.env` file sitting next to the compose file at `docker compose ... up` time, never from a service's own `environment:` mapping** (a well-documented Compose gotcha — `environment:` only sets the *container's* runtime process environment, which is a completely separate mechanism from Compose-file `${VAR}` interpolation). Confirmed no `.env` file in `backend/docker/` defines `REDIS_URL` today, so naively rewriting the line to `--url ${REDIS_URL}` (array form, unchanged otherwise) would not read this service's own `REDIS_URL: redis://redis:6379/0` line at all — it would resolve against an unset host-shell variable, which Compose substitutes as an empty string (with a `WARN[0000] The "REDIS_URL" variable is not set` at `config`/`up` time), producing `rq worker feedback question_generation --url ""` — an even worse, silently-broken command than the original bug. The only way to have `--url` actually observe whatever value ends up in this container's `REDIS_URL` (whether from this file's own `environment:` block or a future `docker-compose.prod.yml` override) is to defer the substitution to a real shell running *inside* the container at start time, where `environment:`-injected variables are genuinely visible as process environment. (Dropping `--url` entirely and relying on `rq`'s own CLI default is not an option either — verified in `rq/cli/helpers.py`: the `--url`/`-u` option's own `envvar` is `RQ_REDIS_URL`, not `REDIS_URL`, so omitting the flag would make the CLI silently fall back to `redis://localhost:6379/0`, not read this repo's `REDIS_URL` convention at all.) The fix below switches `command:` to invoke `sh -c` for exactly this reason — not for cosmetic array-vs-string preference, and not because any other service in this file already does `${VAR}`-in-`command:` (none do; there is no existing precedent either way to match), but because it is the only form that is actually correct here.
 
 **Note on `WORKER_EXCLUDE_QUEUES` (§4.2) for this overlay:** when running `docker-compose.week2-ai.yml`, also override the generic `worker` service's environment (add this to whichever compose file is your final `-f worker` layer — see §7's full command matrix, which folds this into a dedicated `docker-compose.phase2.yml` combined overlay so you do not have to remember to set it by hand every time):
 
@@ -744,8 +747,10 @@ python -c "from app.core.config import get_settings; s = get_settings(); print(s
 | **Local dev, full Phase 2 stack** | `docker compose -f docker-compose.yml -f docker-compose.pgbouncer.yml -f docker-compose.foundation.yml -f docker-compose.week2-ai.yml -f docker-compose.phase2.yml up -d` |
 | **Local dev, full Phase 2 + Phase 1 tiers** | add `-f docker-compose.tier-workers.yml` to the line above, placed after `docker-compose.phase2.yml` |
 | **Staging/production** | `docker compose -f docker-compose.yml -f docker-compose.pgbouncer.yml -f docker-compose.foundation.yml -f docker-compose.week2-ai.yml -f docker-compose.phase2.yml -f docker-compose.prod.yml --env-file ../.env.production up -d` — `docker-compose.prod.yml` **always goes last** (unchanged rule from this repo's existing convention, per its own header comment about `!override` merge tags depending on file order) |
-| **Scaling foundation/Phase-2 workers** | append `--scale worker-document=3 --scale worker-embedding=2` etc. to any command above — `worker-job-matching` and `worker-interview-ai` are pinned `replicas: 1` (§5.5/§5.7) and must **not** be scaled without first fixing the scheduler-duplication note in §5.3/§3.3 |
+| **Scaling foundation/Phase-2 workers** | append `--scale worker-document=3 --scale worker-embedding=2 --scale worker-interview-ai=2` etc. to any command above — only `worker-job-matching` is pinned `replicas: 1` (§5.5) and must **not** be scaled without first fixing the scheduler-duplication note in §5.3/§3.3; `worker-interview-ai` has no such constraint and is safe to scale (🔧 correction below) |
 | **CI / fast validation only** | `docker compose -f docker-compose.yml -f docker-compose.pgbouncer.yml -f docker-compose.foundation.yml -f docker-compose.week2-ai.yml -f docker-compose.phase2.yml config --quiet` — validates every Phase 2 file merges cleanly without starting anything |
+
+🔧 **CORRECTION — this row previously also claimed `worker-interview-ai` is pinned `replicas: 1`, which was never actually true in §5.7's YAML (no `replicas:` field exists there) and, on inspection, shouldn't be added either.** The stated reason for pinning — avoiding duplicate scheduler-registration — does not apply to `worker-interview-ai` at all: §5.7's own correction #3 already establishes that `worker-interview-ai` runs the plain `rq worker` CLI (not `app.workers.rq_worker`'s `main()`), which never calls `register_scheduled_jobs()` in the first place, so there is no scheduler-registration hazard for this container to guard against by capping it at one replica. This claim was copied from `worker-job-matching`'s genuinely different, real constraint (its dedicated entrypoint `rq_worker_job_matching.py` does call `register_scheduled_jobs()`, per §5.3) without re-deriving whether the same reasoning actually transfers. It doesn't. §8's own topology diagram already shows `worker-interview-ai ×N` (plural, scalable) — consistent with there being no pin — while this row alone said otherwise; this table row is the one that was wrong, and is fixed here rather than adding an unnecessary `replicas: 1` to §5.7 that would silently contradict §8 and cap real capacity for a queue (`feedback`) that is explicitly user-facing/latency-sensitive per §4.4's own ordering rationale, where extra capacity is exactly what you'd want available, not restricted.
 
 ---
 
@@ -757,7 +762,7 @@ python -c "from app.core.config import get_settings; s = get_settings(); print(s
 │                                                                            │
 │  postgres (pgvector) ◄── migrate (one-shot, DDL, bypasses PgBouncer)     │
 │       ▲                                                                   │
-│       │ 25 real backend connections (DEFAULT_POOL_SIZE)                  │
+│       │ 40 real backend connections (DEFAULT_POOL_SIZE)                  │
 │    pgbouncer  ◄── NEW, §5.1 — every app/worker service connects HERE     │
 │       ▲                                                                   │
 │       │                                                                   │
@@ -812,35 +817,59 @@ docker compose -f docker-compose.yml -f docker-compose.pgbouncer.yml ps pgbounce
 docker compose -f docker-compose.yml -f docker-compose.pgbouncer.yml up migrate
 # Expect exit code 0 and "Migrations completed successfully!" in the log.
 
-# 4. Sidecars (free-mode, default-on) — unchanged by this plan.
+# 4. Idempotency check — re-run `migrate` a second time against the now-
+#    migrated database (§11's checklist requires cold `down`/`up` to succeed
+#    without manual intervention, which implicitly requires this exact
+#    scenario — running `migrate` again post-migration — to be a safe no-op,
+#    not merely assumed). Alembic itself prints no distinct "already at head"
+#    banner text (verified: `alembic upgrade head` when already at head runs
+#    zero migration steps and its own runtime logger emits nothing beyond
+#    what each executed step would have logged — there is no unique success
+#    string to grep for on a no-op run). The actual, verifiable signal is the
+#    *absence* of Alembic's own `Running upgrade <rev> -> <rev>` step-executed
+#    log lines on this second run, combined with `run-migrations.sh`'s own
+#    unconditional "Migrations completed successfully!" banner (from the
+#    script, not Alembic) still appearing, and exit code 0:
+docker compose -f docker-compose.yml -f docker-compose.pgbouncer.yml up migrate 2>&1 | tee /tmp/migrate_rerun.log
+echo "Exit code: ${PIPESTATUS[0]}"  # PIPESTATUS[0], not $? — $? alone would report tee's exit code, not migrate's
+if grep -q "Running upgrade" /tmp/migrate_rerun.log; then
+  echo "❌ Second migrate run executed migration steps — NOT idempotent, investigate before trusting cold-restart safety"
+else
+  echo "✅ Second migrate run executed zero migration steps — idempotent no-op, as expected"
+fi
+# Expect exit code 0, "✅ Migrations completed successfully!" (run-migrations.sh's
+# own banner, per backend/docker/run-migrations.sh, read directly in this
+# session), and the "idempotent no-op" line above — not the "NOT idempotent" one.
+
+# 5. Sidecars (free-mode, default-on) — unchanged by this plan.
 docker compose -f docker-compose.yml -f docker-compose.pgbouncer.yml up -d \
   social-analyzer google-maps-scraper email-verifier
 
-# 5. Core api + generic worker + email/cleanup workers, now pointed at PgBouncer.
+# 6. Core api + generic worker + email/cleanup workers, now pointed at PgBouncer.
 docker compose \
   -f docker-compose.yml -f docker-compose.pgbouncer.yml -f docker-compose.phase2.yml \
   up -d api worker worker-email worker-cleanup
 
-# 6. Foundation Phase-2 workers.
+# 7. Foundation Phase-2 workers.
 docker compose \
   -f docker-compose.yml -f docker-compose.pgbouncer.yml \
   -f docker-compose.foundation.yml -f docker-compose.phase2.yml \
   up -d worker-document worker-embedding worker-job-matching
 
-# 7. Module 3's dedicated overlay.
+# 8. Module 3's dedicated overlay.
 docker compose \
   -f docker-compose.yml -f docker-compose.pgbouncer.yml \
   -f docker-compose.week2-ai.yml -f docker-compose.phase2.yml \
   up -d worker-interview-ai
 
-# 8. Full-stack health check — every container should read "healthy" or
+# 9. Full-stack health check — every container should read "healthy" or
 #    "running" (migrate/glitchtip-migrate-style one-shot jobs show "exited (0)").
 docker compose \
   -f docker-compose.yml -f docker-compose.pgbouncer.yml \
   -f docker-compose.foundation.yml -f docker-compose.week2-ai.yml \
   -f docker-compose.phase2.yml ps
 
-# 9. Queue-level smoke test — confirm every Phase 2 queue exists and is
+# 10. Queue-level smoke test — confirm every Phase 2 queue exists and is
 #    reachable from inside the api container (proves Redis DNS + queue names
 #    are correct end-to-end, not just that containers booted).
 docker compose \
@@ -915,7 +944,8 @@ Extends `backend/docker/NETWORKING.md`'s existing troubleshooting table with the
 - [ ] `python -c "from app.core.config import get_settings; get_settings()"` succeeds with no `ValidationError`
 
 **End-to-end (§9):**
-- [ ] Full boot runbook (§9, steps 1-9) completes with every container `healthy` and the queue smoke-test script printing all 9 queue names with a numeric count (proving Redis DNS + queue-name spelling is correct end-to-end)
+- [ ] Full boot runbook (§9, steps 1-10) completes with every container `healthy` and the queue smoke-test script printing all 9 queue names with a numeric count (proving Redis DNS + queue-name spelling is correct end-to-end)
+- [ ] §9 step 4's `migrate` re-run against the already-migrated database exits 0, `run-migrations.sh`'s "✅ Migrations completed successfully!" banner still prints, and no `Running upgrade <rev> -> <rev>` step-executed log line appears — confirms Alembic idempotency on a migrated DB is verified, not assumed
 - [ ] `docker compose ... down` and re-`up` (cold restart) succeeds without manual intervention — proves `depends_on`/healthcheck ordering is self-sufficient, not just correct on a lucky first boot
 
 ---
@@ -924,11 +954,28 @@ Extends `backend/docker/NETWORKING.md`'s existing troubleshooting table with the
 
 1. **`check_worker_health()` for `worker-document`/`worker-embedding`'s existing healthchecks was not independently re-verified in this session** — only `docker-compose.foundation.yml`'s reference to `app.workers.tasks.document.check_worker_health`/`app.workers.tasks.embedding.check_worker_health` was read; whether those functions currently exist in `app/workers/tasks/document.py`/`embedding.py` was not confirmed by opening those files. If they do not exist, those two **pre-existing** containers' healthchecks were already broken before this plan, independent of anything here — flagged, not fixed, since fixing pre-existing Foundation Week 1 code is out of this plan's scope per `RULE.md`.
 2. **`edoburu/pgbouncer:1.21.0`'s exact compatibility with `postgres:16-alpine` + this repo's custom `Dockerfile.postgres` (with the source-built `pgvector` extension) was not tested in this session** — PgBouncer pools connections at the wire-protocol level and is extension-agnostic in principle (✅ DIRECT per PgBouncer's own architecture — it never runs `CREATE EXTENSION` or any DDL), but this is a "should work per the tool's documented design," not a "was booted and confirmed against this repo's specific Postgres image" claim. §9's runbook step 1-2 is exactly the test that closes this gap — run it before trusting this plan fully.
-3. **`DEFAULT_POOL_SIZE: 25` (§5.1) is a starting number, not a benchmarked one** — same caveat `phase2_module1.md` §9.3 already applied to its own CPU/memory sizing: copied from a reasonable default (roughly matching Postgres's own unmodified `max_connections=100` divided across expected concurrent transaction bursts, with headroom), to be tuned from real `pgbouncer` admin-console stats (`SHOW POOLS`) once running, not asserted as tuned.
+3. **`DEFAULT_POOL_SIZE` (§5.1) — the arithmetic against this document's own topology, made explicit, and revised from 25 to 40 as a result.** §5.1 originally set `DEFAULT_POOL_SIZE: 25` with each process's own client-side pool at `DATABASE_POOL_SIZE=5` / `DATABASE_MAX_OVERFLOW=2` (7 max connections-to-PgBouncer per process). §8's final topology holds a pool against PgBouncer from: `api` (×N), generic `worker`, `worker-email`, `worker-cleanup`, `worker-document` (×N), `worker-embedding` (×N), `worker-tier234`, `worker-job-matching` (×1, pinned), `worker-interview-ai` (×N) — 9 distinct service types, several of them scalable. Even a modest deployment — 2 `api` replicas plus exactly 1 instance of each of the other 8 service types — is **10 processes**, each capable of holding up to 7 connections to PgBouncer: 2×7 (`api`) + 8×7 (everything else) = **14 + 56 = 70** possible client-side connections against a `DEFAULT_POOL_SIZE` of only 25 real backend connections.
+   That 70 is a worst-case ceiling (every process's entire pool simultaneously mid-transaction at once), not a claim that 70 concurrent transactions actually happen continuously — PgBouncer's transaction-pooling mode only needs one real backend connection per connection that is *currently* inside a transaction, and most of these processes (RQ workers blocked on `BLPOP`, idle API request handlers) are not mid-transaction most of the time. But the ceiling doesn't need to be hit for 25 to be too tight: each of the 10 processes only needs ~2.5 of its 7 slots concurrently in-flight, on average, simultaneously, to exceed 25 — a realistic traffic burst (a handful of concurrent API requests plus a couple of workers mid-job at the same moment), not an extreme edge case. Once demand exceeds `DEFAULT_POOL_SIZE`, PgBouncer queues excess clients rather than failing them outright (up to its own connect/query timeouts), so the failure mode under real load is added latency first, then outright `no more connections allowed` errors — exactly the symptom §10's troubleshooting table already anticipates, just without previously showing the arithmetic for why it's likely, not merely possible.
+   **Revised: `DEFAULT_POOL_SIZE` raised from 25 to 40** in §5.1's YAML above. 40 is not derived from hitting the full 70-connection worst case (that would mean sizing PgBouncer for every process to be simultaneously transaction-saturated, which defeats the purpose of pooling at all) — it is chosen to comfortably cover realistic concurrent-transaction bursts across this 9-service, 10-process modest topology while still leaving headroom under Postgres's own unmodified `max_connections=100` once `worker-tier1`'s ~7 direct (non-PgBouncer) connections (§8.1) and a handful of occasional direct `migrate`/admin/`psql` connections are added on top (40 + 7 + a few ≈ 50, comfortably under 100). Like the original 25, this is still a starting number to be confirmed against real `pgbouncer` admin-console stats (`SHOW POOLS`) once running — the fix here is making the arithmetic explicit and picking a number the document's own math doesn't already show as insufficient, not asserting 40 is definitively, permanently correct either.
 4. **`WORKER_EXCLUDE_QUEUES`'s comma-split parsing (§5.2) assumes queue names never contain a literal comma** — true for every queue name in this codebase today (verified: all are single lowercase words/underscores), flagged only because it is a real, if currently unreachable, edge case in the parsing logic.
 5. **This plan does not address `docker-compose.staging.yml`, `docker-compose.tier1.yml`, `docker-compose.multilogin.yml`, `docker-compose.loadtest.yml`, or `docker-compose.fake-sidecars.yml`** — none of these were read in this session; if any of them independently define a `worker`/`api`/`postgres` service block with its own `DATABASE_URL`, that block will **not** automatically pick up the PgBouncer repointing from §5.1 and must be updated separately, following the exact same `postgres:5432` → `pgbouncer:5432` pattern shown throughout §5.
 6. **pgvector HNSW retuning (§3.2) and the fan-out job-matching scheduler's actual staggering logic (`architecture_phase2.md` §4) are explicitly out of scope for this document** — they are Alembic-migration and application-code concerns respectively, not Docker/Compose concerns, and are owned by `architecture_phase2.md` and `phase2_module1.md` directly.
 7. **Windows/PowerShell host developers** (per this workspace's own `win32`/`powershell` environment): every command in §5/§7/§9 is written as a POSIX shell one-liner (matching the style already used throughout `phase2_module1.md`/`2`/`3`'s own validate blocks and this repo's existing `.sh` scripts in `backend/docker/`) — running them from PowerShell directly will fail on multi-line `python -c "..."` quoting; use `docker compose ... exec <service> python -c '...'` from WSL/Git Bash, or wrap the Python snippet in a temporary `.py` file and `docker compose ... exec <service> python /path/to/script.py` if running natively from PowerShell. This is a shell-compatibility note, not a Docker-correctness issue.
+8. **Every new healthcheck (`worker-job-matching` in §5.4/§5.5, `worker-interview-ai` in §5.7) only checks `Queue(...).count < 500` — this detects queue backlog, not a hung/dead worker process.** A worker whose process has deadlocked or wedged (stuck in a blocking call, a network timeout that never fires, an infinite loop inside a single job) but whose queue depth happens to stay low because nothing new is being enqueued would report `healthy` forever under this check — `docker compose ps` and any orchestrator watching this healthcheck would never restart it, because the check only ever asks "is the queue backed up," never "is anything actually alive and consuming it." Flagged, not fixed, per this document's own established pattern of being honest about scope rather than silently claiming full coverage.
+   A low-effort improvement exists and was verified against the installed `rq` package in this session (`rq/worker.py`, `rq/cli/helpers.py`): `Worker.all(connection=<redis>, queue=<queue>)` returns the list of currently-registered `Worker` instances listening on a given queue, and each instance exposes `.last_heartbeat` (a UTC `datetime`, refreshed periodically while the worker process is alive — verified via `Worker`'s own heartbeat-refresh code at `rq/worker.py`). This needs no new dependency (`rq` is already a direct dependency baked into every worker image) and is cheap enough for a 10s healthcheck timeout — a handful of Redis round-trips, not real work. A stronger `CMD`, not adopted as this plan's actual healthcheck (it was verified against the installed package's source in this session, not booted and confirmed end-to-end against a live wedged worker), would look like:
+   ```python
+   from datetime import datetime, timedelta
+   from app.workers.queue import get_redis_connection
+   from rq import Queue, Worker
+   c = get_redis_connection()
+   q = Queue('feedback', connection=c)
+   if q.count < 500:
+       workers = Worker.all(connection=c, queue=q)
+       alive = any(w.last_heartbeat and datetime.utcnow() - w.last_heartbeat < timedelta(seconds=120) for w in workers)
+       exit(0 if (q.count == 0 or alive) else 1)
+   exit(1)
+   ```
+   This closes the specific "queue backlog looks fine, but nothing is actually alive to drain it" gap (it fails if jobs are waiting and no worker on that queue has heartbeated in the last two `rq worker` maintenance cycles), but does not close every possible false positive: a worker whose main loop is wedged inside a single job's execution but whose heartbeat is refreshed from a separate mechanism would still pass. Fully closing that would require RQ's own per-job timeout/`WorkerStatus` machinery, which is outside a Docker `HEALTHCHECK`'s reasonable scope.
 
 ---
 
@@ -957,4 +1004,4 @@ Extends `backend/docker/NETWORKING.md`'s existing troubleshooting table with the
 
 ## 14. Closing statement
 
-Every Dockerfile, compose service, and environment-variable claim in this document was checked against a file actually opened and read in this session — `docker-compose.yml`, `docker-compose.foundation.yml`, `docker-compose.tier-workers.yml`, `docker-compose.prod.yml`, `Dockerfile.worker`, `Dockerfile.worker-document`, `Dockerfile.worker-embedding`, `Dockerfile.postgres`, `Dockerfile.api`, `entrypoint-worker.sh`, `run-migrations.sh`, `NETWORKING.md`, `app/workers/queue.py`, `app/workers/rq_worker.py`, `app/database/session.py`, `app/core/config.py`, and `backend/.env.example` — not inferred from any module doc's own unverified claims about "the exact structure of the existing X" (§4.1's Dockerfile correction is the clearest example of exactly this kind of claim turning out to be false on inspection). Every place where `phase2_module1.md`/`2`/`3`'s own Docker sections conflicted with each other (§2) or with this repo's real files (§4.1, §5.4, §5.5, §5.7) is labeled 🔧 CORRECTION and resolved once, here, rather than left for three separate PRs to each discover and fix differently. Following §5 in order and passing every "Validate" step, then completing §9's full runbook and §11's checklist, is what "the backend infrastructure of the project is complete, no Docker error, no Docker network error, all containers work properly" means in this document — nothing here is true until that runbook's output says so.
+Every Dockerfile, compose service, and environment-variable claim in this document was checked against a file actually opened and read in this session — `docker-compose.yml`, `docker-compose.foundation.yml`, `docker-compose.tier-workers.yml`, `docker-compose.prod.yml`, `Dockerfile.worker`, `Dockerfile.worker-document`, `Dockerfile.worker-embedding`, `Dockerfile.postgres`, `Dockerfile.api`, `entrypoint-worker.sh`, `run-migrations.sh`, `NETWORKING.md`, `app/workers/queue.py`, `app/workers/rq_worker.py`, `app/database/session.py`, `app/core/config.py`, and `backend/.env.example` — not inferred from any module doc's own unverified claims about "the exact structure of the existing X" (§4.1's Dockerfile correction is the clearest example of exactly this kind of claim turning out to be false on inspection). The self-audit pass that produced §5.7's `--url ${REDIS_URL}`-vs-hardcoded-literal fix and §12 item 8's healthcheck alternative additionally read the installed `rq` package's own source directly (`rq/cli/cli.py`, `rq/cli/helpers.py`, `rq/worker.py` — verified in `backend/venv/lib/python3.12/site-packages/rq/`), rather than assuming the CLI's `--url` flag or `Worker.all()`/`.last_heartbeat`'s exact behavior from memory or from the `rq` README alone. Every place where `phase2_module1.md`/`2`/`3`'s own Docker sections conflicted with each other (§2) or with this repo's real files (§4.1, §5.4, §5.5, §5.7) is labeled 🔧 CORRECTION and resolved once, here, rather than left for three separate PRs to each discover and fix differently. Following §5 in order and passing every "Validate" step, then completing §9's full runbook and §11's checklist, is what "the backend infrastructure of the project is complete, no Docker error, no Docker network error, all containers work properly" means in this document — nothing here is true until that runbook's output says so.
