@@ -55,6 +55,7 @@ graph TD
   M1_03[m1 03 auth org id claim - superseded stub]
   M1_05[m1 05 staff invite flow]
   M1_04[m1 04 cors retrofit, per-brand domain]
+  M1_06[m1 06 outbound ip strategy - deferred decision record]
 
   M2_00[m2 00 overview]
   M2_01[m2 01 progressive profiling fields]
@@ -76,6 +77,8 @@ graph TD
 
   M1_00 --> M1_01 --> M1_02 --> M1_05 --> M1_04
   M1_03 -.->|superseded stub, no code, not on critical path| M1_02
+  M1_04 -.->|domain-routing precedent cited by 06's interpretation B| M1_06
+  M2_05 -.->|real-sending-infra gap cited by 06's interpretation A| M1_06
 
   M1_02 -->|Brand model| PTF_01
   M1_02 -->|Brand model| PTF_02
@@ -91,6 +94,7 @@ graph TD
   M2_05 --> M2_06
   M2_02 --> M2_07
   M2_03 --> M2_07
+  M2_02 --> M2_10
   M2_08 -.->|conceptual only, no structural dependency| M2_09
   M2_06 -.->|leads feed 06's queue as input, no code dependency| M2_12
 ```
@@ -136,6 +140,24 @@ explicitly **not** wired into `06`'s (send task-queue) tables — a `SourcedCand
 in `06` depends on `12`. Both chunks also carry their own prominent, independent legal-risk
 sections (see "LinkedIn legal-risk chunks" below) — read both before implementing either.
 
+`M2_02 --> M2_10` is a new edge (added alongside chunk `M1_06`, below): `10-resume-tailoring.md`'s
+"Demand-intelligence context injection" section reads `M2_02`'s `get_top_countries_for_role()`,
+closing a dangling promise `02-country-demand-intelligence.md` had made (its own "future consumer"
+note named `10` without `10` ever actually depending on `02`). This mirrors the existing
+`M2_02 --> M2_07` edge exactly — same function, same read-only import, same flag-gated/additive
+contract — applied to the resume-tailoring prompt instead of the outreach-drafting prompt.
+
+`M1_06` (`machine-1-tenancy-core/06-outbound-ip-strategy-deferred.md`) is a new chunk: an explicit
+decision record, not implementation work, resolving the "multiple outbound IPs" ambiguity from
+the original task brief as an intentional deferral rather than a silent gap. Its two dashed
+incoming edges are citation-only, not code dependencies — it reads `M2_05`'s "no real
+outreach-sending infrastructure exists yet" ground truth (for its interpretation (A), dedicated
+sending IPs) and `M1_04`'s `Brand.custom_domain`/CORS-resolution design (for its interpretation
+(B), per-brand hosting isolation, which it concludes is already fully handled by `M1_04`'s
+existing design). `M1_06` produces no code and blocks nothing else in this doc set — it exists
+purely so a future reader finds a reasoned "defer, here's why, here's the trigger to revisit"
+record instead of silence.
+
 `PTF_03` (brand deactivation) has **no edge to `PTF_01`** (billing) — this is a deliberate
 absence, not an oversight. The prior "org offboarding" design depended on billing for
 Stripe-customer-redaction sequencing because deleting an *organization* cascaded through its
@@ -180,9 +202,13 @@ owned candidates), so there is no billing interaction to sequence against at all
    step — that gate existed only for the now-deleted `post-tenancy-retrofit/` wave.
 5. **Independent of every step above, at any time:** `machine-2-parallel-tracks/10` (resume
    tailoring) and `12` (LinkedIn sourcing) have no schema/migration dependency on any other chunk
-   in this doc set (`10` adds no migration at all; `12` depends only on the existing RBAC
-   `require_permission` mechanism, seeding its own permission row directly if `04` hasn't landed
-   yet). Both may be dispatched and merged whenever convenient.
+   in this doc set (`10` adds no migration at all — its own "Demand-intelligence context
+   injection" section only reads `M2_02`'s existing read function, no schema coupling; `12`
+   depends only on the existing RBAC `require_permission` mechanism, seeding its own permission
+   row directly if `04` hasn't landed yet). Both may be dispatched and merged whenever convenient.
+   `machine-1-tenancy-core/06-outbound-ip-strategy-deferred.md` is also independent of the `01 →
+   02 → 05 → 04` chain and of every other chunk's merge status — it is a documentation-only
+   decision record with no code and no schema, so it can be merged at any time and blocks nothing.
 
 ## LinkedIn legal-risk chunks
 
@@ -202,6 +228,7 @@ framing as decoration; it is the load-bearing legal-risk mitigation for both chu
 | Track | Developer | Reviewer | Tester | Notes |
 |---|---|---|---|---|
 | `machine-1-tenancy-core` (`01`, `02`, `05`, `04`) | 1 developer subagent, sequential dispatch (chunk N waits for chunk N-1's schema to exist; order is `01→02→05→04`) | 1 reviewer subagent per chunk, gates progression to next chunk | 1 tester subagent after chunk `04`, full CORS+invite-flow test pass | `03` is a superseded stub — no subagent dispatch of any kind; it is not implemented |
+| `machine-1-tenancy-core/06` | No developer subagent — this chunk is a decision record, not code; the file itself is the deliverable | 1 reviewer subagent confirms the file is linked from this README's dependency graph/gap-tracking section and that no other chunk contradicts its deferral decision | No tester subagent — nothing to test, see this chunk's own "Verification" (a documentation checklist) | Independent of the `01→02→05→04` chain; may be dispatched/merged whenever convenient (see "Merge order" §5) |
 | `machine-2-parallel-tracks/01, 02, 04, 08` | 1 developer subagent per track, dispatched in parallel | 1 reviewer subagent per track | 1 tester subagent per track | Independent CV/profiling, JobSpy-country, RBAC, and recruiter-assignment domains, zero file overlap |
 | `machine-2-parallel-tracks/03 → 05 → 06` | 1 developer subagent, sequential within this sub-chain (`06` imports the schema `03` defines and the compliance primitives `05` defines) | 1 reviewer subagent per chunk — `06`'s reviewer must also confirm the human-in-the-loop design boundary (no LinkedIn network call/browser automation anywhere in the diff) | 1 tester subagent after `06` | This sub-chain is internally sequential even though the whole `machine-2` track is parallel to `machine-1` |
 | `machine-2-parallel-tracks/07` | 1 developer subagent, dispatched after `02` and `03` (code-import dependency, not a schema one — see "Merge order" §1) | 1 reviewer subagent, byte-identical-when-disabled regression check is release-blocking | 1 tester subagent | Small, additive prompt-context chunk — no new table, no new migration |
@@ -273,3 +300,6 @@ is the traceability index for anyone auditing the doc set later.
 | 13 | RBAC system roles (`agency_owner`/`agency_recruiter`) implied per-tenant agency accounts | `machine-2-parallel-tracks/04-rbac-admin-platform.md` renamed to `team_owner`/`recruiter`, reflecting one internal team |
 | 14 | "Org offboarding and deletion" (`post-tenancy-features/03`) staged a full cascading-deletion pipeline that assumed organizations owned user data | Shrunk to `post-tenancy-features/03-org-offboarding-and-deletion.md`'s current scope: reversible brand deactivation only, no cascade, no grace period, no Stripe redaction |
 | 15 | Brand landing pages (`post-tenancy-features/02`) had no tier/segment variant | Extended with `/b/{slug}/{tier}` sub-pages, backed by `Brand.landing_page_tier_config` |
+| 16 | `03-outreach-strategy-dimension.md` deferred wiring `EmployerCompanyTier` into the LLM drafting prompt, leaving a manual, human-set field with no actual effect on drafting output | `machine-2-parallel-tracks/03-outreach-strategy-dimension.md`'s new "Company-tier-driven drafting variation" section — flag-gated (`enable_company_tier_in_outreach_drafting`, default `False`), byte-identical-when-disabled, human-review-before-broad-enable rollout |
+| 17 | `02-country-demand-intelligence.md` named `10-resume-tailoring.md` as a "future consumer" of country-demand data, but `10`'s own dependency list never actually included `02` — a dangling promise | `machine-2-parallel-tracks/10-resume-tailoring.md`'s new "Demand-intelligence context injection" section (mirrors `07`'s `_demand_context_line` contract under a new `enable_demand_intelligence_in_resume_tailoring` flag) + `07-demand-intelligence-resume-integration.md`'s new cross-reference note pointing to it |
+| 18 | The original task brief's "multiple different ips displaying account info or updates" phrase was ambiguous and had no documented resolution anywhere in this doc set | `machine-1-tenancy-core/06-outbound-ip-strategy-deferred.md` (new chunk) — an explicit decision record resolving both plausible interpretations (dedicated sending IPs; per-brand hosting isolation) as deferred, with concrete trigger conditions and citations, rather than a silent gap |
