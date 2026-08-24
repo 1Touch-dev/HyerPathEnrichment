@@ -245,3 +245,33 @@ gating pattern in `backend/app/integrations/multilogin/profile_pool.py` and else
   this assumption against JSearch's own documented supported-language list before hardcoding any
   mapping) is in scope for this chunk's fix, not deferred to a follow-up, since the missing
   parameter is a real, currently-shipped-with gap in the exact file this chunk already edits.
+
+## Frontend
+
+A simple admin/recruiter-facing page, following the existing `admin/{feature}/page.tsx`
+convention (verified against the real current tree — `frontend/app/app/admin/` today has
+`outreach/`, `roles/`, `documents/`, `portfolio/`, `job-postings/`, `users/`, `review-queue/`,
+`audit-logs/`, `analytics/`, `feature-flags/`, `queues/`, `system-health/` — all sibling
+`page.tsx` files under a shared `frontend/app/app/admin/layout.tsx`, the exact same convention
+`machine-2-parallel-tracks/06-linkedin-outreach-send.md` already cites for its own new
+`admin/linkedin-tasks/page.tsx`):
+
+- **New file:** `frontend/app/app/admin/demand-intelligence/page.tsx` — sits under the existing
+  shared `frontend/app/app/admin/layout.tsx`, not a parallel layout.
+- **New file:** `frontend/features/demand-intelligence/components/DemandIntelligencePanel.tsx` —
+  following the componentization pattern already established by
+  `frontend/features/admin/components/DocumentsModerationPanel.tsx` (a feature-scoped component
+  imported into a thin page file, rather than inlining the table/chart markup directly into
+  `page.tsx`).
+- Calls the existing `GET /api/demand-intelligence/top-countries` endpoint (this chunk's own
+  router, above) with a role-search input and renders the results as a table (country, posting
+  count, remote posting count, avg salary range) — a simple table is sufficient for this chunk's
+  minimum scope; a chart is an acceptable enhancement but not required.
+- New file: `frontend/features/demand-intelligence/hooks/useDemandIntelligence.ts` — a
+  `useQuery`-based hook following the exact pattern of
+  `frontend/features/outreach/hooks/useOutreach.ts`'s `useOutreachMessages` (React Query, a
+  query-key factory module, no manual `useEffect`/`fetch` boilerplate in the component itself).
+- Gating: this page's data has no candidate PII on it (aggregate country/role counts only), so it
+  does not need a new permission — reuse whatever gate already protects other admin pages in this
+  same directory (check `layout.tsx`'s existing auth/permission check and follow it, rather than
+  adding a bespoke check for this one page).

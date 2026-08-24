@@ -162,3 +162,43 @@ append), and append `referral_context` to `user_content` when `strategy == "warm
   exists).
 - Add a test asserting `request_draft()` 400s when `strategy="warm_referral"` and
   `referral_context` is empty/missing.
+
+## Frontend
+
+Searched the real `frontend/` tree for the existing outreach draft-request call site rather than
+guessing a path. The confirmed component is
+`frontend/features/outreach/components/DraftOutreachDialog.tsx` — a confirmation dialog shown
+between clicking "Draft outreach" (in `SwipeDeckView.tsx`, `job-swipe`'s trigger point) and
+enqueuing the draft-generation job. It currently renders a `messageType` `<Select>` (Email/
+LinkedIn message/Generic message/Custom) and a conditional `customInstruction` `<Textarea>` when
+`messageType === "custom"`, then calls `onConfirm({ messageType, customInstruction })`. The
+mutation itself is wired through `frontend/features/outreach/hooks/useOutreach.ts`'s
+`useDraftOutreachForMatch`/`useDraftOutreach`, which call `draftOutreach(payload)` from
+`frontend/src/lib/api-client.ts`.
+
+**Add a `strategy` field to this existing form — do not invent a new page.**
+
+- Edit `DraftOutreachDialog.tsx`: add a second `<Select>` (or a `<RadioGroup>` if that's the
+  existing convention for a 4-option choice elsewhere in this codebase — check
+  `frontend/components/ui/` before picking one over the other) for `strategy`
+  (`OutreachStrategy` — `direct_pitch`/`value_first`/`curiosity`/`warm_referral`), defaulting to
+  `"direct_pitch"` to match the backend schema's default. Add a conditional `referral_context`
+  `<Textarea>` shown when `strategy === "warm_referral"`, mirroring the existing
+  `messageType === "custom"` → `customInstruction` conditional-field pattern already in this same
+  file (same component, same conditional-rendering idiom, not a new pattern).
+- Update `DraftOutreachDialogProps.onConfirm`'s payload type to include
+  `strategy: OutreachStrategy` and `referralContext?: string`.
+- Edit `frontend/features/outreach/hooks/useOutreach.ts`: add `strategy?: OutreachStrategy` and
+  `referralContext?: string` to `useDraftOutreach`'s and `useDraftOutreachForMatch`'s
+  `mutationFn` payload types, threaded through to `draftOutreach(payload)` — `draftOutreach`
+  itself lives in `frontend/src/lib/api-client.ts`; add the two new fields to whatever request
+  body type it sends, following its existing field-naming convention (camelCase in the TS payload,
+  mapped to the backend's snake_case `strategy`/`referral_context` at the API-client boundary,
+  matching how `customInstruction`/`custom_instruction` is already mapped there today).
+- Edit `frontend/features/job-swipe/components/SwipeDeckView.tsx`'s `handleConfirmDraft`: thread
+  the new `strategy`/`referralContext` fields from the dialog's `onConfirm` payload through to
+  `draftOutreach.mutate(...)`'s call, mirroring exactly how `messageType`/`customInstruction` are
+  already threaded through in that same function today.
+- New type: add `OutreachStrategy` to `frontend/src/lib/types.ts` (mirroring the existing
+  `OutreachMessageType` literal union already there), rather than duplicating the literal inline
+  in each component file.

@@ -216,3 +216,37 @@ today).
   `python -m alembic upgrade head` then `python -m alembic downgrade -1` then `upgrade head`
   again, confirming the seed migration's downgrade correctly removes only the rows it added
   (not any pre-existing `Permission` rows it merely referenced).
+
+## Frontend
+
+**A read-only roles page already exists** — `frontend/app/app/admin/roles/page.tsx` (verified
+against the real current tree). It calls `fetchRoles()` (`frontend/features/admin/api/client.ts`)
+via `useQuery`, and renders each `Role` as a `Card` with its name, an "System" badge when
+`isSystem`, and its `permissions` as a flat list of `resource:action` badges — read-only display,
+no create/edit/attach controls of any kind. This chunk's frontend work is therefore **additive to
+this existing page, not a new page**: add create-role/attach-permission UI controls to it, per
+this chunk's own new backend endpoints (`POST /api/admin/roles`,
+`POST/DELETE /api/admin/roles/{role_id}/permissions[/{permission_id}]`).
+
+- Edit `frontend/app/app/admin/roles/page.tsx`: add a "Create role" button (top of the page,
+  alongside the `<h1>`) opening a dialog with `name`/`description` fields, following the exact
+  `Dialog`/`DialogContent`/`DialogFooter` composition pattern already used in
+  `frontend/features/outreach/components/DraftOutreachDialog.tsx` (this codebase's established
+  dialog-form idiom) rather than inventing a new modal pattern. On submit, call a new
+  `createRole(body)` function (added to `frontend/features/admin/api/client.ts`, next to the
+  existing `fetchRoles`) hitting `POST /api/admin/roles`, then invalidate `adminKeys.roles()` so
+  the list refetches (mirrors `useDraftOutreach`'s existing `onSuccess: () =>
+  queryClient.invalidateQueries(...)` pattern).
+- For each non-system role's `Card` (`role.isSystem` false — system roles' permissions cannot be
+  modified per this chunk's own `403` guard, so do not show attach/detach controls for
+  `is_system=True` roles at all, not even disabled ones — the backend already 403s the attempt,
+  but hiding the control entirely is a better UX than letting a user click into a guaranteed
+  error), add an "Attach permission" control (a `<Select>` of available permissions not already
+  attached, plus an "Add" button) and a small "×" remove affordance on each existing permission
+  badge, wired to new `attachPermission(roleId, permissionId)`/`detachPermission(roleId,
+  permissionId)` client functions calling this chunk's new endpoints.
+- New client functions live in the same `frontend/features/admin/api/client.ts` file as the
+  existing `fetchRoles`, following that file's existing fetch-wrapper conventions (check its
+  current error-handling/envelope-unwrapping pattern and match it, rather than introducing a
+  second HTTP-calling style in the same file).
+- No new route/page file — `frontend/app/app/admin/roles/page.tsx` itself is edited in place.

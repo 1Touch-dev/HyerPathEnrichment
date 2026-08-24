@@ -134,3 +134,29 @@ enum exists, add `"interests"`, `"learning_style"`, `"prep_timeline_weeks"` to i
   missing when unset.
 - If `cv_chat_service.py` was extended, add/extend its existing test module to cover the new
   post-required-fields branch.
+
+## Frontend
+
+**No new screen needed for the candidate side.** Progressive-profiling questions
+(`interests`/`learning_style`/`prep_timeline_weeks`) are asked conversationally through the same
+CV-chat flow this file's own "wiring" section already describes extending
+(`cv_chat_service.py`'s post-required-fields branch) — the candidate never sees a distinct "fill
+in these 3 extra fields" form, they answer them as part of the same chat session they already use
+for required fields. There is no candidate-facing frontend change in this chunk at all: the
+existing CV-chat UI component (whatever renders `CvChatSession`/`CvChatMessage` today) needs no
+new props, no new branch, no new field-type UI — it already renders whatever question text the
+backend sends next, and `PROGRESSIVE_FIELD_QUESTIONS`' strings are just more question text from
+the candidate's point of view.
+
+**Genuine gap found on the recruiter side (flagged, not built in this chunk):** searching the
+frontend for any existing view of a candidate's extracted CV data
+(`frontend/app/app/admin/documents/page.tsx` → `DocumentsModerationPanel.tsx`) shows that page is
+a moderation table (filename, document type, processing status, soft-delete/restore) — it has no
+column or drill-in view of `extracted_data`/`CVData` fields at all, progressive or required. There
+is no recruiter-facing view of a candidate's progressive-profile answers today, because there is
+no recruiter-facing view of *any* of a candidate's structured CV fields today. This predates
+progressive profiling and is a broader gap than this chunk's stated scope (adding three optional
+fields does not, by itself, justify building the first-ever recruiter CV-data viewer) — flag it as
+a follow-up in the PR description rather than building a new admin screen in this chunk. If a
+future chunk does build that viewer, it should render `PROGRESSIVE_FIELDS` alongside
+`REQUIRED_FIELDS` from the same `CVData` object, not as a separate progressive-only view.
