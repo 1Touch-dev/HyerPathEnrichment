@@ -33,7 +33,9 @@ Two chunks are parallel-safe only if **all** of the following hold:
 
 If you are not confident a pair of chunks meets all three, default to running them **sequentially, in one shared working copy**. This is the conservative default — a missed dependency is far more costly to untangle after the fact than a small amount of forgone parallelism.
 
-Do not target a fixed team size (e.g. "5 developers"). The number of chunks that can genuinely run in parallel is an output of Step 1's graph for this specific plan, not an input you decide in advance. Cap total concurrent subagents at 8.
+Do not target a fixed team size (e.g. "5 developers") in either direction — this cuts both ways. The number of chunks that can genuinely run in parallel is an output of Step 1's graph for this specific plan, not an input you decide in advance. Cap total concurrent subagents at 8.
+
+Once Step 1's graph and Step 3's worktree isolation have already established that N tracks are genuinely independent (no shared files, no shared state-changing action), dispatch all N at once. Do not then re-introduce a smaller, arbitrary number out of generic "coordination overhead" caution — worktree isolation is specifically what makes that caution unnecessary; a shared file or shared state-changing action is a concrete, nameable reason to hold a track back, "fewer moving parts feels safer" is not. If you genuinely cannot tell whether two tracks are independent, that is a Step 1/Step 2 gap to close (re-check the graph), not a reason to arbitrarily under-parallelize what you already proved was safe.
 
 ## Step 3 — Decide on isolation
 
@@ -75,3 +77,14 @@ Once all chunks for the plan (or the portion you were asked to execute) are comp
 2. Run the full validation the plan itself specifies (full test suite, migrations, lint/typecheck, build) — not just the narrow per-chunk checks used during Steps 4-6.
 3. Follow this repository's own git/branch/PR rules for opening a pull request (see `.cursor/rules/`). Do not merge it yourself unless a rule explicitly permits that.
 4. Report back what was built, what the final validation showed, and the PR link.
+
+## Operational hazards learned from prior runs
+
+These are concrete, previously-observed failure modes, not theoretical caution. Build every dispatch prompt to preempt them, and treat every subagent report as a claim to verify, not a fact to accept.
+
+- **Shell syntax is environment-specific — say so explicitly in every dispatch.** On a Windows/PowerShell repo, `&&` is not a valid statement separator and subagents will default to it out of habit; tell them explicitly to use `;` to chain commands, or separate Shell calls. Do not assume a subagent will infer the shell from context — state it.
+- **Tool-call parameter names must be verified, not guessed.** Subagents have burned retries calling the file-write tool with invented parameter names. Tell them explicitly which exact parameters a tool takes (e.g. "the file-write tool takes exactly `path` and `contents`, no other names") when the task involves creating new files.
+- **A subagent repeatedly hitting the same recoverable tool-call error (wrong shell syntax, wrong parameter names) is a leading indicator of an eventual hard failure ("exceeded max retries"), not harmless noise.** If you observe this pattern in a running subagent's transcript, interrupt it immediately with a specific correction (name the exact mistake and the exact fix) and have it resume from where it left off — don't wait for it to either self-correct or exhaust its retry budget.
+- **"Done" and "committed and pushed" are claims, not facts — verify independently every time.** Subagents have previously reported success (including passing tests) for work that was never actually committed, or that left a worktree cleaned up before the orchestrator could check it. After every subagent reports completion, independently run `git log`/`git diff --stat` against the actual branch (local and `origin/<branch>` after a `git fetch`) and confirm the specific files/commits it claims exist actually do, with real (non-placeholder) content — before treating the chunk as done or dispatching the next dependent one.
+- **Do not let a subagent delete/clean up its own worktree until you have verified its commits landed.** Instruct every developer subagent explicitly not to remove its worktree until told to, and to commit incrementally (e.g. after every 2-3 files) rather than only at the very end, so partial progress survives if the run is interrupted or fails partway.
+- **A branch with valuable commits that isn't currently checked out can become unreferenced and reflog-only if the checkout moves on and the branch ref is deleted (locally or on the remote).** If you or a subagent switch off a branch that has unpushed or newly-diverged work, push it (or otherwise durably reference it) before moving on — don't leave meaningful work reachable only via local reflog, which is recoverable but fragile and time-limited.
