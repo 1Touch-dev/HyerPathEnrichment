@@ -64,6 +64,9 @@ export function JdPracticeSessionView({ jobMatchId }: JdPracticeSessionViewProps
       <div className="flex flex-col items-center justify-center gap-3 rounded-lg border p-10">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Generating your practice questions...</p>
+        <p className="text-xs text-muted-foreground">
+          This can take up to a minute — we&apos;re tailoring questions to this job description.
+        </p>
       </div>
     );
   }
@@ -72,12 +75,21 @@ export function JdPracticeSessionView({ jobMatchId }: JdPracticeSessionViewProps
     const error = questionsMutation.error;
     const isRateLimit = error instanceof ApiError && error.code === "RATE_LIMIT_EXCEEDED";
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          {isRateLimit ? RATE_LIMIT_MESSAGE : GENERIC_ERROR_MESSAGE}
-        </AlertDescription>
-      </Alert>
+      <div className="flex flex-col gap-3">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {isRateLimit ? RATE_LIMIT_MESSAGE : GENERIC_ERROR_MESSAGE}
+          </AlertDescription>
+        </Alert>
+        <Button
+          variant="outline"
+          className="self-start"
+          onClick={() => questionsMutation.mutate({ jobMatchId })}
+        >
+          Try again
+        </Button>
+      </div>
     );
   }
 

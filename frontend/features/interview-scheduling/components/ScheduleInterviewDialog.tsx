@@ -128,7 +128,10 @@ export function ScheduleInterviewDialog({
 
             {(formError || scheduleInterview.isError) && (
               <p className="text-sm text-destructive">
-                {formError ?? "Couldn't schedule the interview. Please try again."}
+                {formError ??
+                  (scheduleInterview.error instanceof Error
+                    ? scheduleInterview.error.message
+                    : "Couldn't schedule the interview. Please try again.")}
               </p>
             )}
           </div>

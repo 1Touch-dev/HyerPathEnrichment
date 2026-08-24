@@ -16,7 +16,12 @@ from app.clients.retry import with_transient_retry
 from app.core.config import get_settings
 from app.domain.candidate import CVData
 from app.domain.cv_completeness import compute_missing_fields, question_for_field
-from app.modules.documents.models import CandidateDocument, CvChatMessage, CvChatSession
+from app.modules.documents.models import (
+    DOCUMENT_READY_STATUSES,
+    CandidateDocument,
+    CvChatMessage,
+    CvChatSession,
+)
 from app.modules.documents.schemas import (
     CvChatMessageResponse,
     CvChatSessionResponse,
@@ -47,7 +52,7 @@ class CvChatService:
         document = result.scalar_one_or_none()
         if not document:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-        if document.processing_status != "completed":
+        if document.processing_status not in DOCUMENT_READY_STATUSES:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Document is still processing; chat is unavailable until extraction completes",

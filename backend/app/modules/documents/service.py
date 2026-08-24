@@ -16,6 +16,7 @@ from app.clients.embeddings import get_embeddings_client
 from app.domain.candidate import CVData
 from app.domain.cv_completeness import completeness_score, compute_missing_fields
 from app.modules.documents.models import (
+    DOCUMENT_READY_STATUSES,
     CandidateDocument,
     CvChatSession,
     CvFeedbackReport,
@@ -607,7 +608,7 @@ class DocumentService:
     ) -> DocumentUploadResponse:
         """Enqueue CV improvement generation (Decision 3). Reuses QUEUE_FEEDBACK — no new queue."""
         document = await self._get_owned_document(document_id, user_id)
-        if document.processing_status != "completed":
+        if document.processing_status not in DOCUMENT_READY_STATUSES:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Document must finish processing before requesting feedback",

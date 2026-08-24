@@ -20,6 +20,12 @@ except ImportError:
     PGVECTOR_AVAILABLE = False
 
 
+DOCUMENT_READY_STATUSES: tuple[str, ...] = ("completed", "embedded")
+"""processing_status values where a CandidateDocument is fully usable by
+downstream features (extraction done; embedding may or may not have run
+yet, but both states mean the extracted structured data is ready)."""
+
+
 class CandidateDocument(Base):
     """Candidate document (CV, cover letter) with processing metadata."""
 

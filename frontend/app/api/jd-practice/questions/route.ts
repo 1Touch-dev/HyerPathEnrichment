@@ -26,16 +26,22 @@ export async function POST(request: NextRequest) {
 
   let backendResponse: Response;
   try {
-    backendResponse = await backendFetch("/api/jd-practice/questions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        job_match_id: body.jobMatchId,
-        category: body.category ?? undefined,
-        difficulty: body.difficulty ?? undefined,
-        count: body.count ?? undefined,
-      }),
-    });
+    backendResponse = await backendFetch(
+      "/api/jd-practice/questions",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          job_match_id: body.jobMatchId,
+          category: body.category ?? undefined,
+          difficulty: body.difficulty ?? undefined,
+          count: body.count ?? undefined,
+        }),
+      },
+      // LLM-backed question generation can take up to ~a minute; the global
+      // 30s default is too tight for this route specifically.
+      60_000,
+    );
   } catch {
     return bffServiceUnavailable();
   }
