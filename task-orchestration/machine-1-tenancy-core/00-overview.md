@@ -20,11 +20,18 @@ org" design work.
 | 1 | `01-adr-0015-tenancy-model.md` | nothing | ADR document (decision + tradeoffs, no code) |
 | 2 | `02-schema-and-migration.md` | ADR decision | `Organization` model, Alembic migration, `users.org_id` column |
 | 3 | `03-auth-org-id-claim.md` | `02`'s `users.org_id` column existing | `org_id` in JWT payload, `OrgScopedUser` dependency, org bootstrap on signup |
-| 4 | `04-cors-and-ratelimit-retrofit.md` | `02`'s `Organization` table (for custom-domain lookup) and `03`'s `org_id` claim (for rate-limit dimension) | Per-org CORS allow-list, `org_id`-dimensioned rate-limit scopes |
+| 4 | `05-org-invite-flow.md` | `02`'s `Organization` model, `03`'s `org_id` claim/`OrgScopedUser` | `OrganizationInvite` model, invite-creation/acceptance endpoints, seat enforcement |
+| 5 | `04-cors-and-ratelimit-retrofit.md` | `02`'s `Organization` table (for custom-domain lookup) and `03`'s `org_id` claim (for rate-limit dimension) | Per-org CORS allow-list, `org_id`-dimensioned rate-limit scopes, org-wide rate ceiling |
 
 Each chunk's file is written so a developer with zero context on the others could implement it,
 given the previous chunk has already landed. Chunk `01` produces no code, only the ADR file
 itself — it is chunk `02`'s job to actually create the `Organization` table the ADR describes.
+
+Note the file is named `05-org-invite-flow.md` (not `04-...`) even though it is implemented
+*fourth* in sequence, ahead of `04-cors-and-ratelimit-retrofit.md` — the filename numbering
+reflects the order these chunks were originally specified in this planning doc set, not their
+final implementation order. See the root `README.md`'s "Merge order" section for the authoritative
+sequence (`01 → 02 → 03 → 05 → 04`) and why `05` was inserted before `04` rather than after it.
 
 ## Naming note (confirmed against current repo, 2026-08-22)
 
@@ -36,7 +43,7 @@ the implementer to create the real ADR file as **`docs/adr/0018-tenancy-model.md
 number) and to re-check `docs/adr/README.md`'s index immediately before implementing, in case
 another ADR has landed in the meantime. See that chunk's "Naming" note for detail.
 
-## Do not touch (applies to all four chunks in this track)
+## Do not touch (applies to all five chunks in this track)
 
 - `backend/app/modules/job_matching/`, `backend/app/modules/outreach/`,
   `backend/app/modules/documents/`, `backend/app/modules/portfolio/`,
