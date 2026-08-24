@@ -27,12 +27,17 @@ compliance) and `06` (LinkedIn send) — both reuse the `OutreachMessage.strateg
 - `backend/app/modules/outreach/service.py`
 - `backend/app/modules/outreach/repository.py` (new functions for company-tier lookup/upsert —
   check whether this file exists today; if outreach has no `repository.py` and DB access lives
-  directly in `service.py`, add the new functions there instead and skip this file)
+  directly in `service.py`, add the new functions there instead and skip this file. **Ground
+  truth, verified 2026-08-24: this file does exist today**, with `get_owned_message`/
+  `list_messages_for_user`/`mark_sent` already in it — see the "Company-tier-driven drafting
+  variation" section below for the new `get_company_tier` function this chunk adds to it.)
 - `backend/app/modules/outreach/router.py` (new manual company-tier-setting endpoint — verify
   exact router filename/module; `outreach`'s router may be named differently, e.g. the existing
   draft/send endpoints could live in `service.py`'s own router or a dedicated `router.py`, check
   before assuming)
 - `backend/app/workers/tasks/outreach.py`
+- `backend/app/core/config.py` (new `enable_company_tier_in_outreach_drafting` flag — see
+  "Company-tier-driven drafting variation" below)
 - `backend/alembic/versions/047_outreach_strategy_dimension.py` (new file — see migration-number
   note below)
 
@@ -227,13 +232,9 @@ row — `company_name`'s `unique=True` constraint on `EmployerCompanyTier` enfor
 level too). No permission beyond the existing gate protecting other outreach endpoints in this
 same router is required — this is not more sensitive than the drafting endpoints it sits beside.
 
-`request_draft()` itself does **not** need to look up the company tier to function — the tier is
-informational context surfaced to the recruiter (see Frontend below) and is *not* threaded into
-the LLM drafting prompt in this chunk (no `_COMPANY_TIER_INSTRUCTIONS`-style dict) — unlike
-`strategy` and the role-type dimension below, a "premium" vs. "outsourcing" employer classification
-does not have an established, well-defined effect on drafting *tone* the way strategy/role-type
-do; wiring it into the prompt is left as a follow-up if a recruiter-driven need for that emerges,
-not built speculatively in this chunk.
+`request_draft()` looks up the company tier and threads it into the LLM drafting prompt — see
+"Company-tier-driven drafting variation" below for the concrete wiring (this supersedes an earlier
+draft of this chunk that deferred this wiring as a follow-up; it is now in scope).
 
 ## `backend/app/workers/tasks/outreach.py`
 
@@ -317,6 +318,98 @@ Add matching columns to `OutreachMessage` (same migration as `strategy`/`referra
 `op.drop_column` calls to `downgrade()`, alongside the `strategy`/`referral_context` columns
 already specified there.)
 
+### Company-tier-driven drafting variation (wiring `EmployerCompanyTier` into the LLM prompt)
+
+**Precedent for tiered outbound treatment.** Tier-driving-messaging is well-established outbound
+practice, not a novel idea this chunk is inventing from nothing: HubSpot ships this natively as
+an "ICP Tier" contact/company property that drives different playbooks per tier
+(https://knowledge.hubspot.com/branding/get-started-with-account-based-marketing-in-hubspot), and
+Salesforce Trailhead's own prospecting curriculum teaches the identical three-tier
+(Tier 1/2/3) account-segmentation model for exactly this purpose
+(https://trailhead.salesforce.com/content/learn/modules/prospecting-contact-strategy/plan-approach).
+Outreach.io's own blog goes further and documents a "persona matrix" that maps distinct outbound
+sequences to distinct segments, and is explicit that this tiering/persona assignment is **manually
+set, not auto-scored**
+(https://www.outreach.io/resources/blog/timeless-tips-for-sales-sequences) — a direct precedent
+for this repo's own `EmployerCompanyTier` being a manual, recruiter-set field rather than an
+enrichment/scraping output (see "Company tier (manual, target-employer-level)" above).
+
+**Concrete wiring.** Add a third instruction dict in `backend/app/workers/tasks/outreach.py`,
+sibling to `_STRATEGY_INSTRUCTIONS` and `_ROLE_TYPE_INSTRUCTIONS` above:
+
+```python
+_COMPANY_TIER_INSTRUCTIONS = {
+    "premium": "This is a well-known, high-profile employer the candidate is likely already "
+    "familiar with. Skip generic company introductions or explaining what the company does — "
+    "assume the reader already knows their own employer's reputation. Lead with a sharp, specific "
+    "value proposition and keep the tone confident and concise; avoid sounding star-struck or "
+    "overly deferential toward a 'prestigious' employer.",
+    "outsourcing": "This is a staffing/outsourcing employer, where the hiring contact may field "
+    "many generic, low-effort candidate messages. Make genuine interest explicit and warm rather "
+    "than assumed — name a specific reason this particular role/company is a fit, rather than a "
+    "tone that could be mistaken for a mass-sent template.",
+}
+```
+
+Add `get_company_tier(db: AsyncSession, company_name: str) -> EmployerCompanyTier | None` to
+`backend/app/modules/outreach/repository.py` (this file already exists today — confirmed
+2026-08-24, alongside `get_owned_message`/`list_messages_for_user`/`mark_sent` — so this is a new
+function in an existing file, not a new module):
+
+```python
+async def get_company_tier(db: AsyncSession, company_name: str) -> EmployerCompanyTier | None:
+    result = await db.execute(
+        select(EmployerCompanyTier).where(EmployerCompanyTier.company_name == company_name)
+    )
+    return result.scalar_one_or_none()
+```
+
+In `_generate_outreach_draft_job` (`backend/app/workers/tasks/outreach.py`), look up the tier
+alongside the existing Perplexity company-context lookup (same call site that already awaits
+`perplexity.get_company_context(company_name, role_title)`) and thread the resulting `tier: str |
+None` into `_draft_with_llm` as a new parameter, exactly the same way `strategy`/`role_type`/
+`seniority` are already threaded through per the sections above. In `_draft_with_llm`, append
+`_COMPANY_TIER_INSTRUCTIONS.get(tier)` to `user_content` (`None`/unset tier appends nothing —
+`.get(tier)` returns `None` for a company with no `EmployerCompanyTier` row, and the existing
+`if demand_line:`-style guard pattern already used elsewhere in this file applies here too: only
+append when the lookup returns a non-`None` fragment).
+
+**Append order is strategy → role-type → company-tier → custom_instruction/referral_context.**
+This keeps this chunk's existing convention that a candidate's own free-text instruction has the
+"last word" positionally in the prompt (see the ordering note already given for
+`_ROLE_TYPE_INSTRUCTIONS` above) — company-tier is contextual/dimensional, same category as
+strategy and role-type, so it slots in with them, before the candidate-specific free-text append.
+
+**Flag-gated, not always-on.** Unlike `strategy`/`role_type`/`seniority` (which ship unconditional
+in this chunk, since a recruiter must explicitly opt into each of them per-draft), wiring
+`EmployerCompanyTier` into the prompt is gated behind a new config flag, added to
+`backend/app/core/config.py` following the exact bool-flag convention already used by
+`enable_tier1`/`outreach_enabled`:
+
+```python
+# Company-tier-driven outreach drafting (machine-2/03): append a tier-specific
+# tone instruction (see _COMPANY_TIER_INSTRUCTIONS) to the drafting prompt when
+# the target employer has a manually-set EmployerCompanyTier row. Default False:
+# unlike strategy/role_type/seniority (recruiter-opted-in per draft, shipped
+# unconditionally), this is an always-on-once-enabled behavior change for every
+# draft to a tiered employer, and the tier->prompt-fragment mechanism itself has
+# no published precedent (see this file's "Ambiguities resolved" section) — ship
+# it off, human-review a small batch of real drafts, then enable broadly.
+enable_company_tier_in_outreach_drafting: bool = Field(
+    default=False, alias="ENABLE_COMPANY_TIER_IN_OUTREACH_DRAFTING"
+)
+```
+
+so this specific mechanism can be reviewed against a small batch of real drafts before enabling it
+broadly — see "Ambiguities resolved" below for why.
+
+**Regression safety.** When no `EmployerCompanyTier` row exists for a given `company_name` (the
+default state for every employer today, since this table is new), `get_company_tier` returns
+`None`, `_COMPANY_TIER_INSTRUCTIONS.get(None)` returns `None`, and nothing is appended to
+`user_content` — behavior for every existing caller/test must be byte-identical to pre-this-
+section behavior. This is an explicit release-blocking verification item below, not just an
+implied property.
+
 ## Do not touch
 
 - `backend/app/clients/perplexity.py` — company research is unaffected by strategy; do not
@@ -329,10 +422,39 @@ already specified there.)
   with; strategy is not editable post-draft in this chunk (a candidate/recruiter who wants a
   different strategy re-drafts, they don't mutate strategy on an existing draft — this mirrors
   how `message_type` itself is also not editable via `OutreachEditRequest` today).
-- Do not wire `EmployerCompanyTier` into the LLM drafting prompt in this chunk — see the
-  "Company-tier endpoint" section's explicit scope-cut rationale above.
 - Do not build a role-title-to-`role_type`/`seniority` classifier — both fields are
   recruiter-supplied only in this chunk (see "Role-type-driven strategy variation" above).
+- Do not build any automated reply-tracking/tone-drift-detection system for the company-tier
+  wiring — see "Ambiguities resolved" below for why a human-review process substitutes for that
+  here.
+
+## Ambiguities resolved
+
+- **Is "tier → different messaging tone" itself a proven pattern, or is this chunk inventing
+  it?** The *general* practice of tiering driving different outbound content/tone is
+  well-documented industry precedent (HubSpot's ICP Tier property, Salesforce's three-tier
+  prospecting curriculum, Outreach.io's persona-matrix blog post, all cited above). **The
+  specific mechanism this chunk uses — a tier value selecting a fragment appended directly into
+  an LLM system/user prompt — has no published precedent anywhere in the sources above.** None of
+  HubSpot, Salesforce, or Outreach.io describe LLM-prompt-fragment selection by tier; they
+  describe tier selecting a *sequence*/*playbook*/*persona template*, a materially different
+  (non-generative, deterministic) mechanism. This chunk's LLM-prompt-fragment approach is this
+  repo's own reasonable extension of a proven idea into an LLM-drafting context, not itself a
+  proven pattern — hence the flag-gate (`enable_company_tier_in_outreach_drafting`, default
+  `False`) and the explicit requirement below to human-review a small batch of real drafts before
+  enabling it broadly, rather than shipping it always-on the way `strategy`/`role_type` are.
+- **What is the safety net for tone drift once enabled?** This repo has no automated
+  reply-tracking or A/B-testing infrastructure for outreach today (no open/reply-rate metrics
+  exist anywhere in `backend/app/modules/outreach/`), so an automated "did this tier fragment
+  help or hurt" signal is not available. Outreach.io's own documented practice — clone a sequence
+  step, split-test a variant, have a human review results before scaling the change — is the
+  precedent this chunk borrows as its **recommended safety net**: before flipping
+  `enable_company_tier_in_outreach_drafting` on for all recruiters, a human (the implementing
+  team or a recruiter lead) should read through a small batch (e.g. 10-20) of real drafts
+  generated with the flag on for both `"premium"` and `"outsourcing"` tiers, confirm the tone
+  reads as intended and not as a strange/off-putting insertion, and only then enable it broadly.
+  This is a process recommendation for the rollout, not new code — there is no ticket to build an
+  A/B-testing harness in this chunk.
 
 ## Verification
 
@@ -352,6 +474,20 @@ already specified there.)
   existing employer's tier updates it in place rather than creating a duplicate (exercises the
   `company_name` unique constraint's upsert semantics); getting an unset employer's tier returns
   `None`/404 (whichever the response-model annotation above implies — pick one and be consistent).
+- **Regression test (required, byte-identical check):** with `enable_company_tier_in_outreach_
+  drafting` off (the default) and/or no `EmployerCompanyTier` row for the target `company_name`
+  (the default state for every employer today), assert the constructed `user_content` is
+  byte-identical to what it would have been before the "Company-tier-driven drafting variation"
+  section's changes — this chunk's tier-wiring must be a strict no-op for every existing
+  caller/test, exactly the same regression bar `07-demand-intelligence-resume-integration.md`
+  holds itself to for its own flag.
+- Add a test per tier value (`"premium"`, `"outsourcing"`) asserting the correct
+  `_COMPANY_TIER_INSTRUCTIONS` fragment appears in `user_content` when the flag is on and a
+  matching `EmployerCompanyTier` row exists.
+- Add a test asserting `get_company_tier` performs no query difference based on the flag itself
+  (the flag gates whether the *result* is used in the prompt, not whether the lookup runs) —
+  document this explicitly if the implementer's judgment instead gates the lookup itself behind
+  the flag too (either is defensible; be consistent and explicit about which was chosen).
 
 ## Frontend
 
