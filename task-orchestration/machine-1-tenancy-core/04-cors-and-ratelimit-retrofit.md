@@ -1,15 +1,18 @@
-# Machine 1, Chunk 4 — CORS and Rate-Limit Retrofit
+# Machine 1, Chunk 4 — CORS Retrofit (Per-Brand Domain)
 
 ## Depends on
 
-Chunk `02`'s `Organization.custom_origin` column and chunk `03`'s `org_id` JWT claim /
-`request.state.org_id`.
+Chunk `02`'s `Brand.custom_domain` column. No dependency on any JWT claim — chunk `03` is
+superseded (see that file's stub), so there is no `org_id`/`brand_id` claim or
+`request.state.org_id` to depend on here.
 
 ## Files to edit
 
 - `backend/app/main.py`
-- `backend/app/dependencies/rate_limit.py`
 - `backend/app/core/config.py`
+
+`backend/app/dependencies/rate_limit.py` is **not edited by this chunk** — see "Rate limiting:
+no changes" below for why the original org-wide-ceiling scope of this file no longer applies.
 
 ## Ground truth: current state (verified 2026-08-22, corrects the original research note)
 
@@ -45,37 +48,39 @@ def cors_allowed_origins(self) -> list[str]:
 
 **Before implementing, re-read the current `backend/app/main.py` and `config.py` to confirm this
 still matches** — this chunk assumes the above shape. What is *still* missing, and what this
-chunk actually adds, is: (a) no per-tenant/per-org origin concept — `CORS_ALLOWED_ORIGINS` is one
-global static list, not looked up per-org from the `organizations.custom_origin` column added in
-chunk `02`; (b) no `org_id` dimension in any rate-limit scope key.
+chunk actually adds, is: no per-brand custom-domain concept — `CORS_ALLOWED_ORIGINS` is one
+global static list, not looked up per-brand from the `brands.custom_domain` column added in
+chunk `02`. This retrofit remains genuinely useful — multiple real brand domains exist for this
+product — even though the original "org-wide rate-limit ceiling" half of this chunk's original
+scope has been removed (see below).
 
-## CORS retrofit — dynamic per-org origin
+## CORS retrofit — dynamic per-brand domain
 
 `CORSMiddleware` is configured once at app startup with a static `allow_origins` list — it
 cannot look up a database value per-request out of the box. Two supported approaches; use
 approach (a) unless the reviewer/implementer has a strong reason to prefer (b):
 
-**(a) Static allow-list stays the source of truth; org custom origins are added to it at startup
-via a periodic/one-time sync, not a live per-request DB lookup.** Add a helper function in
-`backend/app/main.py` (or a new small module `backend/app/core/cors.py` if `main.py` is getting
-crowded — check current file length/conventions before deciding):
+**(a) Static allow-list stays the source of truth; brand custom domains are added to it at
+startup via a periodic/one-time sync, not a live per-request DB lookup.** Add a helper function
+in `backend/app/main.py` (or a new small module `backend/app/core/cors.py` if `main.py` is
+getting crowded — check current file length/conventions before deciding):
 
 ```python
 async def _resolve_cors_origins(settings: Settings) -> list[str]:
-    """Static CORS_ALLOWED_ORIGINS plus every active org's custom_origin, deduplicated.
-
-    Called once at startup (see app/core/lifespan.py), not per-request — CORSMiddleware
-    does not support per-request origin resolution, and a live DB query per preflight
-    would add latency to every OPTIONS request. Orgs that add a custom_origin after
-    this app process started need a restart (or a future admin-triggered reload) to
-    take effect — this tradeoff is acceptable because custom-domain changes are rare,
-    admin-initiated events, not something end users trigger.
-    """
+    """Static CORS_ALLOWED_ORIGINS plus every active brand's custom_domain,
+    deduplicated. Called once at startup (see app/core/lifespan.py), not
+    per-request — CORSMiddleware does not support per-request origin resolution,
+    and a live DB query per preflight would add latency to every OPTIONS request.
+    Brands that add a custom_domain after this app process started need a restart
+    (or a future admin-triggered reload) to take effect — this tradeoff is
+    acceptable because custom-domain changes are rare, admin-initiated events, not
+    something end users trigger. This is a pure presentation/routing concern — it
+    has no bearing on data access (docs/adr/0018-tenancy-model.md)."""
     origins = set(settings.cors_allowed_origins)
     async with get_db_session_context() as db:  # match the existing session-context helper used in app/core/lifespan.py
         result = await db.execute(
-            select(Organization.custom_origin).where(
-                Organization.custom_origin.is_not(None), Organization.is_active.is_(True)
+            select(Brand.custom_domain).where(
+                Brand.custom_domain.is_not(None), Brand.is_active.is_(True)
             )
         )
         origins.update(row[0] for row in result.all() if row[0])
@@ -98,148 +103,71 @@ Whichever approach is used, add a config flag following the exact existing bool-
 (`backend/app/core/config.py`, see `enable_tier1`, `outreach_enabled`):
 
 ```python
-# Tenancy (docs/adr/0018-tenancy-model.md): include active orgs' custom_origin values
-# in the CORS allow-list at startup, in addition to CORS_ALLOWED_ORIGINS/FRONTEND_URL.
-# Default False so existing single-tenant deployments are unaffected until opted in.
-enable_org_cors_origins: bool = Field(default=False, alias="ENABLE_ORG_CORS_ORIGINS")
+# Brand (docs/adr/0018-tenancy-model.md): include active brands' custom_domain
+# values in the CORS allow-list at startup, in addition to
+# CORS_ALLOWED_ORIGINS/FRONTEND_URL. Default False so existing deployments are
+# unaffected until opted in. Purely a routing/presentation concern — Brand never
+# gates data access, so this flag has no security implication beyond "which
+# origins may make credentialed requests," identical in kind to the existing
+# CORS_ALLOWED_ORIGINS behavior it extends.
+enable_brand_cors_origins: bool = Field(default=False, alias="ENABLE_BRAND_CORS_ORIGINS")
 ```
 
-## Rate-limit retrofit — `org_id` dimension
+## Rate limiting: no changes (scope removed)
 
-Current scopes in `backend/app/dependencies/rate_limit.py` are keyed by `_client_id()` (sha256 of
-the bearer token) or `_host_client_id()` (sha256 of the IP) — **no tenant dimension exists in any
-scope key today.** This is still true as of 2026-08-22 (re-verify at implementation time).
+The original version of this chunk also retrofitted `backend/app/dependencies/rate_limit.py` with
+an `org_id` dimension on every scope key, plus a second, org-wide ceiling bucket keyed off
+`OrganizationSubscription.plan_tier` seats. **Both are removed from this chunk's scope, not
+reworked into a brand-flavored equivalent:**
 
-Add a new helper, next to `_client_id`/`_host_client_id` (after line 23):
+- The per-caller `org_id` dimension depended on chunk `03`'s JWT `org_id` claim, which no longer
+  exists (see `03-auth-org-id-claim.md`'s stub) — there is no tenant identity on a request for a
+  rate-limit key to dimension by, and none is needed, since rate limiting's purpose (protect the
+  API from any single abusive caller/IP) is unrelated to which brand storefront a candidate
+  signed up through.
+- The org-wide ceiling existed to cap a whole *agency's* aggregate traffic, proportional to its
+  paid seat count — a concept that only made sense under the isolated-tenant/seat-billing model
+  this doc set has moved away from. Billing is now candidate-level
+  (`post-tenancy-features/01-billing-stripe-integration.md`'s `UserSubscription`), not
+  seat-based, so there is no seat count to derive a ceiling from, and no "agency" whose aggregate
+  traffic needs a shared ceiling in the first place — every recruiter is staff on the same one
+  shared pool, not a tenant's employee.
 
-```python
-def _org_scoped_id(authorization: str | None, org_id: UUID | None) -> str:
-    """Per-org, per-caller id — an abusive recruiter at Org A doesn't consume Org B's
-    budget, and an org with many recruiters gets one shared per-org ceiling in
-    addition to each recruiter's own per-caller ceiling."""
-    client = _client_id(authorization)
-    return f"{org_id or 'noorg'}:{client}"
-```
-
-This changes existing scope key **format**, not scope **names** — e.g.
-`enforce_sync_rate_limit`'s key goes from `f"sync:{_client_id(authorization)}"` to
-`f"sync:{_org_scoped_id(authorization, org_id)}"`. Retrofit only the scopes that are
-tenant-relevant: `sync`, `async`, `documents`, `job_matching`, `outreach_send`,
-`job_matching_apply`, and the `admin_*` scopes (all currently keyed by `_client_id`). Do **not**
-retrofit `compliance` or `auth` (currently keyed by `_host_client_id`, i.e. per-IP,
-unauthenticated-caller scopes — these have no user/org context to key on, and retrofitting them
-is out of scope for this chunk). Read `org_id` the same way `require_org_member` does — inject it
-via a new small dependency:
-
-```python
-async def _current_org_id(
-    authorization: str | None = Header(default=None),
-    request: Request = None,
-) -> UUID | None:
-    return getattr(request.state, "org_id", None)
-```
-
-(Exact wiring depends on whether `request.state.org_id` — set in chunk `03` — is reliably
-populated before rate-limit dependencies run in FastAPI's dependency-resolution order; if
-ordering is a problem, decode the `org_id` claim directly inside the rate-limit dependency instead
-of relying on `request.state`, following the same `jwt.decode(...)` call already used in
-`get_current_user_from_cookie` — check whichever approach is more consistent with how
-`_client_id` already re-parses the raw `Authorization` header rather than relying on another
-dependency's side effect.)
-
-Update every retrofitted `enforce_*` function's signature to accept `org_id` via this dependency
-and pass it into `_org_scoped_id`.
-
-## Org-wide ceiling (closes the follow-up flagged above)
-
-Per-caller keys (`_org_scoped_id`) prevent one recruiter from starving another, but they do
-**not** cap an org's *total* traffic — ten recruiters at the same org, each individually under
-their own per-caller limit, could still collectively hammer the API far past what a single-org
-plan is meant to allow. This section specs the follow-up flagged in the "Ambiguities resolved"
-entry below (now resolved, not deferred): a **second**, additional Redis key checked *in addition
-to*, not instead of, the existing per-caller `_org_scoped_id` key.
-
-Add a second helper, next to `_org_scoped_id`:
-
-```python
-def _org_ceiling_id(org_id: UUID | None) -> str:
-    """Org-wide ceiling key — one bucket per org, shared across every recruiter at
-    that org, checked alongside (not instead of) _org_scoped_id's per-caller bucket.
-    org_id=None (direct candidates, no org) never hits this ceiling at all — there
-    is no "org" to cap traffic for; only _org_scoped_id's per-caller limit applies
-    to them, unchanged from the base retrofit above."""
-    return f"org_ceiling:{org_id}"
-```
-
-Each retrofitted `enforce_*` function performs **two** checks when `org_id is not None`: the
-existing per-caller check against `f"{scope}:{_org_scoped_id(authorization, org_id)}"`, and a new
-check against `f"{scope}:{_org_ceiling_id(org_id)}"` — both must pass; either one tripping is a
-429. This mirrors the existing multi-scope pattern already used elsewhere in this file for
-compound limits (check `check_rate_limit()`'s call signature for whether it already supports
-checking more than one key per call, or whether this requires two sequential
-`check_rate_limit()` calls per `enforce_*` function — follow whichever shape that function's
-current signature actually supports rather than assuming).
-
-The org-wide ceiling's numeric limit is read from `OrganizationSubscription.plan_tier`
-(`post-tenancy-features/01-billing-stripe-integration.md`'s model — `"free"|"starter"|"growth"|
-"enterprise"`), mapped to a requests-per-minute ceiling via a small lookup (implementer's choice
-of exact per-tier numbers, but document them in the PR description; a reasonable starting point
-is free=60, starter=300, growth=1000, enterprise=5000 req/min, adjustable later without a code
-change if moved into config). **This creates a soft dependency on the billing chunk**, which is
-dispatched much later than `machine-1` per the root README's merge order (`post-tenancy-features`
-only starts after the `post-tenancy-retrofit` hard gate). Resolve this the same way
-`machine-1-tenancy-core/05-org-invite-flow.md` resolves its own soft dependency on billing: if
-`OrganizationSubscription` doesn't exist yet (table not present, or no row for this org), default
-every org to a flat fallback ceiling via a new config value, following the exact same settings-
-field convention already used elsewhere in this file for `enable_org_cors_origins`:
-
-```python
-# Tenancy (docs/adr/0018-tenancy-model.md): org-wide rate-limit ceiling (req/min)
-# used when OrganizationSubscription (post-tenancy-features/01-billing-stripe-
-# integration.md) doesn't exist yet for an org, or billing is disabled. Applies
-# per-org, shared across every recruiter at that org (see _org_ceiling_id).
-default_org_rate_limit_per_minute: int = Field(
-    default=300, alias="DEFAULT_ORG_RATE_LIMIT_PER_MINUTE"
-)
-```
+Rate limiting therefore stays exactly as it is today: scopes keyed by `_client_id()` (sha256 of
+the bearer token) or `_host_client_id()` (sha256 of the IP), with no brand/org dimension of any
+kind. If a future need emerges for a *staff-wide* traffic ceiling (e.g. capping total recruiter
+API usage regardless of brand), that is a new, separate chunk to write when that need is
+concrete — not something this chunk should speculatively half-build.
 
 ## Ambiguities resolved
 
-- **Should the org-level rate limit be a *separate*, additional ceiling (one per org, on top of
-  each recruiter's existing per-user ceiling) rather than just changing the key format?** Yes —
-  resolved above, not deferred. The key-format change alone (folding `org_id` into the existing
-  key) already prevents one org's total traffic from being invisible to any per-tenant
-  accounting (keys are grouped by org prefix in Redis, useful for future per-org dashboards), but
-  it does not, by itself, cap total org traffic — that gap is what the "Org-wide ceiling" section
-  above closes with a second, additive Redis key.
+- **Should CORS retrofit and rate-limit retrofit still be one chunk, given rate-limit's scope
+  shrank to nothing?** Kept as one file (this file) rather than splitting, since the file is
+  still small and the "why rate-limit has no changes" explanation is short — splitting it into
+  its own near-empty file would add doc-set overhead for no real benefit. The filename
+  (`04-cors-and-ratelimit-retrofit.md`) is unchanged for the same reason other files in this doc
+  set keep their original numbering/names even after their scope shifts (see `00-overview.md`'s
+  and `03-auth-org-id-claim.md`'s notes on this convention).
 
 ## Do not touch
 
-- Do not change scope keys for `compliance` or `auth` (unauthenticated, per-IP scopes).
-- Do not touch `backend/app/modules/opt_out/` or `backend/app/modules/dsar/` routers themselves —
-  only `rate_limit.py`'s scope-key format changes, router wiring (which dependency each route
-  uses) stays as-is.
+- Do not touch `backend/app/dependencies/rate_limit.py` at all in this chunk — see "Rate
+  limiting: no changes" above.
+- Do not touch `backend/app/modules/opt_out/` or `backend/app/modules/dsar/` routers.
 - Do not add a reverse-proxy/gateway container to `backend/docker/docker-compose.yml` in this
   chunk (see the ADR's Decision §5 — explicitly out of scope).
-- Do not import `backend/app/modules/billing/` directly if it does not exist yet at
-  implementation time (see the soft-dependency note above) — guard the `OrganizationSubscription`
-  lookup so its absence degrades to `default_org_rate_limit_per_minute`, it does not raise an
-  `ImportError` or otherwise break rate-limiting for every org.
+- Do not import `backend/app/modules/billing/` anywhere in this chunk — there is no billing
+  dependency left in this chunk's scope at all.
 
 ## Verification
 
-- Existing rate-limit tests (locate under `backend/tests/` — likely a
-  `test_rate_limit*.py` file; confirm exact path before assuming) must still pass.
-- Add a test asserting two different `org_id` values produce independent rate-limit buckets for
-  the same underlying bearer token/client id (i.e. exhausting Org A's budget does not affect
-  Org B's).
-- Add a test asserting `enable_org_cors_origins=False` (default) leaves CORS behavior byte-for-
-  byte identical to before this chunk (regression safety for existing single-tenant deployments).
-- Add a test asserting one org's **total** traffic across multiple recruiters cannot exceed the
-  org ceiling even though each recruiter is individually under their own per-caller limit — e.g.
-  three different recruiters at the same org, each making requests comfortably under their own
-  per-caller ceiling, collectively trip the shared `_org_ceiling_id` bucket and the next request
-  (from any of the three) gets a 429, while a fourth recruiter at a *different* org is unaffected.
-- Add a test asserting the fallback path: with no `OrganizationSubscription` row for an org, the
-  org ceiling enforced is exactly `default_org_rate_limit_per_minute`, not unlimited and not a
-  hard failure.
+- Add a test asserting `enable_brand_cors_origins=False` (default) leaves CORS behavior
+  byte-for-byte identical to before this chunk (regression safety for existing deployments).
+- Add a test asserting that with `enable_brand_cors_origins=True` and one active `Brand` row with
+  a non-null `custom_domain`, that domain appears in the resolved CORS allow-list at startup, and
+  a second `Brand` row with `custom_domain=None` contributes nothing.
+- Add a test asserting an **inactive** brand's (`is_active=False`) `custom_domain` is excluded
+  from the resolved allow-list even if non-null.
+- Existing rate-limit tests (locate under `backend/tests/` — likely a `test_rate_limit*.py`
+  file) must still pass completely unmodified — this chunk makes no code changes there, so this
+  is a pure regression check, not new test-writing work.

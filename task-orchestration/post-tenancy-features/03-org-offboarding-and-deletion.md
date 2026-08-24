@@ -1,329 +1,187 @@
-# Post-Tenancy Features, Chunk 3 — Org Offboarding and Deletion
+# Post-Tenancy Features, Chunk 3 — Brand Deactivation
 
 ## Depends on
 
-`post-tenancy-retrofit/04-tenant-isolation-test-suite.md` green on real Postgres (same gate as
-`post-tenancy-features/01` and `02`). `post-tenancy-features/01-billing-stripe-integration.md`
-(needs `OrganizationSubscription`/Stripe customer linkage — this chunk's Stripe-redaction step
-and "do not delete financial records" step both act on rows `01` creates).
+`machine-1-tenancy-core`'s `Brand` model (`is_active` column — see
+`machine-1-tenancy-core/02-schema-and-migration.md`). `post-tenancy-features/01-billing-stripe-
+integration.md` is **not** a dependency of this chunk — billing in this model is candidate-level
+(`UserSubscription`), not brand-level, so deactivating a brand has no billing side effect to
+sequence against.
 
-## Goal
+## Goal (shrunk from the pre-pivot "org offboarding and deletion" scope)
 
-Machine-1's ADR (`docs/adr/0018-tenancy-model.md`) and schema chunk
-(`machine-1-tenancy-core/02-schema-and-migration.md`) establish `Organization.is_active` as a
-real, already-existing column, but no chunk in this doc set ever specs the **admin action** that
-flips it, what happens to that org's users/sessions/billing when it does, or what "actually
-delete an org's data" means at all. This chunk closes that gap with a staged deletion model:
-soft-delete → grace period → hard-delete/anonymize → Stripe redaction → audit trail. Each stage
-is a distinct, separately-triggerable step, not one irreversible action.
+A `Brand` never owned candidates in this model — there is one shared candidate/recruiter pool,
+independent of any brand, and `candidates.signup_brand_id` is a presentation-only, nullable
+pointer to which storefront a candidate happened to sign up through, never a data-isolation
+boundary or an ownership record. That means **deactivating (or ever removing) a brand has no
+cascading effect on candidates, recruiters, or their data at all.** There is no candidate PII to
+anonymize, no user rows to delete, no session revocation to perform, and no staged grace-period/
+hard-delete/redaction pipeline to build — all of that machinery existed in the prior design only
+because organizations *owned* their users' data; brands do not.
+
+This chunk is therefore just: **an admin action that turns a brand's public presentation off.**
+Deactivating a brand:
+
+- Sets `Brand.is_active = False`.
+- Takes the brand's public landing page (`/b/{slug}` and any `/b/{slug}/{tier}` sub-pages, per
+  `post-tenancy-features/02-brand-landing-pages.md`) offline — `get_public_brand` already 404s on
+  `is_active=False` per that chunk's spec, so this is a natural consequence of the flag, not new
+  logic this chunk must add.
+- Does **not** touch any candidate, recruiter, `signup_brand_id` value, job match, outreach
+  message, document, or portfolio row. A candidate whose `signup_brand_id` points at a since-
+  deactivated brand keeps 100% of their own data and platform access unchanged — `signup_brand_id`
+  is a historical breadcrumb, not a live dependency.
+- Is reversible at any time (re-activate by flipping the flag back) — there is no grace period,
+  no staged pipeline, and no irreversible step anywhere in this chunk's scope, because there is
+  nothing destructive being staged toward in the first place.
+
+If a future need arises to actually delete a `Brand` row outright (not just deactivate it), that
+is a separate, much smaller follow-up than this doc's pre-pivot version implied: since nothing
+else references `brands.id` except `candidates.signup_brand_id` (nullable, `ON DELETE SET NULL`
+per `machine-1-tenancy-core/02`), a hard delete of a `Brand` row is a single-table operation with
+no cross-domain cascade to design. That follow-up is explicitly out of scope for this chunk — see
+"Do not touch" below.
 
 ## Files to create
 
-- `backend/app/modules/orgs/offboarding_service.py`
-- `backend/app/modules/orgs/offboarding_router.py`
-- `backend/app/modules/orgs/offboarding_models.py` (the tombstone/audit-trail table — kept
-  separate from `models.py`'s `Organization`/`OrganizationInvite` since this is a distinct,
-  append-only audit concern, not a core tenancy model; mirrors how `machine-1-tenancy-core/02`
-  itself keeps `orgs/models.py` focused on the core `Organization` shape rather than growing
-  every future org-lifecycle concern into the same file)
-- `backend/alembic/versions/0XX_org_offboarding.py` (real number TBD — re-run
-  `python -m alembic heads` from `backend/` immediately before writing this file; by the time
-  this chunk is implemented, `machine-1`'s and `post-tenancy-retrofit`'s migrations should all
-  already be numbered, so the head should be relatively stable, but the caveat still applies —
-  `post-tenancy-features/01` and `02` may be implemented in parallel with this chunk and also
-  want a migration)
-- `docs/adr/00XX-org-offboarding-and-data-retention.md` — **spec only, do not create the actual
-  ADR file in this planning doc set.** Per `docs/adr/README.md`'s "When to add an ADR" criteria,
-  a storage/retention policy decision (what gets hard-deleted vs. anonymized vs. retained, and
-  for how long) is squarely a "storage" pattern change, mandatory not optional — this chunk's
-  actual implementer creates the real ADR file (next free number, re-verified against
-  `docs/adr/README.md`'s index at implementation time, same caveat as every other ADR reference
-  in this doc set) as part of doing this chunk's work. This planning doc only lists it as a
-  deliverable, matching exactly how `post-tenancy-features/01-billing-stripe-integration.md`
-  already handles its own `docs/adr/00XX-billing-provider.md` requirement (see that file's "ADR
-  requirement" section for the precedent this chunk follows).
+- `backend/app/modules/orgs/deactivation_service.py`
+- `backend/app/modules/orgs/deactivation_router.py`
+
+No new model, no new migration, and no ADR is needed for this chunk. `Brand.is_active` already
+exists as a column (per `machine-1-tenancy-core/02-schema-and-migration.md`'s field list); this
+chunk only adds the admin-facing action that flips it, plus its audit logging. There is no
+tombstone/audit-trail table to create either — see "Audit trail" below for why an existing
+mechanism covers this instead of a new one.
 
 ## Files to edit
 
-- `backend/app/modules/orgs/models.py` — add `deletion_requested_at` column to `Organization`.
-- `backend/app/modules/admin/` — wherever org-management admin actions are exposed (check
-  whether `machine-2-parallel-tracks/04-rbac-admin-platform.md`'s CRUD surface or a later
-  org-management router already has an org list/detail endpoint by implementation time; add the
-  offboarding trigger endpoints there if so, or register `offboarding_router.py` standalone in
-  `backend/app/main.py` if no natural existing home exists — document which was chosen in the PR).
-- `backend/app/main.py` — register `offboarding_router.py` (if not folded into an existing admin
-  router per above).
+- `backend/app/main.py` — register `deactivation_router.py` (or fold its two routes into
+  whichever admin router already exposes brand list/detail management, if one exists by
+  implementation time — check `machine-2-parallel-tracks/04-rbac-admin-platform.md`'s CRUD
+  surface first; document which was chosen in the PR, matching how the pre-pivot version of this
+  file made the same call for org-management admin actions).
 
-## Staged deletion model
-
-### Stage 1 — Soft-delete (admin action)
-
-Reuses `Organization.is_active` (already exists per `machine-1-tenancy-core/02`) — this chunk
-adds the **admin action** that sets it, since no earlier chunk specs one:
+## `backend/app/modules/orgs/deactivation_service.py`
 
 ```python
-async def soft_delete_organization(
-    db: AsyncSession, *, org_id: UUID, actor_id: UUID, reason: str | None
-) -> Organization:
-    """Stage 1: is_active=False, deletion_requested_at=now(), revoke all sessions
-    for this org's users, stop active billing. Reversible — see restore_organization
-    below — until Stage 3 (hard-delete) actually runs."""
-    org = await repository.get_organization_by_id(db, org_id)
-    if org is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+async def deactivate_brand(
+    db: AsyncSession, *, brand_id: UUID, actor_id: UUID, reason: str | None
+) -> Brand:
+    """Turn a brand's public presentation off. No cascading effect on candidates,
+    recruiters, or any of their data — a Brand is presentation-only, never a data
+    owner, in this model. Fully reversible via reactivate_brand below."""
+    brand = await repository.get_brand_by_id(db, brand_id)
+    if brand is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")
 
-    org.is_active = False
-    org.deletion_requested_at = datetime.now(UTC)
-
-    # Session revocation: reuse the existing refresh-token revocation primitive
-    # (backend/app/auth/refresh_tokens.py's revoke_token_family, already used by
-    # the impersonation/logout paths per machine-1-tenancy-core/03's own reference
-    # to that module) for every user with org_id == org_id — do not invent a new
-    # session-invalidation mechanism.
-    org_users = await auth_repository.list_users_by_org(db, org_id)
-    for user in org_users:
-        await revoke_all_refresh_tokens_for_user(db, user.id)
-
-    # Stop active billing: cancel the Stripe subscription immediately (not at
-    # period end) via post-tenancy-features/01's StripeClient, so the org is not
-    # charged again after being deactivated. Do NOT delete the
-    # OrganizationSubscription row here — Stage 3 handles financial-record
-    # retention separately; this step only stops future charges.
-    subscription = await billing_repository.get_subscription_for_org(db, org_id)
-    if subscription and subscription.stripe_subscription_id:
-        await StripeClient().cancel_subscription(subscription.stripe_subscription_id)
-        subscription.status = "canceled"
-
+    brand.is_active = False
     await db.commit()
-    await _record_tombstone_event(db, org_id=org_id, actor_id=actor_id, stage="soft_delete", detail=reason)
-    return org
-```
+    await _log_brand_action(db, brand_id=brand_id, actor_id=actor_id, action="deactivate", detail=reason)
+    return brand
 
-`revoke_all_refresh_tokens_for_user` — verify the exact existing function name/signature in
-`backend/app/auth/refresh_tokens.py` before implementing (this doc's other chunks, e.g.
-`machine-1-tenancy-core/03`, reference `revoke_token_family`/`revoke_refresh_token` as the
-existing primitives — use whichever of those, or a thin wrapper looping over a user's tokens,
-actually matches that file's real current shape).
 
-A superuser/admin can **restore** from Stage 1 within the grace period (`is_active=True`,
-`deletion_requested_at=None`) — this is the "reversible" property that makes soft-delete safe to
-trigger without a second confirmation step being this chunk's only safety net.
+async def reactivate_brand(db: AsyncSession, *, brand_id: UUID, actor_id: UUID) -> Brand:
+    """Undo. No grace period, no staged pipeline — there is nothing irreversible
+    to have committed to in the first place, so re-activation is always available."""
+    brand = await repository.get_brand_by_id(db, brand_id)
+    if brand is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")
 
-### Stage 2 — Grace period (30 days, configurable)
-
-```python
-# Org offboarding: days between an org's soft-delete (deletion_requested_at set)
-# and the earliest a hard-delete may run. Matches this doc set's existing bool/
-# int-flag convention (see enable_demand_intelligence, default_org_rate_limit_per_minute).
-org_deletion_grace_period_days: int = Field(default=30, alias="ORG_DELETION_GRACE_PERIOD_DAYS")
-```
-
-A scheduled or admin-triggered hard-delete call **must** check
-`org.deletion_requested_at is not None and (datetime.now(UTC) - org.deletion_requested_at).days
->= settings.org_deletion_grace_period_days` before proceeding — raise `HTTPException(409, ...)`
-if the window hasn't elapsed yet, rather than silently no-op'ing (a 409 makes an admin's premature
-hard-delete attempt an obvious, actionable error rather than a mysterious no-op).
-
-### Stage 3 — Hard-delete: cascade-delete or anonymize per domain
-
-**Candidate PII (documents/CV chat/portfolio): anonymize or hard-delete.** For each org's users'
-rows in `backend/app/modules/documents/` (`CandidateDocument`, `CvChatSession`, `CvChatMessage`,
-`CvFeedbackReport` — the same set `post-tenancy-retrofit/02-outreach-documents-portfolio-tenant-
-scoping.md` retrofits with `org_id`) and `backend/app/modules/portfolio/`
-(`PortfolioProfile`, `PortfolioItem`): hard-delete the rows outright (candidate documents/CV chat
-have no independent business reason to be retained past account deletion — unlike financial
-records below, there is no legal retention requirement pulling the other way). Cascade via each
-table's existing FK `ondelete` behavior where already `CASCADE`-configured (check each model
-before assuming; add an explicit delete step in `offboarding_service.py` for any table that isn't
-already cascade-configured from `users`/`organizations`, rather than relying on an FK cascade that
-may not exist).
-
-**Financial records (`OrganizationSubscription`, `StripeWebhookEvent`): do NOT delete, only
-redact PII fields.** Cite the reason inline in the code, not just this doc: invoices and tax
-records must be retained per legal requirements (financial recordkeeping obligations typically
-run 5-7 years depending on jurisdiction) even after the underlying account is deleted — deleting
-`OrganizationSubscription` outright would destroy the org's own billing history, which the org
-(or a tax authority, in an audit) may need to reference long after the account itself is gone.
-"Redact PII fields" means: keep `plan_tier`, `status`, `current_period_end`, `seats_included`,
-timestamps (all needed for financial reporting); the row already has no candidate-identifying
-PII on it at all (per `post-tenancy-features/01`'s model, it only carries `org_id`, Stripe ids,
-and plan/status metadata) — so in practice this step is closer to "leave as-is, do not delete"
-than "scrub fields," but the step is specced explicitly so a future implementer doesn't assume
-"delete everything for this org" silently includes billing rows too.
-
-```python
-async def hard_delete_organization(db: AsyncSession, *, org_id: UUID, actor_id: UUID) -> None:
-    org = await repository.get_organization_by_id(db, org_id)
-    if org is None or org.deletion_requested_at is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No pending deletion for this org")
-    grace_elapsed = (datetime.now(UTC) - org.deletion_requested_at).days
-    if grace_elapsed < get_settings().org_deletion_grace_period_days:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Grace period has not elapsed ({grace_elapsed}/{get_settings().org_deletion_grace_period_days} days)",
-        )
-
-    deleted_counts = await _cascade_delete_candidate_pii(db, org_id)  # documents, CV chat, portfolio
-    # OrganizationSubscription / StripeWebhookEvent: explicitly NOT deleted here.
-
-    await _redact_stripe_customer(db, org_id)  # Stage 4, below — must run before removing the org row
-    await db.execute(delete(User).where(User.org_id == org_id))
-    await db.execute(delete(Organization).where(Organization.id == org_id))
+    brand.is_active = True
     await db.commit()
-
-    await _record_tombstone_event(
-        db, org_id=org_id, actor_id=actor_id, stage="hard_delete", detail=str(deleted_counts)
-    )
+    await _log_brand_action(db, brand_id=brand_id, actor_id=actor_id, action="reactivate", detail=None)
+    return brand
 ```
 
-### Stage 4 — Stripe redaction
-
-Call Stripe's **Redaction Jobs API** on the `Customer` object — **cite this as a real,
-Stripe-documented ordering constraint, not an assumption**: Stripe's Redaction Jobs API
-explicitly requires that a `Customer` have no open disputes and no unresolved/open invoices, and
-that any active subscription be canceled first, before a redaction job on that customer will
-succeed — attempting redaction out of that order fails at Stripe's API level, not silently. This
-is why Stage 1 (soft-delete) already cancels the subscription immediately rather than waiting for
-Stage 3: by the time Stage 4 runs (inside Stage 3's hard-delete, per the code above), the
-subscription has already been canceled for at least the grace-period duration, giving any
-in-flight invoice/dispute time to resolve naturally before redaction is attempted.
+## `backend/app/modules/orgs/deactivation_router.py`
 
 ```python
-async def _redact_stripe_customer(db: AsyncSession, org_id: UUID) -> None:
-    subscription = await billing_repository.get_subscription_for_org(db, org_id)
-    if subscription is None or not subscription.stripe_customer_id:
-        return  # no Stripe relationship ever existed for this org — nothing to redact
-    await StripeClient().create_redaction_job(subscription.stripe_customer_id)
-    # Fire-and-forget from this service's perspective: Stripe's redaction job runs
-    # asynchronously on their side. If it fails (e.g. an invoice opened between
-    # Stage 1's cancellation and now), Stripe's own dashboard/webhook surfaces that
-    # failure for manual follow-up — this chunk does not build a retry loop for a
-    # third-party async job, it only triggers it at the correct point in the sequence.
+router = APIRouter(prefix="/api/orgs", tags=["brand-lifecycle"])
+
+@router.post("/{brand_id}/deactivate", status_code=status.HTTP_200_OK)
+async def deactivate_brand_route(
+    brand_id: UUID,
+    body: DeactivateBrandRequest,  # {"reason": str | None}
+    user: User = Depends(require_permission("brands", "delete")),
+    db: AsyncSession = Depends(get_db_session),
+) -> BrandResponse: ...
+
+@router.post("/{brand_id}/reactivate", status_code=status.HTTP_200_OK)
+async def reactivate_brand_route(
+    brand_id: UUID,
+    user: User = Depends(require_permission("brands", "delete")),
+    db: AsyncSession = Depends(get_db_session),
+) -> BrandResponse: ...
 ```
 
-### Stage 5 — Audit trail (tombstone)
+Only two routes — there is no third "hard-delete" route in this chunk's minimum scope (see
+"Goal" above on why a future hard-delete of the `Brand` row itself, if ever needed, is a separate,
+much smaller follow-up than deactivation). Gate both behind the same `("brands", "delete")`
+resource:action pair the pre-pivot version used for org deletion — reuse the permission name
+rather than inventing a new one, since the underlying admin capability ("can retire a brand") is
+conceptually the same even though the mechanics shrank.
 
-```python
-"""backend/app/modules/orgs/offboarding_models.py"""
+## Audit trail: reuse existing admin audit logging, no new table
 
-class OrgDeletionEvent(Base):
-    """Append-only tombstone: what was deleted/redacted for an org, and when. This
-    is the only durable record that an org ever existed, once Stage 3 removes the
-    Organization row itself — do not add an FK from this table to organizations.id
-    (the org row it references may no longer exist by the time this row is read)."""
-
-    __tablename__ = "org_deletion_events"
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    org_id: Mapped[UUID] = mapped_column(nullable=False, index=True)  # not a live FK — see docstring
-    org_name_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
-    stage: Mapped[str] = mapped_column(String(32), nullable=False)  # "soft_delete"|"hard_delete"|"stripe_redaction"
-    actor_id: Mapped[UUID | None] = mapped_column(nullable=True)  # admin who triggered it; NULL for scheduled jobs
-    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(UTC)
-    )
-```
-
-`org_id` is deliberately **not** a foreign key to `organizations.id` — a hard-delete tombstone
-event for stage `"hard_delete"` is written in the same transaction that removes the `Organization`
-row, and a later read of this table (e.g. an auditor asking "what happened to org X") must still
-work after that row is gone. `org_name_snapshot` is captured at write time precisely because the
-name won't be joinable later.
-
-## `backend/app/modules/orgs/offboarding_router.py`
-
-```python
-router = APIRouter(prefix="/api/orgs", tags=["org-offboarding"])
-
-@router.post("/{org_id}/deactivate", status_code=status.HTTP_200_OK)
-async def deactivate_organization(
-    org_id: UUID,
-    body: DeactivateOrgRequest,  # {"reason": str | None}
-    user: User = Depends(require_permission("orgs", "delete")),  # new resource:action pair, seed via this chunk's migration
-    db: AsyncSession = Depends(get_db_session),
-) -> OrganizationResponse: ...
-
-@router.post("/{org_id}/restore", status_code=status.HTTP_200_OK)
-async def restore_organization(
-    org_id: UUID,
-    user: User = Depends(require_permission("orgs", "delete")),
-    db: AsyncSession = Depends(get_db_session),
-) -> OrganizationResponse: ...  # only valid before Stage 3 has run
-
-@router.delete("/{org_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def hard_delete_organization_route(
-    org_id: UUID,
-    user: User = Depends(require_permission("orgs", "delete")),
-    db: AsyncSession = Depends(get_db_session),
-) -> None: ...
-```
-
-Gate all three behind `is_superuser` in practice, not merely `("orgs", "delete")` — check
-`require_permission`'s existing superuser short-circuit (referenced in
-`post-tenancy-retrofit/03-admin-tenant-scoping.md`) already covers this, but document explicitly
-in the PR that org deletion is intended to be a platform-superuser action, not something an
-`agency_owner` grants themselves via `04-rbac-admin-platform.md`'s role CRUD — do not seed
-`("orgs", "delete")` onto either `agency_owner` or `agency_recruiter`'s permission set in this
-chunk's migration; only a superuser should hold it.
+The pre-pivot version of this chunk introduced a standalone `OrgDeletionEvent` tombstone table
+specifically because a hard-delete would remove the `Organization` row itself, and an FK-based
+audit log can't reference a row that no longer exists. **That constraint doesn't apply here** —
+deactivation never deletes the `Brand` row, so there is always a live row for an audit entry to
+reference. Use whatever general-purpose admin audit-logging mechanism this repo already has
+(`backend/app/modules/admin/audit.py` — read its current shape before assuming a specific function
+signature) for `_log_brand_action` above, rather than creating a second, brand-specific audit
+table that duplicates a capability the admin module already provides. If `audit.py`'s existing
+logger requires a resource type it doesn't yet recognize, add `"brand"` to whatever enum/literal
+type gates that (a small, additive change), not a parallel logging system.
 
 ## Ambiguities resolved
 
-- **Should candidate documents/CV chat be anonymized (kept, PII stripped) or hard-deleted?**
-  Hard-deleted — decided explicitly. Unlike financial records, there is no legal retention
-  requirement pulling toward keeping a deleted candidate's CV/chat history around in any form,
-  anonymized or not; keeping it "just in case" is a larger privacy liability than the value of
-  retaining it, and the candidate (via the org's own deletion) has affirmatively exited.
-- **Should `OrganizationSubscription`/`StripeWebhookEvent` rows be deleted along with everything
-  else?** No — retained, PII-redaction-only (which in practice is a no-op given these tables carry
-  no PII fields today; see Stage 3 above) — decided explicitly per legal invoice/tax-record
-  retention requirements, not left as a follow-up question.
-- **Is soft-delete (Stage 1) reversible?** Yes, until Stage 3 (hard-delete) actually runs —
-  `restore_organization` is the explicit undo path; the grace period exists precisely to give an
-  org a real window to reverse an accidental or reconsidered deletion request.
+- **Should deactivating a brand revoke sessions for anyone?** No — there is no one to revoke.
+  Recruiters and candidates are never scoped to a brand (no `users.org_id`-equivalent access
+  gate exists in this model at all — see `machine-1-tenancy-core/00-overview.md`'s framing), so
+  there are no brand-scoped sessions for a deactivation to invalidate.
+- **Should this chunk stop billing for anyone?** No — billing is per-candidate
+  (`UserSubscription`), not per-brand; a candidate who signed up through a brand keeps their own
+  subscription status regardless of that brand's `is_active` value.
+- **Does this chunk need a grace period before some later irreversible step?** No — deactivation
+  is the only action in scope, and it is fully reversible at any time; there is no later
+  irreversible step this chunk stages toward.
+- **What happens to `candidates.signup_brand_id` when a brand is deactivated (or, in a future
+  hard-delete follow-up, removed entirely)?** Nothing, by design — deactivation never touches it.
+  If a brand row is ever hard-deleted in a future follow-up, the existing `ON DELETE SET NULL` FK
+  behavior (per `machine-1-tenancy-core/02-schema-and-migration.md`) already handles it correctly
+  without any application code: the candidate's `signup_brand_id` simply becomes `NULL`, and
+  nothing about their platform access changes, because nothing was ever gated on that column.
 
 ## Do not touch
 
-- `backend/app/modules/documents/`, `backend/app/modules/portfolio/` model/service files
-  themselves — this chunk calls existing delete operations against those tables from
-  `offboarding_service.py`, it does not add new columns or change those modules' own CRUD logic.
-- `backend/app/modules/billing/models.py`, `service.py` — read-only reference
-  (`get_subscription_for_org`, `StripeClient.cancel_subscription`/`create_redaction_job` — the
-  latter two are new `StripeClient` methods this chunk adds to
-  `backend/app/integrations/stripe/client.py`, since `post-tenancy-features/01` didn't need
-  cancellation/redaction for its own scope — confirm at implementation time whether `01` already
-  added `cancel_subscription`/redaction methods by the time this chunk starts, and only add
-  what's missing rather than duplicating).
-- `backend/app/auth/refresh_tokens.py` — reused as-is (existing revocation primitives), not
-  modified.
-- Do not seed `("orgs", "delete")` onto any non-superuser role (see router section above).
-- Do not build a scheduled/cron job that auto-triggers Stage 3 once the grace period elapses in
-  this chunk's minimum scope — an admin-triggered hard-delete call (which itself enforces the
-  grace-period check) satisfies this chunk's requirements; a fully automatic scheduled sweep is an
-  acceptable, encouraged extension but not required, and if added must reuse the exact same
-  `hard_delete_organization` function rather than duplicating its grace-period/ordering logic.
+- `backend/app/modules/documents/`, `backend/app/modules/portfolio/`,
+  `backend/app/modules/job_matching/`, `backend/app/modules/outreach/`,
+  `backend/app/auth/` (`User` rows) — none of these are touched by brand deactivation. If a PR
+  implementing this chunk finds itself editing any file under these paths, that is a sign of
+  scope creep back toward the pre-pivot cascading-deletion design; stop and re-read the "Goal"
+  section above.
+- `backend/app/modules/billing/` — no interaction; billing is candidate-level and has no brand
+  dependency (see `post-tenancy-features/01-billing-stripe-integration.md`).
+- Do not build a hard-delete-the-`Brand`-row endpoint, staged grace period, PII anonymization
+  pipeline, or Stripe redaction step in this chunk — all of that belonged to the pre-pivot
+  "organizations own their data" model and has no analogue here. If an actual brand hard-delete
+  is later needed, it is a small, separate follow-up (see "Goal" above), not part of this chunk.
+- Do not seed `("brands", "delete")` onto any candidate-facing or brand-storefront-staff role —
+  this remains a platform-admin action, same restriction the pre-pivot design applied to org
+  deletion, even though the blast radius of the action itself is now much smaller.
 
 ## Verification
 
-- Test: `soft_delete_organization` sets `is_active=False`, `deletion_requested_at`, revokes every
-  org user's refresh tokens (assert a previously-valid refresh token 401s afterward), and cancels
-  an active Stripe subscription if one exists.
-- Test: `restore_organization` reverses Stage 1 (`is_active=True`, `deletion_requested_at=None`)
-  and a previously soft-deleted org's users can log in again.
-- Test: `hard_delete_organization` called before the grace period elapses returns 409 and deletes
-  nothing.
-- Test: `hard_delete_organization` called after the grace period elapses removes
-  `CandidateDocument`/`CvChatSession`/`PortfolioProfile` rows for that org's users, removes the
-  `User` and `Organization` rows themselves, but leaves the `OrganizationSubscription` row intact
-  (assert it's still queryable by `org_id` after the org itself is gone — since `org_id` isn't a
-  live FK on that table either, per `post-tenancy-features/01`'s own model, this should already
-  work, but assert it explicitly as a regression check).
-- Test: `_redact_stripe_customer` is called with the org's `stripe_customer_id` exactly once, and
-  only after the subscription's `status` is already `"canceled"` (ordering assertion, mocking
-  `StripeClient.create_redaction_job` and asserting on call order relative to the cancellation
-  that happened in Stage 1).
-- Test: a `OrgDeletionEvent` row exists for both the soft-delete and hard-delete stages, with
-  `org_name_snapshot` correctly captured, and remains readable via a direct query after the
-  `Organization` row no longer exists.
-- Test: `require_permission("orgs", "delete")` is not granted to `agency_owner`/`agency_recruiter`
-  by the seeded RBAC data (assert a non-superuser org owner gets 403 on all three endpoints).
+- Test: `deactivate_brand` sets `Brand.is_active = False` and logs an audit entry; a subsequent
+  `GET /api/orgs/public/{slug}` for that brand 404s (per
+  `post-tenancy-features/02-brand-landing-pages.md`'s existing `is_active` check — this is a
+  regression check that the two chunks compose correctly, not new logic in either).
+- Test: `reactivate_brand` reverses this (`is_active = True`), and the brand's public landing page
+  becomes reachable again immediately, with no grace-period wait.
+- Test: deactivating a brand does not change the row count, content, or accessibility of any
+  candidate's data, `UserSubscription`, job match, outreach message, document, or portfolio —
+  assert this explicitly for at least one candidate whose `signup_brand_id` points at the
+  deactivated brand (the case most likely to tempt an incorrect cascading-delete regression).
+- Test: `require_permission("brands", "delete")` is not granted to any non-superuser role by the
+  seeded RBAC data (assert a non-superuser gets 403 on both endpoints).

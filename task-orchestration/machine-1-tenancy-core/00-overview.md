@@ -2,36 +2,51 @@
 
 ## Goal
 
-Introduce the concept of a **tenant** ("Organization" / "agency") into HyrePath's schema, auth,
-CORS, and rate-limiting layers, without breaking the existing single-tenant deployment (direct
-candidates using the product today, with no org at all).
+Introduce the concept of a **Brand** into HyrePath's schema and presentation layer, without
+introducing any data-isolation boundary. The product is one internal operator with **one shared
+pool** of candidates and recruiters — `Brand` is a marketing/storefront concept, nothing more:
+which storefront a candidate signed up through, which custom domain/CORS origin a request came
+in on, which chatbot config and landing-page tier to render for a given visitor. A `Brand` has a
+name, a slug, an optional custom domain, a chatbot config, and landing-page-tier-related config.
 
-This track produces the *capability* to be multi-tenant. It deliberately does **not** touch
-`job_matching`, `outreach`, `documents`, `portfolio`, or `admin` business-logic queries — adding
-`org_id` filters to those domains' queries is `post-tenancy-retrofit/01-03`'s job, dispatched only
-after this track merges. Keeping that split is what lets `post-tenancy-retrofit` be reviewed as a
-narrow, mechanical "add a WHERE clause" change instead of being tangled up with "what even is an
-org" design work.
+`Brand` is explicitly **not** a tenant boundary:
+
+- No query anywhere is ever filtered by brand. There is no `brand_id`/`org_id` WHERE clause on
+  `job_matching`, `outreach`, `documents`, `portfolio`, or `admin` tables, and none should ever be
+  added — that would silently reintroduce the isolated-tenant model this track deliberately
+  rejects.
+- No JWT claim scopes data access by brand. Auth stays exactly as it is today (`sub`, `email`,
+  `jti`, `exp`, `iat`) — this track adds no new claim.
+- Any recruiter can search, view, and act on any candidate in the shared pool, regardless of
+  which brand storefront that candidate signed up through. `candidates.signup_brand_id` (added by
+  chunk `02`) and `recruiter_candidate_assignments` (also added by chunk `02`) both record
+  *presentation*/*ownership* facts for reporting and "my assigned candidates" views — neither is
+  ever used as a query filter that restricts what a recruiter can reach.
+
+This track produces the schema (`Brand` table, `candidates.signup_brand_id`,
+`recruiter_candidate_assignments`) and the presentation-layer wiring (per-brand-domain CORS,
+generic staff onboarding) that the rest of the product needs to render multiple branded
+storefronts over one shared backend. It deliberately does **not** touch
+`job_matching`/`outreach`/`documents`/`portfolio`/`admin` business-logic queries at all — there is
+no follow-up "add a WHERE clause" wave for this track to hand off to, because there is no
+isolation boundary for those queries to enforce.
 
 ## Chunks, in required order
 
 | # | File | Depends on | Produces |
 |---|---|---|---|
 | 1 | `01-adr-0015-tenancy-model.md` | nothing | ADR document (decision + tradeoffs, no code) |
-| 2 | `02-schema-and-migration.md` | ADR decision | `Organization` model, Alembic migration, `users.org_id` column |
-| 3 | `03-auth-org-id-claim.md` | `02`'s `users.org_id` column existing | `org_id` in JWT payload, `OrgScopedUser` dependency, org bootstrap on signup |
-| 4 | `05-org-invite-flow.md` | `02`'s `Organization` model, `03`'s `org_id` claim/`OrgScopedUser` | `OrganizationInvite` model, invite-creation/acceptance endpoints, seat enforcement |
-| 5 | `04-cors-and-ratelimit-retrofit.md` | `02`'s `Organization` table (for custom-domain lookup) and `03`'s `org_id` claim (for rate-limit dimension) | Per-org CORS allow-list, `org_id`-dimensioned rate-limit scopes, org-wide rate ceiling |
+| 2 | `02-schema-and-migration.md` | ADR decision | `Brand` model, Alembic migration, `candidates.signup_brand_id` column, `recruiter_candidate_assignments` table |
+| 3 | `03-auth-org-id-claim.md` | — | Superseded stub only — no code. Kept as a file (not deleted) because other tracks reference it by name; see that file for why no `org_id`/access-scoping claim is needed. |
+| 4 | `05-org-invite-flow.md` | `02`'s `Brand` model (optional storefront association on a staff invite) | Generic `StaffInvite` model, invite-creation/acceptance endpoints for recruiters/interns — no seat enforcement, no org membership |
+| 5 | `04-cors-and-ratelimit-retrofit.md` | `02`'s `Brand` table (for custom-domain CORS lookup) | Per-brand-domain CORS allow-list. Rate limiting stays per-caller only — no brand-wide/org-wide ceiling, since brand never gates or dimensions access. |
 
 Each chunk's file is written so a developer with zero context on the others could implement it,
 given the previous chunk has already landed. Chunk `01` produces no code, only the ADR file
-itself — it is chunk `02`'s job to actually create the `Organization` table the ADR describes.
+itself — it is chunk `02`'s job to actually create the `Brand` table the ADR describes.
 
-Note the file is named `05-org-invite-flow.md` (not `04-...`) even though it is implemented
-*fourth* in sequence, ahead of `04-cors-and-ratelimit-retrofit.md` — the filename numbering
-reflects the order these chunks were originally specified in this planning doc set, not their
-final implementation order. See the root `README.md`'s "Merge order" section for the authoritative
-sequence (`01 → 02 → 03 → 05 → 04`) and why `05` was inserted before `04` rather than after it.
+Chunk `03` no longer sits on the critical path — it is a stub, not a functional dependency of
+`04`/`05`. The implementation order that matters is **`01 → 02 → 05 → 04`**.
 
 ## Naming note (confirmed against current repo, 2026-08-22)
 
@@ -47,21 +62,20 @@ another ADR has landed in the meantime. See that chunk's "Naming" note for detai
 
 - `backend/app/modules/job_matching/`, `backend/app/modules/outreach/`,
   `backend/app/modules/documents/`, `backend/app/modules/portfolio/`,
-  `backend/app/modules/admin/` — no query changes in any of these. `machine-1` only adds the
-  `org_id` column to `users` and creates the new `Organization` table; it does not add `org_id`
-  to any other table.
+  `backend/app/modules/admin/` — no query changes in any of these, ever. `machine-1` adds the
+  `Brand` table and the presentation-only `candidates.signup_brand_id` /
+  `recruiter_candidate_assignments` records; it does not add any access-scoping column to any
+  table, and no other module's queries change.
 - `backend/app/enrichers/`, `backend/app/integrations/`, `backend/app/compliance/`,
   `backend/app/workers/` — untouched by this track.
 - Anything under `machine-2-parallel-tracks/` scope (see those files) — no overlap expected, but
   if a conflict is discovered, `machine-1` wins (it is the blocking track).
-- Frontend: this track is backend-only. No changes under `frontend/` in any of these four
-  chunks (the org-aware login/signup UI, if needed, is out of scope for this planning doc set —
-  flag it as a follow-up if the implementer finds the JWT change requires a frontend change to
-  keep existing sessions valid; see chunk `03`'s migration-safety notes on this).
+- Frontend: this track is backend-only. No changes under `frontend/` in any of these five
+  chunks.
 
 ## Cross-track coordination
 
-`post-tenancy-retrofit/03-admin-tenant-scoping.md` will later read `users.org_id` and the
-`Organization` table this track creates — but it is dispatched only after this track's PR(s) are
-merged, so there is no live coordination needed during implementation, only a hard merge-order
-dependency (see the root `README.md`'s dependency graph).
+There is no downstream "tenant isolation" retrofit wave for this track to hand off to — Brand
+never gates data access, so there is nothing for a later wave to scope by brand. Any recruiter,
+candidate, job, or outreach query written elsewhere in the codebase is correct as long as it
+never adds a brand/org filter; this track's own files are the source of truth for that rule.

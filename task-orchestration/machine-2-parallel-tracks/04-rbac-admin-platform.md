@@ -8,14 +8,15 @@ Today's RBAC (`backend/app/modules/admin/models.py`'s `Role`/`Permission`/`RoleP
 (`service.py`'s `assign_role`, lines 80-111). There is no way to create a new role, create a new
 permission, or attach/detach a permission from a role — every role/permission row today only
 exists because a migration seeded it directly. This track builds that missing CRUD layer and
-seeds two new system roles anticipating agency use, **without** requiring `Organization`/
-`org_id` to exist (this track is dispatched in parallel with `machine-1-tenancy-core` and must
-not depend on it landing first — see `00-overview.md`).
+seeds two new system roles for this platform's own internal team (`team_owner`, `recruiter` —
+one shared operator/staff structure, not per-tenant agency accounts), **without** requiring
+`Organization`/`org_id` to exist (this track is dispatched in parallel with
+`machine-1-tenancy-core` and must not depend on it landing first — see `00-overview.md`).
 
 ## Files to create
 
 - `backend/app/modules/admin/roles_service.py`
-- `backend/alembic/versions/047_seed_agency_roles.py` (migration-number caveat: see
+- `backend/alembic/versions/047_seed_system_roles.py` (migration-number caveat: see
   `03-outreach-strategy-dimension.md`'s identical note — three tracks in this doc set want `047`;
   re-run `python -m alembic heads` before writing this file and use the real next number)
 
@@ -118,7 +119,7 @@ including whatever `before`/`after` shape convention it already uses; do not gue
 signature from this doc alone.
 
 `is_system` guard rationale: the two seeded system roles this chunk adds
-(`agency_owner`, `agency_recruiter` — see migration below) must not be mutable at runtime through
+(`team_owner`, `recruiter` — see migration below) must not be mutable at runtime through
 this new CRUD surface, since their permission sets are a deliberate product decision, not a
 per-deployment customization — mirrors how `Role.is_system`'s existing docstring already
 distinguishes system roles from ad-hoc ones.
@@ -168,16 +169,16 @@ async def detach_permission(
 ) -> None: ...
 ```
 
-## Migration: `047_seed_agency_roles.py`
+## Migration: `047_seed_system_roles.py`
 
 Follow the exact seeding pattern in `046_admin_seed_module4_permissions.py` (uuid4-generated ids,
 raw `op.bulk_insert`/`op.execute` inserts — read that file in full before writing this one to
 copy its exact insert mechanics). Seed:
 
 1. A new `("roles", "write")` permission (the gate this chunk's new endpoints use).
-2. Two new system roles: `agency_owner` (`is_system=True`, full read/write across
+2. Two new system roles: `team_owner` (`is_system=True`, full read/write across
    `users`, `outreach`, `documents`, `portfolio`, `job_postings`, `roles`) and
-   `agency_recruiter` (`is_system=True`, read/write on `outreach`, `documents`, `portfolio`,
+   `recruiter` (`is_system=True`, read/write on `outreach`, `documents`, `portfolio`,
    `job_postings`; read-only on `users`; no `roles` access at all).
 3. `RolePermission` rows wiring each role to the resource:action pairs above, reusing whichever
    `Permission` rows already exist for those resources (query for existing rows by
@@ -185,12 +186,12 @@ copy its exact insert mechanics). Seed:
    `Permission` row; most already exist from earlier admin-module migrations, only genuinely new
    pairs like `("roles", "write")` need a new row).
 
-These two role names are a deliberate anticipatory naming choice for the placement-agency
-pivot — they are **not** wired to `Organization`/`org_id` in this chunk (that table doesn't
-exist yet when this track is dispatched). `post-tenancy-retrofit/03-admin-tenant-scoping.md`
-is responsible for later making role-based checks tenant-aware (e.g. an `agency_recruiter` in
-org A must not see org B's data even though the role itself grants `outreach:write` globally
-today).
+These two role names reflect this platform's own internal team structure (one owner-level role
+plus one recruiter-staff role) — they are **not** wired to `Organization`/`org_id` in this chunk
+(that table doesn't exist yet when this track is dispatched). `post-tenancy-retrofit/03-admin-
+tenant-scoping.md` is responsible for later making role-based checks tenant-aware (e.g. a
+`recruiter` in org A must not see org B's data even though the role itself grants
+`outreach:write` globally today).
 
 ## Do not touch
 

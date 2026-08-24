@@ -6,6 +6,14 @@ Surface country-level job-demand signal (which countries have the most/fastest-g
 for a given role) for placement-agency recruiters deciding where to focus candidate sourcing.
 Built on top of the country plumbing already shipped in `backend/app/enrichers/jobspy.py`.
 
+**Launch-relevant, not deferred.** This chunk was previously treated as a nice-to-have,
+post-launch analytics add-on; re-prioritized here as launch-relevant. Sourcing strategy (which
+countries recruiters spend time on) and resume personalization (see "India/Middle East
+resume-personalization consumer" below) both need country-demand signal from day one, not after
+an initial launch without it — there is no meaningful "launch, then add demand data later"
+milestone for a placement business whose core value proposition is knowing where the jobs
+actually are.
+
 ## Ground truth (verified 2026-08-22 — note this corrects the original research)
 
 The original research for this effort described a 40+-country mapping table as living in "open
@@ -49,6 +57,64 @@ against it) and through the older `kwargs["country_indeed"] = country.lower()` p
 function may have grown since 2026-08-22 (e.g. more countries added), and the exact config flag
 gating JobSpy vs. JSearch must be confirmed from `backend/app/core/config.py` directly rather
 than assumed from this note.
+
+## Tiered market-research methodology
+
+Recruiter sourcing effort should not be spread evenly across every country this system can
+resolve — some markets are worth deep, ongoing attention; others are worth periodic monitoring
+for a handful of easy wins. This chunk's `CountryDemandSnapshot` data (see below) is the input to
+a three-tier classification recruiters use to decide where to focus:
+
+- **Tier 1 — high-volume, high-competition.** USA, Europe (UK, Germany, Netherlands, and other
+  major EU markets), Canada. The largest absolute posting counts for most role buckets, but also
+  the most candidate-side and recruiter-side competition. Recruiters treat these as the primary,
+  always-on sourcing markets — highest posting volume justifies the highest ongoing attention,
+  even though competition depresses the "easy win" rate per candidate placed.
+- **Tier 2 — mid-volume, lower-competition.** Markets with meaningfully lower `posting_count`
+  than Tier 1 for the same role bucket, but also visibly less recruiter/candidate saturation
+  (fewer competing postings per opening, less inbound competition for the same roles) — e.g.
+  Australia, Ireland, and other English-primary or high-English-proficiency markets outside the
+  Tier 1 set. Worth regular but secondary attention: good return on effort, just at lower absolute
+  volume than Tier 1.
+- **Tier 3 — low-competition, low-volume ("low-hanging fruit").** Markets with low absolute
+  posting counts but disproportionately low competition for those postings — roles that go
+  unfilled longer simply because fewer recruiters are looking there. Lower total opportunity per
+  market, but a comparatively easy placement once a genuine opening is found. Recruiters treat
+  Tier 3 as an opportunistic supplement to Tier 1/2 effort, not a primary sourcing target — worth
+  periodic sweeps, not sustained daily attention.
+
+Concretely, this tiering is a **derived view over `get_top_countries_for_role`'s existing output**,
+not a new persisted classification: add a third service function,
+`async def classify_country_tier(snapshot: CountryDemandSnapshot, all_snapshots_for_role: list[CountryDemandSnapshot]) -> Literal["tier_1", "tier_2", "tier_3"]:`,
+that buckets a given country's `posting_count` (and, if available, a simple competition proxy —
+e.g. `posting_count` relative to the role bucket's total across all countries, since this chunk
+has no separate "competition" signal of its own) relative to the full set of snapshots for that
+role query. A simple, documented heuristic (e.g. top-third by `posting_count` → `tier_1`,
+middle-third → `tier_2`, bottom-third → `tier_3`, with the fixed Tier-1 country list above always
+classified `tier_1` regardless of that particular role's own numbers, since USA/Europe/Canada's
+Tier-1 status reflects overall market maturity, not just one role bucket's snapshot) is sufficient
+for this chunk's scope — do not build a more sophisticated competition model than the data
+actually supports. Surface the tier alongside each row in `TopCountriesResponse` (add a `tier`
+field) so the frontend table/panel below can group or badge rows by tier without a second API
+call.
+
+## India/Middle East resume-personalization consumer
+
+Country-demand data is not only a recruiter-facing sourcing signal — it also feeds
+**resume-tailoring for candidates targeting India and the Middle East**, where demand
+characteristics (which skills/keywords are in-demand, which role titles map to which country's
+job-market norms) differ meaningfully from the Tier 1 US/Europe/Canada baseline most existing
+resume content implicitly assumes. Concretely: a future resume-tailoring chunk (ephemeral,
+on-demand, per-company tailoring — tracked as its own chunk in this doc set, not built here) is a
+**consumer**, not a producer, of this chunk's `CountryDemandSnapshot` data and this chunk's
+`country_to_iso2` normalization — when a candidate's target company/role resolves to an
+India/Middle East country code, that consumer looks up this chunk's demand snapshot for the same
+`(country_iso2, role_bucket)` pair to inform which skills/keywords get emphasized in the tailored
+resume, the same read path (`get_top_countries_for_role`) `07-demand-intelligence-resume-
+integration.md` already establishes for outreach-draft prompts. This chunk's own scope is
+unchanged by this — it does not build the resume-tailoring consumer itself, it only needs to
+ensure India/Middle East country resolution is correct and complete (see the India/Middle East
+verification item below) so that future consumer has accurate data to read.
 
 ## Files to create
 
@@ -188,9 +254,10 @@ Add to `backend/app/core/config.py`, following the existing bool-flag convention
 
 ```python
 # Demand intelligence: enable the daily country/role posting-count aggregation job.
-# Default False — this is a new, additive analytics feature with its own DB write load;
-# opt-in until an agency customer actually needs it.
-enable_demand_intelligence: bool = Field(default=False, alias="ENABLE_DEMAND_INTELLIGENCE")
+# Default True — launch-relevant: recruiter market-research prioritization (see the
+# tiered Tier 1/2/3 methodology below) and resume-tailoring's country-specific
+# personalization both depend on this data being live at launch, not bolted on later.
+enable_demand_intelligence: bool = Field(default=True, alias="ENABLE_DEMAND_INTELLIGENCE")
 ```
 
 Gate `compute_daily_snapshot`'s scheduled invocation on this flag (mirrors `enable_tier1`'s
@@ -228,6 +295,12 @@ gating pattern in `backend/app/integrations/multilogin/profile_pool.py` and else
   the 2026-08-22 snapshot (only `"united arab emirates"`/`"uae"` exist among Middle East entries
   today), so this is real mapping work, not only a test. Unrecognized-input entries still fall
   back to `"us"` per the function's existing documented behavior — do not change that fallback.
+  This coverage is a hard requirement for this chunk's own launch-relevance claim above and for
+  the India/Middle East resume-personalization consumer described above — neither can produce
+  correct output if India/Middle East countries silently fall back to `"us"`.
+- Unit test `classify_country_tier`: assert USA/a major-Europe country/Canada always classify
+  `tier_1` regardless of the role query's own snapshot numbers; assert the top/middle/bottom-third
+  heuristic buckets a synthetic set of snapshots into `tier_1`/`tier_2`/`tier_3` as expected.
 - **JSearch `language` parameter check (integration-level, not just unit):** the JSearch call site
   (`_scrape_jsearch`, `backend/app/enrichers/jobspy.py` lines ~280-285) currently builds `params`
   with `query`, `num_pages`, `country`, and `date_posted` — **no `language` parameter at all**,
@@ -265,8 +338,9 @@ convention (verified against the real current tree — `frontend/app/app/admin/`
   `page.tsx`).
 - Calls the existing `GET /api/demand-intelligence/top-countries` endpoint (this chunk's own
   router, above) with a role-search input and renders the results as a table (country, posting
-  count, remote posting count, avg salary range) — a simple table is sufficient for this chunk's
-  minimum scope; a chart is an acceptable enhancement but not required.
+  count, remote posting count, avg salary range, tier badge — `tier_1`/`tier_2`/`tier_3` per the
+  tiered market-research methodology above) — a simple table is sufficient for this chunk's
+  minimum scope; a chart or tier-grouped sections are an acceptable enhancement but not required.
 - New file: `frontend/features/demand-intelligence/hooks/useDemandIntelligence.ts` — a
   `useQuery`-based hook following the exact pattern of
   `frontend/features/outreach/hooks/useOutreach.ts`'s `useOutreachMessages` (React Query, a

@@ -1,9 +1,13 @@
 # Task Orchestration — Placement-Agency Platform
 
 Planning docs for pivoting HyrePath from a single-tenant candidate-enrichment backend into a
-**multi-tenant placement-agency platform**: staffing/recruiting agencies (each an "org") onboard
-their own recruiters, who work their own pool of candidates, jobs, and outreach — all isolated
-from every other agency's data.
+**single-operator, multi-brand placement platform**: one internal team works one shared pool of
+candidates and recruiters, presented to the outside world through multiple branded storefronts
+(`Brand`). A `Brand` is a marketing/presentation concept only — name, slug, optional custom
+domain, chatbot config, landing-page tier config — **never** a data-isolation boundary. There is
+no per-agency tenant, no `org_id` access-scoping column or JWT claim anywhere in this design, and
+any recruiter can search, view, and act on any candidate in the shared pool regardless of which
+brand storefront that candidate signed up through.
 
 This directory is **documentation only**. No application code is changed by these files
 themselves; each `.md` is a self-contained spec for a later implementation PR.
@@ -17,23 +21,29 @@ Base branch for this planning work: `master-complete-foundation` (HEAD at time o
 Two machines/agents work in parallel from day one:
 
 - **Machine 1** owns `machine-1-tenancy-core/` — the foundational, blocking work: what a
-  "tenant" is, how it's stored, how a request knows which tenant it belongs to. Every other
-  track eventually depends on this, so it is deliberately small and merges first.
-- **Machine 2** owns `machine-2-parallel-tracks/` — seven independent feature tracks that do
-  **not** touch tenant scoping and do not depend on `machine-1` landing first. They can be
-  built, reviewed, and merged in any order, at any time, concurrently with `machine-1`.
+  `Brand` is, how it's stored, how CORS/presentation resolve per brand. Every chunk elsewhere in
+  this doc set that reads `Brand`/`users.signup_brand_id`/`recruiter_candidate_assignments`
+  eventually depends on this landing, so it is deliberately small and merges first. Unlike the
+  original isolated-tenant design, this track adds **no access-control mechanism at all** — no
+  `org_id` column, no JWT claim, no query filter — so it hands off no "add a WHERE clause" wave
+  to anything downstream.
+- **Machine 2** owns `machine-2-parallel-tracks/` — twelve independent feature tracks that do
+  **not** touch brand/tenant scoping (because there is none to touch) and do not depend on
+  `machine-1` landing first except where a specific chunk's own "Depends on" section says
+  otherwise (see the dependency graph below). They can be built, reviewed, and merged largely in
+  any order, concurrently with `machine-1`.
 
-Once `machine-1-tenancy-core` merges to `master-complete-foundation`, a second wave begins:
+Once `machine-1-tenancy-core` merges to `master-complete-foundation`, only one further wave
+remains:
 
-- **`post-tenancy-retrofit/`** — goes back through the domains that already existed
-  pre-tenancy (job matching/swipe, outreach/documents/portfolio, admin) and adds `org_id`
-  scoping to their queries, so agency A can never see agency B's candidates, jobs, or
-  messages. This wave is sequential internally (schema retrofits before query retrofits
-  before the isolation test suite) and is a **hard gate**: nothing downstream merges until
-  chunk `04-tenant-isolation-test-suite.md` passes green against real dockerized Postgres.
-- **`post-tenancy-features/`** — net-new, tenant-aware features (billing, brand landing
-  pages) that assume `org_id` scoping already exists everywhere. These only make sense once
-  the retrofit wave's isolation tests are green.
+- **`post-tenancy-features/`** — net-new features that build on the `Brand` model once it exists:
+  candidate-level billing (freemium paywall) and brand landing/tier pages. There is no
+  `post-tenancy-retrofit/` wave in this doc set — that wave existed only under the old
+  isolated-agency-tenant model to backfill `org_id` scoping into pre-existing queries; since
+  `Brand` never gates data access, there is nothing for such a wave to retrofit, and it has been
+  deleted outright. There is also no "hard gate" of any kind blocking these features — they only
+  need `Brand` to exist as a table, not a passing isolation-test suite (none exists, none is
+  needed).
 
 ## Dependency graph
 
@@ -42,9 +52,9 @@ graph TD
   M1_00[m1 00 overview]
   M1_01[m1 01 adr tenancy model]
   M1_02[m1 02 schema and migration]
-  M1_03[m1 03 auth org id claim]
-  M1_05[m1 05 org invite flow]
-  M1_04[m1 04 cors and ratelimit retrofit]
+  M1_03[m1 03 auth org id claim - superseded stub]
+  M1_05[m1 05 staff invite flow]
+  M1_04[m1 04 cors retrofit, per-brand domain]
 
   M2_00[m2 00 overview]
   M2_01[m2 01 progressive profiling fields]
@@ -54,28 +64,24 @@ graph TD
   M2_05[m2 05 outreach canspam send compliance]
   M2_06[m2 06 linkedin outreach send]
   M2_07[m2 07 demand intelligence resume integration]
-
-  PTR_01[ptr 01 job matching swipe scoping]
-  PTR_02[ptr 02 outreach documents portfolio scoping]
-  PTR_03[ptr 03 admin tenant scoping]
-  PTR_04[ptr 04 tenant isolation test suite]
+  M2_08[m2 08 recruiter candidate assignment]
+  M2_09[m2 09 recruiter apply and suggest]
+  M2_10[m2 10 resume tailoring]
+  M2_11[m2 11 per-brand chatbot config]
+  M2_12[m2 12 linkedin sourcing intern multilogin]
 
   PTF_01[ptf 01 billing stripe integration]
   PTF_02[ptf 02 brand landing pages]
-  PTF_03[ptf 03 org offboarding and deletion]
+  PTF_03[ptf 03 brand deactivation]
 
-  M1_00 --> M1_01 --> M1_02 --> M1_03 --> M1_05 --> M1_04
-  M1_04 -->|merge gate| PTR_01
-  M1_04 -->|merge gate| PTR_02
-  M1_04 -->|merge gate| PTR_03
-  PTR_01 --> PTR_04
-  PTR_02 --> PTR_04
-  PTR_03 --> PTR_04
-  PTR_04 -->|hard gate: isolation tests green on real Postgres| PTF_01
-  PTR_04 -->|hard gate: isolation tests green on real Postgres| PTF_02
-  PTF_01 -->|billing plumbing + soft dependency for seat/ceiling checks| M1_05
-  PTF_01 --> PTF_03
-  PTR_04 -->|hard gate: isolation tests green on real Postgres| PTF_03
+  M1_00 --> M1_01 --> M1_02 --> M1_05 --> M1_04
+  M1_03 -.->|superseded stub, no code, not on critical path| M1_02
+
+  M1_02 -->|Brand model| PTF_01
+  M1_02 -->|Brand model| PTF_02
+  M1_02 -->|Brand.is_active| PTF_03
+  M1_02 -->|Brand + users.signup_brand_id| M2_08
+  M1_02 -->|Brand + users.signup_brand_id| M2_11
 
   M2_00 --> M2_01
   M2_00 --> M2_02
@@ -85,25 +91,28 @@ graph TD
   M2_05 --> M2_06
   M2_02 --> M2_07
   M2_03 --> M2_07
+  M2_08 -.->|conceptual only, no structural dependency| M2_09
+  M2_06 -.->|leads feed 06's queue as input, no code dependency| M2_12
 ```
 
-`machine-2-*` nodes have **no edges into `machine-1-*` or `post-tenancy-*`** — that's the point.
-`04-rbac-admin-platform.md` in machine-2 extends the *existing* `roles`/`permissions` tables
-(already shipped, ADR 0015) with agency-specific role names; it does not need `org_id` to exist
-to add a role row, so it stays parallel-safe. It becomes tenant-*aware* only later, in
-`post-tenancy-retrofit/03-admin-tenant-scoping.md`.
+`machine-2-*` nodes have **no edges into `machine-1-*`** except where a chunk's own file states a
+real schema dependency — `08-recruiter-candidate-assignment.md` and
+`11-per-brand-chatbot-config.md` are the two genuine exceptions, since both read columns/tables
+`machine-1/02` creates (`users.signup_brand_id`, and the design premise that
+`recruiter_candidate_assignments` is an ownership marker on a single shared pool). Every other
+machine-2 chunk, including `04-rbac-admin-platform.md`, needs nothing from `machine-1` to land
+first: `04` extends the *existing* `roles`/`permissions` tables (already shipped, ADR 0015) with
+this platform's own internal-team role rows (`team_owner`, `recruiter`) — it does not require
+`Brand` or any brand/org column to exist to insert a `Role` row, and — unlike the old
+`agency_owner`/`agency_recruiter` design — it never becomes tenant-aware later, because there is
+no tenant to become aware of.
 
-`M1_05 --> PTF_03` is not drawn as its own edge above because it is already implied by
-`PTF_01 --> PTF_03` and `M1_05`'s existing dependency on `PTF_01` for seat enforcement — `PTF_03`
-does not itself depend on `M1_05` directly (org offboarding doesn't need the invite flow to
-exist), so no direct edge is drawn between them.
-
-`M1_05`'s edge back into `PTF_01` (labeled "billing plumbing + soft dependency...") is a **soft**
-dependency, not a hard merge-order gate — see `M1_05`'s own file for how its seat-enforcement
-check degrades safely (skips, does not raise) when `OrganizationSubscription` doesn't exist yet,
-since `PTF_01` merges long after `M1_05` per the "Merge order" section below. The edge is drawn to
-make the *eventual* full-functionality dependency visible on the graph, not to imply `M1_05`
-cannot be implemented or merged before `PTF_01` — it explicitly can and, per merge order, must.
+`03-auth-org-id-claim.md` is drawn as a dashed, non-blocking edge because it is a **superseded
+stub, not active work**: its original scope (an `org_id` JWT claim, an `OrgScopedUser` dependency)
+is not implemented. It is kept as a file, not deleted, only because other files in this doc set
+still reference it by name; it produces no code and sits on no critical path. The implementation
+order that matters within `machine-1` is **`01 → 02 → 05 → 04`** — `03` is irrelevant to that
+order.
 
 `M2_07`'s two incoming edges (`M2_02 --> M2_07`, `M2_03 --> M2_07`) mirror that chunk's own
 "Depends on" section exactly: it needs `M2_02`'s `get_top_countries_for_role()` function and
@@ -113,83 +122,109 @@ own ground-truth note, its actual data dependency (`desired_roles` on `CVData`) 
 independent of `machine-2-parallel-tracks/01-progressive-profiling-fields.md`, so there is
 deliberately **no** `M2_01 --> M2_07` edge.
 
+`M2_09`'s edge to `M2_08` is drawn dashed/conceptual because `09`'s own file is explicit that its
+authorization does **not** check `RecruiterCandidateAssignment` at all — any recruiter may
+apply/suggest on behalf of any candidate, consistent with `08`'s "assignment is not an access
+gate" decision. The two chunks are thematically related (both are recruiter-on-behalf-of-candidate
+actions) but have no structural/import dependency; `09` can be implemented and merged before,
+after, or in parallel with `08`.
+
+`M2_12`'s edge to `M2_06` is drawn dashed for the same reason: `12` (sourcing/scouting leads) is
+explicitly **not** wired into `06`'s (send task-queue) tables — a `SourcedCandidateLead` is an
+*input* a recruiter may later choose to act on via `06`'s existing flow, using the lead's
+`linkedin_profile_url`, but no code in `12` calls into or depends on `06`'s modules, and no code
+in `06` depends on `12`. Both chunks also carry their own prominent, independent legal-risk
+sections (see "LinkedIn legal-risk chunks" below) — read both before implementing either.
+
+`PTF_03` (brand deactivation) has **no edge to `PTF_01`** (billing) — this is a deliberate
+absence, not an oversight. The prior "org offboarding" design depended on billing for
+Stripe-customer-redaction sequencing because deleting an *organization* cascaded through its
+owned users' financial records. Deactivating a `Brand` cascades through nothing (a brand never
+owned candidates), so there is no billing interaction to sequence against at all.
+
 ## Merge order
 
-1. **Anytime, any order, fully parallel:** all of `machine-2-parallel-tracks/*` may be
-   implemented and merged to `master-complete-foundation` independently of everything else in
-   this document. Each of the seven tracks (`01`-`07`) is its own branch/PR; they touch disjoint
-   files (see each file's "Do not touch" list) so they can also land in any order relative to
-   *each other* — with one soft ordering preference: `07` (demand-intelligence resume
-   integration) reuses `02`'s read function and `03`'s prompt-append convention, so implement `07`
-   after both, even though nothing structurally forces that order (it has no schema/migration
-   dependency on either, only a code-import dependency).
-2. **Must merge before any `post-tenancy-*` branch is created:** `machine-1-tenancy-core`,
-   in its internal chunk order **`01 → 02 → 03 → 05 → 04`** (each chunk's migration/model depends
-   on the previous chunk's schema). Note `05` (org invite flow) now sits *between* `03` and `04`,
-   not after `04` — `05` depends on `03`'s `org_id` JWT claim/`OrgScopedUser` dependency and
-   `02`'s `Organization` model, but has no dependency on `04`'s CORS/rate-limit retrofit at all,
-   and `04`'s own new "Org-wide ceiling" section reads `OrganizationSubscription`
-   (`post-tenancy-features/01`, not yet landed at this point either way) with its own independent
-   fallback-config safety net — so there is no reason to make `04` block `05`. Placing `05` before
-   `04` also means an org actually has a way to *invite members into it* before the org-aware
-   rate-limiting/CORS retrofit lands, which is the more sensible product-readiness order. This is
-   one branch, `feat/tenancy-core`, reviewed as up to five stacked PRs or one PR — implementer's
-   choice — but it must be fully merged before step 3.
-3. **Sequential, after step 2:** `post-tenancy-retrofit/01`, `02`, `03` (parallel-safe *among
-   themselves* — they touch disjoint modules — but all three must exist before `04`), then
-   `04-tenant-isolation-test-suite.md` (depends on 01-03's scoping actually being in place to
-   have something to test).
-4. **Only after `post-tenancy-retrofit/04`'s test suite is green on real dockerized Postgres in
-   CI:** `post-tenancy-features/01`, `02`, and `03` may branch and merge, in any order relative
-   to `01`/`02` — but `03` (org offboarding/deletion) additionally depends on `01`'s
-   `OrganizationSubscription`/Stripe customer linkage (for its Stage 3/4 financial-record-
-   retention and Stripe-redaction steps), so `03` must merge after `01`, even though `01` and `02`
-   remain mutually order-independent.
+1. **Anytime, any order, fully parallel:** `machine-2-parallel-tracks/01`, `02`, `04`, and `08`
+   may be implemented and merged to `master-complete-foundation` independently of everything else
+   in this document (each touches disjoint files — see each file's "Do not touch" list). Two soft
+   ordering preferences, neither a hard block: `07` (demand-intelligence resume integration) reuses
+   `02`'s read function and `03`'s prompt-append convention, so implement `07` after both; `09`
+   (recruiter apply/suggest) is conceptually related to `08` but has no structural dependency on
+   it, so it may land in any order relative to `08`.
+2. **Sequential sub-chain, parallel to everything else in step 1:** `03 → 05 → 06`
+   (outreach strategy dimension → CAN-SPAM compliance → LinkedIn send) — each later chunk imports
+   the previous chunk's schema/service additions, so these three are one branch or three stacked
+   branches, implemented and reviewed in that order.
+3. **Must merge before any chunk that reads `Brand`/`users.signup_brand_id` (namely
+   `machine-2-parallel-tracks/08`, `11`, and all of `post-tenancy-features/`):**
+   `machine-1-tenancy-core`, in its internal chunk order **`01 → 02 → 05 → 04`**. `03` is a
+   superseded stub and is not part of this sequential chain — it can be left exactly as-is,
+   merged or not, with zero effect on anything else in this doc set. Chunk `05` (staff invite
+   flow) sits directly after `02` and before `04` — `05` needs `02`'s schema to exist (its
+   `invited_by`/role-assignment plumbing) but has no dependency on `04`'s CORS retrofit at all, and
+   placing invite-creation ahead of the CORS retrofit is the more sensible product-readiness
+   order (staff can be invited before the per-brand-domain CORS allow-list is wired up). This is
+   one branch, `feat/tenancy-core`, reviewed as up to four stacked PRs (or one PR, implementer's
+   choice) covering `01`, `02`, `05`, `04` — `03` needs no PR at all since it is a no-op stub.
+   **Note:** `08` and `11` do not strictly need to *wait* for this step if their own migrations
+   target the real current Alembic head instead of assuming `machine-1/02`'s specific revision —
+   but neither can be considered functionally complete (their own FK/column reads will fail) until
+   `machine-1/02`'s schema is actually present, so treat this as a soft-but-strong ordering
+   preference for `08`/`11` specifically, distinct from the hard block on `post-tenancy-features/*`
+   below.
+4. **After `machine-1-tenancy-core` merges:** `post-tenancy-features/01` (billing), `02` (brand
+   landing pages), and `03` (brand deactivation) may branch and merge in any order relative to
+   each other — unlike the pre-pivot design, `03` has **no** dependency on `01` (deactivation has
+   no billing interaction at all, since billing is candidate-level, not brand-level; see the
+   dependency-graph note above). There is no isolation-test hard gate of any kind blocking this
+   step — that gate existed only for the now-deleted `post-tenancy-retrofit/` wave.
+5. **Independent of every step above, at any time:** `machine-2-parallel-tracks/10` (resume
+   tailoring) and `12` (LinkedIn sourcing) have no schema/migration dependency on any other chunk
+   in this doc set (`10` adds no migration at all; `12` depends only on the existing RBAC
+   `require_permission` mechanism, seeding its own permission row directly if `04` hasn't landed
+   yet). Both may be dispatched and merged whenever convenient.
+
+## LinkedIn legal-risk chunks
+
+Two chunks in this doc set — `machine-2-parallel-tracks/06-linkedin-outreach-send.md` (outbound
+send) and `machine-2-parallel-tracks/12-linkedin-sourcing-intern-multilogin.md` (inbound
+sourcing/scouting) — each carry their own prominent, independently-required legal-risk section at
+the top of the file. Both are deliberately human-in-the-loop, not automated: `06` is a task queue
+where a human operator performs the actual LinkedIn send in their own session; `12` is a manual
+data-entry form where an intern types in what they personally observed on a profile, with zero
+programmatic reads of linkedin.com anywhere in the design. `12`'s fact pattern is, if anything,
+closer to the actual `hiQ Labs v. LinkedIn` judgment (data scraping) than `06`'s is — read both
+risk sections before implementing either, and do not treat either file's "human-in-the-loop"
+framing as decoration; it is the load-bearing legal-risk mitigation for both chunks.
 
 ## Subagent role assignment
 
 | Track | Developer | Reviewer | Tester | Notes |
 |---|---|---|---|---|
-| `machine-1-tenancy-core` (all 5 chunks) | 1 developer subagent, sequential dispatch (chunk N waits for chunk N-1's migration to exist; internal order is now `01→02→03→05→04`) | 1 reviewer subagent per chunk, gates progression to next chunk | 1 tester subagent after chunk `04`, full auth+CORS+rate-limit+invite-flow test pass | Single-threaded by design — this is the track everything else waits on, so speed here matters more than parallelism |
-| `machine-2-parallel-tracks/01, 02, 04` | 1 developer subagent per track, dispatched in parallel | 1 reviewer subagent per track | 1 tester subagent per track | Independent CV/profiling, JobSpy-country, and RBAC domains, zero file overlap |
-| `machine-2-parallel-tracks/03 → 05 → 06` | 1 developer subagent, sequential within this sub-chain (06 imports the schema 03 defines and the compliance primitives 05 defines) | 1 reviewer subagent per chunk | 1 tester subagent after `06` | This sub-chain is internally sequential even though the whole `machine-2` track is parallel to `machine-1` |
-| `machine-2-parallel-tracks/07` | 1 developer subagent, dispatched after `02` and `03` (code-import dependency, not a schema one — see "Merge order" §1) | 1 reviewer subagent | 1 tester subagent (regression-byte-identical-when-disabled check is release-blocking for this chunk specifically) | Small, additive prompt-context chunk — no new table, no new migration |
-| `post-tenancy-retrofit/01, 02, 03` | 3 developer subagents in parallel (disjoint modules) | 3 reviewer subagents in parallel | held until all 3 land | Each retrofits one domain; see each file's file list |
-| `post-tenancy-retrofit/04` | 1 developer + 1 tester subagent, dispatched only after 01-03 all merged | 1 reviewer subagent, **release-blocking** | tester subagent owns the real-Postgres CI job | This is the hard gate — see below |
-| `post-tenancy-features/01, 02` | 1 developer subagent per track, parallel to each other | 1 reviewer subagent per track | 1 tester subagent per track | Only dispatched after the hard gate passes |
-| `post-tenancy-features/03` | 1 developer subagent, dispatched after `01` merges (needs `OrganizationSubscription`/Stripe customer linkage) | 1 reviewer subagent, treats the staged-deletion ordering (soft-delete → grace period → hard-delete → Stripe redaction → tombstone) as a correctness-blocking review item, not a style nit | 1 tester subagent — must cover the grace-period-not-elapsed 409 path and the Stripe-redaction ordering assertion | Also responsible for creating the real `docs/adr/00XX-org-offboarding-and-data-retention.md` file (this chunk's own migration/router/service files only *spec* that ADR as a deliverable, matching `post-tenancy-features/01`'s own ADR-deliverable precedent) |
-
-## Hard gate rule
-
-**No `post-tenancy-retrofit` branch — and no `post-tenancy-features` branch — merges to
-`master-complete-foundation` until `post-tenancy-retrofit/04-tenant-isolation-test-suite.md`'s
-test suite passes green against a real dockerized Postgres instance (`docker compose -f
-backend/docker/docker-compose.yml up postgres`, not SQLite).** SQLite is fine for the rest of
-this repo's day-to-day dev loop (ADR 0002), but cross-tenant isolation bugs are exactly the
-class of bug that a permissive, single-file SQLite test DB can hide (no real row-level security,
-no connection-pooling edge cases, no concurrent-session interleaving) — so this one suite is
-explicitly carved out to require Postgres, matching how `docker-compose.yml`'s own `migrate`
-service already runs migrations against Postgres before `api` starts.
-
-The reviewer subagent for `04-tenant-isolation-test-suite.md` must refuse to approve the PR if:
-
-- the suite runs against SQLite instead of Postgres, or
-- any test in the suite is skipped/xfail'd instead of passing, or
-- the suite does not cover all three domains retrofitted in `01`-`03` (job matching/swipe,
-  outreach/documents/portfolio, admin).
+| `machine-1-tenancy-core` (`01`, `02`, `05`, `04`) | 1 developer subagent, sequential dispatch (chunk N waits for chunk N-1's schema to exist; order is `01→02→05→04`) | 1 reviewer subagent per chunk, gates progression to next chunk | 1 tester subagent after chunk `04`, full CORS+invite-flow test pass | `03` is a superseded stub — no subagent dispatch of any kind; it is not implemented |
+| `machine-2-parallel-tracks/01, 02, 04, 08` | 1 developer subagent per track, dispatched in parallel | 1 reviewer subagent per track | 1 tester subagent per track | Independent CV/profiling, JobSpy-country, RBAC, and recruiter-assignment domains, zero file overlap |
+| `machine-2-parallel-tracks/03 → 05 → 06` | 1 developer subagent, sequential within this sub-chain (`06` imports the schema `03` defines and the compliance primitives `05` defines) | 1 reviewer subagent per chunk — `06`'s reviewer must also confirm the human-in-the-loop design boundary (no LinkedIn network call/browser automation anywhere in the diff) | 1 tester subagent after `06` | This sub-chain is internally sequential even though the whole `machine-2` track is parallel to `machine-1` |
+| `machine-2-parallel-tracks/07` | 1 developer subagent, dispatched after `02` and `03` (code-import dependency, not a schema one — see "Merge order" §1) | 1 reviewer subagent, byte-identical-when-disabled regression check is release-blocking | 1 tester subagent | Small, additive prompt-context chunk — no new table, no new migration |
+| `machine-2-parallel-tracks/09` | 1 developer subagent, may be dispatched any time relative to `08` (conceptual, not structural, dependency) | 1 reviewer subagent, must confirm `RecruiterCandidateAssignment` is never read for authorization | 1 tester subagent | Adds `users.recruiter_action_mode`; default `approval_required` is release-blocking to verify |
+| `machine-2-parallel-tracks/10` | 1 developer subagent, fully independent | 1 reviewer subagent, must confirm zero new tables/migrations/columns anywhere in the diff | 1 tester subagent — owns the no-persistence regression test | Ephemeral RQ-result-TTL design; the "nothing is ever persisted" invariant is the release-blocking review item |
+| `machine-2-parallel-tracks/11` | 1 developer subagent, dispatched after `machine-1/02` lands (needs `Brand`/`users.signup_brand_id`) | 1 reviewer subagent, must confirm the no-brand and `chatbot_config IS NULL` cases both produce byte-identical default prompts | 1 tester subagent | Extends `CvChatService`/`build_chat_system_prompt` in place; no new router/schema surface |
+| `machine-2-parallel-tracks/12` | 1 developer subagent, fully independent (seeds its own permission row if `04` hasn't landed) | 1 reviewer subagent — **release-blocking**: must confirm zero network calls to `linkedin.com`/browser automation anywhere in the diff, identical bar to `06`'s reviewer | 1 tester subagent | Manual lead-entry form only; see "LinkedIn legal-risk chunks" above |
+| `post-tenancy-features/01, 02` | 1 developer subagent per track, dispatched after `machine-1-tenancy-core` merges, parallel to each other | 1 reviewer subagent per track — `01`'s reviewer additionally confirms the server-side (never UI-only) blur/teaser paywall requirement | 1 tester subagent per track | No hard gate beyond `Brand` existing — the old isolation-test gate no longer applies |
+| `post-tenancy-features/03` | 1 developer subagent, dispatched after `machine-1-tenancy-core` merges — **no** dependency on `01` | 1 reviewer subagent, confirms zero candidate/recruiter/document/job-match/outreach rows are touched by deactivation (regression-blocking) | 1 tester subagent | Reuses existing admin audit logging; no new tombstone table, no grace period, fully reversible |
 
 ## Branch naming convention
 
-- `feat/tenancy-core` — machine-1, all five chunks (including `05-org-invite-flow.md`)
+- `feat/tenancy-core` — machine-1, chunks `01`, `02`, `05`, `04` (`03` needs no branch — it is a
+  superseded stub with no implementation)
 - `feat/progressive-profiling-fields`, `feat/country-demand-intelligence`,
   `feat/outreach-strategy-dimension`, `feat/rbac-admin-platform`,
   `feat/outreach-canspam-compliance`, `feat/linkedin-outreach-send`,
-  `feat/demand-intelligence-resume-integration` — machine-2, one branch per track (the
-  `03 → 05 → 06` sub-chain may be three stacked branches or three commits on one branch,
-  implementer's choice, as long as each is reviewable independently)
-- `feat/job-matching-tenant-scoping`, `feat/outreach-docs-portfolio-tenant-scoping`,
-  `feat/admin-tenant-scoping`, `feat/tenant-isolation-tests` — post-tenancy-retrofit
-- `feat/billing-stripe`, `feat/brand-landing-pages`, `feat/org-offboarding-and-deletion` —
+  `feat/demand-intelligence-resume-integration`, `feat/recruiter-candidate-assignment`,
+  `feat/recruiter-apply-and-suggest`, `feat/resume-tailoring`, `feat/per-brand-chatbot-config`,
+  `feat/linkedin-sourcing-intern-multilogin` — machine-2, one branch per track (the `03 → 05 → 06`
+  sub-chain may be three stacked branches or three commits on one branch, implementer's choice, as
+  long as each is reviewable independently)
+- `feat/billing-stripe`, `feat/brand-landing-pages`, `feat/brand-deactivation` —
   post-tenancy-features
 
 All branches target `master-complete-foundation` directly (this repo does not use a long-lived
@@ -198,32 +233,43 @@ implementing agent — each opens a PR and stops for human review.
 
 ## Assumptions this README makes (flag if wrong)
 
-- "Org" and "agency" and "tenant" are used interchangeably in this doc set; the schema chunk
-  (`machine-1-tenancy-core/02-schema-and-migration.md`) is the single source of truth for the
-  actual table/column names.
-- A user belongs to exactly one org (no cross-org user membership in v1) — see that chunk's
-  "Ambiguities resolved" section for why.
-- "Placement agency" candidates and jobs are the *same* `job_matching`/`documents`/`portfolio`
-  tables used today by direct candidates, scoped by `org_id`, not a parallel schema — see
-  `post-tenancy-retrofit/01` and `02`.
+- `docs/adr/0018-tenancy-model.md` (or whatever number it actually lands as — see
+  `machine-1-tenancy-core/01-adr-0015-tenancy-model.md`'s own "Naming" note; the repo's real ADR
+  index already runs through `0017` as of 2026-08-22) is the single source of truth for the
+  `Brand`/access-control decision. If a future reader finds `org_id`, `tenant_id`, or
+  `Organization` anywhere in application code, that is drift from this doc set's decision, not a
+  feature to build against.
+- A `User` row backs both candidates and staff (recruiters/interns/`team_owner`) — there is no
+  separate `candidates` table anywhere in this schema. Every chunk in this doc set that informally
+  says "candidate" means "a `users` row without a staff/recruiter role."
+- `job_matching`/`outreach`/`documents`/`portfolio`/`admin` queries are, and remain, entirely
+  unscoped by brand — no chunk in this doc set adds a `WHERE` clause filtering any of those tables
+  by `signup_brand_id` or any brand-derived value. If a future chunk proposes such a filter citing
+  this doc set, that is a misreading of every "Do not touch"/"Ambiguities resolved" section that
+  explicitly rejects it (see `machine-1-tenancy-core/00-overview.md`,
+  `machine-2-parallel-tracks/08-recruiter-candidate-assignment.md`, and
+  `post-tenancy-features/02-brand-landing-pages.md` in particular).
 
-## Gaps closed since initial planning (2026-08-23)
+## Gaps closed since initial planning (2026-08-22, brand-model pivot)
 
-A critical review of this doc set found 9 gaps in the original planning. All 9 are now closed;
-this section is the traceability index for anyone auditing the doc set later.
+A later pass on this doc set replaced the isolated-agency-tenant model with the single-operator,
+multi-brand model described above, and closed several gaps surfaced along the way. This section
+is the traceability index for anyone auditing the doc set later.
 
 | # | Gap | Closed by |
 |---|-----|-----------|
-| 1 | No invite/signup flow into an org | `machine-1-tenancy-core/05-org-invite-flow.md` (new chunk) |
-| 2 | Country-demand data doesn't feed resume/outreach personalization | `machine-2-parallel-tracks/07-demand-intelligence-resume-integration.md` (new chunk) |
-| 2b | India/Middle East JSearch country/language coverage unverified | `machine-2-parallel-tracks/02-country-demand-intelligence.md` (edited "Verification" section — added missing ISO2 mappings and a `language`-parameter check) |
-| 3 | `ManualJobEntry` org-scoping left as "check carefully at implementation time" | `post-tenancy-retrofit/01-job-matching-and-swipe-tenant-scoping.md` (edited — definitive decision + reusable ownership-test rule) |
-| 4a | `LinkedInSendTask` org-scoping left as "implementer's choice" | `post-tenancy-retrofit/02-outreach-documents-portfolio-tenant-scoping.md` and `machine-2-parallel-tracks/06-linkedin-outreach-send.md` (both edited — definitive decision: transitive join, no duplicate column) |
-| 4b | No frontend UI coverage for four machine-2 backend-only chunks | `machine-2-parallel-tracks/01-progressive-profiling-fields.md`, `02-country-demand-intelligence.md`, `03-outreach-strategy-dimension.md`, `04-rbac-admin-platform.md` (each edited — new "Frontend" section appended) |
-| 5 | No org deletion/offboarding/data-retention spec | `post-tenancy-features/03-org-offboarding-and-deletion.md` (new chunk) |
-| 6 | Seat enforcement explicitly deferred with no follow-up owner | `machine-1-tenancy-core/05-org-invite-flow.md` (new chunk, enforcement lives at its invite-creation endpoint) + `post-tenancy-features/01-billing-stripe-integration.md` (edited — cross-reference note added beneath the original scope-cut) |
-| 7 | No org-wide rate-limit ceiling, only per-caller key-format change | `machine-1-tenancy-core/04-cors-and-ratelimit-retrofit.md` (edited — new "Org-wide ceiling" section, second additive Redis key, billing-soft-dependency fallback config) |
-
-Note gap `4` in the original review bundled two distinct issues (the `LinkedInSendTask` scoping
-ambiguity, and missing frontend coverage) — both are listed above as `4a`/`4b` for precision,
-since they're closed by entirely different files.
+| 1 | Original design isolated agencies as tenants with `org_id`-scoped data — did not match the actual product (one internal team, one shared pool, branded storefronts) | `docs/adr/0018-tenancy-model.md` (via `machine-1-tenancy-core/01`) + full `machine-1-tenancy-core/00`, `02`, `03`, `04`, `05` rewrite |
+| 2 | Cross-tenant isolation retrofit wave (`post-tenancy-retrofit/`) no longer had a purpose once there is no tenant boundary | All four `post-tenancy-retrofit/*.md` files deleted |
+| 3 | Billing was org/seat-level (`OrganizationSubscription`) — did not match candidate-level freemium product reality | `post-tenancy-features/01-billing-stripe-integration.md` rewritten around `UserSubscription` + server-side blurred-preview paywall |
+| 4 | No recruiter-to-candidate ownership/workload marker existed | `machine-2-parallel-tracks/08-recruiter-candidate-assignment.md` (new chunk) — explicitly an ownership marker, never an access gate |
+| 5 | No way for a recruiter to apply/suggest on a candidate's behalf | `machine-2-parallel-tracks/09-recruiter-initiated-apply-and-suggest.md` (new chunk) — gated by a candidate-facing autonomous-vs-approval preference |
+| 6 | No per-company resume personalization existed | `machine-2-parallel-tracks/10-resume-tailoring.md` (new chunk) — ephemeral, RQ-result-TTL-backed, no new persisted document type |
+| 7 | `Brand.chatbot_config` (reserved by `machine-1/02`) had no consumer | `machine-2-parallel-tracks/11-per-brand-chatbot-config.md` (new chunk) — extends `CvChatService`'s system prompt |
+| 8 | No LinkedIn sourcing/scouting workflow existed (only outbound send, chunk `06`) | `machine-2-parallel-tracks/12-linkedin-sourcing-intern-multilogin.md` (new chunk) — manual lead-entry form, its own prominent legal-risk section |
+| 9 | `06-linkedin-outreach-send.md` misattributed the `hiQ Labs v. LinkedIn` $500,000 judgment to automated *messaging* | Corrected in place — the judgment rests on data scraping/fake-account claims, not messaging; `12`'s new legal-risk section is written consistently with the corrected citation |
+| 10 | Country-demand data (`02`) had no tiering methodology for recruiter prioritization | `machine-2-parallel-tracks/02-country-demand-intelligence.md` extended with the Tier 1/2/3 market-research methodology and India/Middle East resume-personalization notes |
+| 11 | `learning_style`/`prep_timeline_weeks` (from `01`) were collected but never used | `machine-2-parallel-tracks/01-progressive-profiling-fields.md` extended with the learning-style-suggestion-back feature |
+| 12 | Outreach drafting had no employer-tier or role-type/seniority variation | `machine-2-parallel-tracks/03-outreach-strategy-dimension.md` extended with `EmployerCompanyTier` (manual) and role-type/seniority prompt variation |
+| 13 | RBAC system roles (`agency_owner`/`agency_recruiter`) implied per-tenant agency accounts | `machine-2-parallel-tracks/04-rbac-admin-platform.md` renamed to `team_owner`/`recruiter`, reflecting one internal team |
+| 14 | "Org offboarding and deletion" (`post-tenancy-features/03`) staged a full cascading-deletion pipeline that assumed organizations owned user data | Shrunk to `post-tenancy-features/03-org-offboarding-and-deletion.md`'s current scope: reversible brand deactivation only, no cascade, no grace period, no Stripe redaction |
+| 15 | Brand landing pages (`post-tenancy-features/02`) had no tier/segment variant | Extended with `/b/{slug}/{tier}` sub-pages, backed by `Brand.landing_page_tier_config` |

@@ -3,15 +3,24 @@
 ## ⚠️ Legal risk — read before implementing anything in this file
 
 LinkedIn's User Agreement §8.2 prohibits automated messaging and automated connection requests.
-`hiQ Labs v. LinkedIn` ended in a **$500,000 consent judgment** specifically over automated
-accounts contacting people on LinkedIn on a company's behalf. As of 2026, LinkedIn's enforcement
-posture is **vendor-level takedowns** (e.g. the HeyReach takedown) — LinkedIn goes after the
-tool/vendor enabling automated outreach, not only the end account. The existing Tier-1 LinkedIn
-infrastructure in this repo (`backend/app/integrations/multilogin/profile_pool.py`,
-`backend/app/integrations/linkedin/`) is **read-only today** (photo enrichment,
-`ENABLE_TIER1`-gated) and has **never been used to send anything**. Reusing it for automated
-sending is a materially different, materially riskier use of the same session-rotation/cooldown
-infrastructure than what it does today.
+`hiQ Labs v. LinkedIn` (N.D. Cal., Case No. 17-cv-03301-EMC) ended in a **$500,000 consent
+judgment (Dec 2022)** — but that judgment rests on **data scraping and fake-account
+creation/breach-of-contract claims**, not on automated messaging: hiQ operated fake LinkedIn
+accounts to scrape public profile data at scale for its own analytics product, and the judgment
+followed from that conduct, not from sending outbound messages/connection requests. As of 2026,
+LinkedIn's enforcement posture is **vendor-level takedowns** (e.g. the HeyReach takedown) — for
+automated *outreach* specifically, LinkedIn's practical enforcement to date has been via User
+Agreement §8.2 contract enforcement/account and vendor takedowns rather than through litigation on
+the hiQ fact pattern. LinkedIn goes after the tool/vendor enabling automated outreach, not only the
+end account. The existing Tier-1 LinkedIn infrastructure in this repo
+(`backend/app/integrations/multilogin/profile_pool.py`, `backend/app/integrations/linkedin/`) is
+**read-only today** (photo enrichment, `ENABLE_TIER1`-gated) and has **never been used to send
+anything**. Reusing it for automated sending is a materially different, materially riskier use of
+the same session-rotation/cooldown infrastructure than what it does today — and notably, that
+kind of profile-scraping-via-automated-session usage is *closer* to the actual hiQ fact pattern
+(scraping via automated/fake accounts) than outbound sending is, which is precisely why
+`12-linkedin-sourcing-intern-multilogin.md` (a separate, later chunk covering LinkedIn
+sourcing/scouting) carries its own explicit legal-risk section rather than reusing this one.
 
 This chunk still specs the send/DM action layer and the intern task-queue UI, as required by the
 broader effort — **but the design below is deliberately human-in-the-loop, not a fully automated
