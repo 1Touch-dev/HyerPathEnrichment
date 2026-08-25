@@ -4,8 +4,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/console/EmptyState";
-import { DraftOutreachDialog, useDraftOutreachForMatch } from "@/features/outreach";
-import type { OutreachMessageType, SwipeDirection } from "@/src/lib/types";
+import {
+  DraftOutreachDialog,
+  type DraftOutreachConfirmPayload,
+  useDraftOutreachForMatch,
+} from "@/features/outreach";
+import type { SwipeDirection } from "@/src/lib/types";
 import { useSubmitSwipe, useSwipeDeck } from "../hooks/useSwipeDeck";
 import { SwipeCard } from "./SwipeCard";
 
@@ -15,9 +19,11 @@ export function SwipeDeckView() {
   const { data, isLoading, isError, refetch, isRefetching } = useSwipeDeck();
   const submitSwipe = useSubmitSwipe();
   const draftOutreach = useDraftOutreachForMatch();
-  const [draftTarget, setDraftTarget] = useState<{ matchId: string; companyName: string } | null>(
-    null,
-  );
+  const [draftTarget, setDraftTarget] = useState<{
+    matchId: string;
+    companyName: string;
+    title: string;
+  } | null>(null);
 
   if (isLoading) return <div className="animate-pulse h-[32rem] rounded-2xl bg-muted" />;
   if (isError)
@@ -55,18 +61,19 @@ export function SwipeDeckView() {
   }
 
   function handleDraftOutreach(matchId: string, companyName: string) {
-    setDraftTarget({ matchId, companyName });
+    const card = data?.cards.find((c) => c.matchId === matchId);
+    setDraftTarget({ matchId, companyName, title: card?.title ?? "" });
   }
 
-  function handleConfirmDraft(payload: {
-    messageType: OutreachMessageType;
-    customInstruction?: string;
-  }) {
+  function handleConfirmDraft(payload: DraftOutreachConfirmPayload) {
     if (!draftTarget) return;
     draftOutreach.mutate(
       {
-        companyName: draftTarget.companyName,
-        jobMatchId: draftTarget.matchId,
+        companyName: payload.companyName,
+        documentId: payload.documentId,
+        jobMatchId: payload.jobMatchId ?? draftTarget.matchId,
+        jobDescription: payload.jobDescription,
+        recipientRoleTitle: payload.recipientRoleTitle || draftTarget.title || undefined,
         messageType: payload.messageType,
         customInstruction: payload.customInstruction,
       },
@@ -103,6 +110,8 @@ export function SwipeDeckView() {
       <DraftOutreachDialog
         open={draftTarget !== null}
         companyName={draftTarget?.companyName ?? null}
+        jobMatchId={draftTarget?.matchId ?? null}
+        recipientRoleTitle={draftTarget?.title ?? null}
         isPending={draftOutreach.isPending}
         onOpenChange={(open) => {
           if (!open) setDraftTarget(null);

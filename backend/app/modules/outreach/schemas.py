@@ -12,6 +12,10 @@ class OutreachDraftRequest(BaseModel):
     company_name: str = Field(..., min_length=1, max_length=255)
     recipient_role_title: str | None = Field(default=None, max_length=255)
     job_match_id: str | None = None
+    # Optional pasted JD — when set, the worker uses this text instead of looking
+    # up JobPosting.description_raw via job_match_id (still allowed together so
+    # swipe drafts keep the match id for audit while a paste can override the text).
+    job_description: str | None = Field(default=None, min_length=50, max_length=20_000)
     document_id: str  # which CV to draw candidate context from
     message_type: OutreachMessageType = "email"
     custom_instruction: str | None = Field(

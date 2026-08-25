@@ -1001,9 +1001,8 @@ export interface OutreachDraftAccepted {
 /**
  * Module 4, Module G: request payload for `POST /api/outreach/drafts`
  * (phase2_module4_application_lifecycle_and_interview_prep.md §11.4/§11.7).
- * `documentId` is required by the backend's `OutreachDraftRequest`, but
- * `useDraftOutreachForMatch` resolves it internally before calling `draftOutreach`,
- * so callers of that hook only supply `Omit<RequestOutreachDraftInput, "documentId">`.
+ * `documentId` is required (chosen in DraftOutreachDialog's résumé picker).
+ * Optional `jobDescription` pastes override match-lookup JD text in the worker.
  * `customInstruction` is only meaningful (and required, per §11.6's service-layer
  * guard) when `messageType === "custom"`.
  */
@@ -1012,6 +1011,7 @@ export interface RequestOutreachDraftInput {
   documentId: string;
   recipientRoleTitle?: string;
   jobMatchId?: string;
+  jobDescription?: string;
   messageType?: OutreachMessageType;
   customInstruction?: string;
 }
@@ -1098,7 +1098,7 @@ export interface JdPracticeQuestion {
 
 export interface JdPracticeResponse {
   questions: JdPracticeQuestion[];
-  jobMatchId: string;
+  jobMatchId: string | null;
   practiceSessionId: string;
 }
 

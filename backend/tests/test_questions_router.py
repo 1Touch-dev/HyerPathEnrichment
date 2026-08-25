@@ -121,10 +121,10 @@ def test_list_questions_returns_bank_results(
 ) -> None:
     headers = _auth_headers()
     response = client.post(
-        "/api/questions", headers=headers, json={"job_role": "software_engineer", "count": 3}
+        "/api/questions", headers=headers, json={"job_role": "software_engineer", "count": 5}
     )
     data = assert_success(response)
-    assert len(data["questions"]) <= 3
+    assert len(data["questions"]) <= 5
     assert data["source"] in {"question_bank", "generated", "mixed"}
 
 
@@ -137,11 +137,11 @@ def test_list_questions_falls_back_without_openai_key(
     # is visible to the `Depends(get_settings)` used by the route.
     monkeypatch.setattr(get_settings(), "openai_api_key", "")
     headers = _auth_headers()
-    # count=10 is the schema's max (QuestionRequest.count has le=10 -
-    # app/modules/questions/schemas.py:21); "product_manager" is not seeded
-    # by any fixture in this file, so the bank shortfall is guaranteed.
+    # count=15 is the schema's max (QuestionRequest.count has le=15).
+    # "product_manager" is not seeded by any fixture in this file, so the
+    # bank shortfall is guaranteed.
     response = client.post(
-        "/api/questions", headers=headers, json={"job_role": "product_manager", "count": 10}
+        "/api/questions", headers=headers, json={"job_role": "product_manager", "count": 15}
     )
     data = assert_success(response)
     assert data["source"] == "question_bank"
@@ -162,12 +162,12 @@ def test_list_questions_personalizes_when_document_exists(
     ) as mock_generate:
         mock_generate.return_value = ([], {"input_tokens": 0, "output_tokens": 0})
         # "devops_engineer" is not seeded anywhere in this file, so the bank
-        # has 0 matches and count=10 guarantees a shortfall - the only
+        # has 0 matches and count=5 guarantees a shortfall - the only
         # condition (per service.py's get_questions) that triggers generation.
         response = client.post(
             "/api/questions",
             headers=headers,
-            json={"job_role": "devops_engineer", "count": 10, "personalize": True},
+            json={"job_role": "devops_engineer", "count": 5, "personalize": True},
         )
         assert response.status_code == 200
         mock_generate.assert_called_once()
@@ -193,41 +193,84 @@ def test_list_questions_stops_personalizing_after_daily_limit(
     with patch(
         "app.modules.questions.service.generate_questions", new_callable=AsyncMock
     ) as mock_generate:
+        sample_generated = {
+            # category/job_role deliberately avoid colliding with
+            # test_question_bank.py's "nothing matches" empty-list
+            # assumption (devops_engineer + system_design) - this call
+            # persists a REAL row into the shared test sqlite file
+            # (session.commit(), not rolled back across test files).
+            "question_text": "Explain how you'd design a rate limiter.",
+            "category": "behavioral",
+            "difficulty": "medium",
+            "job_roles": ["devops_engineer"],
+            "technologies": ["redis"],
+            "sample_answer": "A token bucket...",
+            "scoring_rubric": {"clarity": "clear"},
+        }
         mock_generate.return_value = (
-            [
-                {
-                    # category/job_role deliberately avoid colliding with
-                    # test_question_bank.py's "nothing matches" empty-list
-                    # assumption (devops_engineer + system_design) - this call
-                    # persists a REAL row into the shared test sqlite file
-                    # (session.commit(), not rolled back across test files).
-                    "question_text": "Explain how you'd design a rate limiter.",
-                    "category": "behavioral",
-                    "difficulty": "medium",
-                    "job_roles": ["devops_engineer"],
-                    "technologies": ["redis"],
-                    "sample_answer": "A token bucket...",
-                    "scoring_rubric": {"clarity": "clear"},
-                }
-            ],
+            [sample_generated] * 5,
             {"input_tokens": 10, "output_tokens": 10},
         )
         # First call: under the limit (0 generated today) -> personalizes and
-        # persists one personalized_for_user_id row, consuming the day's quota.
+        # persists personalized_for_user_id rows, consuming the day's quota.
         first = client.post(
             "/api/questions",
             headers=headers,
-            json={"job_role": "devops_engineer", "count": 10, "personalize": True},
+            json={"job_role": "devops_engineer", "count": 5, "personalize": True},
         )
         assert first.status_code == 200
         assert mock_generate.call_args.kwargs["candidate_context"] is not None
 
-        # Second call: quota now exhausted (1 personalized row already exists
-        # for this user in the last 24h) -> candidate_context must be dropped.
+        mock_generate.reset_mock()
+        mock_generate.return_value = (
+            [sample_generated] * 5,
+            {"input_tokens": 10, "output_tokens": 10},
+        )
+
+        # Second call: quota exhausted. Ask for more than the bank now holds so
+        # generation still runs, but candidate_context must be dropped.
         second = client.post(
             "/api/questions",
             headers=headers,
-            json={"job_role": "devops_engineer", "count": 10, "personalize": True},
+            json={"job_role": "devops_engineer", "count": 15, "personalize": True},
         )
         assert second.status_code == 200
+        assert mock_generate.called
         assert mock_generate.call_args.kwargs["candidate_context"] is None
+
+
+def test_list_questions_batches_generation_to_requested_count(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """count=10 must request a full shortfall from generate_questions in one call."""
+    monkeypatch.setattr(get_settings(), "openai_api_key", "test-key-for-batching")
+    headers = _auth_headers()
+    sample = {
+        "question_text": "Explain your approach to on-call.",
+        "category": "behavioral",
+        "difficulty": "medium",
+        "job_roles": ["software_engineer"],
+        "technologies": ["python"],
+        "sample_answer": "A strong answer covers alerting...",
+        "scoring_rubric": {"clarity": "clear"},
+    }
+
+    with patch(
+        "app.modules.questions.service.generate_questions", new_callable=AsyncMock
+    ) as mock_generate:
+
+        async def _fake_generate(**kwargs):
+            n = kwargs["count"]
+            return ([sample.copy() for _ in range(n)], {"input_tokens": 1, "output_tokens": 1})
+
+        mock_generate.side_effect = _fake_generate
+        response = client.post(
+            "/api/questions",
+            headers=headers,
+            json={"job_role": "product_manager", "count": 10},
+        )
+        data = assert_success(response)
+        assert len(data["questions"]) == 10
+        assert mock_generate.call_count == 1
+        assert mock_generate.call_args.kwargs["count"] == 10

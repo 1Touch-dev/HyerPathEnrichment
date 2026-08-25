@@ -86,6 +86,7 @@ def generate_outreach_draft_job(
     job_match_id: str | None,
     message_type: str = "email",
     custom_instruction: str | None = None,
+    job_description: str | None = None,
 ) -> None:
     asyncio.run(
         _generate_outreach_draft_job(
@@ -96,6 +97,7 @@ def generate_outreach_draft_job(
             job_match_id,
             message_type,
             custom_instruction,
+            job_description,
         )
     )
 
@@ -108,6 +110,7 @@ async def _generate_outreach_draft_job(
     job_match_id: str | None,
     message_type: str = "email",
     custom_instruction: str | None = None,
+    job_description: str | None = None,
 ) -> None:
     try:
         async with SessionLocal() as session:
@@ -122,7 +125,12 @@ async def _generate_outreach_draft_job(
                 CVData(**(document.extracted_data or {})) if document.extracted_data else CVData()
             )
 
-            job_description = await _get_job_description(session, job_match_id, UUID(user_id))
+            # Pasted JD wins when provided; otherwise load from the tracked match.
+            resolved_jd = (job_description or "").strip() or None
+            if resolved_jd:
+                resolved_jd = resolved_jd[:1500]
+            else:
+                resolved_jd = await _get_job_description(session, job_match_id, UUID(user_id))
 
             perplexity = PerplexityClient()
             context = await perplexity.get_company_context(company_name, role_title)
@@ -133,7 +141,7 @@ async def _generate_outreach_draft_job(
                 company_name,
                 role_title,
                 context["summary"],
-                job_description,
+                resolved_jd,
                 settings,
                 message_type,
                 custom_instruction,

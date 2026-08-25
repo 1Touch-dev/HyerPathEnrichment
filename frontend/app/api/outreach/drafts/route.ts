@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
         document_id: body.documentId,
         recipient_role_title: body.recipientRoleTitle ?? null,
         job_match_id: body.jobMatchId ?? null,
+        job_description: body.jobDescription ?? null,
         message_type: body.messageType ?? "email",
         custom_instruction: body.customInstruction ?? null,
       }),

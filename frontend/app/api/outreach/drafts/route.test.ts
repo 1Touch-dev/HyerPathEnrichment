@@ -48,6 +48,7 @@ describe("POST /api/outreach/drafts", () => {
         document_id: "doc-1",
         recipient_role_title: "Hiring Manager",
         job_match_id: "m1",
+        job_description: null,
         message_type: "email",
         custom_instruction: null,
       }),

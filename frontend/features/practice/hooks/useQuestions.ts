@@ -7,6 +7,7 @@ type FetchQuestionsInput = {
   category?: string;
   difficulty?: string;
   personalize?: boolean;
+  documentId?: string;
 };
 
 /**
