@@ -75,6 +75,27 @@ function isReadyDocument(doc: DocumentSummary): boolean {
   return doc.processingStatus === "completed" || doc.processingStatus === "embedded";
 }
 
+/** How long to wait after the last keystroke before treating `companyName` as
+ * settled for the company-tier lookup — avoids firing a `useCompanyTier` request
+ * (and flickering the tier select's mount) on every character typed into the
+ * freely-editable company-name field. */
+const COMPANY_TIER_LOOKUP_DEBOUNCE_MS = 350;
+
+/** No shared debounce utility exists in this codebase yet (checked across
+ * `frontend/`), so this is a small local hook rather than a new shared file —
+ * kept out of the render body so `companyName` can stay fully responsive to
+ * typing while only the value fed into `useCompanyTier` lags behind it. */
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => clearTimeout(timeoutId);
+  }, [value, delayMs]);
+
+  return debouncedValue;
+}
+
 export type DraftOutreachConfirmPayload = {
   messageType: OutreachMessageType;
   customInstruction?: string;
@@ -154,7 +175,8 @@ export function DraftOutreachDialog({
   const selectedDocument =
     readyDocuments.find((doc) => doc.documentId === documentId) ?? latestDocument;
 
-  const companyTier = useCompanyTier(companyName);
+  const debouncedCompanyName = useDebouncedValue(companyName, COMPANY_TIER_LOOKUP_DEBOUNCE_MS);
+  const companyTier = useCompanyTier(debouncedCompanyName);
   const setCompanyTierMutation = useSetCompanyTier();
   const [tierValue, setTierValue] = useState<OutreachCompanyTierValue | undefined>(undefined);
 
@@ -280,7 +302,7 @@ export function DraftOutreachDialog({
             </div>
           ) : null}
 
-          {companyName.trim() ? (
+          {debouncedCompanyName.trim() ? (
             <div className="space-y-2">
               <Label htmlFor="draft-outreach-company-tier">Company tier</Label>
               <Select value={tierValue ?? UNSET} onValueChange={handleTierChange}>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
-import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, within, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ComponentProps, ReactNode } from "react";
 import { DraftOutreachDialog } from "./DraftOutreachDialog";
@@ -274,5 +274,48 @@ describe("DraftOutreachDialog", () => {
 
     expect(await screen.findByText("Premium")).toBeInTheDocument();
     expect(apiClient.getCompanyTier).toHaveBeenCalledWith("Acme");
+  });
+
+  // Regression test for the merge bug where the company-tier select was gated on
+  // the raw, un-debounced `companyName` input and `useCompanyTier` was called with
+  // that same raw value: typing a name character-by-character fired one company-tier
+  // request per keystroke. Fake timers let us assert the debounce window without a
+  // real 350ms wait.
+  it("debounces the company-tier lookup when typing the company name character-by-character", async () => {
+    renderDialog({ companyName: undefined });
+    await waitForResumeReady();
+
+    // getCompanyTier isn't called at all while the field is empty.
+    expect(apiClient.getCompanyTier).not.toHaveBeenCalled();
+
+    vi.useFakeTimers();
+    try {
+      const companyInput = screen.getByLabelText("Company");
+      const name = "Acme";
+      for (let i = 1; i <= name.length; i += 1) {
+        fireEvent.change(companyInput, { target: { value: name.slice(0, i) } });
+        // Simulate fast, real typing: each keystroke lands well inside the debounce
+        // window of the previous one, so no lookup should fire mid-stream.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(50);
+        });
+      }
+
+      // Still within the debounce window of the last keystroke — no lookup yet, and
+      // the tier select shouldn't have mounted yet either (same debounced gate).
+      expect(apiClient.getCompanyTier).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText("Company tier")).not.toBeInTheDocument();
+
+      // Let the debounce settle after the last keystroke.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400);
+      });
+
+      expect(apiClient.getCompanyTier).toHaveBeenCalledTimes(1);
+      expect(apiClient.getCompanyTier).toHaveBeenCalledWith("Acme");
+      expect(screen.getByLabelText("Company tier")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
