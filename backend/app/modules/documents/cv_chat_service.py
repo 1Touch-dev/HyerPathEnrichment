@@ -11,11 +11,23 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.clients.llm_tools import RECORD_CV_ANSWER_TOOL, build_chat_system_prompt
+from app.clients.llm_tools import (
+    _PREP_STRATEGY_SYSTEM_PROMPT,
+    RECORD_CV_ANSWER_TOOL,
+    build_chat_system_prompt,
+    build_prep_strategy_user_prompt,
+)
 from app.clients.retry import with_transient_retry
 from app.core.config import get_settings
 from app.domain.candidate import CVData
-from app.domain.cv_completeness import compute_missing_fields, question_for_field
+from app.domain.cv_completeness import (
+    PROGRESSIVE_FIELDS,
+    compute_missing_fields,
+    compute_missing_progressive_fields,
+    question_for_field,
+    question_for_progressive_field,
+    should_generate_prep_strategy_suggestion,
+)
 from app.modules.documents.models import CandidateDocument, CvChatMessage, CvChatSession
 from app.modules.documents.schemas import (
     CvChatMessageResponse,
@@ -66,29 +78,44 @@ class CvChatService:
 
         cv_data = CVData(**(document.extracted_data or {})) if document.extracted_data else CVData()
         missing = compute_missing_fields(cv_data)
+        # A session is only "completed" at start if BOTH required and progressive fields are
+        # already resolved — required-only completeness (compute_missing_fields()) is no longer
+        # sufficient on its own, since candidates who already have all required fields filled
+        # in from CV extraction still get asked the progressive-profiling questions (see
+        # post_message's post-required-fields branch for the same rule applied mid-session).
+        missing_progressive = compute_missing_progressive_fields(cv_data)
+        is_complete = not missing and not missing_progressive
 
         session = CvChatSession(
             id=uuid4(),
             user_id=user_id,
             document_id=document.id,
-            status="active" if missing else "completed",
+            status="completed" if is_complete else "active",
             missing_fields_at_start=missing,
             fields_resolved=[],
             started_at=datetime.now(UTC),
-            completed_at=None if missing else datetime.now(UTC),
+            completed_at=datetime.now(UTC) if is_complete else None,
         )
         self.db.add(session)
         await self.db.commit()
         await self.db.refresh(session)
 
         if missing:
-            first_question = question_for_field(missing[0])
+            first_field, first_question = missing[0], question_for_field(missing[0])
+        elif missing_progressive:
+            first_field = missing_progressive[0]
+            first_question = question_for_progressive_field(missing_progressive[0])
+        else:
+            first_field = None
+            first_question = None
+
+        if first_question:
             greeting = CvChatMessage(
                 id=uuid4(),
                 session_id=session.id,
                 role="assistant",
                 content=first_question,
-                field_name=missing[0],
+                field_name=first_field,
                 created_at=datetime.now(UTC),
             )
             self.db.add(greeting)
@@ -115,8 +142,15 @@ class CvChatService:
                 status_code=status.HTTP_409_CONFLICT, detail="Chat session reached its turn limit"
             )
 
-        remaining = [f for f in session.missing_fields_at_start if f not in session.fields_resolved]
-        if not remaining:
+        # Progressive fields (interests/learning_style/prep_timeline_weeks) reuse
+        # `fields_resolved` alongside required fields rather than a separate DB column:
+        # PROGRESSIVE_FIELDS and REQUIRED_FIELDS never share a field name, so one
+        # resolved-field-names list can safely track both (see track-01 spec's wiring note).
+        required_remaining = [
+            f for f in session.missing_fields_at_start if f not in session.fields_resolved
+        ]
+        progressive_remaining = [f for f in PROGRESSIVE_FIELDS if f not in session.fields_resolved]
+        if not required_remaining and not progressive_remaining:
             session.status = "completed"
             session.completed_at = datetime.now(UTC)
             await self.db.commit()
@@ -124,8 +158,12 @@ class CvChatService:
                 status_code=status.HTTP_409_CONFLICT, detail="Chat session already completed"
             )
 
-        current_field = remaining[0]
-        question = question_for_field(current_field)
+        if required_remaining:
+            current_field = required_remaining[0]
+            question = question_for_field(current_field)
+        else:
+            current_field = progressive_remaining[0]
+            question = question_for_progressive_field(current_field)
 
         user_message = CvChatMessage(
             id=uuid4(),
@@ -145,17 +183,61 @@ class CvChatService:
             session.fields_resolved = [*session.fields_resolved, field_name]
             await self.db.commit()
 
-            next_remaining = [
+            next_required_remaining = [
                 f for f in session.missing_fields_at_start if f not in session.fields_resolved
             ]
-            if next_remaining:
-                next_question = question_for_field(next_remaining[0])
+            next_progressive_remaining = [
+                f for f in PROGRESSIVE_FIELDS if f not in session.fields_resolved
+            ]
+
+            # If this answer was the second of the two prep-relevant progressive fields
+            # (learning_style / prep_timeline_weeks), generate and queue the prep-strategy
+            # suggestion as an extra assistant message — inserted *before* the next-question/
+            # completion message below (see created_at ordering). This never gates completion:
+            # should_generate_prep_strategy_suggestion()'s own "only if prep_strategy_suggestion
+            # is None" check is the sole guard, so it fires at most once per session.
+            suggestion_message: CvChatMessage | None = None
+            if field_name in PROGRESSIVE_FIELDS:
+                doc_result = await self.db.execute(
+                    select(CandidateDocument).where(CandidateDocument.id == session.document_id)
+                )
+                document = doc_result.scalar_one()
+                cv_data = CVData(**(document.extracted_data or {}))
+                if should_generate_prep_strategy_suggestion(cv_data):
+                    suggestion_text = await self._generate_prep_strategy_suggestion(cv_data)
+                    if suggestion_text is not None:
+                        extracted = dict(document.extracted_data or {})
+                        extracted["prep_strategy_suggestion"] = suggestion_text
+                        document.extracted_data = extracted
+                        self.db.add(document)
+                        suggestion_message = CvChatMessage(
+                            id=uuid4(),
+                            session_id=session.id,
+                            role="assistant",
+                            content=f"One more thing before we wrap up — {suggestion_text}",
+                            created_at=datetime.now(UTC),
+                        )
+                        self.db.add(suggestion_message)
+
+            if next_required_remaining:
+                next_question = question_for_field(next_required_remaining[0])
                 assistant_msg = CvChatMessage(
                     id=uuid4(),
                     session_id=session.id,
                     role="assistant",
                     content=f"Got it, thanks! {next_question}",
-                    field_name=next_remaining[0],
+                    field_name=next_required_remaining[0],
+                    tool_call_result={"field_name": field_name, "value": value},
+                    created_at=datetime.now(UTC),
+                )
+            elif next_progressive_remaining:
+                next_question = question_for_progressive_field(next_progressive_remaining[0])
+                assistant_msg = CvChatMessage(
+                    id=uuid4(),
+                    session_id=session.id,
+                    role="assistant",
+                    content=f"Got it, thanks! {next_question}",
+                    field_name=next_progressive_remaining[0],
                     tool_call_result={"field_name": field_name, "value": value},
                     created_at=datetime.now(UTC),
                 )
@@ -248,6 +330,43 @@ class CvChatService:
                     continue
         return None
 
+    async def _generate_prep_strategy_suggestion(self, cv_data: CVData) -> str | None:
+        """One-off, free-text OpenAI call generating the interview-prep strategy suggestion.
+
+        Same call shape as `_call_llm_with_tool` (client/settings/URL, transient-retry
+        wrapper, fail-soft try/except) but with no `tools`/`tool_choice` — this is a single
+        free-text generation, not a structured-extraction call. Returns the plain text
+        content, or None on any HTTP/parse error (logged as a warning, never raised).
+        """
+        if not self._settings.openai_api_key:
+            return None
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": _PREP_STRATEGY_SYSTEM_PROMPT},
+                {"role": "user", "content": build_prep_strategy_user_prompt(cv_data)},
+            ],
+            "temperature": 0.0,
+        }
+        headers = {"Authorization": f"Bearer {self._settings.openai_api_key}"}
+        try:
+
+            async def _do_post() -> httpx.Response:
+                resp = await self._client.post(_OPENAI_CHAT_URL, json=payload, headers=headers)
+                resp.raise_for_status()
+                return resp
+
+            response = await with_transient_retry(_do_post)
+            data = response.json()
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            logger.warning("CV chat prep-strategy generation failed", extra={"error": str(exc)})
+            return None
+
+        content = data.get("choices", [{}])[0].get("message", {}).get("content")
+        if not isinstance(content, str) or not content:
+            return None
+        return content
+
     async def _apply_field_value(self, session: CvChatSession, field_name: str, value: str) -> None:
         """Write the validated answer back onto CandidateDocument.extracted_data."""
         result = await self.db.execute(
@@ -256,12 +375,22 @@ class CvChatService:
         document = result.scalar_one()
         extracted = dict(document.extracted_data or {})
 
-        list_fields = {"technical_skills", "desired_roles", "desired_locations"}
+        list_fields = {"technical_skills", "desired_roles", "desired_locations", "interests"}
         if field_name in list_fields:
             extracted[field_name] = [v.strip() for v in value.split(",") if v.strip()]
         elif field_name == "total_years_experience":
             try:
                 extracted[field_name] = float(value)
+            except ValueError:
+                extracted[field_name] = None
+        elif field_name == "prep_timeline_weeks":
+            # Not explicitly called out in the track spec's _apply_field_value diff, but
+            # needed for correctness: CVData.prep_timeline_weeks is `int | None`, and this
+            # value later round-trips through `CVData(**extracted_data)` in post_message's
+            # prep-strategy-suggestion check, so it must be a real int rather than a raw
+            # string like "about 4 weeks" (mirrors the total_years_experience pattern above).
+            try:
+                extracted[field_name] = int(float(value))
             except ValueError:
                 extracted[field_name] = None
         else:
