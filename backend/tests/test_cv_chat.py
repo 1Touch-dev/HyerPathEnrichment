@@ -86,6 +86,31 @@ async def test_start_session_404_for_unowned_document(db, test_user, completed_d
     assert exc_info.value.status_code == 404
 
 
+async def test_get_session_returns_owned_session(db, test_user, completed_document):
+    service = CvChatService(db)
+    started = await service.start_session(str(completed_document.id), test_user.id)
+    fetched = await service.get_session(started.session_id, test_user.id)
+    assert fetched.session_id == started.session_id
+    assert fetched.document_id == str(completed_document.id)
+    assert len(fetched.messages) >= 1
+
+
+async def test_get_session_404_for_invalid_uuid(db, test_user):
+    service = CvChatService(db)
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_session("608992a1-4b5d-4f59-ac87-64f437869f3", test_user.id)
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Chat session not found"
+
+
+async def test_get_session_404_for_other_user(db, test_user, completed_document):
+    service = CvChatService(db)
+    started = await service.start_session(str(completed_document.id), test_user.id)
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_session(started.session_id, uuid4())
+    assert exc_info.value.status_code == 404
+
+
 async def test_start_session_no_missing_fields_completes_immediately(db, test_user):
     doc = CandidateDocument(
         id=uuid4(),

@@ -214,6 +214,10 @@ export async function startCvChatSession(
   });
 }
 
+export async function getCvChatSession(sessionId: string): Promise<SuccessEnvelope<CvChatSession>> {
+  return request<CvChatSession>(`/api/cv-chat/sessions/${sessionId}`);
+}
+
 export async function postCvChatMessage(
   sessionId: string,
   content: string,
