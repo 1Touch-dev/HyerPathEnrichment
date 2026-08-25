@@ -25,7 +25,7 @@ export async function POST(
 
   let backendResponse: Response;
   try {
-    backendResponse = await backendFetch(`/api/cv-chat/sessions/${sessionId}/messages`, {
+    backendResponse = await backendFetch(`/api/documents/cv-chat/sessions/${sessionId}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: body.content }),

@@ -48,7 +48,7 @@ describe("POST /api/cv-chat/sessions/[sessionId]/messages", () => {
 
     const response = await POST(postRequest({ content: "Hi" }), params);
 
-    expect(backendFetch).toHaveBeenCalledWith("/api/cv-chat/sessions/sess-1/messages", {
+    expect(backendFetch).toHaveBeenCalledWith("/api/documents/cv-chat/sessions/sess-1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: "Hi" }),

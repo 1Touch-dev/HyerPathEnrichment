@@ -262,6 +262,15 @@ async def start_cv_chat_session(
     return await service.start_session(document_id, current_user.id)
 
 
+@router.get("/cv-chat/sessions/{session_id}", response_model=CvChatSessionResponse)
+async def get_cv_chat_session(
+    session_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> CvChatSessionResponse:
+    """Fetch an owned CV-completeness chat session by id."""
+    service = CvChatService(db)
+    return await service.get_session(session_id, current_user.id)
+
+
 @router.post("/cv-chat/sessions/{session_id}/messages", response_model=CvChatTurnResponse)
 async def post_cv_chat_message(
     session_id: str,

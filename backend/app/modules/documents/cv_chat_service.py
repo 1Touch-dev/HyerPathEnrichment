@@ -96,6 +96,11 @@ class CvChatService:
 
         return await self._session_response(session)
 
+    async def get_session(self, session_id: str, user_id: UUID) -> CvChatSessionResponse:
+        """Fetch an owned chat session with its message history."""
+        session = await self._get_owned_session(session_id, user_id)
+        return await self._session_response(session)
+
     async def post_message(
         self, session_id: str, user_id: UUID, content: str
     ) -> CvChatTurnResponse:
@@ -271,9 +276,15 @@ class CvChatService:
         self.db.add(document)
 
     async def _get_owned_session(self, session_id: str, user_id: UUID) -> CvChatSession:
+        try:
+            session_uuid = UUID(session_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found"
+            ) from exc
         result = await self.db.execute(
             select(CvChatSession).where(
-                CvChatSession.id == UUID(session_id), CvChatSession.user_id == user_id
+                CvChatSession.id == session_uuid, CvChatSession.user_id == user_id
             )
         )
         session = result.scalar_one_or_none()
