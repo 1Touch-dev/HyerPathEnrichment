@@ -16,9 +16,18 @@ export function CvChatWidget({ documentId, onComplete }: CvChatWidgetProps) {
 
   if (!session) {
     return (
-      <Button onClick={() => start.mutate()} disabled={start.isPending}>
-        {start.isPending ? "Starting..." : "Start CV completeness chat"}
-      </Button>
+      <div className="space-y-2">
+        <Button onClick={() => start.mutate()} disabled={start.isPending}>
+          {start.isPending ? "Starting..." : "Start CV completeness chat"}
+        </Button>
+        {start.error ? (
+          <p className="text-sm text-destructive">
+            {start.error instanceof Error
+              ? start.error.message
+              : "Couldn't start chat, please try again."}
+          </p>
+        ) : null}
+      </div>
     );
   }
 
@@ -54,17 +63,26 @@ export function CvChatWidget({ documentId, onComplete }: CvChatWidgetProps) {
         ))}
       </div>
       {session.status === "active" ? (
-        <form onSubmit={handleSend} className="flex gap-2 border-t p-3">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your answer..."
-            disabled={sendMessage.isPending}
-          />
-          <Button type="submit" disabled={sendMessage.isPending || !input.trim()}>
-            Send
-          </Button>
-        </form>
+        <div className="border-t p-3">
+          <form onSubmit={handleSend} className="flex gap-2">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your answer..."
+              disabled={sendMessage.isPending}
+            />
+            <Button type="submit" disabled={sendMessage.isPending || !input.trim()}>
+              Send
+            </Button>
+          </form>
+          {sendMessage.error ? (
+            <p className="mt-2 text-sm text-destructive">
+              {sendMessage.error instanceof Error
+                ? sendMessage.error.message
+                : "Couldn't send message, please try again."}
+            </p>
+          ) : null}
+        </div>
       ) : (
         <div className="border-t p-3 text-center text-sm text-muted-foreground">
           {session.status === "completed" ? "All done — your CV is up to date." : "Chat ended."}

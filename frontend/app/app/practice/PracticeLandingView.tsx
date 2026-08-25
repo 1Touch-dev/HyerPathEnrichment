@@ -66,7 +66,9 @@ export function PracticeLandingView() {
   });
 
   const hasCompletedDocument = Boolean(
-    documents?.some((doc) => doc.processingStatus === "completed"),
+    documents?.some(
+      (doc) => doc.processingStatus === "completed" || doc.processingStatus === "embedded",
+    ),
   );
 
   const isStarting = createSessionMutation.isPending || questionsMutation.isPending;

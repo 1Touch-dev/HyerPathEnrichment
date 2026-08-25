@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.models import InterviewQuestion
-from app.modules.documents.models import CandidateDocument
+from app.modules.documents.models import DOCUMENT_READY_STATUSES, CandidateDocument
 from app.modules.questions.schemas import (
     QuestionCategory,
     QuestionDifficulty,
@@ -62,7 +62,7 @@ async def _load_candidate_context(db: AsyncSession, user_id: UUID) -> CandidateC
         select(CandidateDocument)
         .where(
             CandidateDocument.user_id == user_id,
-            CandidateDocument.processing_status == "completed",
+            CandidateDocument.processing_status.in_(DOCUMENT_READY_STATUSES),
         )
         .order_by(CandidateDocument.created_at.desc())
         .limit(1)

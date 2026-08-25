@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.modules.documents.models import CandidateDocument
+from app.modules.documents.models import DOCUMENT_READY_STATUSES, CandidateDocument
 from app.modules.outreach.models import OutreachMessage
 from app.modules.outreach.repository import get_owned_message, list_messages_for_user, mark_sent
 from app.modules.outreach.schemas import (
@@ -58,7 +58,7 @@ class OutreachService:
             )
         )
         document = doc_result.scalar_one_or_none()
-        if not document or document.processing_status != "completed":
+        if not document or document.processing_status not in DOCUMENT_READY_STATUSES:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="A processed CV is required"
             )

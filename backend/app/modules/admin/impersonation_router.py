@@ -44,10 +44,21 @@ async def _get_active_session(
     return result.scalars().first()
 
 
+async def _forbid_while_impersonating(request: Request) -> None:
+    if getattr(request.state, "impersonated_by", None) is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "You are already impersonating a user. End that session before starting a new one.",
+        )
+
+
 @router.post(
     "/start/{user_id}",
     response_model=ImpersonationStartResponse,
-    dependencies=[Depends(enforce_admin_impersonation_start_rate_limit)],
+    dependencies=[
+        Depends(enforce_admin_impersonation_start_rate_limit),
+        Depends(_forbid_while_impersonating),
+    ],
 )
 async def start_impersonation(
     user_id: UUID,

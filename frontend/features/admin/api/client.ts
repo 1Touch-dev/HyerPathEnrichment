@@ -1,3 +1,4 @@
+import { parseResponseEnvelopeError } from "@/src/lib/api-envelope";
 import type {
   AdminAuditLogListResponse,
   AdminJobPosting,
@@ -277,7 +278,9 @@ export async function startImpersonation(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reason, mfa_code: mfaCode }),
   });
-  if (!res.ok) throw new Error(`Failed to start impersonation: ${res.status}`);
+  if (!res.ok) {
+    throw await parseResponseEnvelopeError(res);
+  }
 }
 
 export async function endImpersonation(): Promise<void> {

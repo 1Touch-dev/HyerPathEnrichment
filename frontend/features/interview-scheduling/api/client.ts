@@ -1,3 +1,4 @@
+import { parseResponseEnvelopeError } from "@/src/lib/api-envelope";
 import type { InterviewSchedule } from "@/src/lib/types";
 
 export interface ScheduleInterviewInput {
@@ -27,7 +28,9 @@ export async function scheduleInterview(
       notes: input.notes,
     }),
   });
-  if (!res.ok) throw new Error(`Failed to schedule interview: ${res.status}`);
+  if (!res.ok) {
+    throw await parseResponseEnvelopeError(res);
+  }
   const json = await res.json();
   return json.data;
 }

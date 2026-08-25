@@ -47,7 +47,7 @@ async function fetchMostRecentCompletedDocumentId(): Promise<string> {
   const json = await res.json();
   const documents: DocumentSummary[] = Array.isArray(json.data) ? json.data : [];
   const completed = documents
-    .filter((d) => d.processingStatus === "completed")
+    .filter((d) => d.processingStatus === "completed" || d.processingStatus === "embedded")
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   if (completed.length === 0) {
     throw new Error("Upload and finish processing a CV before drafting outreach.");

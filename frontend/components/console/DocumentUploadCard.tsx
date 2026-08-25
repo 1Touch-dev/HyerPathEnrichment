@@ -120,7 +120,7 @@ export function DocumentUploadCard() {
               <DocumentStatusBadge status={job.status} />
             </div>
             <Progress
-              value={job.progress}
+              value={job.progress * 100}
               className={isPolling && !isTerminal ? "animate-pulse" : ""}
             />
             {job.error ? <p className="text-sm text-destructive">{job.error}</p> : null}

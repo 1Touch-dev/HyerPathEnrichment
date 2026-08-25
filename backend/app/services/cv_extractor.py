@@ -23,15 +23,62 @@ Return valid JSON matching this schema.
 
 If a field is missing from the CV, use null. Do not invent data.
 
-Focus on:
-- Contact info (name, email, phone, LinkedIn, GitHub)
-- Technical and soft skills
-- Work experience (roles, companies, years, industries)
-- Education (degree, field, certifications)
-- Job preferences (desired roles, locations, remote preference)
+Focus on these flat top-level fields:
+- full_name, email, phone, linkedin_url, github_url, portfolio_url
+- technical_skills, soft_skills, languages
+- total_years_experience, current_role, current_company, industries
+- highest_degree, field_of_study, certifications
+- desired_roles, desired_locations, remote_preference
 
 Be thorough but conservative - only extract what's clearly stated in the CV.
 """.strip()
+
+_CV_EXTRACTION_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "full_name": {"type": ["string", "null"]},
+        "email": {"type": ["string", "null"]},
+        "phone": {"type": ["string", "null"]},
+        "linkedin_url": {"type": ["string", "null"]},
+        "github_url": {"type": ["string", "null"]},
+        "portfolio_url": {"type": ["string", "null"]},
+        "technical_skills": {"type": "array", "items": {"type": "string"}},
+        "soft_skills": {"type": "array", "items": {"type": "string"}},
+        "languages": {"type": "array", "items": {"type": "string"}},
+        "total_years_experience": {"type": ["number", "null"]},
+        "current_role": {"type": ["string", "null"]},
+        "current_company": {"type": ["string", "null"]},
+        "industries": {"type": "array", "items": {"type": "string"}},
+        "highest_degree": {"type": ["string", "null"]},
+        "field_of_study": {"type": ["string", "null"]},
+        "certifications": {"type": "array", "items": {"type": "string"}},
+        "desired_roles": {"type": "array", "items": {"type": "string"}},
+        "desired_locations": {"type": "array", "items": {"type": "string"}},
+        "remote_preference": {"type": ["string", "null"]},
+    },
+    "required": [
+        "full_name",
+        "email",
+        "phone",
+        "linkedin_url",
+        "github_url",
+        "portfolio_url",
+        "technical_skills",
+        "soft_skills",
+        "languages",
+        "total_years_experience",
+        "current_role",
+        "current_company",
+        "industries",
+        "highest_degree",
+        "field_of_study",
+        "certifications",
+        "desired_roles",
+        "desired_locations",
+        "remote_preference",
+    ],
+    "additionalProperties": False,
+}
 
 
 _REQUIRED_FIELDS = [
@@ -114,7 +161,14 @@ async def extract_cv_data(cv_text: str, settings: Settings) -> CVData:
     payload = {
         "model": "gpt-4o-mini",
         "messages": messages,
-        "response_format": {"type": "json_object"},
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "cv_data",
+                "strict": True,
+                "schema": _CV_EXTRACTION_JSON_SCHEMA,
+            },
+        },
         "temperature": 0.1,
     }
 

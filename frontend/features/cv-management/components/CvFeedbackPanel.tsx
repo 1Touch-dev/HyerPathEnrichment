@@ -71,6 +71,13 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
         >
           {requestFeedback.isPending ? "Requesting..." : "Get AI feedback"}
         </Button>
+        {requestFeedback.isError ? (
+          <p className="text-sm text-destructive">
+            {requestFeedback.error instanceof Error
+              ? requestFeedback.error.message
+              : "Couldn't request feedback, please try again."}
+          </p>
+        ) : null}
       </div>
     );
   }
