@@ -14,6 +14,7 @@ import type {
   AdminOutreachMessageListResponse,
   AdminUserListResponse,
   AdminRole,
+  AdminRoleWithPermissions,
   AdminReviewQueueDetail,
   AdminReviewQueueItem,
   AdminReviewQueueListResponse,
@@ -21,6 +22,8 @@ import type {
   FeatureFlag,
   ImpersonationStatus,
   JobMatchAnalytics,
+  LinkedInSendBatch,
+  LinkedInSendTask,
   MfaEnrollResult,
   MfaStatus,
   ModerationStatus,
@@ -146,6 +149,34 @@ export async function moderateOutreachMessage(
 export async function fetchRoles(): Promise<AdminRole[]> {
   const res = await fetch("/api/admin/roles");
   return unwrap(res, "Failed to fetch roles");
+}
+
+export async function createRole(body: {
+  name: string;
+  description?: string | null;
+}): Promise<AdminRoleWithPermissions> {
+  const res = await fetch("/api/admin/roles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return unwrap(res, "Failed to create role");
+}
+
+export async function attachPermission(roleId: string, permissionId: string): Promise<void> {
+  const res = await fetch(`/api/admin/roles/${roleId}/permissions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ permission_id: permissionId }),
+  });
+  if (!res.ok) throw new Error(`Failed to attach permission: ${res.status}`);
+}
+
+export async function detachPermission(roleId: string, permissionId: string): Promise<void> {
+  const res = await fetch(`/api/admin/roles/${roleId}/permissions/${permissionId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Failed to detach permission: ${res.status}`);
 }
 
 export async function fetchAuditLogs(
@@ -352,4 +383,60 @@ export async function moderateDocument(
     body: JSON.stringify({ action, reason }),
   });
   return unwrap(res, "Failed to moderate document");
+}
+
+export async function fetchLinkedInTasks(status: string | null): Promise<LinkedInSendTask[]> {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  const res = await fetch(`/api/outreach/linkedin-tasks?${params.toString()}`);
+  return unwrap(res, "Failed to fetch LinkedIn tasks");
+}
+
+export async function claimLinkedInTask(taskId: string): Promise<LinkedInSendTask> {
+  const res = await fetch(`/api/outreach/linkedin-tasks/${taskId}/claim`, { method: "POST" });
+  return unwrap(res, "Failed to claim LinkedIn task");
+}
+
+export async function completeLinkedInTask(
+  taskId: string,
+  outcomeNote?: string | null,
+): Promise<LinkedInSendTask> {
+  const res = await fetch(`/api/outreach/linkedin-tasks/${taskId}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ outcomeNote: outcomeNote ?? null }),
+  });
+  return unwrap(res, "Failed to complete LinkedIn task");
+}
+
+export async function skipLinkedInTask(
+  taskId: string,
+  outcomeNote?: string | null,
+): Promise<LinkedInSendTask> {
+  const res = await fetch(`/api/outreach/linkedin-tasks/${taskId}/skip`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ outcomeNote: outcomeNote ?? null }),
+  });
+  return unwrap(res, "Failed to skip LinkedIn task");
+}
+
+export async function createLinkedInSendBatch(input: {
+  multiloginProfileId: string;
+  maxSendsPerDay: number;
+  taskIds: string[];
+}): Promise<LinkedInSendBatch> {
+  const res = await fetch("/api/outreach/linkedin-send-batches", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return unwrap(res, "Failed to create LinkedIn send batch");
+}
+
+export async function startLinkedInSendBatch(batchId: string): Promise<LinkedInSendBatch> {
+  const res = await fetch(`/api/outreach/linkedin-send-batches/${batchId}/start`, {
+    method: "POST",
+  });
+  return unwrap(res, "Failed to start LinkedIn send batch");
 }

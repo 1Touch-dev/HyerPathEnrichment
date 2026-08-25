@@ -56,6 +56,10 @@ class JobPosting(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Country demand intelligence: derived at ingestion via app.enrichers.jobspy.country_to_iso2()
+    # (or JSearch's own returned country field, if already ISO-2). NULL for postings scraped
+    # before this column existed or where country could not be determined.
+    country_iso2: Mapped[str | None] = mapped_column(String(2), nullable=True, index=True)
 
 
 class JobPostingEmbedding(Base):

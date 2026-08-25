@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,10 +12,13 @@ from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
 from app.dependencies.rate_limit import enforce_outreach_send_rate_limit
 from app.modules.outreach.schemas import (
+    CompanyTier,
+    CompanyTierResponse,
     OutreachDraftRequest,
     OutreachEditRequest,
     OutreachListResponse,
     OutreachMessageResponse,
+    SetCompanyTierRequest,
 )
 from app.modules.outreach.service import OutreachService
 
@@ -62,4 +65,44 @@ async def send_message(
         message_id,
         sender_email=current_user.email,
         sender_name=current_user.email.split("@")[0],
+    )
+
+
+@router.put("/company-tier", response_model=CompanyTierResponse)
+async def set_company_tier(
+    body: SetCompanyTierRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> CompanyTierResponse:
+    """Manual, human-set employer tier classification (machine-2/03) — upserts by
+    company_name; no permission beyond the existing gate protecting the other
+    outreach endpoints in this router is required."""
+    row = await OutreachService(db).set_company_tier(
+        company_name=body.company_name,
+        tier=body.tier,
+        set_by_user_id=current_user.id,
+        notes=body.notes,
+    )
+    return CompanyTierResponse(
+        company_name=row.company_name,
+        tier=cast(CompanyTier, row.tier),
+        notes=row.notes,
+        updated_at=row.updated_at,
+    )
+
+
+@router.get("/company-tier", response_model=CompanyTierResponse | None)
+async def get_company_tier(
+    company_name: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> CompanyTierResponse | None:
+    row = await OutreachService(db).get_company_tier(company_name)
+    if row is None:
+        return None
+    return CompanyTierResponse(
+        company_name=row.company_name,
+        tier=cast(CompanyTier, row.tier),
+        notes=row.notes,
+        updated_at=row.updated_at,
     )

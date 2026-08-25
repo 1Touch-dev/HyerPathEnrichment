@@ -30,6 +30,11 @@ QUEUE_JOB_MATCHING = "job_matching"
 # Module 2: Tinder-Style Job Board + CV Management (outreach drafting, §8.15)
 QUEUE_OUTREACH = "outreach_generation"
 
+# Machine-2/06: LinkedIn send batch processing (rate-limit/queue skeleton only —
+# see app/workers/tasks/linkedin_send_batch.py's module docstring for the explicit
+# scope cut on the actual automated-click mechanism).
+QUEUE_LINKEDIN_SEND_BATCH = "linkedin_send_batch"
+
 # Module 4, Module D: interview scheduling reminders
 QUEUE_INTERVIEW_REMINDERS = "interview_reminders"
 

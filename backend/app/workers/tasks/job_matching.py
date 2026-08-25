@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Import ORM registry FIRST to register all models with SQLAlchemy
 import app.database.orm_registry  # noqa: F401
 from app.database.session import SessionLocal, engine
+from app.enrichers.jobspy import country_to_iso2
 from app.infrastructure.redis import close_redis
 from app.modules.admin.moderation_flagging import flag_if_needed
 from app.modules.documents.models import CandidateDocument
@@ -173,6 +174,15 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                 remote = bool(row.get("is_remote") or row.get("remote") or False)
                 source = str(row.get("site") or "jobspy")
                 description = str(row.get("description") or "")
+                # Raw JobSpy/JSearch scrape rows don't reliably carry a dedicated
+                # country field (JSearch folds city/state/country into "location";
+                # JobSpy's own records have no country column at all) — prefer a
+                # per-row country/job_country key when present, else fall back to
+                # the candidate's own preferred location already in scope for this
+                # scan. Omit country_iso2 entirely (stays NULL) rather than forcing
+                # country_to_iso2's own "us" default onto rows with no signal at all.
+                country_signal = row.get("country") or row.get("job_country") or location_arg
+                country_iso2 = country_to_iso2(country_signal) if country_signal else None
 
                 dedup_key = compute_dedup_key(title, location, source)
                 posting = await repository.upsert_job_posting(
@@ -189,6 +199,7 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                         "salary_min": _safe_int(row.get("min_amount")),
                         "salary_max": _safe_int(row.get("max_amount")),
                         "salary_currency": row.get("currency"),
+                        "country_iso2": country_iso2,
                     },
                     source,
                 )

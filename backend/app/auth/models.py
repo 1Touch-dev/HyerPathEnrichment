@@ -58,6 +58,19 @@ class User(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
 
+    # Recruiter-initiated actions (machine-2/09): "autonomous" lets a recruiter's
+    # "apply for candidate" action take effect immediately; "approval_required"
+    # (default) requires the candidate to approve a pending action first. Applies
+    # only to "apply for candidate" — "suggest role to candidate" is always
+    # presented to the candidate for review regardless of this setting, since a
+    # suggestion has no "immediate effect" to gate in the first place. See
+    # machine-2-parallel-tracks/09-recruiter-initiated-apply-and-suggest.md's
+    # Ambiguities resolved section for why default is approval_required, not
+    # autonomous.
+    recruiter_action_mode: Mapped[str] = mapped_column(
+        String(20), default="approval_required", nullable=False
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)

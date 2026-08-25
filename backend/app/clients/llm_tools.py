@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.domain.candidate import CVData
+
 RECORD_CV_ANSWER_TOOL: dict[str, Any] = {
     "type": "function",
     "function": {
@@ -72,4 +74,35 @@ def build_chat_system_prompt(field_name: str, question: str) -> str:
         "unclear, or a question of their own, respond conversationally without calling "
         "the tool, and gently steer back to the question. Never invent a value the "
         "candidate did not provide."
+    )
+
+
+_PREP_STRATEGY_SYSTEM_PROMPT = (
+    "You are an interview-prep coach. Given a candidate's preferred learning style and "
+    "how many weeks they have until they need to be interview-ready, suggest a short, "
+    "concrete interview-prep strategy tailored to that learning style and timeline. "
+    "Be specific about *how* to use the time (e.g. what to prioritize in week 1 vs. "
+    "the final week), not generic advice like 'practice more.' Keep it to 3-5 sentences "
+    "or a short bulleted list. Do not repeat the candidate's own inputs back to them "
+    "verbatim (e.g. don't open with 'Since you prefer visual learning and have 4 weeks...')."
+)
+
+
+def build_prep_strategy_user_prompt(cv_data: CVData) -> str:
+    """User message for the one-off, free-text prep-strategy-suggestion call.
+
+    No tool-calling needed here (unlike RECORD_CV_ANSWER_TOOL's structured-extraction
+    call) — this is a single free-text generation, paired with
+    `_PREP_STRATEGY_SYSTEM_PROMPT` as the system message.
+    """
+    timeline = cv_data.prep_timeline_weeks
+    style = cv_data.learning_style
+    desired_roles = (
+        ", ".join(cv_data.desired_roles) if cv_data.desired_roles else "their target role"
+    )
+    return (
+        f"Learning style: {style}\n"
+        f"Weeks until interview-ready: {timeline}\n"
+        f"Target role(s): {desired_roles}\n\n"
+        "Suggest a concrete, time-boxed interview-prep strategy for this candidate."
     )

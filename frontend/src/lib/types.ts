@@ -657,6 +657,67 @@ export type AdminOutreachMessageListResponse = {
   hasMore: boolean;
 };
 
+// LinkedIn send task queue + operator-triggered automated-batch mode (machine-2/06,
+// mirrors backend/app/modules/outreach/linkedin_send_router.py's
+// LinkedInSendTaskResponse/LinkedInTaskListResponse/LinkedInSendBatchResponse). Not
+// yet in the committed OpenAPI schema — hand-declared here, same as the outreach
+// moderation Backend* types above. Delete and switch to generated types once
+// `npm run openapi:gen` picks up this router.
+
+export type BackendLinkedInSendTask = {
+  id: string;
+  outreach_message_id: string;
+  batch_id: string | null;
+  linkedin_profile_url: string;
+  action_type: "connection_request" | "inmail" | "direct_message";
+  status: "pending" | "claimed" | "completed" | "skipped";
+  claimed_by: string | null;
+  claimed_at: string | null;
+  completed_at: string | null;
+  outcome_note: string | null;
+  created_at: string;
+};
+
+export type BackendLinkedInTaskListResponse = {
+  tasks: BackendLinkedInSendTask[];
+};
+
+export type BackendLinkedInSendBatch = {
+  id: string;
+  triggered_by: string | null;
+  multilogin_profile_id: string;
+  status: "pending" | "running" | "completed" | "cancelled" | "failed";
+  max_sends_per_day: number;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+
+export type LinkedInSendTask = {
+  id: string;
+  outreachMessageId: string;
+  batchId: string | null;
+  linkedinProfileUrl: string;
+  actionType: BackendLinkedInSendTask["action_type"];
+  status: BackendLinkedInSendTask["status"];
+  claimedBy: string | null;
+  claimedAt: string | null;
+  completedAt: string | null;
+  outcomeNote: string | null;
+  createdAt: string;
+};
+
+export type LinkedInSendBatch = {
+  id: string;
+  triggeredBy: string | null;
+  multiloginProfileId: string;
+  status: BackendLinkedInSendBatch["status"];
+  maxSendsPerDay: number;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+};
+
 // Admin portfolio moderation (mirrors backend/app/modules/admin/portfolio_router.py,
 // camelCase). Distinct from the candidate-facing `PortfolioProfile`/`PortfolioItem`
 // below — the admin variants expose moderation fields (`adminHidden`) and are never
@@ -970,6 +1031,30 @@ export type SwipeDirection = "left" | "right" | "up";
 // Module 4, Module G: multi-channel outreach message types
 // (phase2_module4_application_lifecycle_and_interview_prep.md §11.4/§11.7).
 export type OutreachMessageType = "email" | "linkedin" | "generic" | "custom";
+
+// machine-2/03 (outreach strategy dimension): the drafting *approach* — independent
+// of `OutreachMessageType`'s channel dimension above. Mirrors the backend's
+// `OutreachStrategy` literal (backend/app/modules/outreach/schemas.py).
+export type OutreachStrategy = "direct_pitch" | "value_first" | "curiosity" | "warm_referral";
+
+// machine-2/03: role-type/seniority are recruiter-supplied, optional drafting
+// adjustments, independent of `OutreachStrategy`/`OutreachMessageType` above.
+// Mirror the backend's `OutreachRoleType`/`OutreachSeniority` literals.
+export type OutreachRoleType = "technical" | "non_technical";
+export type OutreachSeniority = "junior" | "senior";
+
+// machine-2/03: manual, recruiter-set employer classification (NOT auto-computed —
+// see backend's `EmployerCompanyTier`). Persists across every future draft for the
+// same `companyName`.
+export type OutreachCompanyTierValue = "premium" | "outsourcing";
+
+/** Mirrors the backend's `CompanyTierResponse` (backend/app/modules/outreach/schemas.py). */
+export interface OutreachCompanyTier {
+  companyName: string;
+  tier: OutreachCompanyTierValue;
+  notes: string | null;
+  updatedAt: string;
+}
 
 export interface OutreachMessage {
   messageId: string;

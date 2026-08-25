@@ -23,6 +23,7 @@ import {
   MailCheck,
   ClipboardList,
   GraduationCap,
+  Send,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -81,5 +82,6 @@ export const adminNav: NavSection = {
     { href: "/app/admin/documents", label: "Documents", icon: FileSearch },
     { href: "/app/admin/portfolio", label: "Portfolio", icon: Layers },
     { href: "/app/admin/outreach", label: "Outreach", icon: MailCheck },
+    { href: "/app/admin/linkedin-tasks", label: "LinkedIn tasks", icon: Send },
   ],
 };

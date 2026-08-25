@@ -118,3 +118,50 @@ def completeness_score(cv_data: CVData) -> float:
 def question_for_field(field_name: str) -> str:
     """The exact question text the chatbot asks for a given missing field."""
     return FIELD_QUESTIONS.get(field_name, f"Can you provide your {field_name.replace('_', ' ')}?")
+
+
+# Progressive profiling — asked only after all REQUIRED_FIELDS are resolved (see
+# cv_chat_service.py's session-completion branch). Optional: a candidate whose chat
+# session ends before these are asked is still "completed", not "abandoned".
+PROGRESSIVE_FIELDS: list[str] = [
+    "interests",
+    "learning_style",
+    "prep_timeline_weeks",
+]
+
+PROGRESSIVE_FIELD_QUESTIONS: dict[str, str] = {
+    "interests": "Outside of work, what are a few things you're genuinely interested in? (This helps us personalize interview prep and small talk.)",
+    "learning_style": "When you're prepping for something new, do you learn best by reading, watching/visual examples, hands-on practice, or talking it through with someone?",
+    "prep_timeline_weeks": "Roughly how many weeks do you have until you need to be interview-ready?",
+}
+
+
+def compute_missing_progressive_fields(cv_data: CVData) -> list[str]:
+    """Same shape as compute_missing_fields() but over PROGRESSIVE_FIELDS — kept as a
+    separate function (not merged into compute_missing_fields()) because these fields
+    are optional and must never affect completeness_score() or the required-fields gate."""
+    missing: list[str] = []
+    for field_name in PROGRESSIVE_FIELDS:
+        value = getattr(cv_data, field_name, None)
+        if value is None or isinstance(value, (list, str)) and len(value) == 0:
+            missing.append(field_name)
+    return missing
+
+
+def question_for_progressive_field(field_name: str) -> str:
+    return PROGRESSIVE_FIELD_QUESTIONS.get(
+        field_name, f"Can you tell us about your {field_name.replace('_', ' ')}?"
+    )
+
+
+def should_generate_prep_strategy_suggestion(cv_data: CVData) -> bool:
+    """True exactly once per candidate — the moment both prep-relevant fields become
+    known and no suggestion has been generated yet. Re-answering learning_style or
+    prep_timeline_weeks later (e.g. candidate corrects an earlier answer) does not
+    silently regenerate the suggestion — see cv_chat_service.py wiring note below for
+    the explicit re-generation path instead."""
+    return (
+        cv_data.learning_style is not None
+        and cv_data.prep_timeline_weeks is not None
+        and cv_data.prep_strategy_suggestion is None
+    )

@@ -19,6 +19,7 @@ from app.database.session import SessionLocal, engine
 from app.domain.candidate import CVData
 from app.infrastructure.redis import close_redis
 from app.modules.admin.moderation_flagging import flag_if_needed
+from app.modules.demand_intelligence.service import get_top_countries_for_role
 from app.modules.documents.models import CandidateDocument
 
 # JobMatch/JobPosting are owned by the job_matching module — imported here
@@ -26,6 +27,7 @@ from app.modules.documents.models import CandidateDocument
 # already uses for its own read-only access to Module 1's tables.
 from app.modules.job_matching.models import JobMatch, JobPosting
 from app.modules.outreach.models import OutreachMessage
+from app.modules.outreach.repository import get_company_tier
 from app.observability.outreach_metrics import outreach_drafts_by_type_total
 
 logger = logging.getLogger(__name__)
@@ -77,6 +79,44 @@ _SYSTEM_PROMPTS_BY_TYPE = {
     "custom": _EMAIL_SYSTEM_PROMPT,
 }
 
+_STRATEGY_INSTRUCTIONS = {
+    "direct_pitch": "State your interest and relevant qualifications plainly and ask for a conversation.",
+    "value_first": "Open by naming one specific, concrete way you could help this company (grounded in the job description or company context provided) before mentioning your own qualifications.",
+    "curiosity": "Open with a genuine, specific question about the company or role that invites a reply, rather than opening with a pitch about yourself.",
+    "warm_referral": "Reference the referral/connection context provided below naturally near the opening of the message.",
+}
+
+_ROLE_TYPE_INSTRUCTIONS = {
+    (
+        "technical",
+        "senior",
+    ): "Speak with technical specificity and treat the recipient as a peer who can evaluate technical depth directly; keep it concise and skip generic enthusiasm.",
+    (
+        "technical",
+        "junior",
+    ): "Keep technical references accessible; a junior technical hiring contact may be screening on behalf of others rather than evaluating deep technical fit themselves.",
+    (
+        "non_technical",
+        "senior",
+    ): "Lead with business impact and outcomes rather than technical detail; a senior non-technical contact evaluates fit/communication/culture signals more than technical depth.",
+    (
+        "non_technical",
+        "junior",
+    ): "Keep the message simple, warm, and outcome-focused; avoid jargon a junior non-technical screener may not be positioned to evaluate.",
+}
+
+_COMPANY_TIER_INSTRUCTIONS = {
+    "premium": "This is a well-known, high-profile employer the candidate is likely already "
+    "familiar with. Skip generic company introductions or explaining what the company does — "
+    "assume the reader already knows their own employer's reputation. Lead with a sharp, specific "
+    "value proposition and keep the tone confident and concise; avoid sounding star-struck or "
+    "overly deferential toward a 'prestigious' employer.",
+    "outsourcing": "This is a staffing/outsourcing employer, where the hiring contact may field "
+    "many generic, low-effort candidate messages. Make genuine interest explicit and warm rather "
+    "than assumed — name a specific reason this particular role/company is a fit, rather than a "
+    "tone that could be mistaken for a mass-sent template.",
+}
+
 
 def generate_outreach_draft_job(
     user_id: str,
@@ -87,6 +127,12 @@ def generate_outreach_draft_job(
     message_type: str = "email",
     custom_instruction: str | None = None,
     job_description: str | None = None,
+    strategy: str = "direct_pitch",
+    referral_context: str | None = None,
+    role_type: str | None = None,
+    seniority: str | None = None,
+    recipient_email: str | None = None,
+    recipient_linkedin_url: str | None = None,
 ) -> None:
     asyncio.run(
         _generate_outreach_draft_job(
@@ -98,6 +144,12 @@ def generate_outreach_draft_job(
             message_type,
             custom_instruction,
             job_description,
+            strategy,
+            referral_context,
+            role_type,
+            seniority,
+            recipient_email,
+            recipient_linkedin_url,
         )
     )
 
@@ -111,6 +163,12 @@ async def _generate_outreach_draft_job(
     message_type: str = "email",
     custom_instruction: str | None = None,
     job_description: str | None = None,
+    strategy: str = "direct_pitch",
+    referral_context: str | None = None,
+    role_type: str | None = None,
+    seniority: str | None = None,
+    recipient_email: str | None = None,
+    recipient_linkedin_url: str | None = None,
 ) -> None:
     try:
         async with SessionLocal() as session:
@@ -136,6 +194,17 @@ async def _generate_outreach_draft_job(
             context = await perplexity.get_company_context(company_name, role_title)
 
             settings = get_settings()
+            # Gating the get_company_tier() lookup itself behind the flag (not just
+            # its use in the prompt) — this repo's chosen resolution of the
+            # ambiguity noted in 03-outreach-strategy-dimension.md's "Verification"
+            # section ("either is defensible; be consistent and explicit"). This
+            # also means zero extra DB calls when the flag is off, matching this
+            # plan's stricter regression bar for 03's company-tier section.
+            tier: str | None = None
+            if settings.enable_company_tier_in_outreach_drafting:
+                tier_row = await get_company_tier(session, company_name)
+                tier = tier_row.tier if tier_row is not None else None
+
             subject, body = await _draft_with_llm(
                 cv_data,
                 company_name,
@@ -145,6 +214,12 @@ async def _generate_outreach_draft_job(
                 settings,
                 message_type,
                 custom_instruction,
+                strategy,
+                referral_context,
+                role_type,
+                seniority,
+                tier,
+                db=session,
             )
 
             message = OutreachMessage(
@@ -159,6 +234,12 @@ async def _generate_outreach_draft_job(
                 status="draft",
                 message_type=message_type,
                 custom_instruction=custom_instruction,
+                strategy=strategy,
+                referral_context=referral_context,
+                role_type=role_type,
+                seniority=seniority,
+                recipient_email=recipient_email,
+                recipient_linkedin_url=recipient_linkedin_url,
             )
             session.add(message)
             await session.commit()
@@ -241,6 +322,30 @@ async def _get_job_description(
     return posting.description_raw[:1500]
 
 
+async def _demand_context_line(
+    cv_data: CVData, settings: Settings, db: AsyncSession | None
+) -> str | None:
+    """One short, factual line about job-market demand for the candidate's first
+    desired role with actual snapshot data, or None if the flag is off, no
+    desired_roles are set, or no snapshot data exists for any of them. Checks only
+    the first desired_roles entry with data (not all of them) to keep the prompt
+    addition genuinely short, per this chunk's "small, additive" scope."""
+    if not settings.enable_demand_intelligence_in_outreach or not cv_data.desired_roles:
+        return None
+    if db is None:
+        return None
+    for role in cv_data.desired_roles:
+        snapshots = await get_top_countries_for_role(db, role, limit=3)
+        if snapshots:
+            countries = ", ".join(s.country_iso2.upper() for s in snapshots)
+            return (
+                f"Note: recent job-market data shows the highest current demand for "
+                f"{role} is in {countries}; consider this when discussing relocation/"
+                f"remote flexibility, if relevant."
+            )
+    return None
+
+
 async def _draft_with_llm(
     cv_data: CVData,
     company_name: str,
@@ -250,6 +355,12 @@ async def _draft_with_llm(
     settings: Settings,
     message_type: str = "email",
     custom_instruction: str | None = None,
+    strategy: str = "direct_pitch",
+    referral_context: str | None = None,
+    role_type: str | None = None,
+    seniority: str | None = None,
+    company_tier: str | None = None,
+    db: AsyncSession | None = None,
 ) -> tuple[str, str]:
     api_key = settings.openai_api_key.strip()
     if not api_key:
@@ -273,8 +384,30 @@ async def _draft_with_llm(
         f"Job description excerpt: {job_description or '(none available)'}\n"
         f"Public company context: {company_context or '(none available)'}"
     )
+
+    strategy_fragment = _STRATEGY_INSTRUCTIONS.get(strategy, _STRATEGY_INSTRUCTIONS["direct_pitch"])
+    user_content = f"{user_content}\n{strategy_fragment}"
+
+    demand_line = await _demand_context_line(cv_data, settings, db)
+    if demand_line:
+        user_content = f"{user_content}\n{demand_line}"
+
+    if role_type is not None and seniority is not None:
+        role_type_fragment = _ROLE_TYPE_INSTRUCTIONS.get((role_type, seniority))
+        if role_type_fragment:
+            user_content = f"{user_content}\n{role_type_fragment}"
+
+    company_tier_fragment = (
+        _COMPANY_TIER_INSTRUCTIONS.get(company_tier) if company_tier is not None else None
+    )
+    if company_tier_fragment:
+        user_content = f"{user_content}\n{company_tier_fragment}"
+
     if message_type == "custom" and custom_instruction:
         user_content = f"{user_content}\n\n{_CUSTOM_INSTRUCTION_PREFIX}\n{custom_instruction}"
+
+    if strategy == "warm_referral" and referral_context:
+        user_content = f"{user_content}\n\nReferral/connection context: {referral_context}"
 
     system_prompt = _SYSTEM_PROMPTS_BY_TYPE.get(message_type, _EMAIL_SYSTEM_PROMPT)
 

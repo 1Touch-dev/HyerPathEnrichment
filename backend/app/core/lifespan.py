@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.auth.logged_out_tokens import LoggedOutTokenService
+from app.core.config import get_settings, validate_outreach_settings
 from app.core.logging import configure_logging
 from app.database.session import get_db_session
 from app.infrastructure.redis import close_redis, get_redis_client
@@ -16,6 +17,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # Logging before Sentry so LoggingIntegration can attach to the root logger.
     configure_logging()
     init_error_tracking()
+    # CAN-SPAM: fail closed rather than silently omitting the required physical
+    # address from every outbound email (service.send_message runs on this
+    # process, not just the RQ worker).
+    validate_outreach_settings(get_settings())
     redis_client = get_redis_client()
 
     # Sync logged-out tokens from PostgreSQL to Redis on startup

@@ -18,6 +18,9 @@ vi.mock("@/features/job-matching/hooks/useMatches", () => ({
   }),
 }));
 
+// machine-2/03: DraftOutreachDialog now reads/writes the manual company-tier via
+// useCompanyTier/useSetCompanyTier (React Query hooks), so every render needs a
+// QueryClientProvider ancestor, same as useOutreach.test.tsx's own wrapper.
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
@@ -47,6 +50,12 @@ async function selectMessageType(label: string) {
   fireEvent.click(within(listbox).getByText(label));
 }
 
+async function selectStrategy(label: string) {
+  fireEvent.click(screen.getByLabelText("Strategy"));
+  const listbox = await screen.findByRole("listbox");
+  fireEvent.click(within(listbox).getByText(label));
+}
+
 async function waitForResumeReady() {
   await waitFor(() => {
     expect(screen.getByText(/Using: resume\.pdf/i)).toBeInTheDocument();
@@ -55,6 +64,7 @@ async function waitForResumeReady() {
 
 describe("DraftOutreachDialog", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.spyOn(apiClient, "fetchDocuments").mockResolvedValue({
       success: true,
       data: [
@@ -67,6 +77,16 @@ describe("DraftOutreachDialog", () => {
           createdAt: "2026-01-01T00:00:00Z",
         },
       ],
+    });
+    vi.spyOn(apiClient, "getCompanyTier").mockResolvedValue({ success: true, data: null });
+    vi.spyOn(apiClient, "setCompanyTier").mockResolvedValue({
+      success: true,
+      data: {
+        companyName: "Acme",
+        tier: "premium",
+        notes: null,
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
     });
   });
 
@@ -111,7 +131,7 @@ describe("DraftOutreachDialog", () => {
     expect(screen.queryByLabelText("Instructions for this message")).not.toBeInTheDocument();
   });
 
-  it("calls onConfirm with messageType, documentId, and company for non-custom types", async () => {
+  it("calls onConfirm with messageType, documentId, company, and default strategy for non-custom types", async () => {
     const onConfirm = vi.fn();
     renderDialog({ onConfirm });
     await waitForResumeReady();
@@ -125,6 +145,10 @@ describe("DraftOutreachDialog", () => {
       documentId: "doc-1",
       companyName: "Acme",
       recipientRoleTitle: undefined,
+      strategy: "direct_pitch",
+      referralContext: undefined,
+      roleType: undefined,
+      seniority: undefined,
     });
   });
 
@@ -145,6 +169,10 @@ describe("DraftOutreachDialog", () => {
       documentId: "doc-1",
       companyName: "Acme",
       recipientRoleTitle: undefined,
+      strategy: "direct_pitch",
+      referralContext: undefined,
+      roleType: undefined,
+      seniority: undefined,
     });
   });
 
@@ -179,5 +207,72 @@ describe("DraftOutreachDialog", () => {
       target: { value: "too short" },
     });
     expect(screen.getByRole("button", { name: "Draft outreach" })).toBeDisabled();
+  });
+
+  it('renders the referral-context textarea only when strategy is "Warm referral"', async () => {
+    renderDialog();
+    await waitForResumeReady();
+    expect(screen.queryByLabelText("Referral context")).not.toBeInTheDocument();
+
+    await selectStrategy("Warm referral");
+
+    expect(screen.getByLabelText("Referral context")).toBeInTheDocument();
+  });
+
+  it("disables confirm until referral context is entered when Warm referral is selected", async () => {
+    renderDialog();
+    await waitForResumeReady();
+
+    await selectStrategy("Warm referral");
+
+    const confirmButton = screen.getByRole("button", { name: "Draft outreach" });
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Referral context"), {
+      target: { value: "Referred by Jane Doe." },
+    });
+    expect(confirmButton).not.toBeDisabled();
+  });
+
+  it("calls onConfirm with strategy and trimmed referralContext when Warm referral is selected", async () => {
+    const onConfirm = vi.fn();
+    renderDialog({ onConfirm });
+    await waitForResumeReady();
+
+    await selectStrategy("Warm referral");
+    fireEvent.change(screen.getByLabelText("Referral context"), {
+      target: { value: "  Referred by Jane Doe.  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Draft outreach" }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      messageType: "email",
+      customInstruction: undefined,
+      documentId: "doc-1",
+      companyName: "Acme",
+      recipientRoleTitle: undefined,
+      strategy: "warm_referral",
+      referralContext: "Referred by Jane Doe.",
+      roleType: undefined,
+      seniority: undefined,
+    });
+  });
+
+  it("shows a company tier select for a known companyName and persists a previously-set tier", async () => {
+    vi.spyOn(apiClient, "getCompanyTier").mockResolvedValue({
+      success: true,
+      data: {
+        companyName: "Acme",
+        tier: "premium",
+        notes: null,
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+    });
+
+    renderDialog();
+    await waitForResumeReady();
+
+    expect(await screen.findByText("Premium")).toBeInTheDocument();
+    expect(apiClient.getCompanyTier).toHaveBeenCalledWith("Acme");
   });
 });

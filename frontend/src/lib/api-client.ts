@@ -21,10 +21,15 @@ import {
   HealthStatus,
   JobListResponse,
   OptOutInput,
+  OutreachCompanyTier,
+  OutreachCompanyTierValue,
   OutreachListResponse,
   OutreachDraftAccepted,
   OutreachMessage,
   OutreachMessageType,
+  OutreachRoleType,
+  OutreachSeniority,
+  OutreachStrategy,
   PortfolioItem,
   PortfolioProfile,
   PracticeAttempt,
@@ -345,6 +350,10 @@ export async function draftOutreach(payload: {
   jobDescription?: string;
   messageType?: OutreachMessageType;
   customInstruction?: string;
+  strategy?: OutreachStrategy;
+  referralContext?: string;
+  roleType?: OutreachRoleType;
+  seniority?: OutreachSeniority;
 }): Promise<SuccessEnvelope<OutreachDraftAccepted>> {
   return request<OutreachDraftAccepted>("/api/outreach/drafts", {
     method: "POST",
@@ -359,6 +368,38 @@ export async function draftOutreach(payload: {
       // to the backend's snake_case `message_type`/`custom_instruction` fields.
       messageType: payload.messageType ?? "email",
       customInstruction: payload.customInstruction ?? null,
+      // machine-2/03: forwarded to the BFF route, which maps these to the
+      // backend's snake_case `strategy`/`referral_context`/`role_type`/`seniority`
+      // fields, mirroring `messageType`/`customInstruction` above.
+      strategy: payload.strategy ?? "direct_pitch",
+      referralContext: payload.referralContext ?? null,
+      roleType: payload.roleType ?? null,
+      seniority: payload.seniority ?? null,
+    }),
+  });
+}
+
+// machine-2/03: manual, recruiter-set employer classification — persists across
+// every future draft for the same `companyName` (backend's `EmployerCompanyTier`).
+export async function getCompanyTier(
+  companyName: string,
+): Promise<SuccessEnvelope<OutreachCompanyTier | null>> {
+  const search = new URLSearchParams({ companyName });
+  return request<OutreachCompanyTier | null>(`/api/outreach/company-tier?${search.toString()}`);
+}
+
+export async function setCompanyTier(
+  companyName: string,
+  tier: OutreachCompanyTierValue,
+  notes?: string,
+): Promise<SuccessEnvelope<OutreachCompanyTier>> {
+  return request<OutreachCompanyTier>("/api/outreach/company-tier", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      companyName,
+      tier,
+      notes: notes ?? null,
     }),
   });
 }

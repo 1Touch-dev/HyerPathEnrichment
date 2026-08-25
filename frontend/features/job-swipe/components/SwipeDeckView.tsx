@@ -76,6 +76,10 @@ export function SwipeDeckView() {
         recipientRoleTitle: payload.recipientRoleTitle || draftTarget.title || undefined,
         messageType: payload.messageType,
         customInstruction: payload.customInstruction,
+        strategy: payload.strategy,
+        referralContext: payload.referralContext,
+        roleType: payload.roleType,
+        seniority: payload.seniority,
       },
       {
         onSuccess: () => {

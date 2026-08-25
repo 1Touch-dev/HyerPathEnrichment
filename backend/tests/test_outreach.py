@@ -170,6 +170,7 @@ async def test_send_message_appends_disclosure_footer_and_marks_sent(db, test_us
         body="Original body with no footer.",
         status="draft",
         message_type="email",
+        recipient_email="hiring@acme.com",
     )
     db.add(message)
     await db.commit()
@@ -186,7 +187,7 @@ async def test_send_message_appends_disclosure_footer_and_marks_sent(db, test_us
     assert "/app/privacy" in result.body
 
 
-@pytest.mark.parametrize("message_type", ["linkedin", "generic", "custom"])
+@pytest.mark.parametrize("message_type", ["generic", "custom"])
 async def test_send_message_omits_disclosure_footer_for_non_email_types(
     db, test_user, message_type
 ):
@@ -198,6 +199,9 @@ async def test_send_message_omits_disclosure_footer_for_non_email_types(
         body="Original body with no footer.",
         status="draft",
         message_type=message_type,
+        recipient_linkedin_url=(
+            "https://www.linkedin.com/in/jane-recruiter" if message_type == "linkedin" else None
+        ),
     )
     db.add(message)
     await db.commit()
@@ -211,6 +215,44 @@ async def test_send_message_omits_disclosure_footer_for_non_email_types(
     assert result.body == "Original body with no footer."
     assert "unsubscribe" not in result.body.lower()
     assert "prefer not to receive" not in result.body.lower()
+
+
+async def test_send_message_for_linkedin_type_enqueues_task_and_stays_draft(db, test_user):
+    """Machine-2/06: sending a linkedin-type message no longer marks it 'sent'
+    immediately — it enqueues a LinkedInSendTask for a human operator, and status
+    stays 'draft' until that operator confirms they performed the action
+    themselves (linkedin_send_service.complete_task)."""
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Original body with no footer.",
+        status="draft",
+        message_type="linkedin",
+        recipient_linkedin_url="https://www.linkedin.com/in/jane-recruiter",
+    )
+    db.add(message)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    result = await service.send_message(
+        test_user.id, str(message.id), sender_email="jane@example.com", sender_name="jane"
+    )
+
+    assert result.status == "draft"
+    assert result.body == "Original body with no footer."
+
+    from sqlalchemy import select
+
+    from app.modules.outreach.linkedin_send_models import LinkedInSendTask
+
+    task_result = await db.execute(
+        select(LinkedInSendTask).where(LinkedInSendTask.outreach_message_id == message.id)
+    )
+    task = task_result.scalar_one()
+    assert task.linkedin_profile_url == "https://www.linkedin.com/in/jane-recruiter"
+    assert task.status == "pending"
 
 
 async def test_send_message_rejects_already_sent(db, test_user):
@@ -268,6 +310,7 @@ async def test_send_message_allows_message_with_admin_blocked_false(db, test_use
         body="Original body with no footer.",
         status="draft",
         message_type="email",
+        recipient_email="hiring@acme.com",
         admin_blocked=False,
     )
     db.add(message)
@@ -294,6 +337,7 @@ async def test_send_message_uses_absolute_privacy_url_when_configured(db, test_u
         subject="Hi",
         body="Original body with no footer.",
         status="draft",
+        recipient_email="hiring@acme.com",
     )
     db.add(message)
     await db.commit()
@@ -368,7 +412,13 @@ async def test_request_draft_requires_a_processed_cv(db, test_user):
     service = OutreachService(db, redis_conn=MagicMock())
     with pytest.raises(HTTPException) as exc_info:
         await service.request_draft(
-            test_user.id, OutreachDraftRequest(company_name="Acme", document_id=str(uuid4()))
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme",
+                document_id=str(uuid4()),
+                message_type="linkedin",
+                recipient_linkedin_url="https://www.linkedin.com/in/hiring-manager",
+            ),
         )
     assert exc_info.value.status_code == 409
 
@@ -396,7 +446,13 @@ async def test_request_draft_enqueues_job_for_completed_document(db, test_user):
     service = OutreachService(db, redis_conn=MagicMock())
     with patch("app.modules.outreach.service.Queue", mock_queue_cls):
         result = await service.request_draft(
-            test_user.id, OutreachDraftRequest(company_name="Acme", document_id=str(doc.id))
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme",
+                document_id=str(doc.id),
+                message_type="linkedin",
+                recipient_linkedin_url="https://www.linkedin.com/in/hiring-manager",
+            ),
         )
 
     assert result["rq_job_id"] == "rq-job-123"
@@ -431,13 +487,25 @@ async def test_request_draft_second_call_rejected_while_lock_held(db, test_user)
     service = OutreachService(db, redis_conn=redis_conn)
     with patch("app.modules.outreach.service.Queue", mock_queue_cls):
         first_result = await service.request_draft(
-            test_user.id, OutreachDraftRequest(company_name="Acme", document_id=str(doc.id))
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme",
+                document_id=str(doc.id),
+                message_type="linkedin",
+                recipient_linkedin_url="https://www.linkedin.com/in/hiring-manager",
+            ),
         )
         assert first_result["rq_job_id"] == "rq-job-123"
 
         with pytest.raises(HTTPException) as exc_info:
             await service.request_draft(
-                test_user.id, OutreachDraftRequest(company_name="Acme", document_id=str(doc.id))
+                test_user.id,
+                OutreachDraftRequest(
+                    company_name="Acme",
+                    document_id=str(doc.id),
+                    message_type="linkedin",
+                    recipient_linkedin_url="https://www.linkedin.com/in/hiring-manager",
+                ),
             )
 
     assert exc_info.value.status_code == 409
@@ -548,13 +616,19 @@ async def test_request_draft_concurrent_lock_scoped_per_message_type(db, test_us
         email_result = await service.request_draft(
             test_user.id,
             OutreachDraftRequest(
-                company_name="Acme", document_id=str(doc.id), message_type="email"
+                company_name="Acme",
+                document_id=str(doc.id),
+                message_type="email",
+                recipient_email="hiring@acme.com",
             ),
         )
         linkedin_result = await service.request_draft(
             test_user.id,
             OutreachDraftRequest(
-                company_name="Acme", document_id=str(doc.id), message_type="linkedin"
+                company_name="Acme",
+                document_id=str(doc.id),
+                message_type="linkedin",
+                recipient_linkedin_url="https://www.linkedin.com/in/hiring-manager",
             ),
         )
 
@@ -593,7 +667,10 @@ async def test_request_draft_concurrent_lock_rejects_same_message_type(db, test_
         first_result = await service.request_draft(
             test_user.id,
             OutreachDraftRequest(
-                company_name="Acme", document_id=str(doc.id), message_type="linkedin"
+                company_name="Acme",
+                document_id=str(doc.id),
+                message_type="linkedin",
+                recipient_linkedin_url="https://www.linkedin.com/in/hiring-manager",
             ),
         )
         assert first_result["rq_job_id"] == "rq-job-123"
@@ -602,7 +679,10 @@ async def test_request_draft_concurrent_lock_rejects_same_message_type(db, test_
             await service.request_draft(
                 test_user.id,
                 OutreachDraftRequest(
-                    company_name="Acme", document_id=str(doc.id), message_type="linkedin"
+                    company_name="Acme",
+                    document_id=str(doc.id),
+                    message_type="linkedin",
+                    recipient_linkedin_url="https://www.linkedin.com/in/hiring-manager",
                 ),
             )
 
@@ -716,3 +796,408 @@ async def test_edit_draft_linkedin_guard_does_not_apply_to_other_types(db, test_
         OutreachEditRequest(subject="fine", body=oversized_body),
     )
     assert result.body == oversized_body
+
+
+# --- machine-2/03: strategy dimension + company tier ---
+
+
+async def test_request_draft_rejects_warm_referral_missing_context(db, test_user):
+    doc = CandidateDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        document_type="cv",
+        original_filename="cv.pdf",
+        storage_path="documents/x/y.pdf",
+        file_hash=f"outreach-{uuid4().hex}",
+        file_size_bytes=1000,
+        raw_text="Jane Doe",
+        processing_status="completed",
+    )
+    db.add(doc)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme",
+                document_id=str(doc.id),
+                strategy="warm_referral",
+            ),
+        )
+    assert exc_info.value.status_code == 400
+
+
+async def test_request_draft_rejects_warm_referral_blank_context(db, test_user):
+    doc = CandidateDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        document_type="cv",
+        original_filename="cv.pdf",
+        storage_path="documents/x/y.pdf",
+        file_hash=f"outreach-{uuid4().hex}",
+        file_size_bytes=1000,
+        raw_text="Jane Doe",
+        processing_status="completed",
+    )
+    db.add(doc)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme",
+                document_id=str(doc.id),
+                strategy="warm_referral",
+                referral_context="   ",
+            ),
+        )
+    assert exc_info.value.status_code == 400
+
+
+async def test_request_draft_allows_warm_referral_with_context(db, test_user):
+    doc = CandidateDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        document_type="cv",
+        original_filename="cv.pdf",
+        storage_path="documents/x/y.pdf",
+        file_hash=f"outreach-{uuid4().hex}",
+        file_size_bytes=1000,
+        raw_text="Jane Doe",
+        processing_status="completed",
+    )
+    db.add(doc)
+    await db.commit()
+
+    mock_queue_cls = MagicMock()
+    mock_queue_instance = MagicMock()
+    mock_queue_instance.enqueue.return_value = MagicMock(id="rq-job-123")
+    mock_queue_cls.return_value = mock_queue_instance
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    with patch("app.modules.outreach.service.Queue", mock_queue_cls):
+        result = await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme",
+                document_id=str(doc.id),
+                message_type="linkedin",
+                recipient_linkedin_url="https://www.linkedin.com/in/hiring-manager",
+                strategy="warm_referral",
+                referral_context="Introduced by Jane Doe",
+            ),
+        )
+
+    assert result["rq_job_id"] == "rq-job-123"
+    call_args = mock_queue_instance.enqueue.call_args
+    assert "Introduced by Jane Doe" in call_args.args
+
+
+async def test_request_draft_defaults_strategy_to_direct_pitch(db, test_user):
+    """Backward-compat: existing callers that don't pass `strategy` keep working
+    (default is direct_pitch, matching today's implicit behavior)."""
+    doc = CandidateDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        document_type="cv",
+        original_filename="cv.pdf",
+        storage_path="documents/x/y.pdf",
+        file_hash=f"outreach-{uuid4().hex}",
+        file_size_bytes=1000,
+        raw_text="Jane Doe",
+        processing_status="completed",
+    )
+    db.add(doc)
+    await db.commit()
+
+    mock_queue_cls = MagicMock()
+    mock_queue_instance = MagicMock()
+    mock_queue_instance.enqueue.return_value = MagicMock(id="rq-job-123")
+    mock_queue_cls.return_value = mock_queue_instance
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    with patch("app.modules.outreach.service.Queue", mock_queue_cls):
+        result = await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme",
+                document_id=str(doc.id),
+                message_type="linkedin",
+                recipient_linkedin_url="https://www.linkedin.com/in/hiring-manager",
+            ),
+        )
+
+    assert result["rq_job_id"] == "rq-job-123"
+    call_args = mock_queue_instance.enqueue.call_args
+    assert "direct_pitch" in call_args.args
+
+
+async def test_set_company_tier_creates_new_row(db, test_user):
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    service = OutreachService(db, redis_conn=MagicMock())
+    row = await service.set_company_tier(
+        company_name=company_name,
+        tier="premium",
+        set_by_user_id=test_user.id,
+        notes="Well-known employer",
+    )
+    assert row.company_name == company_name
+    assert row.tier == "premium"
+    assert row.notes == "Well-known employer"
+    assert row.set_by_user_id == test_user.id
+
+
+async def test_set_company_tier_upserts_existing_row_in_place(db, test_user):
+    """Re-setting an existing employer's tier overwrites in place rather than
+    creating a duplicate row (exercises company_name's unique-constraint upsert)."""
+    from sqlalchemy import func, select
+
+    from app.modules.outreach.models import EmployerCompanyTier
+
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    service = OutreachService(db, redis_conn=MagicMock())
+    first = await service.set_company_tier(
+        company_name=company_name, tier="premium", set_by_user_id=test_user.id, notes=None
+    )
+    other_user_id = uuid4()
+    second = await service.set_company_tier(
+        company_name=company_name,
+        tier="outsourcing",
+        set_by_user_id=other_user_id,
+        notes="Changed my mind",
+    )
+
+    assert first.id == second.id
+    assert second.tier == "outsourcing"
+    assert second.notes == "Changed my mind"
+    assert second.set_by_user_id == other_user_id
+
+    count_result = await db.execute(
+        select(func.count())
+        .select_from(EmployerCompanyTier)
+        .where(EmployerCompanyTier.company_name == company_name)
+    )
+    assert count_result.scalar_one() == 1
+
+
+async def test_get_company_tier_returns_none_for_unset_employer(db, test_user):
+    service = OutreachService(db, redis_conn=MagicMock())
+    result = await service.get_company_tier(f"Nonexistent Co {uuid4().hex[:8]}")
+    assert result is None
+
+
+async def test_get_company_tier_returns_set_row(db, test_user):
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    service = OutreachService(db, redis_conn=MagicMock())
+    await service.set_company_tier(
+        company_name=company_name, tier="outsourcing", set_by_user_id=test_user.id, notes=None
+    )
+    result = await service.get_company_tier(company_name)
+    assert result is not None
+    assert result.tier == "outsourcing"
+
+
+# --- machine-2/05: CAN-SPAM send compliance ---
+
+
+async def test_request_draft_rejects_email_type_missing_recipient_email(db, test_user):
+    doc = CandidateDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        document_type="cv",
+        original_filename="cv.pdf",
+        storage_path="documents/x/y.pdf",
+        file_hash=f"outreach-{uuid4().hex}",
+        file_size_bytes=1000,
+        raw_text="Jane Doe",
+        processing_status="completed",
+    )
+    db.add(doc)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme", document_id=str(doc.id), message_type="email"
+            ),
+        )
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.parametrize("message_type", ["linkedin", "generic", "custom"])
+async def test_request_draft_does_not_require_recipient_email_for_non_email_types(
+    db, test_user, message_type
+):
+    doc = CandidateDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        document_type="cv",
+        original_filename="cv.pdf",
+        storage_path="documents/x/y.pdf",
+        file_hash=f"outreach-{uuid4().hex}",
+        file_size_bytes=1000,
+        raw_text="Jane Doe",
+        processing_status="completed",
+    )
+    db.add(doc)
+    await db.commit()
+
+    mock_queue_cls = MagicMock()
+    mock_queue_instance = MagicMock()
+    mock_queue_instance.enqueue.return_value = MagicMock(id="rq-job-123")
+    mock_queue_cls.return_value = mock_queue_instance
+
+    custom_instruction = "Say hi" if message_type == "custom" else None
+    recipient_linkedin_url = (
+        "https://www.linkedin.com/in/hiring-manager" if message_type == "linkedin" else None
+    )
+    service = OutreachService(db, redis_conn=MagicMock())
+    with patch("app.modules.outreach.service.Queue", mock_queue_cls):
+        result = await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme",
+                document_id=str(doc.id),
+                message_type=message_type,
+                custom_instruction=custom_instruction,
+                recipient_linkedin_url=recipient_linkedin_url,
+            ),
+        )
+
+    assert result["rq_job_id"] == "rq-job-123"
+
+
+async def test_request_draft_email_type_threads_recipient_email_to_enqueue(db, test_user):
+    doc = CandidateDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        document_type="cv",
+        original_filename="cv.pdf",
+        storage_path="documents/x/y.pdf",
+        file_hash=f"outreach-{uuid4().hex}",
+        file_size_bytes=1000,
+        raw_text="Jane Doe",
+        processing_status="completed",
+    )
+    db.add(doc)
+    await db.commit()
+
+    mock_queue_cls = MagicMock()
+    mock_queue_instance = MagicMock()
+    mock_queue_instance.enqueue.return_value = MagicMock(id="rq-job-123")
+    mock_queue_cls.return_value = mock_queue_instance
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    with patch("app.modules.outreach.service.Queue", mock_queue_cls):
+        result = await service.request_draft(
+            test_user.id,
+            OutreachDraftRequest(
+                company_name="Acme",
+                document_id=str(doc.id),
+                message_type="email",
+                recipient_email="hiring@acme.com",
+            ),
+        )
+
+    assert result["rq_job_id"] == "rq-job-123"
+    call_args = mock_queue_instance.enqueue.call_args
+    assert "hiring@acme.com" in call_args.args
+
+
+async def test_send_message_rejects_email_type_missing_recipient_email(db, test_user):
+    """A draft created before this chunk shipped may have recipient_email=None; sending
+    it must fail defensively rather than silently sending unchecked."""
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Body",
+        status="draft",
+        message_type="email",
+        recipient_email=None,
+    )
+    db.add(message)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.send_message(
+            test_user.id, str(message.id), sender_email="jane@example.com", sender_name="jane"
+        )
+    assert exc_info.value.status_code == 422
+
+    await db.refresh(message)
+    assert message.status == "draft"
+
+
+async def test_send_message_rejects_suppressed_recipient_and_leaves_draft_unsent(db, test_user):
+    from app.compliance.suppression import add_suppression
+
+    await add_suppression(db, "blocked@acme.com", reason="opted out")
+
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Original body with no footer.",
+        status="draft",
+        message_type="email",
+        recipient_email="blocked@acme.com",
+    )
+    db.add(message)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    with pytest.raises(HTTPException) as exc_info:
+        await service.send_message(
+            test_user.id, str(message.id), sender_email="jane@example.com", sender_name="jane"
+        )
+    assert exc_info.value.status_code == 403
+
+    await db.refresh(message)
+    assert message.status == "draft"
+    assert message.sent_at is None
+    assert message.body == "Original body with no footer."
+    assert message.suppression_checked_at is None
+
+
+async def test_send_message_succeeds_for_non_suppressed_recipient_and_sets_checked_at(
+    db, test_user, monkeypatch
+):
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("OUTREACH_PHYSICAL_ADDRESS", "123 Main St, San Francisco, CA")
+    get_settings.cache_clear()
+
+    message = OutreachMessage(
+        id=uuid4(),
+        user_id=test_user.id,
+        company_name="Acme",
+        subject="Hi",
+        body="Original body with no footer.",
+        status="draft",
+        message_type="email",
+        recipient_email="hiring@acme.com",
+    )
+    db.add(message)
+    await db.commit()
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    result = await service.send_message(
+        test_user.id, str(message.id), sender_email="jane@example.com", sender_name="jane"
+    )
+
+    assert result.status == "sent"
+    assert "123 Main St, San Francisco, CA" in result.body
+
+    await db.refresh(message)
+    assert message.suppression_checked_at is not None
+    get_settings.cache_clear()
