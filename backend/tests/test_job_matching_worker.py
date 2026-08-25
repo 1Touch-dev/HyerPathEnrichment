@@ -721,6 +721,105 @@ class TestScanJobsForCandidate:
         mock_scrape.assert_not_called()
 
 
+class TestScanJobsForCandidateCountryIso2:
+    """Coverage for wiring `country_to_iso2` into the ingestion path (Track 02:
+    country-demand-intelligence). `country_to_iso2` itself (India/Middle East
+    mappings, "us" fallback, etc.) is unit-tested in `app/enrichers/jobspy.py`'s own
+    test suite — these tests only assert the call-site wiring in
+    `_scan_jobs_for_candidate_async`: which signal it picks and that it lands on the
+    persisted `JobPosting.country_iso2` column.
+    """
+
+    def test_falls_back_to_candidate_preferred_location_when_row_has_no_country_signal(self):
+        """Raw JobSpy scrape rows (see FAKE_JOBSPY_ROWS) carry no dedicated
+        country/job_country key — only `location` (a city/"Remote" string). In that
+        case the candidate's own first `desired_locations` entry (already in scope
+        as `location_arg`) is the best available country signal."""
+        from app.enrichers.jobspy import country_to_iso2
+
+        user = _create_user()
+        _create_preferences(user.id, desired_locations=["Germany"])
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+        unique_rows = [
+            {**row, "title": f"{row['title']} {uuid.uuid4().hex[:8]}"} for row in FAKE_JOBSPY_ROWS
+        ]
+
+        with (
+            _mock_jobspy_scrape(unique_rows),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            _mock_track_embedding_cost(),
+            _mock_track_llm_cost(),
+        ):
+            scan_jobs_for_candidate(str(user.id))
+
+        expected_titles = {row["title"] for row in unique_rows}
+        postings = [p for p in _get_postings() if p.title in expected_titles]
+        assert len(postings) == len(unique_rows)
+        expected_iso2 = country_to_iso2("Germany")
+        assert all(p.country_iso2 == expected_iso2 for p in postings)
+
+    def test_prefers_per_row_country_signal_over_candidate_preference(self):
+        """When a scraped row does carry its own `country` (or `job_country`) key,
+        that per-row signal must win over the candidate's own preferred location."""
+        from app.enrichers.jobspy import country_to_iso2
+
+        user = _create_user()
+        _create_preferences(user.id, desired_locations=["Germany"])
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+
+        row = {
+            **FAKE_JOBSPY_ROWS[0],
+            "title": f"{FAKE_JOBSPY_ROWS[0]['title']} {uuid.uuid4().hex[:8]}",
+            "country": "India",
+        }
+
+        with (
+            _mock_jobspy_scrape([row]),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            _mock_track_embedding_cost(),
+            _mock_track_llm_cost(),
+        ):
+            scan_jobs_for_candidate(str(user.id))
+
+        posting = next(p for p in _get_postings() if p.title == row["title"])
+        assert posting.country_iso2 == country_to_iso2("India")
+        assert posting.country_iso2 != country_to_iso2("Germany")
+
+    def test_country_iso2_is_none_when_no_signal_resolvable_at_all(self):
+        """No per-row country/job_country key and no candidate desired_locations at
+        all means there is no country signal whatsoever — `country_iso2` should stay
+        unset (NULL) rather than forcing `country_to_iso2`'s own internal "us"
+        default onto a row that never had any real signal to resolve."""
+        user = _create_user()
+        _create_preferences(user.id, desired_locations=[])
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+
+        row = {
+            **FAKE_JOBSPY_ROWS[0],
+            "title": f"{FAKE_JOBSPY_ROWS[0]['title']} {uuid.uuid4().hex[:8]}",
+        }
+
+        with (
+            _mock_jobspy_scrape([row]),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+            _mock_track_embedding_cost(),
+            _mock_track_llm_cost(),
+        ):
+            scan_jobs_for_candidate(str(user.id))
+
+        posting = next(p for p in _get_postings() if p.title == row["title"])
+        assert posting.country_iso2 is None
+
+
 class TestJSearchVocabularySourceHandling:
     """Coverage for the JSearch-migration's effect on this worker's dedup-key
     computation and Prometheus instrumentation. `_scrape` is mocked at the class
