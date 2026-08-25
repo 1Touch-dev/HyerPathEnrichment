@@ -22,10 +22,13 @@ from app.domain.candidate import CVData
 from app.modules.documents.models import CandidateDocument
 from app.modules.outreach.models import OutreachMessage
 from app.workers.tasks.outreach import (
+    _COMPANY_TIER_INSTRUCTIONS,
     _CUSTOM_INSTRUCTION_PREFIX,
     _EMAIL_SYSTEM_PROMPT,
     _GENERIC_SYSTEM_PROMPT,
     _LINKEDIN_SYSTEM_PROMPT,
+    _ROLE_TYPE_INSTRUCTIONS,
+    _STRATEGY_INSTRUCTIONS,
     _draft_with_llm,
     _generate_outreach_draft_job,
     generate_outreach_draft_job,
@@ -236,7 +239,19 @@ def test_generate_outreach_draft_job_sync_wrapper_invokes_async_impl() -> None:
     ) as mock_async_impl:
         generate_outreach_draft_job("user-1", "doc-1", "Acme", "Engineer", "match-1")
     mock_async_impl.assert_called_once_with(
-        "user-1", "doc-1", "Acme", "Engineer", "match-1", "email", None
+        "user-1",
+        "doc-1",
+        "Acme",
+        "Engineer",
+        "match-1",
+        "email",
+        None,
+        "direct_pitch",
+        None,
+        None,
+        None,
+        None,
+        None,
     )
 
 
@@ -430,6 +445,12 @@ async def test_generate_outreach_draft_job_includes_job_description_from_match(
         settings,
         message_type="email",
         custom_instruction=None,
+        strategy="direct_pitch",
+        referral_context=None,
+        role_type=None,
+        seniority=None,
+        company_tier=None,
+        db=None,
     ):
         captured_kwargs["job_description"] = job_description
         return "Interested in Acme", "Hello, I would love to join Acme."
@@ -571,3 +592,598 @@ async def test_draft_with_llm_custom_mode_includes_instruction_prefix_verbatim(
     user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
     assert _CUSTOM_INSTRUCTION_PREFIX in user_message
     assert candidate_instruction in user_message
+
+
+# --- machine-2/03: strategy/role-type/company-tier drafting variation ---
+
+
+@pytest.mark.parametrize("strategy", ["direct_pitch", "value_first", "curiosity", "warm_referral"])
+async def test_draft_with_llm_appends_strategy_fragment(
+    monkeypatch: pytest.MonkeyPatch, strategy: str
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"])
+
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "Acme context",
+            "We need a Python expert.",
+            settings,
+            "email",
+            None,
+            strategy,
+            "Referred by Jane" if strategy == "warm_referral" else None,
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+    assert _STRATEGY_INSTRUCTIONS[strategy] in user_message
+
+
+async def test_draft_with_llm_warm_referral_includes_referral_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"])
+
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "",
+            None,
+            settings,
+            "email",
+            None,
+            "warm_referral",
+            "Introduced via Jane Doe, former colleague",
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+    assert "Introduced via Jane Doe, former colleague" in user_message
+
+
+@pytest.mark.parametrize(
+    "role_type,seniority",
+    [
+        ("technical", "senior"),
+        ("technical", "junior"),
+        ("non_technical", "senior"),
+        ("non_technical", "junior"),
+    ],
+)
+async def test_draft_with_llm_appends_role_type_fragment_when_both_set(
+    monkeypatch: pytest.MonkeyPatch, role_type: str, seniority: str
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"])
+
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "",
+            None,
+            settings,
+            "email",
+            None,
+            "direct_pitch",
+            None,
+            role_type,
+            seniority,
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+    assert _ROLE_TYPE_INSTRUCTIONS[(role_type, seniority)] in user_message
+
+
+@pytest.mark.parametrize(
+    "role_type,seniority", [("technical", None), (None, "senior"), (None, None)]
+)
+async def test_draft_with_llm_omits_role_type_fragment_for_partial_combination(
+    monkeypatch: pytest.MonkeyPatch, role_type: str | None, seniority: str | None
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"])
+
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "",
+            None,
+            settings,
+            "email",
+            None,
+            "direct_pitch",
+            None,
+            role_type,
+            seniority,
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+    for fragment in _ROLE_TYPE_INSTRUCTIONS.values():
+        assert fragment not in user_message
+
+
+@pytest.mark.parametrize("tier", ["premium", "outsourcing"])
+async def test_draft_with_llm_appends_company_tier_fragment_when_tier_set(
+    monkeypatch: pytest.MonkeyPatch, tier: str
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"])
+
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "",
+            None,
+            settings,
+            "email",
+            None,
+            "direct_pitch",
+            None,
+            None,
+            None,
+            tier,
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+    assert _COMPANY_TIER_INSTRUCTIONS[tier] in user_message
+
+
+async def test_draft_with_llm_no_company_tier_fragment_when_tier_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression (release-blocking bar): no EmployerCompanyTier row / flag off both
+    resolve to `company_tier=None` at the call site, and this must append nothing —
+    byte-identical to pre-company-tier-wiring behavior for every other fragment."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"])
+
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "",
+            None,
+            settings,
+            "email",
+            None,
+            "direct_pitch",
+            None,
+            None,
+            None,
+            None,
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+    for fragment in _COMPANY_TIER_INSTRUCTIONS.values():
+        assert fragment not in user_message
+
+
+async def test_generate_outreach_draft_job_skips_company_tier_lookup_when_flag_off(
+    db: AsyncSession,
+    worker_user: User,
+    worker_document: CandidateDocument,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """This repo's chosen resolution (documented in outreach.py) of the
+    Verification section's stated ambiguity: gate the get_company_tier() lookup
+    itself behind the flag, not just its use in the prompt — zero extra DB calls
+    when the flag is off (the default)."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "enable_company_tier_in_outreach_drafting", False)
+
+    with (
+        _patched_worker_session(db),
+        patch("app.workers.tasks.outreach.close_redis", new=AsyncMock()),
+        patch("app.workers.tasks.outreach.engine") as mock_engine,
+        patch(
+            "app.workers.tasks.outreach.PerplexityClient.get_company_context",
+            new=AsyncMock(return_value={"summary": "", "source": "none"}),
+        ),
+        patch(
+            "app.workers.tasks.outreach._draft_with_llm",
+            new=AsyncMock(return_value=("Interested in Acme", "Body")),
+        ),
+        patch(
+            "app.workers.tasks.outreach.get_company_tier", new=AsyncMock()
+        ) as mock_get_company_tier,
+    ):
+        mock_engine.dispose = AsyncMock()
+        await _generate_outreach_draft_job(
+            str(worker_user.id), str(worker_document.id), "Acme", "Engineer", None
+        )
+
+    mock_get_company_tier.assert_not_called()
+
+
+async def test_generate_outreach_draft_job_looks_up_company_tier_when_flag_on(
+    db: AsyncSession,
+    worker_user: User,
+    worker_document: CandidateDocument,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.outreach.models import EmployerCompanyTier
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "enable_company_tier_in_outreach_drafting", True)
+
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    tier_row = EmployerCompanyTier(company_name=company_name, tier="premium")
+    db.add(tier_row)
+    await db.commit()
+
+    captured: dict[str, Any] = {}
+
+    async def _fake_draft_with_llm(*args, **kwargs):
+        captured["company_tier"] = args[12] if len(args) > 12 else kwargs.get("company_tier")
+        return "Interested in Acme", "Body"
+
+    with (
+        _patched_worker_session(db),
+        patch("app.workers.tasks.outreach.close_redis", new=AsyncMock()),
+        patch("app.workers.tasks.outreach.engine") as mock_engine,
+        patch(
+            "app.workers.tasks.outreach.PerplexityClient.get_company_context",
+            new=AsyncMock(return_value={"summary": "", "source": "none"}),
+        ),
+        patch("app.workers.tasks.outreach._draft_with_llm", new=_fake_draft_with_llm),
+    ):
+        mock_engine.dispose = AsyncMock()
+        await _generate_outreach_draft_job(
+            str(worker_user.id), str(worker_document.id), company_name, "Engineer", None
+        )
+
+    assert captured["company_tier"] == "premium"
+
+
+# --- machine-2/07: demand-intelligence -> outreach context line ---
+
+
+def _fake_snapshot(country_iso2: str) -> Any:
+    """Minimal stand-in for CountryDemandSnapshot — _demand_context_line only
+    ever reads .country_iso2 off each returned row, so a lightweight object
+    (rather than a real ORM instance) keeps these tests decoupled from 02's
+    module internals."""
+    snapshot = MagicMock()
+    snapshot.country_iso2 = country_iso2
+    return snapshot
+
+
+async def test_demand_context_line_returns_none_when_flag_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.workers.tasks.outreach import _demand_context_line
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "enable_demand_intelligence_in_outreach", False)
+    cv_data = CVData(desired_roles=["Backend Engineer"])
+
+    with patch(
+        "app.workers.tasks.outreach.get_top_countries_for_role", new=AsyncMock()
+    ) as mock_get_top_countries:
+        result = await _demand_context_line(cv_data, settings, db=None)
+
+    assert result is None
+    mock_get_top_countries.assert_not_called()
+
+
+async def test_demand_context_line_returns_none_when_no_desired_roles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.workers.tasks.outreach import _demand_context_line
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "enable_demand_intelligence_in_outreach", True)
+    cv_data = CVData(desired_roles=[])
+
+    with patch(
+        "app.workers.tasks.outreach.get_top_countries_for_role", new=AsyncMock()
+    ) as mock_get_top_countries:
+        result = await _demand_context_line(cv_data, settings, db=None)
+
+    assert result is None
+    mock_get_top_countries.assert_not_called()
+
+
+async def test_demand_context_line_returns_none_when_no_snapshot_data_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.workers.tasks.outreach import _demand_context_line
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "enable_demand_intelligence_in_outreach", True)
+    cv_data = CVData(desired_roles=["Backend Engineer", "Data Scientist"])
+
+    with patch(
+        "app.workers.tasks.outreach.get_top_countries_for_role",
+        new=AsyncMock(return_value=[]),
+    ) as mock_get_top_countries:
+        result = await _demand_context_line(cv_data, settings, db=MagicMock())
+
+    assert result is None
+    assert mock_get_top_countries.call_count == 2
+
+
+async def test_demand_context_line_returns_formatted_line_when_data_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.workers.tasks.outreach import _demand_context_line
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "enable_demand_intelligence_in_outreach", True)
+    cv_data = CVData(desired_roles=["Backend Engineer"])
+
+    snapshots = [_fake_snapshot("us"), _fake_snapshot("de"), _fake_snapshot("nl")]
+    with patch(
+        "app.workers.tasks.outreach.get_top_countries_for_role",
+        new=AsyncMock(return_value=snapshots),
+    ):
+        result = await _demand_context_line(cv_data, settings, db=MagicMock())
+
+    assert result is not None
+    assert "Backend Engineer" in result
+    assert "US, DE, NL" in result
+
+
+async def test_demand_context_line_falls_through_to_next_role_without_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """First desired_roles entry has no snapshot data; the second does — this
+    chunk's "first entry *with* data" contract, not strictly the first entry."""
+    from app.workers.tasks.outreach import _demand_context_line
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "enable_demand_intelligence_in_outreach", True)
+    cv_data = CVData(desired_roles=["Nonexistent Role", "Backend Engineer"])
+
+    snapshots = [_fake_snapshot("gb")]
+    with patch(
+        "app.workers.tasks.outreach.get_top_countries_for_role",
+        new=AsyncMock(side_effect=[[], snapshots]),
+    ):
+        result = await _demand_context_line(cv_data, settings, db=MagicMock())
+
+    assert result is not None
+    assert "Backend Engineer" in result
+    assert "GB" in result
+
+
+async def test_draft_with_llm_includes_demand_context_line_when_flag_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    monkeypatch.setattr(settings, "enable_demand_intelligence_in_outreach", True)
+    cv_data = CVData(
+        current_role="Engineer", technical_skills=["python"], desired_roles=["Backend Engineer"]
+    )
+
+    snapshots = [_fake_snapshot("us"), _fake_snapshot("de")]
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with (
+        patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm),
+        patch(
+            "app.workers.tasks.outreach.get_top_countries_for_role",
+            new=AsyncMock(return_value=snapshots),
+        ),
+    ):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "Acme context",
+            "We need a Python expert.",
+            settings,
+            db=MagicMock(),
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+    assert "highest current demand for Backend Engineer is in US, DE" in user_message
+
+
+async def test_draft_with_llm_no_demand_context_line_when_no_snapshot_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    monkeypatch.setattr(settings, "enable_demand_intelligence_in_outreach", True)
+    cv_data = CVData(
+        current_role="Engineer", technical_skills=["python"], desired_roles=["Backend Engineer"]
+    )
+
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with (
+        patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm),
+        patch(
+            "app.workers.tasks.outreach.get_top_countries_for_role",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "Acme context",
+            "We need a Python expert.",
+            settings,
+            db=MagicMock(),
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+    assert "Note: recent job-market data" not in user_message
+
+
+async def test_draft_with_llm_no_demand_context_line_when_desired_roles_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    monkeypatch.setattr(settings, "enable_demand_intelligence_in_outreach", True)
+    cv_data = CVData(current_role="Engineer", technical_skills=["python"], desired_roles=[])
+
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with (
+        patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm),
+        patch(
+            "app.workers.tasks.outreach.get_top_countries_for_role", new=AsyncMock()
+        ) as mock_get_top_countries,
+    ):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "Acme context",
+            "We need a Python expert.",
+            settings,
+            db=MagicMock(),
+        )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+    assert "Note: recent job-market data" not in user_message
+    mock_get_top_countries.assert_not_called()
+
+
+async def test_draft_with_llm_does_not_query_demand_data_when_flag_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Release-blocking requirement: with the flag off (default), zero extra DB
+    calls in `_draft_with_llm`'s code branch — not just zero prompt text."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    monkeypatch.setattr(settings, "enable_demand_intelligence_in_outreach", False)
+    cv_data = CVData(
+        current_role="Engineer", technical_skills=["python"], desired_roles=["Backend Engineer"]
+    )
+
+    _mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with (
+        patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm),
+        patch(
+            "app.workers.tasks.outreach.get_top_countries_for_role", new=AsyncMock()
+        ) as mock_get_top_countries,
+    ):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "Acme context",
+            "We need a Python expert.",
+            settings,
+            db=MagicMock(),
+        )
+
+    mock_get_top_countries.assert_not_called()
+
+
+async def test_draft_with_llm_user_content_byte_identical_when_flag_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Release-blocking regression: with `enable_demand_intelligence_in_outreach`
+    off (the default), the constructed `user_content` for a given
+    cv_data/company_name/role_title/context/job-description/message-type/strategy
+    combination must be byte-identical to the pre-machine-2/07 output — this
+    chunk must be a strict no-op for every existing caller/test that doesn't
+    explicitly opt in via the new flag, and it must not depend on `db` being
+    provided (passing `db=None`, exactly as every pre-existing call site in this
+    test file above does, since none of them pass a `db` kwarg)."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+    monkeypatch.setattr(settings, "enable_demand_intelligence_in_outreach", False)
+    cv_data = CVData(
+        current_role="Engineer",
+        technical_skills=["python", "go"],
+        total_years_experience=5.0,
+        desired_roles=["Backend Engineer"],
+    )
+
+    mock_client, mock_client_cm = _mock_openai_client(
+        '{"subject": "Hi Acme", "body": "Custom body"}'
+    )
+    with (
+        patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm),
+        patch(
+            "app.workers.tasks.outreach.get_top_countries_for_role", new=AsyncMock()
+        ) as mock_get_top_countries,
+    ):
+        await _draft_with_llm(
+            cv_data,
+            "Acme",
+            "Backend Engineer",
+            "Acme context",
+            "We need a Python expert.",
+            settings,
+            "email",
+            None,
+            "direct_pitch",
+            None,
+            None,
+            None,
+            None,
+        )
+
+    mock_get_top_countries.assert_not_called()
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    user_message = next(m["content"] for m in sent_payload["messages"] if m["role"] == "user")
+
+    expected_user_content = (
+        "Candidate background: Current role: Engineer. Skills: python, go. "
+        "Years of experience: 5.0.\n"
+        "Target company: Acme\n"
+        "Target role: Backend Engineer\n"
+        "Job description excerpt: We need a Python expert.\n"
+        "Public company context: Acme context\n"
+        f"{_STRATEGY_INSTRUCTIONS['direct_pitch']}"
+    )
+    assert user_message == expected_user_content

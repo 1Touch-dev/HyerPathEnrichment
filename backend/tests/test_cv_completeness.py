@@ -7,10 +7,14 @@ import pytest
 from app.domain.candidate import CVData
 from app.domain.cv_completeness import (
     FIELD_WEIGHTS,
+    PROGRESSIVE_FIELDS,
     REQUIRED_FIELDS,
     completeness_score,
     compute_missing_fields,
+    compute_missing_progressive_fields,
     question_for_field,
+    question_for_progressive_field,
+    should_generate_prep_strategy_suggestion,
 )
 
 _ALL_REQUIRED_FIELDS = [
@@ -177,3 +181,99 @@ def test_question_for_field_github_and_portfolio_have_dedicated_questions():
 def test_question_for_field_unknown_field_falls_back_gracefully():
     q = question_for_field("some_new_field")
     assert "some new field" in q.lower()
+
+
+def test_completeness_score_unaffected_by_progressive_fields():
+    """Regression guard (spec-mandated): a CVData with all REQUIRED_FIELDS set scores
+    identically to before progressive profiling shipped, whether or not the new
+    progressive fields happen to be set — adding interests/learning_style/
+    prep_timeline_weeks must not silently change completeness_score() or
+    compute_missing_fields()."""
+    cv_without_progressive = CVData(**_FULL_CV_KWARGS)
+    cv_with_progressive = CVData(
+        **_FULL_CV_KWARGS,
+        interests=["hiking"],
+        learning_style="visual",
+        prep_timeline_weeks=4,
+    )
+    assert completeness_score(cv_without_progressive) == completeness_score(cv_with_progressive)
+    assert compute_missing_fields(cv_without_progressive) == compute_missing_fields(
+        cv_with_progressive
+    )
+    assert "interests" not in REQUIRED_FIELDS
+    assert "learning_style" not in REQUIRED_FIELDS
+    assert "prep_timeline_weeks" not in REQUIRED_FIELDS
+    assert "interests" not in FIELD_WEIGHTS
+    assert "learning_style" not in FIELD_WEIGHTS
+    assert "prep_timeline_weeks" not in FIELD_WEIGHTS
+
+
+def test_compute_missing_progressive_fields_all_missing_on_empty_cv():
+    missing = compute_missing_progressive_fields(CVData())
+    assert missing == PROGRESSIVE_FIELDS
+    assert missing == ["interests", "learning_style", "prep_timeline_weeks"]
+
+
+def test_compute_missing_progressive_fields_none_missing_when_all_set():
+    cv = CVData(
+        interests=["hiking", "chess"],
+        learning_style="visual",
+        prep_timeline_weeks=4,
+    )
+    assert compute_missing_progressive_fields(cv) == []
+
+
+def test_compute_missing_progressive_fields_partial():
+    cv = CVData(learning_style="hands_on")
+    missing = compute_missing_progressive_fields(cv)
+    assert "learning_style" not in missing
+    assert "interests" in missing
+    assert "prep_timeline_weeks" in missing
+
+
+def test_question_for_progressive_field_known_field():
+    assert "interested" in question_for_progressive_field("interests").lower()
+    assert "learn best" in question_for_progressive_field("learning_style").lower()
+    assert "weeks" in question_for_progressive_field("prep_timeline_weeks").lower()
+
+
+def test_question_for_progressive_field_unknown_field_falls_back_gracefully():
+    q = question_for_progressive_field("some_new_field")
+    assert "some new field" in q.lower()
+
+
+def test_should_generate_prep_strategy_suggestion_false_when_learning_style_unset():
+    cv = CVData(prep_timeline_weeks=4)
+    assert should_generate_prep_strategy_suggestion(cv) is False
+
+
+def test_should_generate_prep_strategy_suggestion_false_when_timeline_unset():
+    cv = CVData(learning_style="visual")
+    assert should_generate_prep_strategy_suggestion(cv) is False
+
+
+def test_should_generate_prep_strategy_suggestion_true_when_both_set_and_no_suggestion_yet():
+    cv = CVData(learning_style="visual", prep_timeline_weeks=4)
+    assert should_generate_prep_strategy_suggestion(cv) is True
+
+
+def test_should_generate_prep_strategy_suggestion_false_once_suggestion_already_set():
+    """No double-generation: once prep_strategy_suggestion is populated, the trigger
+    must not fire again even though both prep-relevant fields remain set."""
+    cv = CVData(
+        learning_style="visual",
+        prep_timeline_weeks=4,
+        prep_strategy_suggestion="Already generated.",
+    )
+    assert should_generate_prep_strategy_suggestion(cv) is False
+
+
+def test_should_generate_prep_strategy_suggestion_order_independent():
+    """Order doesn't matter — either field can be answered first in the chat."""
+    cv_learning_style_first = CVData(learning_style="reading")
+    cv_learning_style_first.prep_timeline_weeks = 2
+    assert should_generate_prep_strategy_suggestion(cv_learning_style_first) is True
+
+    cv_timeline_first = CVData(prep_timeline_weeks=2)
+    cv_timeline_first.learning_style = "reading"
+    assert should_generate_prep_strategy_suggestion(cv_timeline_first) is True

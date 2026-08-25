@@ -14,6 +14,7 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.modules.admin import router as admin_router
 from app.modules.admin.audit import AdminAuditFallbackMiddleware
 from app.modules.application_tracker.router import router as application_tracker_router
+from app.modules.demand_intelligence.router import router as demand_intelligence_router
 from app.modules.documents.router import router as documents_router
 from app.modules.dsar.router import router as dsar_router
 from app.modules.email.router import router as email_router
@@ -23,13 +24,18 @@ from app.modules.interview_scheduling.router import router as interview_scheduli
 from app.modules.jd_practice.router import router as jd_practice_router
 from app.modules.job_matching.router import router as job_matching_router
 from app.modules.job_swipe.router import router as job_swipe_router
+from app.modules.linkedin_sourcing.router import router as linkedin_sourcing_router
 from app.modules.manual_jobs.router import router as manual_jobs_router
 from app.modules.opt_out.router import router as opt_out_router
+from app.modules.outreach.linkedin_send_router import router as linkedin_send_router
 from app.modules.outreach.router import router as outreach_router
 from app.modules.portfolio.router import public_router as portfolio_public_router
 from app.modules.portfolio.router import router as portfolio_router
 from app.modules.practice_audio.router import router as practice_audio_router
 from app.modules.questions.router import router as questions_router
+from app.modules.recruiter_actions.router import router as recruiter_actions_router
+from app.modules.recruiter_actions.router import users_router as recruiter_action_mode_router
+from app.modules.resume_tailoring.router import router as resume_tailoring_router
 from app.modules.sessions.router import router as sessions_router
 from app.modules.signals.router import list_router as signals_list_router
 from app.modules.signals.router import webhook_router as signals_webhook_router
@@ -97,6 +103,7 @@ app.include_router(sessions_router, dependencies=[Depends(current_verified_user)
 app.include_router(questions_router, dependencies=[Depends(current_verified_user)])
 app.include_router(practice_audio_router, dependencies=[Depends(current_verified_user)])
 app.include_router(job_matching_router, dependencies=[Depends(current_verified_user)])
+app.include_router(demand_intelligence_router, dependencies=[Depends(current_verified_user)])
 app.include_router(application_tracker_router, dependencies=[Depends(current_verified_user)])
 app.include_router(interview_scheduling_router, dependencies=[Depends(current_verified_user)])
 app.include_router(jd_practice_router, dependencies=[Depends(current_verified_user)])
@@ -104,6 +111,11 @@ app.include_router(portfolio_router, dependencies=[Depends(current_verified_user
 app.include_router(portfolio_public_router)
 app.include_router(job_swipe_router, dependencies=[Depends(current_verified_user)])
 app.include_router(outreach_router, dependencies=[Depends(current_verified_user)])
+app.include_router(linkedin_send_router, dependencies=[Depends(current_verified_user)])
+app.include_router(linkedin_sourcing_router, dependencies=[Depends(current_verified_user)])
+app.include_router(recruiter_actions_router, dependencies=[Depends(current_verified_user)])
+app.include_router(recruiter_action_mode_router, dependencies=[Depends(current_verified_user)])
+app.include_router(resume_tailoring_router, dependencies=[Depends(current_verified_user)])
 app.include_router(manual_jobs_router, dependencies=[Depends(current_verified_user)])
 app.include_router(
     dsar_router,

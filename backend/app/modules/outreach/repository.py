@@ -8,17 +8,23 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.outreach.models import OutreachMessage
+from app.modules.outreach.models import EmployerCompanyTier, OutreachMessage
 
 
-async def get_owned_message(db: AsyncSession, message_id: UUID, user_id: UUID) -> OutreachMessage | None:
+async def get_owned_message(
+    db: AsyncSession, message_id: UUID, user_id: UUID
+) -> OutreachMessage | None:
     result = await db.execute(
-        select(OutreachMessage).where(OutreachMessage.id == message_id, OutreachMessage.user_id == user_id)
+        select(OutreachMessage).where(
+            OutreachMessage.id == message_id, OutreachMessage.user_id == user_id
+        )
     )
     return result.scalar_one_or_none()
 
 
-async def list_messages_for_user(db: AsyncSession, user_id: UUID, limit: int = 50) -> list[OutreachMessage]:
+async def list_messages_for_user(
+    db: AsyncSession, user_id: UUID, limit: int = 50
+) -> list[OutreachMessage]:
     result = await db.execute(
         select(OutreachMessage)
         .where(OutreachMessage.user_id == user_id)
@@ -34,3 +40,44 @@ async def mark_sent(db: AsyncSession, message: OutreachMessage) -> OutreachMessa
     await db.commit()
     await db.refresh(message)
     return message
+
+
+async def get_company_tier(db: AsyncSession, company_name: str) -> EmployerCompanyTier | None:
+    result = await db.execute(
+        select(EmployerCompanyTier).where(EmployerCompanyTier.company_name == company_name)
+    )
+    return result.scalar_one_or_none()
+
+
+async def set_company_tier(
+    db: AsyncSession,
+    *,
+    company_name: str,
+    tier: str,
+    set_by_user_id: UUID | None,
+    notes: str | None,
+) -> EmployerCompanyTier:
+    """Upsert by ``company_name`` — a recruiter re-setting an existing employer's
+    tier overwrites the previous value/set_by_user_id/updated_at rather than
+    creating a duplicate row (enforced at the DB level too via the unique
+    constraint on ``company_name``)."""
+    existing = await get_company_tier(db, company_name)
+    if existing is not None:
+        existing.tier = tier
+        existing.set_by_user_id = set_by_user_id
+        existing.notes = notes
+        existing.updated_at = datetime.now(UTC)
+        await db.commit()
+        await db.refresh(existing)
+        return existing
+
+    row = EmployerCompanyTier(
+        company_name=company_name,
+        tier=tier,
+        set_by_user_id=set_by_user_id,
+        notes=notes,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return row

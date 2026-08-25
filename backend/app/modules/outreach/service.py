@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID
 
@@ -11,16 +12,25 @@ from rq import Queue
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.compliance.suppression import check_suppression
 from app.core.config import get_settings
 from app.modules.documents.models import CandidateDocument
-from app.modules.outreach.models import OutreachMessage
-from app.modules.outreach.repository import get_owned_message, list_messages_for_user, mark_sent
+from app.modules.outreach import linkedin_send_service
+from app.modules.outreach.models import EmployerCompanyTier, OutreachMessage
+from app.modules.outreach.repository import (
+    get_company_tier,
+    get_owned_message,
+    list_messages_for_user,
+    mark_sent,
+    set_company_tier,
+)
 from app.modules.outreach.schemas import (
     OutreachDraftRequest,
     OutreachEditRequest,
     OutreachListResponse,
     OutreachMessageResponse,
     OutreachMessageType,
+    OutreachStrategy,
 )
 from app.workers.queue import QUEUE_OUTREACH, get_redis_connection
 
@@ -28,7 +38,9 @@ _UNSUBSCRIBE_FOOTER_TEMPLATE = (
     "\n\n---\n"
     "You're receiving this message because {sender_name} applied to or expressed interest in "
     "opportunities at {company_name} and used HyrePath to draft this note. "
-    "Reply to {sender_email} directly, or let us know if you'd prefer not to receive further outreach."
+    "Reply to {sender_email} directly, or let us know if you'd prefer not to receive further "
+    "outreach.\n"
+    "{sender_name} — sent via HyrePath, {physical_address}"
     "\nPrivacy policy: {privacy_url}"
 )
 
@@ -50,6 +62,24 @@ class OutreachService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="custom_instruction is required when message_type='custom'",
+            )
+
+        if body.strategy == "warm_referral" and not (body.referral_context or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="referral_context is required when strategy='warm_referral'",
+            )
+
+        if body.message_type == "email" and not (body.recipient_email or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="recipient_email is required when message_type='email'",
+            )
+
+        if body.message_type == "linkedin" and not (body.recipient_linkedin_url or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="recipient_linkedin_url is required when message_type='linkedin'",
             )
 
         doc_result = await self.db.execute(
@@ -84,6 +114,12 @@ class OutreachService:
             body.job_match_id,
             body.message_type,
             body.custom_instruction,
+            body.strategy,
+            body.referral_context,
+            body.role_type,
+            body.seniority,
+            body.recipient_email,
+            body.recipient_linkedin_url,
             job_timeout=60,
         )
         return {"rq_job_id": rq_job.id, "message": "Outreach draft generation started"}
@@ -150,11 +186,46 @@ class OutreachService:
             )
 
         footer = ""
+        if message.message_type == "linkedin":
+            linkedin_profile_url = (message.recipient_linkedin_url or "").strip()
+            if not linkedin_profile_url:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="This draft predates recipient-LinkedIn-URL tracking; discard and redraft",
+                )
+            await linkedin_send_service.enqueue_send_task(
+                self.db,
+                outreach_message_id=message.id,
+                linkedin_profile_url=linkedin_profile_url,
+                action_type=(
+                    "connection_request"
+                    if message.strategy == "warm_referral"
+                    else "direct_message"
+                ),
+            )
+            # Status stays "draft" until a human operator completes the resulting
+            # LinkedInSendTask (linkedin_send_service.complete_task) — a task being
+            # created is not the same as a human having actually performed the send.
+            return self._to_response(message)
+
         if message.message_type == "email":
+            recipient_email = (message.recipient_email or "").strip()
+            if not recipient_email:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="This draft predates recipient-email tracking; discard and redraft",
+                )
+            if await check_suppression(self.db, recipient_email):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This recipient has opted out of outreach and cannot be messaged",
+                )
+            message.suppression_checked_at = datetime.now(UTC)
             footer = _UNSUBSCRIBE_FOOTER_TEMPLATE.format(
                 sender_name=sender_name,
                 company_name=message.company_name,
                 sender_email=sender_email,
+                physical_address=self._settings.outreach_physical_address,
                 privacy_url=self._privacy_policy_url(),
             )
         message.body = message.body + footer
@@ -176,7 +247,29 @@ class OutreachService:
             body=message.body,
             status=message.status,
             message_type=cast("OutreachMessageType", message.message_type),
+            strategy=cast("OutreachStrategy", message.strategy),
+            recipient_email=message.recipient_email,
+            recipient_linkedin_url=message.recipient_linkedin_url,
             sent_at=message.sent_at,
             created_at=message.created_at,
             research_degraded=message.company_context_used.get("source") != "perplexity",
+        )
+
+    async def get_company_tier(self, company_name: str) -> EmployerCompanyTier | None:
+        return await get_company_tier(self.db, company_name)
+
+    async def set_company_tier(
+        self,
+        *,
+        company_name: str,
+        tier: str,
+        set_by_user_id: UUID,
+        notes: str | None,
+    ) -> EmployerCompanyTier:
+        return await set_company_tier(
+            self.db,
+            company_name=company_name,
+            tier=tier,
+            set_by_user_id=set_by_user_id,
+            notes=notes,
         )

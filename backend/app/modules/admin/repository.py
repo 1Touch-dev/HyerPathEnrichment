@@ -3,14 +3,14 @@ lives directly in router.py, per RULE.md 'routes are thin'."""
 
 from __future__ import annotations
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.models import User
-from app.modules.admin.models import AdminAuditLog, FeatureFlag, Role
+from app.modules.admin.models import AdminAuditLog, FeatureFlag, Permission, Role, RolePermission
 from app.modules.admin.pagination import decode_cursor, encode_cursor
 
 
@@ -49,6 +49,54 @@ async def get_user_by_id(db: AsyncSession, user_id: UUID) -> User | None:
 async def list_roles(db: AsyncSession) -> list[Role]:
     result = await db.execute(select(Role).options(selectinload(Role.permissions)))
     return list(result.scalars().all())
+
+
+async def create_role(db: AsyncSession, *, name: str, description: str | None) -> Role:
+    role = Role(id=uuid4(), name=name, description=description, is_system=False)
+    db.add(role)
+    await db.commit()
+    await db.refresh(role)
+    return role
+
+
+async def create_permission(
+    db: AsyncSession, *, resource: str, action: str, description: str | None
+) -> Permission:
+    permission = Permission(id=uuid4(), resource=resource, action=action, description=description)
+    db.add(permission)
+    await db.commit()
+    await db.refresh(permission)
+    return permission
+
+
+async def attach_permission(db: AsyncSession, *, role_id: UUID, permission_id: UUID) -> None:
+    db.add(RolePermission(role_id=role_id, permission_id=permission_id))
+    await db.commit()
+
+
+async def detach_permission(db: AsyncSession, *, role_id: UUID, permission_id: UUID) -> None:
+    await db.execute(
+        delete(RolePermission).where(
+            RolePermission.role_id == role_id, RolePermission.permission_id == permission_id
+        )
+    )
+    await db.commit()
+
+
+async def get_role_by_id(db: AsyncSession, role_id: UUID) -> Role | None:
+    # populate_existing=True: callers use this to read the authoritative post-mutation
+    # state (e.g. right after attach_permission/detach_permission commit a raw
+    # role_permissions insert/delete that doesn't go through the viewonly
+    # `Role.permissions` relationship) — without it, an already-identity-mapped Role
+    # instance's selectinload'ed `permissions` collection would stay stale for the
+    # rest of the session.
+    result = await db.execute(
+        select(Role)
+        .options(selectinload(Role.permissions))
+        .where(Role.id == role_id)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
 
 
 async def list_audit_logs(

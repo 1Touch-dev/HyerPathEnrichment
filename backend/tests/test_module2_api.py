@@ -176,7 +176,9 @@ def test_cv_feedback_request_route_returns_job_id(
     doc = completed_document["document"]
     headers = _auth_headers(str(completed_document["user_id"]))
     response = client.post(
-        f"/api/documents/{doc.id}/feedback", headers=headers, json={"target_role": "Backend Engineer"}
+        f"/api/documents/{doc.id}/feedback",
+        headers=headers,
+        json={"target_role": "Backend Engineer"},
     )
     data = assert_success(response)
     assert "job_id" in data
@@ -221,7 +223,9 @@ async def test_cv_feedback_accept_bullet_route(
         ats_score=70,
         strengths=["Strong background"],
         improvements=["Add metrics"],
-        rewritten_bullets=[{"original": "Did work", "rewritten": "Did great work", "rationale": "clarity"}],
+        rewritten_bullets=[
+            {"original": "Did work", "rewritten": "Did great work", "rationale": "clarity"}
+        ],
         accepted_bullet_indices=[],
     )
     db.add(report)
@@ -250,7 +254,9 @@ def test_portfolio_profile_put_route_requires_auth(client: TestClient) -> None:
 def test_portfolio_profile_put_route_success(client: TestClient) -> None:
     headers = _auth_headers()
     response = client.put(
-        "/api/portfolio/profile", headers=headers, json={"slug": "my-new-slug", "is_published": True}
+        "/api/portfolio/profile",
+        headers=headers,
+        json={"slug": "my-new-slug", "is_published": True},
     )
     data = assert_success(response)
     assert data["slug"] == "my-new-slug"
@@ -293,7 +299,9 @@ def test_portfolio_add_item_route(client: TestClient) -> None:
 
 def test_portfolio_delete_item_route(client: TestClient) -> None:
     headers = _auth_headers()
-    client.put("/api/portfolio/profile", headers=headers, json={"slug": "deletable-portfolio-items"})
+    client.put(
+        "/api/portfolio/profile", headers=headers, json={"slug": "deletable-portfolio-items"}
+    )
     item_response = client.post(
         "/api/portfolio/items",
         headers=headers,
@@ -315,9 +323,7 @@ def test_swipe_deck_route_requires_auth(client: TestClient) -> None:
     assert_error(response, 401)
 
 
-def test_swipe_deck_route_returns_cards(
-    client: TestClient, seeded_match: dict[str, Any]
-) -> None:
+def test_swipe_deck_route_returns_cards(client: TestClient, seeded_match: dict[str, Any]) -> None:
     headers = _auth_headers(str(seeded_match["user_id"]))
     response = client.get("/api/matches/swipe-deck", headers=headers)
     data = assert_success(response)
@@ -328,7 +334,9 @@ def test_swipe_deck_route_returns_cards(
 def test_swipe_action_route(client: TestClient, seeded_match: dict[str, Any]) -> None:
     match = seeded_match["match"]
     headers = _auth_headers(str(seeded_match["user_id"]))
-    response = client.post(f"/api/matches/{match.id}/swipe", headers=headers, json={"direction": "up"})
+    response = client.post(
+        f"/api/matches/{match.id}/swipe", headers=headers, json={"direction": "up"}
+    )
     data = assert_success(response)
     assert data["direction"] == "up"
 
@@ -339,7 +347,9 @@ def test_swipe_action_route(client: TestClient, seeded_match: dict[str, Any]) ->
 
 
 def test_outreach_draft_route_requires_auth(client: TestClient) -> None:
-    response = client.post("/api/outreach/drafts", json={"company_name": "Acme", "document_id": "x"})
+    response = client.post(
+        "/api/outreach/drafts", json={"company_name": "Acme", "document_id": "x"}
+    )
     assert_error(response, 401)
 
 
@@ -351,7 +361,11 @@ def test_outreach_draft_route_returns_job_reference(
     response = client.post(
         "/api/outreach/drafts",
         headers=headers,
-        json={"company_name": "Acme", "document_id": str(doc.id)},
+        json={
+            "company_name": "Acme",
+            "document_id": str(doc.id),
+            "recipient_email": "hiring-manager@acme.example.com",
+        },
     )
     data = assert_success(response)
     assert "rq_job_id" in data
@@ -404,6 +418,7 @@ async def test_outreach_send_route(
         subject="Subject",
         body="Body",
         status="draft",
+        recipient_email="hiring-manager@acme.example.com",
     )
     db.add(message)
     await db.commit()

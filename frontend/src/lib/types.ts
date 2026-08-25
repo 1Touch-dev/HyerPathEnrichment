@@ -657,6 +657,67 @@ export type AdminOutreachMessageListResponse = {
   hasMore: boolean;
 };
 
+// LinkedIn send task queue + operator-triggered automated-batch mode (machine-2/06,
+// mirrors backend/app/modules/outreach/linkedin_send_router.py's
+// LinkedInSendTaskResponse/LinkedInTaskListResponse/LinkedInSendBatchResponse). Not
+// yet in the committed OpenAPI schema — hand-declared here, same as the outreach
+// moderation Backend* types above. Delete and switch to generated types once
+// `npm run openapi:gen` picks up this router.
+
+export type BackendLinkedInSendTask = {
+  id: string;
+  outreach_message_id: string;
+  batch_id: string | null;
+  linkedin_profile_url: string;
+  action_type: "connection_request" | "inmail" | "direct_message";
+  status: "pending" | "claimed" | "completed" | "skipped";
+  claimed_by: string | null;
+  claimed_at: string | null;
+  completed_at: string | null;
+  outcome_note: string | null;
+  created_at: string;
+};
+
+export type BackendLinkedInTaskListResponse = {
+  tasks: BackendLinkedInSendTask[];
+};
+
+export type BackendLinkedInSendBatch = {
+  id: string;
+  triggered_by: string | null;
+  multilogin_profile_id: string;
+  status: "pending" | "running" | "completed" | "cancelled" | "failed";
+  max_sends_per_day: number;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+
+export type LinkedInSendTask = {
+  id: string;
+  outreachMessageId: string;
+  batchId: string | null;
+  linkedinProfileUrl: string;
+  actionType: BackendLinkedInSendTask["action_type"];
+  status: BackendLinkedInSendTask["status"];
+  claimedBy: string | null;
+  claimedAt: string | null;
+  completedAt: string | null;
+  outcomeNote: string | null;
+  createdAt: string;
+};
+
+export type LinkedInSendBatch = {
+  id: string;
+  triggeredBy: string | null;
+  multiloginProfileId: string;
+  status: BackendLinkedInSendBatch["status"];
+  maxSendsPerDay: number;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+};
+
 // Admin portfolio moderation (mirrors backend/app/modules/admin/portfolio_router.py,
 // camelCase). Distinct from the candidate-facing `PortfolioProfile`/`PortfolioItem`
 // below — the admin variants expose moderation fields (`adminHidden`) and are never

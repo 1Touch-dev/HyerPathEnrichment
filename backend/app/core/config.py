@@ -238,6 +238,27 @@ class Settings(BaseSettings):
     )
     outreach_enabled: bool = Field(default=True, alias="OUTREACH_ENABLED")
 
+    # Company-tier-driven outreach drafting (machine-2/03): append a tier-specific
+    # tone instruction (see _COMPANY_TIER_INSTRUCTIONS in
+    # app/workers/tasks/outreach.py) to the drafting prompt when the target
+    # employer has a manually-set EmployerCompanyTier row. Default False:
+    # unlike strategy/role_type/seniority (recruiter-opted-in per draft, shipped
+    # unconditionally), this is an always-on-once-enabled behavior change for
+    # every draft to a tiered employer, and the tier->prompt-fragment mechanism
+    # itself has no published precedent — ship it off, human-review a small
+    # batch of real drafts, then enable broadly.
+    enable_company_tier_in_outreach_drafting: bool = Field(
+        default=False, alias="ENABLE_COMPANY_TIER_IN_OUTREACH_DRAFTING"
+    )
+
+    # CAN-SPAM (backend/app/modules/outreach/service.py's footer): the platform's
+    # registered postal address, included in every outbound email-type outreach
+    # message. Required by law, not cosmetic — leave unset only in environments
+    # where OUTREACH_ENABLED is also False. No default value: an empty address
+    # must not silently ship in a real send (enforced by validate_outreach_settings
+    # below).
+    outreach_physical_address: str = Field(default="", alias="OUTREACH_PHYSICAL_ADDRESS")
+
     # OpenAI API (for CV extraction, embeddings, etc.)
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     enable_embeddings: bool = Field(default=True, alias="ENABLE_EMBEDDINGS")
@@ -402,6 +423,34 @@ class Settings(BaseSettings):
         default=300, alias="OUTREACH_LINKEDIN_CONNECTION_NOTE_MAX_CHARS"
     )
 
+    # Demand intelligence -> outreach integration (machine-2/07): inject a short,
+    # factual country-demand context line into outreach-draft prompts when the
+    # candidate has desired_roles populated and demand data exists for one of them.
+    # Default False — additive, low-risk, but off until validated against real drafts;
+    # also has no effect unless enable_demand_intelligence (02's flag) is also True,
+    # since there is no snapshot data to inject without it.
+    enable_demand_intelligence_in_outreach: bool = Field(
+        default=False, alias="ENABLE_DEMAND_INTELLIGENCE_IN_OUTREACH"
+    )
+
+    # Demand intelligence -> resume-tailoring integration (machine-2/10): inject a
+    # short, factual country-demand context line into the resume-tailoring prompt
+    # when a target role (or, absent that, one of the candidate's desired_roles) has
+    # CountryDemandSnapshot data. Mirrors enable_demand_intelligence_in_outreach's
+    # contract exactly (07-demand-intelligence-resume-integration.md). Default False
+    # — additive, low-risk, but off until validated against real tailored output;
+    # also has no effect unless enable_demand_intelligence (02's flag) is also True.
+    enable_demand_intelligence_in_resume_tailoring: bool = Field(
+        default=False, alias="ENABLE_DEMAND_INTELLIGENCE_IN_RESUME_TAILORING"
+    )
+
+    # Demand intelligence (machine-2/02): enable the daily country/role posting-count
+    # aggregation job. Default True — launch-relevant: recruiter market-research
+    # prioritization (Tier 1/2/3 methodology) and resume-tailoring's country-specific
+    # personalization (enable_demand_intelligence_in_resume_tailoring above) both depend
+    # on this data being live at launch, not bolted on later.
+    enable_demand_intelligence: bool = Field(default=True, alias="ENABLE_DEMAND_INTELLIGENCE")
+
 
 _TIER1_PROD_ENVS = frozenset({"production", "staging"})
 
@@ -455,6 +504,18 @@ def validate_tier1_settings(settings: Settings | None = None) -> None:
         raise RuntimeError(
             "ENABLE_TIER1=true but required settings are missing: " + ", ".join(ordered)
         )
+
+
+def validate_outreach_settings(settings: Settings | None = None) -> None:
+    """Fail fast when outreach is enabled without a CAN-SPAM-required physical address.
+
+    Raises RuntimeError naming the missing env key. No-op when outreach_enabled is False.
+    """
+    cfg = settings if settings is not None else get_settings()
+    if not cfg.outreach_enabled:
+        return
+    if not cfg.outreach_physical_address.strip():
+        raise RuntimeError("OUTREACH_PHYSICAL_ADDRESS is required when OUTREACH_ENABLED is true")
 
 
 @lru_cache

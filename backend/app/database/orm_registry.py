@@ -3,6 +3,7 @@
 # when nothing else in the import graph has touched these modules yet.
 import app.modules.documents.models
 import app.modules.job_swipe.models
+import app.modules.outreach.linkedin_send_models
 import app.modules.outreach.models
 import app.modules.portfolio.models  # noqa: F401
 from app.auth.models import (

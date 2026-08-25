@@ -20,6 +20,8 @@ import type {
   FeatureFlag,
   ImpersonationStatus,
   JobMatchAnalytics,
+  LinkedInSendBatch,
+  LinkedInSendTask,
   MfaEnrollResult,
   MfaStatus,
   ModerationStatus,
@@ -349,4 +351,60 @@ export async function moderateDocument(
     body: JSON.stringify({ action, reason }),
   });
   return unwrap(res, "Failed to moderate document");
+}
+
+export async function fetchLinkedInTasks(status: string | null): Promise<LinkedInSendTask[]> {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  const res = await fetch(`/api/outreach/linkedin-tasks?${params.toString()}`);
+  return unwrap(res, "Failed to fetch LinkedIn tasks");
+}
+
+export async function claimLinkedInTask(taskId: string): Promise<LinkedInSendTask> {
+  const res = await fetch(`/api/outreach/linkedin-tasks/${taskId}/claim`, { method: "POST" });
+  return unwrap(res, "Failed to claim LinkedIn task");
+}
+
+export async function completeLinkedInTask(
+  taskId: string,
+  outcomeNote?: string | null,
+): Promise<LinkedInSendTask> {
+  const res = await fetch(`/api/outreach/linkedin-tasks/${taskId}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ outcomeNote: outcomeNote ?? null }),
+  });
+  return unwrap(res, "Failed to complete LinkedIn task");
+}
+
+export async function skipLinkedInTask(
+  taskId: string,
+  outcomeNote?: string | null,
+): Promise<LinkedInSendTask> {
+  const res = await fetch(`/api/outreach/linkedin-tasks/${taskId}/skip`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ outcomeNote: outcomeNote ?? null }),
+  });
+  return unwrap(res, "Failed to skip LinkedIn task");
+}
+
+export async function createLinkedInSendBatch(input: {
+  multiloginProfileId: string;
+  maxSendsPerDay: number;
+  taskIds: string[];
+}): Promise<LinkedInSendBatch> {
+  const res = await fetch("/api/outreach/linkedin-send-batches", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return unwrap(res, "Failed to create LinkedIn send batch");
+}
+
+export async function startLinkedInSendBatch(batchId: string): Promise<LinkedInSendBatch> {
+  const res = await fetch(`/api/outreach/linkedin-send-batches/${batchId}/start`, {
+    method: "POST",
+  });
+  return unwrap(res, "Failed to start LinkedIn send batch");
 }
