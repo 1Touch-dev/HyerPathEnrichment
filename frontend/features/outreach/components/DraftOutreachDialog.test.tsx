@@ -1,6 +1,9 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { DraftOutreachDialog } from "./DraftOutreachDialog";
+import * as apiClient from "@/src/lib/api-client";
 
 // Radix Select relies on pointer capture / scrollIntoView APIs jsdom doesn't implement.
 beforeAll(() => {
@@ -8,16 +11,45 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
 });
 
+// machine-2/03: DraftOutreachDialog now reads/writes the manual company-tier via
+// useCompanyTier/useSetCompanyTier (React Query hooks), so every render needs a
+// QueryClientProvider ancestor, same as useOutreach.test.tsx's own wrapper.
+function wrapper({ children }: { children: ReactNode }) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
+
 async function selectMessageType(label: string) {
   fireEvent.click(screen.getByLabelText("Message type"));
   const listbox = await screen.findByRole("listbox");
   fireEvent.click(within(listbox).getByText(label));
 }
 
+async function selectStrategy(label: string) {
+  fireEvent.click(screen.getByLabelText("Strategy"));
+  const listbox = await screen.findByRole("listbox");
+  fireEvent.click(within(listbox).getByText(label));
+}
+
 describe("DraftOutreachDialog", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(apiClient, "getCompanyTier").mockResolvedValue({ success: true, data: null });
+    vi.spyOn(apiClient, "setCompanyTier").mockResolvedValue({
+      success: true,
+      data: {
+        companyName: "Acme",
+        tier: "premium",
+        notes: null,
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+    });
+  });
+
   it("does not render the custom-instruction textarea by default (Email selected)", () => {
     render(
       <DraftOutreachDialog open companyName="Acme" onOpenChange={() => {}} onConfirm={() => {}} />,
+      { wrapper },
     );
     expect(screen.queryByLabelText("Instructions for this message")).not.toBeInTheDocument();
   });
@@ -25,6 +57,7 @@ describe("DraftOutreachDialog", () => {
   it('renders the custom-instruction textarea only when "Custom" is selected', async () => {
     render(
       <DraftOutreachDialog open companyName="Acme" onOpenChange={() => {}} onConfirm={() => {}} />,
+      { wrapper },
     );
 
     await selectMessageType("Custom");
@@ -35,6 +68,7 @@ describe("DraftOutreachDialog", () => {
   it("disables confirm until custom instruction text is entered when Custom is selected", async () => {
     render(
       <DraftOutreachDialog open companyName="Acme" onOpenChange={() => {}} onConfirm={() => {}} />,
+      { wrapper },
     );
 
     await selectMessageType("Custom");
@@ -51,6 +85,7 @@ describe("DraftOutreachDialog", () => {
   it("hides the custom-instruction textarea again after switching away from Custom", async () => {
     render(
       <DraftOutreachDialog open companyName="Acme" onOpenChange={() => {}} onConfirm={() => {}} />,
+      { wrapper },
     );
 
     await selectMessageType("Custom");
@@ -60,10 +95,11 @@ describe("DraftOutreachDialog", () => {
     expect(screen.queryByLabelText("Instructions for this message")).not.toBeInTheDocument();
   });
 
-  it("calls onConfirm with the selected messageType and no customInstruction for non-custom types", async () => {
+  it("calls onConfirm with the selected messageType, default strategy, and no customInstruction for non-custom types", async () => {
     const onConfirm = vi.fn();
     render(
       <DraftOutreachDialog open companyName="Acme" onOpenChange={() => {}} onConfirm={onConfirm} />,
+      { wrapper },
     );
 
     await selectMessageType("LinkedIn message");
@@ -72,6 +108,10 @@ describe("DraftOutreachDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith({
       messageType: "linkedin",
       customInstruction: undefined,
+      strategy: "direct_pitch",
+      referralContext: undefined,
+      roleType: undefined,
+      seniority: undefined,
     });
   });
 
@@ -79,6 +119,7 @@ describe("DraftOutreachDialog", () => {
     const onConfirm = vi.fn();
     render(
       <DraftOutreachDialog open companyName="Acme" onOpenChange={() => {}} onConfirm={onConfirm} />,
+      { wrapper },
     );
 
     await selectMessageType("Custom");
@@ -90,6 +131,82 @@ describe("DraftOutreachDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith({
       messageType: "custom",
       customInstruction: "Mention the referral from Jane.",
+      strategy: "direct_pitch",
+      referralContext: undefined,
+      roleType: undefined,
+      seniority: undefined,
     });
+  });
+
+  it('renders the referral-context textarea only when strategy is "Warm referral"', async () => {
+    render(
+      <DraftOutreachDialog open companyName="Acme" onOpenChange={() => {}} onConfirm={() => {}} />,
+      { wrapper },
+    );
+    expect(screen.queryByLabelText("Referral context")).not.toBeInTheDocument();
+
+    await selectStrategy("Warm referral");
+
+    expect(screen.getByLabelText("Referral context")).toBeInTheDocument();
+  });
+
+  it("disables confirm until referral context is entered when Warm referral is selected", async () => {
+    render(
+      <DraftOutreachDialog open companyName="Acme" onOpenChange={() => {}} onConfirm={() => {}} />,
+      { wrapper },
+    );
+
+    await selectStrategy("Warm referral");
+
+    const confirmButton = screen.getByRole("button", { name: "Draft outreach" });
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Referral context"), {
+      target: { value: "Referred by Jane Doe." },
+    });
+    expect(confirmButton).not.toBeDisabled();
+  });
+
+  it("calls onConfirm with strategy and trimmed referralContext when Warm referral is selected", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <DraftOutreachDialog open companyName="Acme" onOpenChange={() => {}} onConfirm={onConfirm} />,
+      { wrapper },
+    );
+
+    await selectStrategy("Warm referral");
+    fireEvent.change(screen.getByLabelText("Referral context"), {
+      target: { value: "  Referred by Jane Doe.  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Draft outreach" }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      messageType: "email",
+      customInstruction: undefined,
+      strategy: "warm_referral",
+      referralContext: "Referred by Jane Doe.",
+      roleType: undefined,
+      seniority: undefined,
+    });
+  });
+
+  it("shows a company tier select for a known companyName and persists a previously-set tier", async () => {
+    vi.spyOn(apiClient, "getCompanyTier").mockResolvedValue({
+      success: true,
+      data: {
+        companyName: "Acme",
+        tier: "premium",
+        notes: null,
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+    });
+
+    render(
+      <DraftOutreachDialog open companyName="Acme" onOpenChange={() => {}} onConfirm={() => {}} />,
+      { wrapper },
+    );
+
+    expect(await screen.findByText("Premium")).toBeInTheDocument();
+    expect(apiClient.getCompanyTier).toHaveBeenCalledWith("Acme");
   });
 });

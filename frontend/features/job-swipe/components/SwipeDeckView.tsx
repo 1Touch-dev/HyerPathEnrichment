@@ -5,7 +5,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/console/EmptyState";
 import { DraftOutreachDialog, useDraftOutreachForMatch } from "@/features/outreach";
-import type { OutreachMessageType, SwipeDirection } from "@/src/lib/types";
+import type {
+  OutreachMessageType,
+  OutreachRoleType,
+  OutreachSeniority,
+  OutreachStrategy,
+  SwipeDirection,
+} from "@/src/lib/types";
 import { useSubmitSwipe, useSwipeDeck } from "../hooks/useSwipeDeck";
 import { SwipeCard } from "./SwipeCard";
 
@@ -61,6 +67,10 @@ export function SwipeDeckView() {
   function handleConfirmDraft(payload: {
     messageType: OutreachMessageType;
     customInstruction?: string;
+    strategy: OutreachStrategy;
+    referralContext?: string;
+    roleType?: OutreachRoleType;
+    seniority?: OutreachSeniority;
   }) {
     if (!draftTarget) return;
     draftOutreach.mutate(
@@ -69,6 +79,10 @@ export function SwipeDeckView() {
         jobMatchId: draftTarget.matchId,
         messageType: payload.messageType,
         customInstruction: payload.customInstruction,
+        strategy: payload.strategy,
+        referralContext: payload.referralContext,
+        roleType: payload.roleType,
+        seniority: payload.seniority,
       },
       {
         onSuccess: () => {
