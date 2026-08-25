@@ -1,0 +1,69 @@
+# `docker compose watch` (develop.watch) overlay — fast local-dev reload for
+# the "docker nodemon" workflow. Combine with docker-compose.yml +
+# docker-compose.foundation.yml + docker-compose.week2-ai.yml, e.g.:
+#   docker compose -f docker-compose.yml -f docker-compose.foundation.yml \
+#     -f docker-compose.week2-ai.yml -f docker-compose.watch.yml \
+#     --env-file ../.env.production --profile llm --profile paid --profile observability \
+#     watch
+# See backend/docker/dev-up.sh for the full single-command entrypoint.
+#
+# `path` is relative to the Compose project directory (backend/docker/, since
+# that's where docker-compose.yml — the first `-f` file — lives), not to each
+# service's own `build.context`.
+#
+# - sync+restart on backend/app: every service below build-COPYs the app
+#   package to /app/backend/app (see Dockerfile.api, Dockerfile.worker,
+#   Dockerfile.worker-document, Dockerfile.worker-embedding,
+#   Dockerfile.worker-job-matching), so a plain file sync followed by a
+#   container restart (no image rebuild) picks up the change.
+# - rebuild on pyproject.toml: dependency changes need `pip install` to run
+#   again, so fall back to a full image rebuild + recreate instead.
+services:
+  api:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ../app
+          target: /app/backend/app
+        - action: rebuild
+          path: ../pyproject.toml
+  worker:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ../app
+          target: /app/backend/app
+        - action: rebuild
+          path: ../pyproject.toml
+  worker-document:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ../app
+          target: /app/backend/app
+        - action: rebuild
+          path: ../pyproject.toml
+  worker-embedding:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ../app
+          target: /app/backend/app
+        - action: rebuild
+          path: ../pyproject.toml
+  worker-job-matching:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ../app
+          target: /app/backend/app
+        - action: rebuild
+          path: ../pyproject.toml
+  worker-interview-ai:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ../app
+          target: /app/backend/app
+        - action: rebuild
+          path: ../pyproject.toml
