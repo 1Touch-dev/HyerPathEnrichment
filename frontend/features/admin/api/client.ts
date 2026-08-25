@@ -13,6 +13,7 @@ import type {
   AdminOutreachMessageListResponse,
   AdminUserListResponse,
   AdminRole,
+  AdminRoleWithPermissions,
   AdminReviewQueueDetail,
   AdminReviewQueueItem,
   AdminReviewQueueListResponse,
@@ -147,6 +148,34 @@ export async function moderateOutreachMessage(
 export async function fetchRoles(): Promise<AdminRole[]> {
   const res = await fetch("/api/admin/roles");
   return unwrap(res, "Failed to fetch roles");
+}
+
+export async function createRole(body: {
+  name: string;
+  description?: string | null;
+}): Promise<AdminRoleWithPermissions> {
+  const res = await fetch("/api/admin/roles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return unwrap(res, "Failed to create role");
+}
+
+export async function attachPermission(roleId: string, permissionId: string): Promise<void> {
+  const res = await fetch(`/api/admin/roles/${roleId}/permissions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ permission_id: permissionId }),
+  });
+  if (!res.ok) throw new Error(`Failed to attach permission: ${res.status}`);
+}
+
+export async function detachPermission(roleId: string, permissionId: string): Promise<void> {
+  const res = await fetch(`/api/admin/roles/${roleId}/permissions/${permissionId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Failed to detach permission: ${res.status}`);
 }
 
 export async function fetchAuditLogs(
