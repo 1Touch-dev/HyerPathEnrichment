@@ -1,12 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { requestJdPracticeQuestions } from "../api/client";
-
-type UseJdPracticeQuestionsInput = {
-  jobMatchId: string;
-  category?: string;
-  difficulty?: string;
-  count?: number;
-};
+import { requestJdPracticeQuestions, type JdPracticeQuestionsInput } from "../api/client";
 
 /**
  * A mutation, not a query — generating JD-tailored questions is a real, multi-second
@@ -18,7 +11,6 @@ type UseJdPracticeQuestionsInput = {
  */
 export function useJdPracticeQuestions() {
   return useMutation({
-    mutationFn: ({ jobMatchId, category, difficulty, count }: UseJdPracticeQuestionsInput) =>
-      requestJdPracticeQuestions(jobMatchId, category, difficulty, count),
+    mutationFn: (input: JdPracticeQuestionsInput) => requestJdPracticeQuestions(input),
   });
 }

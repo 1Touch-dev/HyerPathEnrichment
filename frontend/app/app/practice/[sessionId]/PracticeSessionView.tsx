@@ -47,13 +47,21 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
     );
   }
 
+  const isJdTailored = session.sessionType === "jd_tailored";
+
+  // JD-tailored questions are never written to interview_questions, so attempts
+  // must omit question_id (FK). Progress is tracked by attempt count vs stored list.
   const answeredQuestionIds = new Set(
     session.attempts.map((attempt) => attempt.questionId).filter((id): id is string => Boolean(id)),
   );
-  const currentQuestion = questions.find((question) => !answeredQuestionIds.has(question.id));
-  const currentAttempt = currentQuestion
-    ? session.attempts.find((attempt) => attempt.questionId === currentQuestion.id)
-    : undefined;
+  const currentQuestion = isJdTailored
+    ? questions[session.attempts.length]
+    : questions.find((question) => !answeredQuestionIds.has(question.id));
+  const currentAttempt = isJdTailored
+    ? undefined
+    : currentQuestion
+      ? session.attempts.find((attempt) => attempt.questionId === currentQuestion.id)
+      : undefined;
 
   const mutationError =
     questionsMutation.error ?? audioUploadMutation.error ?? addAttemptMutation.error;
@@ -67,7 +75,7 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
     if (!currentQuestion || !textValue.trim()) return;
     await addAttemptMutation.mutateAsync({
       sessionId,
-      questionId: currentQuestion.id,
+      questionId: isJdTailored ? undefined : currentQuestion.id,
       responseType: "text",
       textResponse: textValue.trim(),
     });
@@ -84,7 +92,7 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
     });
     await addAttemptMutation.mutateAsync({
       sessionId,
-      questionId: currentQuestion.id,
+      questionId: isJdTailored ? undefined : currentQuestion.id,
       responseType: "audio",
       audioRecordingId: upload.id,
     });

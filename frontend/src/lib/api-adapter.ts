@@ -1625,7 +1625,7 @@ export interface BackendJdPracticeQuestionItem {
 
 export interface BackendJdPracticeResponse {
   questions: BackendJdPracticeQuestionItem[];
-  job_match_id: string;
+  job_match_id: string | null;
   practice_session_id: string;
 }
 

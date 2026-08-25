@@ -454,6 +454,75 @@ async def test_generate_outreach_draft_job_includes_job_description_from_match(
     )
 
 
+async def test_generate_outreach_draft_job_prefers_pasted_job_description(
+    db: AsyncSession, worker_user: User, worker_document: CandidateDocument
+) -> None:
+    """Pasted JD text must win over JobPosting.description_raw when both are present."""
+    from app.modules.job_matching.models import JobMatch, JobPosting
+
+    posting = JobPosting(
+        id=uuid4(),
+        dedup_key=f"dedup-{uuid4().hex}",
+        title="Backend Engineer",
+        company="Acme",
+        source="test",
+        description_raw="Matched posting description that should be ignored.",
+    )
+    db.add(posting)
+    await db.flush()
+
+    match = JobMatch(
+        id=uuid4(),
+        user_id=worker_user.id,
+        job_posting_id=posting.id,
+        similarity_score=0.8,
+        rule_score=0.8,
+        overall_score=80.0,
+    )
+    db.add(match)
+    await db.commit()
+
+    pasted = "Pasted JD: looking for a platform engineer with Kubernetes and Go experience."
+    captured_kwargs: dict[str, Any] = {}
+
+    async def _fake_draft_with_llm(
+        cv_data,
+        company_name,
+        role_title,
+        company_context,
+        job_description,
+        settings,
+        message_type="email",
+        custom_instruction=None,
+    ):
+        captured_kwargs["job_description"] = job_description
+        return "Interested in Acme", "Hello, I would love to join Acme."
+
+    with (
+        _patched_worker_session(db),
+        patch("app.workers.tasks.outreach.close_redis", new=AsyncMock()),
+        patch("app.workers.tasks.outreach.engine") as mock_engine,
+        patch(
+            "app.workers.tasks.outreach.PerplexityClient.get_company_context",
+            new=AsyncMock(return_value={"summary": "", "source": "none"}),
+        ),
+        patch("app.workers.tasks.outreach._draft_with_llm", new=_fake_draft_with_llm),
+    ):
+        mock_engine.dispose = AsyncMock()
+        await _generate_outreach_draft_job(
+            str(worker_user.id),
+            str(worker_document.id),
+            "Acme",
+            "Engineer",
+            str(match.id),
+            "email",
+            None,
+            pasted,
+        )
+
+    assert captured_kwargs["job_description"] == pasted
+
+
 def _mock_openai_client(content: str):
     mock_response = AsyncMock()
     mock_response.raise_for_status = lambda: None

@@ -144,10 +144,10 @@ class TestBankNeverQueried:
                 [SAMPLE_GENERATED_QUESTION],
                 {"input_tokens": 10, "output_tokens": 20},
             )
-            request = JdPracticeRequest(job_match_id=str(match.id), count=1)
+            request = JdPracticeRequest(job_match_id=str(match.id), count=5)
             response = await get_jd_tailored_questions(db, test_user.id, request, settings)
 
-            assert len(response.questions) == 1
+            assert len(response.questions) == 5
             mock_select.assert_not_called()
 
 
@@ -169,7 +169,7 @@ class TestDailyLimitIsSeparateCounter:
                 [SAMPLE_GENERATED_QUESTION],
                 {"input_tokens": 10, "output_tokens": 20},
             )
-            request = JdPracticeRequest(job_match_id=str(match.id), count=1)
+            request = JdPracticeRequest(job_match_id=str(match.id), count=5)
             await get_jd_tailored_questions(db, test_user.id, request, settings)
 
             # JD limit (1) now reached for this user -> second JD call rejected.
@@ -217,11 +217,11 @@ class TestDailyLimitIsSeparateCounter:
                 [SAMPLE_GENERATED_QUESTION],
                 {"input_tokens": 10, "output_tokens": 20},
             )
-            request = JdPracticeRequest(job_match_id=str(match.id), count=1)
+            request = JdPracticeRequest(job_match_id=str(match.id), count=5)
             # Must succeed -- the JD-tailored counter is entirely separate
             # from the InterviewQuestion-based non-JD counter above.
             response = await get_jd_tailored_questions(db, test_user.id, request, settings)
-            assert len(response.questions) == 1
+            assert len(response.questions) == 5
 
 
 class TestOwnershipAndValidation:
@@ -237,7 +237,7 @@ class TestOwnershipAndValidation:
         match = await _make_match(db, test_user.id, posting)
         settings = _mock_settings(monkeypatch)
 
-        request = JdPracticeRequest(job_match_id=str(match.id), count=1)
+        request = JdPracticeRequest(job_match_id=str(match.id), count=5)
         with pytest.raises(NotFoundError):
             await get_jd_tailored_questions(db, second_test_user.id, request, settings)
 
@@ -246,7 +246,7 @@ class TestOwnershipAndValidation:
         self, db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch
     ):
         settings = _mock_settings(monkeypatch)
-        request = JdPracticeRequest(job_match_id=str(uuid.uuid4()), count=1)
+        request = JdPracticeRequest(job_match_id=str(uuid.uuid4()), count=5)
         with pytest.raises(NotFoundError):
             await get_jd_tailored_questions(db, test_user.id, request, settings)
 
@@ -258,7 +258,7 @@ class TestOwnershipAndValidation:
         match = await _make_match(db, test_user.id, posting)
         settings = _mock_settings(monkeypatch)
 
-        request = JdPracticeRequest(job_match_id=str(match.id), count=1)
+        request = JdPracticeRequest(job_match_id=str(match.id), count=5)
         with pytest.raises(ValidationAppError) as exc_info:
             await get_jd_tailored_questions(db, test_user.id, request, settings)
         assert "no description to practice against" in str(exc_info.value)
@@ -281,7 +281,7 @@ class TestOwnershipAndValidation:
         await db.commit()
         settings = _mock_settings(monkeypatch)
 
-        request = JdPracticeRequest(job_match_id=str(match.id), count=1)
+        request = JdPracticeRequest(job_match_id=str(match.id), count=5)
         with pytest.raises(ValidationAppError) as exc_info:
             await get_jd_tailored_questions(db, test_user.id, request, settings)
         assert "no description to practice against" in str(exc_info.value)
@@ -311,7 +311,7 @@ class TestOwnershipAndValidation:
         match = result.scalar_one()
         settings = _mock_settings(monkeypatch)
 
-        request = JdPracticeRequest(job_match_id=str(match.id), count=1)
+        request = JdPracticeRequest(job_match_id=str(match.id), count=5)
         with pytest.raises(ValidationAppError) as exc_info:
             await get_jd_tailored_questions(db, test_user.id, request, settings)
         assert "Manual job entries have no job description" in str(exc_info.value)
@@ -335,7 +335,7 @@ class TestQuestionsNeverPersistedToBank:
                 [{**SAMPLE_GENERATED_QUESTION, "question_text": unique_text}],
                 {"input_tokens": 10, "output_tokens": 20},
             )
-            request = JdPracticeRequest(job_match_id=str(match.id), count=1)
+            request = JdPracticeRequest(job_match_id=str(match.id), count=5)
             response = await get_jd_tailored_questions(db, test_user.id, request, settings)
 
         assert response.questions[0].question_text == unique_text
@@ -363,7 +363,7 @@ class TestQuestionsNeverPersistedToBank:
                 [SAMPLE_GENERATED_QUESTION],
                 {"input_tokens": 10, "output_tokens": 20},
             )
-            request = JdPracticeRequest(job_match_id=str(match.id), count=1)
+            request = JdPracticeRequest(job_match_id=str(match.id), count=5)
             response = await get_jd_tailored_questions(db, test_user.id, request, settings)
 
         from sqlalchemy import select

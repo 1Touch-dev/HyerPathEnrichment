@@ -18,64 +18,32 @@ export function useOutreachMessages(options: { poll?: boolean } = {}) {
   });
 }
 
+export type DraftOutreachPayload = {
+  companyName: string;
+  documentId: string;
+  recipientRoleTitle?: string;
+  jobMatchId?: string;
+  jobDescription?: string;
+  messageType?: OutreachMessageType;
+  customInstruction?: string;
+};
+
 export function useDraftOutreach() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: {
-      companyName: string;
-      documentId: string;
-      recipientRoleTitle?: string;
-      jobMatchId?: string;
-      messageType?: OutreachMessageType;
-      customInstruction?: string;
-    }) => draftOutreach(payload),
+    mutationFn: (payload: DraftOutreachPayload) => draftOutreach(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: outreachKeys.list() }),
   });
 }
 
-interface DocumentSummary {
-  documentId: string;
-  processingStatus: string;
-  createdAt: string;
-}
-
-async function fetchMostRecentCompletedDocumentId(): Promise<string> {
-  const res = await fetch("/api/documents", { credentials: "include", cache: "no-store" });
-  if (!res.ok) {
-    throw new Error("Could not load your documents.");
-  }
-  const json = await res.json();
-  const documents: DocumentSummary[] = Array.isArray(json.data) ? json.data : [];
-  const completed = documents
-    .filter((d) => d.processingStatus === "completed" || d.processingStatus === "embedded")
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  if (completed.length === 0) {
-    throw new Error("Upload and finish processing a CV before drafting outreach.");
-  }
-  return completed[0].documentId;
-}
-
 /**
- * Convenience wrapper for triggering a draft from a job match (e.g. the swipe deck's
- * "Draft outreach" button, phase2_module2.md §13.5) where the caller only has
- * `companyName`/`jobMatchId`, not a `documentId` — resolves the candidate's most
- * recently completed CV automatically via `GET /api/documents` rather than requiring a
- * CV-picker UI that does not exist yet (no `/app/documents` list route has been built —
- * see phase2_module2.md §13.2's own scope note).
+ * Draft from a job match (swipe deck). Callers must supply `documentId` from the
+ * dialog's résumé picker — auto-picking the latest CV is no longer done here.
  */
 export function useDraftOutreachForMatch() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: {
-      companyName: string;
-      jobMatchId?: string;
-      recipientRoleTitle?: string;
-      messageType?: OutreachMessageType;
-      customInstruction?: string;
-    }) => {
-      const documentId = await fetchMostRecentCompletedDocumentId();
-      return draftOutreach({ ...payload, documentId });
-    },
+    mutationFn: (payload: DraftOutreachPayload) => draftOutreach(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: outreachKeys.list() }),
   });
 }

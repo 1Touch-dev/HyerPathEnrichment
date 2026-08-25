@@ -18,12 +18,19 @@ class QuestionRequest(BaseModel):
     job_role: JobRole
     category: QuestionCategory | None = None
     difficulty: QuestionDifficulty | None = None
-    count: int = Field(default=5, ge=1, le=10)
+    count: int = Field(default=5, ge=5, le=15)
     personalize: bool = Field(
         default=False,
-        description="If true, read the candidate's most recent processed CandidateDocument "
-        "and bias generation toward its skills/role (§3 Decision 1). No-op if the "
-        "candidate has no processed document — falls back to the shared question bank.",
+        description="If true, read the candidate's processed CandidateDocument "
+        "(document_id if set, else most recent) and bias generation toward its "
+        "skills/role (§3 Decision 1). No-op if the candidate has no processed "
+        "document — falls back to the shared question bank.",
+    )
+    document_id: UUID | None = Field(
+        default=None,
+        description="Optional CandidateDocument id to personalize from. Ignored unless "
+        "personalize=true. Must be owned by the caller and ready (completed/embedded); "
+        "invalid/unowned ids raise a validation error.",
     )
 
 

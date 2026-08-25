@@ -17,6 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.core.errors import ValidationAppError
 from app.models import InterviewQuestion
 from app.modules.documents.models import DOCUMENT_READY_STATUSES, CandidateDocument
 from app.modules.questions.schemas import (
@@ -51,27 +52,9 @@ async def _personalized_generation_count_today(db: AsyncSession, user_id: UUID) 
     return (await db.execute(stmt)).scalar_one()
 
 
-async def _load_candidate_context(db: AsyncSession, user_id: UUID) -> CandidateContext | None:
-    """Read the most recent processed CandidateDocument's extracted_data (§3 Decision 1).
-
-    Returns None if the candidate has never uploaded a résumé, or none has
-    finished processing yet — callers must treat this as "personalize
-    silently degrades to the shared bank", never as an error.
-    """
-    stmt = (
-        select(CandidateDocument)
-        .where(
-            CandidateDocument.user_id == user_id,
-            CandidateDocument.processing_status.in_(DOCUMENT_READY_STATUSES),
-        )
-        .order_by(CandidateDocument.created_at.desc())
-        .limit(1)
-    )
-    result = await db.execute(stmt)
-    document = result.scalar_one_or_none()
-    if not document or not document.extracted_data:
+def _context_from_document(document: CandidateDocument) -> CandidateContext | None:
+    if not document.extracted_data:
         return None
-
     data = document.extracted_data
     return CandidateContext(
         skills=data.get("technical_skills", [])[:15],
@@ -83,6 +66,48 @@ async def _load_candidate_context(db: AsyncSession, user_id: UUID) -> CandidateC
     )
 
 
+async def _load_candidate_context(
+    db: AsyncSession,
+    user_id: UUID,
+    document_id: UUID | None = None,
+) -> CandidateContext | None:
+    """Read a processed CandidateDocument's extracted_data (§3 Decision 1).
+
+    When ``document_id`` is set, that row must be owned by ``user_id`` and ready
+    (``DOCUMENT_READY_STATUSES``); otherwise raises ``ValidationAppError``.
+    When unset, returns the most recent ready document, or None if none exist —
+    callers must treat missing docs as "personalize silently degrades", never as
+    an error, unless an explicit id was requested.
+    """
+    if document_id is not None:
+        stmt = select(CandidateDocument).where(
+            CandidateDocument.id == document_id,
+            CandidateDocument.user_id == user_id,
+        )
+        result = await db.execute(stmt)
+        document = result.scalar_one_or_none()
+        if document is None:
+            raise ValidationAppError("Document not found")
+        if document.processing_status not in DOCUMENT_READY_STATUSES:
+            raise ValidationAppError("Document is not ready for personalization")
+        return _context_from_document(document)
+
+    stmt = (
+        select(CandidateDocument)
+        .where(
+            CandidateDocument.user_id == user_id,
+            CandidateDocument.processing_status.in_(DOCUMENT_READY_STATUSES),
+        )
+        .order_by(CandidateDocument.created_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    document = result.scalar_one_or_none()
+    if document is None:
+        return None
+    return _context_from_document(document)
+
+
 async def get_questions(
     db: AsyncSession,
     user_id: UUID,
@@ -92,7 +117,9 @@ async def get_questions(
     """Return `request.count` questions, personalized if requested and possible."""
     candidate_context: CandidateContext | None = None
     if request.personalize:
-        candidate_context = await _load_candidate_context(db, user_id)
+        candidate_context = await _load_candidate_context(
+            db, user_id, document_id=request.document_id
+        )
 
     bank_results = await select_questions(
         session=db,
@@ -141,50 +168,65 @@ async def get_questions(
             )
             candidate_context = None
 
-    try:
-        generated, token_usage = await generate_questions(
-            job_role=request.job_role,
-            category=request.category or "technical",
-            difficulty=request.difficulty or "medium",
-            settings=settings,
-            count=min(shortfall, 5),
-            candidate_context=candidate_context,
+    # generate_questions accepts up to 15 per call (matches QuestionRequest.le).
+    # Still batch defensively if a future caller asks for more than one LLM round-trip.
+    had_bank = bool(bank_results)
+    while len(items) < request.count:
+        shortfall = request.count - len(items)
+        batch_context = candidate_context
+        if batch_context is not None:
+            generated_today = await _personalized_generation_count_today(db, user_id)
+            if generated_today >= settings.question_generation_daily_limit_per_user:
+                batch_context = None
+        try:
+            generated, token_usage = await generate_questions(
+                job_role=request.job_role,
+                category=request.category or "technical",
+                difficulty=request.difficulty or "medium",
+                settings=settings,
+                count=min(shortfall, 15),
+                candidate_context=batch_context,
+            )
+        except Exception:
+            logger.error(
+                "On-demand question generation failed; returning results so far",
+                exc_info=True,
+                extra={"user_id": str(user_id)[:8]},
+            )
+            track_llm_failure(model="gpt-4o-mini", operation="question_generation")
+            break
+        if not generated:
+            break
+        persisted = await _persist_generated_questions(
+            db, generated, personalized_for_user_id=user_id if batch_context else None
         )
-    except Exception:
-        logger.error(
-            "On-demand question generation failed; returning bank results only",
-            exc_info=True,
-            extra={"user_id": str(user_id)[:8]},
+        await track_llm_cost(
+            model="gpt-4o-mini",
+            input_tokens=token_usage["input_tokens"],
+            output_tokens=token_usage["output_tokens"],
+            operation="question_generation",
+            user_id=str(user_id),
         )
-        track_llm_failure(model="gpt-4o-mini", operation="question_generation")
-        return QuestionListResponse(questions=items, source="question_bank")
-
-    persisted = await _persist_generated_questions(
-        db, generated, personalized_for_user_id=user_id if candidate_context else None
-    )
-    await track_llm_cost(
-        model="gpt-4o-mini",
-        input_tokens=token_usage["input_tokens"],
-        output_tokens=token_usage["output_tokens"],
-        operation="question_generation",
-        user_id=str(user_id),
-    )
-
-    items.extend(
-        QuestionItem(
-            id=q.id,
-            question_text=q.question_text,
-            category=cast(QuestionCategory, q.question_category),
-            difficulty=cast(QuestionDifficulty, q.difficulty),
-            job_roles=q.job_roles,
-            technologies=q.technologies,
-            is_personalized=q.personalized_for_user_id is not None,
+        items.extend(
+            QuestionItem(
+                id=q.id,
+                question_text=q.question_text,
+                category=cast(QuestionCategory, q.question_category),
+                difficulty=cast(QuestionDifficulty, q.difficulty),
+                job_roles=q.job_roles,
+                technologies=q.technologies,
+                is_personalized=q.personalized_for_user_id is not None,
+            )
+            for q in persisted
         )
-        for q in persisted
-    )
 
-    source: Literal["generated", "mixed"] = "generated" if not bank_results else "mixed"
-    return QuestionListResponse(questions=items, source=source)
+    if not had_bank and len(items) > 0:
+        source: Literal["question_bank", "generated", "mixed"] = "generated"
+    elif len(items) > len(bank_results):
+        source = "mixed"
+    else:
+        source = "question_bank"
+    return QuestionListResponse(questions=items[: request.count], source=source)
 
 
 async def _persist_generated_questions(

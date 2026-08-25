@@ -342,6 +342,7 @@ export async function draftOutreach(payload: {
   documentId: string;
   recipientRoleTitle?: string;
   jobMatchId?: string;
+  jobDescription?: string;
   messageType?: OutreachMessageType;
   customInstruction?: string;
 }): Promise<SuccessEnvelope<OutreachDraftAccepted>> {
@@ -353,6 +354,7 @@ export async function draftOutreach(payload: {
       documentId: payload.documentId,
       recipientRoleTitle: payload.recipientRoleTitle ?? null,
       jobMatchId: payload.jobMatchId ?? null,
+      jobDescription: payload.jobDescription ?? null,
       // Module 4, Module G (§11.7): forwarded to the BFF route, which maps these
       // to the backend's snake_case `message_type`/`custom_instruction` fields.
       messageType: payload.messageType ?? "email",
@@ -442,16 +444,18 @@ export async function fetchQuestions(payload: {
   category?: string;
   difficulty?: string;
   personalize?: boolean;
+  documentId?: string;
 }): Promise<SuccessEnvelope<QuestionListResult>> {
   return request<QuestionListResult>("/api/practice/questions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       job_role: payload.jobRole,
-      count: payload.count ?? undefined,
+      count: payload.count,
       category: payload.category ?? undefined,
       difficulty: payload.difficulty ?? undefined,
       personalize: payload.personalize ?? undefined,
+      document_id: payload.documentId ?? undefined,
     }),
   });
 }

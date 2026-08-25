@@ -65,7 +65,8 @@ class OutreachService:
 
         lock_key = (
             f"outreach-draft-lock:{user_id}:{body.company_name.strip().lower()}:"
-            f"{body.job_match_id or 'none'}:{body.message_type}"
+            f"{body.job_match_id or 'none'}:{body.message_type}:"
+            f"{'paste' if (body.job_description or '').strip() else 'match'}"
         )
         lock_acquired = self.redis_conn.set(lock_key, "1", nx=True, ex=60)
         if not lock_acquired:
@@ -84,6 +85,7 @@ class OutreachService:
             body.job_match_id,
             body.message_type,
             body.custom_instruction,
+            body.job_description,
             job_timeout=60,
         )
         return {"rq_job_id": rq_job.id, "message": "Outreach draft generation started"}

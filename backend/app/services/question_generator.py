@@ -192,7 +192,7 @@ Category: {category} ({category_hints[category]})
 Difficulty: {difficulty} ({difficulty_hints[difficulty]})
 
 Each question should be distinct and realistic for actual interviews.
-{"Return a JSON array with " + str(count) + " question objects." if count > 1 else "Return a single JSON object."}
+{'Return a JSON object with a "questions" array containing ' + str(count) + " question objects." if count > 1 else "Return a single JSON object."}
 """.strip()
 
     if candidate_context is not None:
@@ -207,25 +207,29 @@ Each question should be distinct and realistic for actual interviews.
 def _parse_generation_response(content: str, expected_count: int = 1) -> list[QuestionData]:
     """Parse LLM response into structured question data.
 
-    Args:
-        content: Raw LLM response text
-        expected_count: Expected number of questions
-
-    Returns:
-        List of QuestionData dicts
-
-    Raises:
-        ValueError: If parsing fails or validation fails
+    Accepts a single question object, a raw JSON array, or the json_object-mode
+    wrapper ``{"questions": [...]}`` that OpenAI returns when response_format is
+    set to json_object.
     """
     try:
-        # Extract JSON from response
-        start = content.index("{" if expected_count == 1 else "[")
-        end = content.rindex("}" if expected_count == 1 else "]") + 1
-        data = json.loads(content[start:end])
+        if "{" in content:
+            start = content.index("{")
+            end = content.rindex("}") + 1
+            data = json.loads(content[start:end])
+        elif "[" in content:
+            start = content.index("[")
+            end = content.rindex("]") + 1
+            data = json.loads(content[start:end])
+        else:
+            raise ValueError("No JSON object or array found in response")
 
-        # Normalize to list
-        if expected_count == 1 and not isinstance(data, list):
-            data = [data]
+        if isinstance(data, dict):
+            if isinstance(data.get("questions"), list):
+                data = data["questions"]
+            else:
+                data = [data]
+        elif not isinstance(data, list):
+            raise ValueError("Expected a JSON object or array")
 
         questions: list[QuestionData] = []
 
@@ -363,7 +367,7 @@ async def generate_questions(
         category: Question category (behavioral, technical, system_design)
         difficulty: Question difficulty (easy, medium, hard)
         settings: App settings with OpenAI API key
-        count: Number of questions to generate (default 1, max 5 per call)
+        count: Number of questions to generate (default 1, max 15 per call)
         candidate_context: Optional personalization input (§3 Decision 1). When
             provided, the generated question is tailored toward the
             candidate's résumé data (skills/target role/experience). Defaults
@@ -389,8 +393,8 @@ async def generate_questions(
         >>> print(f"Generated {len(questions)} questions")
         >>> print(f"Cost: ${(tokens['input_tokens'] * 0.15 + tokens['output_tokens'] * 0.60) / 1_000_000:.4f}")
     """
-    if count < 1 or count > 5:
-        raise ValueError("count must be between 1 and 5")
+    if count < 1 or count > 15:
+        raise ValueError("count must be between 1 and 15")
 
     api_key = settings.openai_api_key.strip()
     if not api_key:
@@ -434,7 +438,7 @@ Ground the question in specific responsibilities, requirements, or technologies
 actually mentioned in the job description above. Do not ask something that could
 apply to any {job_context.job_title} role anywhere — it must be recognizably
 about THIS posting.
-{"Return a JSON array with " + str(count) + " question objects." if count > 1 else "Return a single JSON object."}
+{'Return a JSON object with a "questions" array containing ' + str(count) + " question objects." if count > 1 else "Return a single JSON object."}
 """.strip()
 
     if candidate_context is not None:
@@ -460,8 +464,8 @@ async def generate_jd_tailored_questions(
     return contract — only the prompt-building step differs, via
     _build_jd_generation_messages instead of _build_generation_messages.
     """
-    if count < 1 or count > 5:
-        raise ValueError("count must be between 1 and 5")
+    if count < 1 or count > 15:
+        raise ValueError("count must be between 1 and 15")
     api_key = settings.openai_api_key.strip()
     if not api_key:
         raise ValueError("OpenAI API key not configured")

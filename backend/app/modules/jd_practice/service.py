@@ -32,7 +32,7 @@ from app.observability.jd_practice_metrics import (
     jd_practice_daily_limit_hit_total,
     jd_practice_questions_generated_total,
 )
-from app.services.question_generator import JobContext, generate_jd_tailored_questions
+from app.services.question_generator import JobContext, QuestionData, generate_jd_tailored_questions
 
 
 async def _jd_generation_count_today(db: AsyncSession, user_id: UUID) -> int:
@@ -72,49 +72,87 @@ async def get_jd_tailored_questions(
     generates, never serves from the bank) and deserves its own
     independently-tunable cap rather than competing with Module 3's
     résumé-personalization budget for the same limit.
+
+    JD source is either a tracked ``job_match_id`` or a pasted ``job_description``
+    (ADR 0018) — schema enforces XOR.
     """
-    match_row = await job_matching_repository.get_owned_match(
-        db, UUID(request.job_match_id), user_id
-    )
-    if match_row is None:
-        raise NotFoundError("Tracked job not found")
-    match, posting = match_row
-    if match.job_posting_id is None:
-        # Module F: a manual job entry (job_posting_id is NULL, manual_job_entry_id
-        # set instead — see JobMatch's ck_job_matches_exactly_one_source) has no
-        # scraped description at all — there is nothing to tailor a question
-        # against, so this is a distinct, expected case (by design), not a data
-        # error. Rejected explicitly here, before ever touching `posting`, so it
-        # never falls through to the `description_raw` check below (which would
-        # be an AttributeError on `None.description_raw`) or silently falls back
-        # to generic (non-JD-tailored) questions the candidate didn't ask for.
-        raise ValidationAppError(
-            "Manual job entries have no job description to practice against — "
-            "this feature requires a scanned posting"
+    job_context: JobContext
+    session_metadata: dict[str, str]
+    response_match_id: str | None
+
+    if request.job_match_id:
+        match_row = await job_matching_repository.get_owned_match(
+            db, UUID(request.job_match_id), user_id
         )
-    if posting is None or not posting.description_raw:
-        raise ValidationAppError("This job posting has no description to practice against")
+        if match_row is None:
+            raise NotFoundError("Tracked job not found")
+        match, posting = match_row
+        if match.job_posting_id is None:
+            # Module F: a manual job entry (job_posting_id is NULL, manual_job_entry_id
+            # set instead — see JobMatch's ck_job_matches_exactly_one_source) has no
+            # scraped description at all — there is nothing to tailor a question
+            # against, so this is a distinct, expected case (by design), not a data
+            # error. Rejected explicitly here, before ever touching `posting`, so it
+            # never falls through to the `description_raw` check below (which would
+            # be an AttributeError on `None.description_raw`) or silently falls back
+            # to generic (non-JD-tailored) questions the candidate didn't ask for.
+            raise ValidationAppError(
+                "Manual job entries have no job description to practice against — "
+                "this feature requires a scanned posting"
+            )
+        if posting is None or not posting.description_raw:
+            raise ValidationAppError("This job posting has no description to practice against")
+
+        job_context = JobContext(
+            job_description=posting.description_raw,
+            job_title=posting.title,
+            company=posting.company,
+        )
+        session_metadata = {
+            "job_match_id": str(match.id),
+            "job_title": posting.title,
+            "company": posting.company,
+        }
+        response_match_id = request.job_match_id
+    else:
+        assert request.job_description is not None  # schema XOR
+        job_context = JobContext(
+            job_description=request.job_description.strip(),
+            job_title=request.job_title or "Role",
+            company=request.company or "Company",
+        )
+        session_metadata = {
+            "source": "pasted_jd",
+            "job_title": job_context.job_title,
+            "company": job_context.company,
+        }
+        response_match_id = None
 
     generated_today = await _jd_generation_count_today(db, user_id)
     if generated_today >= settings.jd_question_generation_daily_limit_per_user:
         jd_practice_daily_limit_hit_total.inc()
         raise RateLimitError("Daily JD-tailored practice question limit reached")
 
-    candidate_context = await _load_candidate_context(db, user_id)
+    candidate_context = await _load_candidate_context(db, user_id, document_id=request.document_id)
 
-    job_context = JobContext(
-        job_description=posting.description_raw,
-        job_title=posting.title,
-        company=posting.company,
-    )
-    generated, token_usage = await generate_jd_tailored_questions(
-        job_context,
-        request.category or "technical",
-        request.difficulty or "medium",
-        settings,
-        count=request.count,
-        candidate_context=candidate_context,
-    )
+    generated: list[QuestionData] = []
+    token_usage = {"input_tokens": 0, "output_tokens": 0}
+    remaining = request.count
+    while remaining > 0:
+        batch, usage = await generate_jd_tailored_questions(
+            job_context,
+            request.category or "technical",
+            request.difficulty or "medium",
+            settings,
+            count=min(remaining, 15),
+            candidate_context=candidate_context,
+        )
+        if not batch:
+            break
+        generated.extend(batch)
+        token_usage["input_tokens"] += usage["input_tokens"]
+        token_usage["output_tokens"] += usage["output_tokens"]
+        remaining -= len(batch)
     await track_llm_cost(
         model="gpt-4o-mini",
         input_tokens=token_usage["input_tokens"],
@@ -128,11 +166,7 @@ async def get_jd_tailored_questions(
         user_id=user_id,
         session_type="jd_tailored",
         status="in_progress",
-        session_metadata={
-            "job_match_id": str(match.id),
-            "job_title": posting.title,
-            "company": posting.company,
-        },
+        session_metadata=session_metadata,
     )
     db.add(session)
     await db.commit()
@@ -153,6 +187,6 @@ async def get_jd_tailored_questions(
             )
             for q in generated
         ],
-        job_match_id=request.job_match_id,
+        job_match_id=response_match_id,
         practice_session_id=session.id,
     )

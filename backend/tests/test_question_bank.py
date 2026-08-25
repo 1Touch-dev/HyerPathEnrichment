@@ -261,6 +261,37 @@ class TestQuestionGeneration:
         assert questions[1]["question_text"] == "Explain async/await in Python"
         assert questions[1]["difficulty"] == "medium"
 
+    def test_parse_wrapped_multi_question_response(self):
+        """json_object mode returns {\"questions\": [...]} rather than a raw array."""
+        content = json.dumps(
+            {
+                "questions": [
+                    {
+                        "question_text": "Describe CI/CD.",
+                        "category": "technical",
+                        "difficulty": "medium",
+                        "job_roles": ["devops_engineer"],
+                        "technologies": ["docker"],
+                        "sample_answer": "A strong answer covers pipelines...",
+                        "scoring_rubric": {"clarity": "clear"},
+                    },
+                    {
+                        "question_text": "Tell me about an outage you handled.",
+                        "category": "behavioral",
+                        "difficulty": "hard",
+                        "job_roles": ["devops_engineer"],
+                        "technologies": [],
+                        "sample_answer": "A strong answer covers detection...",
+                        "scoring_rubric": {"impact": "quantified"},
+                    },
+                ]
+            }
+        )
+        questions = _parse_generation_response(content, expected_count=2)
+        assert len(questions) == 2
+        assert questions[0]["question_text"] == "Describe CI/CD."
+        assert questions[1]["category"] == "behavioral"
+
     def test_parse_invalid_response(self):
         """Test parsing invalid JSON response."""
         with pytest.raises(ValueError, match="Invalid question generation JSON structure"):
@@ -337,13 +368,13 @@ class TestQuestionGeneration:
     @pytest.mark.asyncio
     async def test_generate_questions_invalid_count(self, mock_settings):
         """Test generation with invalid count parameter."""
-        with pytest.raises(ValueError, match="count must be between 1 and 5"):
+        with pytest.raises(ValueError, match="count must be between 1 and 15"):
             await generate_questions(
                 job_role="software_engineer",
                 category="technical",
                 difficulty="medium",
                 settings=mock_settings,
-                count=10,  # Invalid: too high
+                count=20,  # Invalid: too high
             )
 
     @pytest.mark.asyncio
