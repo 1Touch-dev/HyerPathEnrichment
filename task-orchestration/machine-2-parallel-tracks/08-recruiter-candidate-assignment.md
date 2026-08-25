@@ -38,6 +38,15 @@ module's existing candidate-listing query as part of this chunk — that would s
 into the access-restrictive design explicitly rejected below. If a reviewer of a later chunk
 sees such a filter added citing this table, it is out of scope and should be rejected.
 
+### Confirmed by leadership (2026-08-24/25)
+
+James directly confirmed the "any recruiter can work any candidate" model above, in response to a
+decision-list question asking whether a candidate should have a single owning recruiter. His
+words: "No [single recruiter]? Multiple approaches, broaden strategy." This locks in the
+ownership-marker-not-access-gate design already specified in this chunk — no design change
+results; multiple recruiters working the same candidate simultaneously (the "broaden strategy"
+he names) is exactly what the pool-with-assignment model already allows.
+
 ## Files to create
 
 - `backend/app/modules/recruiter_assignment/__init__.py`

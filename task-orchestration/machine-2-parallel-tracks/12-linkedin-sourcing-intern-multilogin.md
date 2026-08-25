@@ -236,6 +236,13 @@ above).
 
 ## Multilogin profile/account management (at a level consistent with how `06` discusses infrastructure)
 
+**Cross-reference (2026-08-24/25): this is the resolution of `machine-1-tenancy-core/06-outbound-
+ip-strategy-resolved.md`'s interpretation (A).** James's own words disambiguating the original
+"multiple different ips" phrasing — "Multiple different ips, is to use multilogin in order to
+create multiple users" — describe exactly the profile-per-account model this section already
+specs below. That file no longer carries its own separate design for this; this section remains
+the single source of truth for it.
+
 `06`'s own file explicitly notes the existing Tier-1 Multilogin infrastructure
 (`backend/app/integrations/multilogin/profile_pool.py`) is **read-only today** (photo
 enrichment) and instructs implementers not to import from it for sending. **This chunk follows

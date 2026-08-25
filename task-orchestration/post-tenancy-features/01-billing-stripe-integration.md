@@ -217,6 +217,16 @@ shape change from the prior design, which restricted these endpoints to `OrgScop
 theory that only agency-affiliated recruiters could bill; that theory does not survive the pivot
 to a single shared candidate pool with per-candidate freemium billing.
 
+## Confirmed by leadership (2026-08-24/25)
+
+James (leadership) directly confirmed the candidate-level freemium model this chunk already
+specs, in response to a decision-list question on the billing approach. His words: "All
+candidates must pay; or non paying can get preview with blurred info... idea is to hire us to
+access [full details]. Better partnerships = more placement recruiting work." This is a direct
+confirmation of the design below (server-side blurred/teaser preview for non-paying candidates,
+full access gated behind payment) — no design change results from this confirmation, it locks in
+the paywall shape already specified rather than superseding it.
+
 ## Freemium paywall: blurred/teaser preview for non-paying candidates
 
 This is the actual product mechanism this chunk exists to support, not just a billing plumbing

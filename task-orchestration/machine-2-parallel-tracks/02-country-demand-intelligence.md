@@ -65,6 +65,20 @@ resolve — some markets are worth deep, ongoing attention; others are worth per
 for a handful of easy wins. This chunk's `CountryDemandSnapshot` data (see below) is the input to
 a three-tier classification recruiters use to decide where to focus:
 
+### Confirmed by leadership (2026-08-24/25)
+
+James directly confirmed this Tier 1/2/3 methodology as exactly right, in response to a
+decision-list question on country/market-tier research. His words: "Agreed, but do keyword
+research into finding specific markets in those regions, and 2nd tier (more low competition)
+markets, (mid tier volume), 3rd tier (low and low competition and search volume = low hanging
+fruit)." This confirms the tiering below (by competition/volume) as the correct methodology — the
+one addition his answer calls for, keyword research to find specific markets *within* each Tier 1
+region rather than treating a region (e.g. "Europe") as a single undifferentiated market, is not
+yet built by this chunk and is noted as a follow-up refinement rather than a scope change to this
+chunk's own migration/schema (this chunk's existing `role_bucket`/`country_iso2` granularity
+already supports a future finer-grained keyword-driven sub-market breakdown; it does not need a
+new column to eventually support one).
+
 - **Tier 1 — high-volume, high-competition.** USA, Europe (UK, Germany, Netherlands, and other
   major EU markets), Canada. The largest absolute posting counts for most role buckets, but also
   the most candidate-side and recruiter-side competition. Recruiters treat these as the primary,

@@ -38,7 +38,14 @@ LinkedIn profile URLs instead of email addresses).
 
 ## Design: task-queue, not auto-send
 
-Instead of a bot that logs in and clicks "Send" on LinkedIn, this chunk builds:
+**Update (2026-08-24/25): this section describes the original, fully-manual design, which remains
+the default mode. Leadership has since explicitly accepted a second, higher-automation mode — see
+"Confirmed by leadership (2026-08-24/25) — design change" below for the dual-mode design this
+chunk now also specs.** Read this section first for the baseline manual flow, then read the
+"Confirmed by leadership" section for the automated-batch addition on top of it.
+
+Instead of a bot that logs in and clicks "Send" on LinkedIn, this chunk builds (baseline, manual
+mode):
 
 1. A **drafting** path (reuses `03`'s strategy dimension + existing `message_type="linkedin"`
    drafting in `backend/app/workers/tasks/outreach.py`) — already exists, unchanged by this
@@ -192,10 +199,127 @@ Claim/Complete/Skip buttons. No embedded LinkedIn iframe, no in-app browser auto
 the operator leaves the app to actually perform the LinkedIn action in their own browser/session,
 by design (see the risk note at the top of this file).
 
+## Confirmed by leadership (2026-08-24/25) — design change: dual-mode send (manual + automated-with-manual-trigger)
+
+**This is the most consequential leadership answer in this round, and it changes this chunk's
+design, not just its documentation.** The original design above is pure human-in-the-loop —
+explicitly chosen (see the risk section at the top of this file) specifically to minimize legal
+exposure: an intern/recruiter manually performs every LinkedIn send in their own session, with no
+automated click anywhere.
+
+James was told exactly that trade-off before answering. The decision-list question he was asked
+was: "we're planning to use real staff doing it manually, not automated bots, because LinkedIn has
+a history of suing companies over automation... are you comfortable with that?" His literal
+answer: **"Both automated and manual. (automated w manual triggers)."** He was not asked to choose
+between "fully automated" and "fully manual" in the abstract — he was told this doc set's specific
+risk-averse default and asked to accept it, and he explicitly chose *more* automation than that
+default instead. This is recorded here precisely so it is traceable that the added automation
+below was a deliberate, informed leadership risk-acceptance, not a silent scope-creep by an
+implementer.
+
+**Legal exposure, restated:** every citation and risk analysis in the "⚠️ Legal risk" section at
+the top of this file (LinkedIn User Agreement §8.2's prohibition on automated messaging/connection
+requests; `hiQ Labs v. LinkedIn`'s $500,000 consent judgment; the vendor-takedown enforcement
+posture) still applies in full to the automated-send mode added below — nothing about that
+analysis changes. What changes is that James, having been told this risk in plain terms, has now
+knowingly accepted it at a higher level of automation than this doc set's original risk-averse
+default. Escalate to James again (not to a lower-level implementer/reviewer decision) if the
+automated-send mode's actual blast radius (e.g. per-account daily send volume) needs to grow
+further than what is specced below — this section covers "automated sending exists as an option,
+gated by a human-triggered batch," not "no further limits of any kind."
+
+**Design addition: two send modes, selectable per batch, not per message.**
+
+1. **Manual mode (existing design, unchanged).** Exactly as specced above — a `LinkedInSendTask`
+   row per message, a human operator claims/completes/skips each one individually, in their own
+   logged-in session. This remains the default and the only mode until an operator explicitly
+   creates an automated batch (see below) — no behavior change for any existing manual-mode task.
+2. **Automated mode (new): a human triggers a batch/campaign; the actual sends proceed without a
+   per-message manual click.** Add a new `LinkedInSendBatch` row
+   (`backend/app/modules/outreach/linkedin_send_models.py`, alongside `LinkedInSendTask`):
+
+   ```python
+   class LinkedInSendBatch(Base):
+       """A human-triggered batch of LinkedIn sends that proceed automatically once
+       started, without a per-message manual click. See this file's "Confirmed by
+       leadership" section for why this mode exists alongside the fully-manual
+       LinkedInSendTask flow — James explicitly accepted this higher-automation
+       risk after being told the legal trade-off in plain terms."""
+
+       __tablename__ = "linkedin_send_batches"
+
+       id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+       triggered_by: Mapped[UUID] = mapped_column(
+           ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+       )
+       # Which Multilogin-managed, real, individually-owned account performs the
+       # sends in this batch — same 1:1 profile-to-real-account convention
+       # 12-linkedin-sourcing-intern-multilogin.md's "Multilogin profile/account
+       # management" section already establishes; this batch does NOT introduce a
+       # new automation account model, it reuses that same operational convention,
+       # just now driving sends instead of nothing.
+       multilogin_profile_id: Mapped[str] = mapped_column(String(255), nullable=False)
+       status: Mapped[str] = mapped_column(
+           String(20), default="pending", nullable=False, index=True
+       )  # "pending" | "running" | "completed" | "cancelled" | "failed"
+       # Per-account daily/hourly send-rate ceiling for this batch — see the
+       # rate-limiting requirement below. Required, not optional: an automated
+       # batch with no cap is exactly the "just automate the click too" scenario
+       # this file's risk section instructs implementers to escalate, not build
+       # unilaterally.
+       max_sends_per_day: Mapped[int] = mapped_column(nullable=False)
+       started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+       completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+       created_at: Mapped[datetime] = mapped_column(
+           DateTime(timezone=True), default=lambda: datetime.now(UTC)
+       )
+   ```
+
+   `LinkedInSendTask` gets one new nullable FK, `batch_id: Mapped[UUID | None] =
+   mapped_column(ForeignKey("linkedin_send_batches.id", ondelete="CASCADE"), nullable=True,
+   index=True)` — `NULL` means the task is manual-mode (unchanged, existing behavior); a non-`NULL`
+   `batch_id` means the task belongs to an automated batch and its `status` transitions are driven
+   by the batch's own execution rather than an operator clicking Complete/Skip.
+
+3. **A human still triggers the batch — this is not "no human in the loop at all."**
+   `POST /api/outreach/linkedin-send-batches` (new endpoint, `linkedin_send_router.py`) creates a
+   `LinkedInSendBatch` from a set of already-drafted, already-approved `LinkedInSendTask` rows
+   (the same drafting/approval path as manual mode — automation only replaces the *send click*,
+   not message drafting or the decision to send). Starting a batch (`POST
+   .../linkedin-send-batches/{id}/start`) is an explicit human action gated by
+   `require_permission("linkedin_tasks", "operate")`, same permission manual-mode tasks already
+   use. Once started, the batch's execution (working through its attached tasks and performing
+   each send without a further manual click) is a new worker job
+   (`backend/app/workers/tasks/linkedin_send_batch.py` — new file), rate-limited per
+   `max_sends_per_day` above.
+4. **What "the actual sending" means here is still not fully specified by this doc set, and that
+   is an open item, not silently resolved.** This section specs the *queue/batch/rate-limit shape*
+   James's answer requires, but it deliberately does **not** spec which mechanism actually performs
+   the automated click on linkedin.com (e.g. driving a Multilogin browser profile
+   programmatically via Playwright/Selenium, vs. some other mechanism) — that is a materially
+   larger technical decision (browser automation against a live LinkedIn session is exactly the
+   `app.integrations.multilogin.profile_pool`/`app.integrations.linkedin` territory this file's
+   original design explicitly avoided importing) that needs its own explicit build-out, likely its
+   own ADR given the storage/integration-pattern criteria in `docs/adr/README.md`. **Do not import
+   from or extend `app.integrations.linkedin.client` or
+   `app.integrations.multilogin.profile_pool` to build the actual automated-click mechanism as part
+   of implementing this section** — this section's scope is the batch/queue/rate-limit data model
+   and the human-trigger boundary only; the actual browser-automation implementation is a
+   follow-up chunk once that ADR/design decision is made explicitly, not something to improvise
+   here.
+5. **Rate limiting is mandatory, not optional, for the automated path.** `max_sends_per_day` above
+   is a required field with no unlimited/unset option — the worker job executing a batch must
+   enforce it (track sends-today per `multilogin_profile_id`, halt the batch once the ceiling is
+   hit, resume the next day) as a hard technical ceiling, not merely a suggested value, precisely
+   because this is the one part of this design where LinkedIn's own anti-bot detection and the
+   legal-exposure analysis above are both most sensitive to volume.
+
 ## Do not touch
 
 - `backend/app/integrations/linkedin/`, `backend/app/integrations/multilogin/` — not imported,
-  not modified. This is the most important boundary in this chunk.
+  not modified **for this section's batch/queue/rate-limit data model**. The follow-up chunk that
+  eventually implements the actual automated-click mechanism (see point 4 above) will need to
+  touch these, but that is explicitly out of scope for implementing this section itself.
 - `backend/app/core/config.py`'s `ENABLE_TIER1`/`browser_mode`/`multilogin_*` settings — unrelated
   to this chunk; do not add any LinkedIn-*credentials* settings here (there is no bot login in
   this design).
@@ -210,5 +334,13 @@ by design (see the risk note at the top of this file).
 - Test: `complete_task` transitions the parent message to `"sent"`; `skip_task` does not.
 - Test: `enqueue_send_task` 403s when `linkedin_profile_url` is suppressed.
 - Test: claiming an already-claimed task by a different operator 409s.
-- No test in this chunk should assert or exercise any actual LinkedIn network call, browser
-  automation, or credential usage — there is none in this design.
+- No test in this chunk's **manual-mode** path should assert or exercise any actual LinkedIn
+  network call, browser automation, or credential usage — there is none in that design.
+- Test: `LinkedInSendBatch` creation without `max_sends_per_day` set is rejected (422) — the rate
+  ceiling is required, not optional, per the "Rate limiting is mandatory" requirement above.
+- Test: starting a batch (`.../start`) requires `linkedin_tasks:operate`; 403s without it.
+- Test: a `LinkedInSendTask` with `batch_id IS NULL` behaves exactly as it did before this
+  section (regression check — manual-mode tasks are unaffected by the batch feature's existence).
+- No test in this chunk should exercise the actual automated-click mechanism, since (per point 4
+  above) this section does not implement one — tests here cover the batch/queue/rate-limit data
+  model and the human-trigger boundary only.

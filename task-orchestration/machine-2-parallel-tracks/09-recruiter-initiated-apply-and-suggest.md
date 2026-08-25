@@ -321,6 +321,17 @@ permission resource for "who counts as a recruiter" — that's an existing RBAC 
   until the candidate acts on it — "suggest" already *is* the approval-required shape by
   construction (the candidate must accept it for it to matter). Adding a second gate on top of an
   action that's already inherently candidate-reviewed would be redundant, not more protective.
+
+### Confirmed by leadership (2026-08-24/25)
+
+James directly confirmed the `recruiter_action_mode` toggle design above as the candidate's own
+choice, in response to a decision-list question on whether recruiter-initiated applications
+should be autonomous or require approval. His words: "Approval should be option to user whether
+to apply autonomously or requiring approval." This confirms the `autonomous`/`approval_required`
+toggle already specified in this chunk — no design change results; the default remains
+`approval_required` per this file's own "Ambiguities resolved" reasoning above, since James's
+answer confirms the toggle should exist and be the candidate's choice, not which value it should
+default to.
 - **Does approving a pending "apply" action retroactively require the candidate's CV to be
   complete/processed?** Yes — `approve_pending_action` should perform the same "processed CV
   required" check `OutreachService.request_draft` already performs
