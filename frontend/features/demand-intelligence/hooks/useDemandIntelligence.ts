@@ -4,8 +4,10 @@ import { requestData } from "@/src/lib/api-client";
 /**
  * Mirrors `backend/app/modules/demand_intelligence/schemas.py`'s `CountryTier` /
  * `CountryDemandRow` / `TopCountriesResponse` field-for-field (snake_case, as returned
- * by the backend) — there is no BFF adapter for this endpoint yet, so this hook exposes
- * the raw shape rather than guessing at a camelCase mapping that doesn't exist.
+ * by the backend) — the Next.js proxy route at
+ * `app/api/demand-intelligence/top-countries/route.ts` passes the backend payload
+ * through unchanged, so this hook exposes the raw snake_case shape rather than a
+ * camelCase mapping.
  */
 export type CountryTier = "tier_1" | "tier_2" | "tier_3";
 
