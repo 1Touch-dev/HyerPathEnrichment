@@ -4,12 +4,12 @@ See task-orchestration/machine-2-parallel-tracks/12-linkedin-sourcing-intern-mul
 for the design rationale — this module backs a manual data-entry form filled
 out by a human who read a LinkedIn profile themselves, never a scraper.
 
-`linkedin_sourcing.router` is not registered in `app/main.py` yet (out of
-scope for this track's dispatch) — mounted onto the already-built `app`
-instance at import time here, the same pattern
-`test_interview_scheduling_router.py` already uses for the identical
-not-yet-registered situation. This only mutates the running `FastAPI` app
-object for the test process; it does not edit `app/main.py`'s source.
+`linkedin_sourcing.router` is now registered in `app/main.py` (mounted
+normally alongside the other routers, gated behind `current_verified_user`).
+The guard below is a defensive no-op for this already-registered case — it
+only registers the router a second time if some other test run has torn
+down and rebuilt `app` without it, so this module's tests stay independent
+of import order without ever double-mounting the router on the normal path.
 """
 
 from __future__ import annotations
