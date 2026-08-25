@@ -36,4 +36,5 @@ export const adminKeys = {
   outreach: (cursor: string | null, status: string | null, adminBlocked: boolean | null) =>
     [...adminKeys.all, "outreach", cursor, status, adminBlocked] as const,
   outreachMessage: (id: string) => [...adminKeys.all, "outreach", id] as const,
+  linkedinTasks: (status: string | null) => [...adminKeys.all, "linkedin-tasks", status] as const,
 };

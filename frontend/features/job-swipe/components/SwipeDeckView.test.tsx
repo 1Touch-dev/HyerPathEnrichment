@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { SwipeDeckView } from "./SwipeDeckView";
@@ -8,24 +8,60 @@ import * as outreachModule from "@/features/outreach";
 import type { SwipeDeck } from "@/src/lib/types";
 
 let lastOnSwiped: ((direction: "left" | "right" | "up") => void) | undefined;
+let lastOnDraftOutreach: ((matchId: string, companyName: string) => void) | undefined;
 
 vi.mock("./SwipeCard", () => ({
   SwipeCard: ({
     card,
     isTop,
     onSwiped,
+    onDraftOutreach,
   }: {
-    card: { matchId: string };
+    card: { matchId: string; company: string };
     isTop: boolean;
     onSwiped: (direction: "left" | "right" | "up") => void;
     onDraftOutreach: (matchId: string, companyName: string) => void;
   }) => {
     lastOnSwiped = onSwiped;
+    lastOnDraftOutreach = onDraftOutreach;
     return (
       <div data-testid="swipe-card" data-match-id={card.matchId} data-is-top={String(isTop)} />
     );
   },
 }));
+
+interface ConfirmDraftPayload {
+  messageType: string;
+  customInstruction?: string;
+  documentId: string;
+  companyName: string;
+  recipientRoleTitle?: string;
+  jobMatchId?: string;
+  jobDescription?: string;
+  strategy: string;
+  referralContext?: string;
+  roleType?: string;
+  seniority?: string;
+}
+
+let lastOnConfirm: ((payload: ConfirmDraftPayload) => void) | undefined;
+
+vi.mock("@/features/outreach", async () => {
+  const actual = await vi.importActual<typeof import("@/features/outreach")>("@/features/outreach");
+  return {
+    ...actual,
+    DraftOutreachDialog: ({
+      open,
+      onConfirm,
+    }: {
+      open: boolean;
+      onConfirm: (payload: ConfirmDraftPayload) => void;
+    }) => {
+      lastOnConfirm = onConfirm;
+      return open ? <div data-testid="draft-outreach-dialog" /> : null;
+    },
+  };
+});
 
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -50,6 +86,8 @@ describe("SwipeDeckView", () => {
     mutateMock.mockReset();
     draftOutreachMutateMock.mockReset();
     lastOnSwiped = undefined;
+    lastOnDraftOutreach = undefined;
+    lastOnConfirm = undefined;
     vi.spyOn(useSwipeDeckModule, "useSubmitSwipe").mockReturnValue({
       mutate: mutateMock,
     } as unknown as ReturnType<typeof useSwipeDeckModule.useSubmitSwipe>);
@@ -130,5 +168,59 @@ describe("SwipeDeckView", () => {
 
     lastOnSwiped?.("right");
     expect(mutateMock).toHaveBeenCalledWith({ matchId: "m0", direction: "right" });
+  });
+
+  it("threads strategy/referralContext/roleType/seniority from the dialog's onConfirm through to draftOutreach.mutate", () => {
+    const cards = [
+      {
+        matchId: "m0",
+        jobPostingId: "jp0",
+        title: "Job 0",
+        company: "Acme",
+        location: null,
+        remote: true,
+        salaryMin: null,
+        salaryMax: null,
+        salaryCurrency: null,
+        overallScore: 80,
+        explanation: null,
+      },
+    ];
+    mockUseSwipeDeck({ data: { cards, hasMore: false } as SwipeDeck });
+    render(<SwipeDeckView />, { wrapper });
+
+    act(() => {
+      lastOnDraftOutreach?.("m0", "Acme");
+    });
+    lastOnConfirm?.({
+      messageType: "email",
+      customInstruction: undefined,
+      documentId: "doc-1",
+      companyName: "Acme",
+      recipientRoleTitle: undefined,
+      jobMatchId: "m0",
+      jobDescription: undefined,
+      strategy: "warm_referral",
+      referralContext: "Referred by Jane Doe.",
+      roleType: "technical",
+      seniority: "senior",
+    });
+
+    expect(draftOutreachMutateMock).toHaveBeenCalledWith(
+      {
+        companyName: "Acme",
+        documentId: "doc-1",
+        jobMatchId: "m0",
+        jobDescription: undefined,
+        recipientRoleTitle: "Job 0",
+        messageType: "email",
+        customInstruction: undefined,
+        strategy: "warm_referral",
+        referralContext: "Referred by Jane Doe.",
+        roleType: "technical",
+        seniority: "senior",
+      },
+      expect.anything(),
+    );
   });
 });

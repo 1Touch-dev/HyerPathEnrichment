@@ -51,11 +51,38 @@ describe("POST /api/outreach/drafts", () => {
         job_description: null,
         message_type: "email",
         custom_instruction: null,
+        strategy: "direct_pitch",
+        referral_context: null,
+        role_type: null,
+        seniority: null,
       }),
     });
     expect(response.status).toBe(202);
     const body = await response.json();
     expect(body.data).toEqual({ rqJobId: "rq-1", message: "queued" });
+  });
+
+  it("forwards strategy/referralContext/roleType/seniority to the backend request body", async () => {
+    vi.mocked(backendFetch).mockResolvedValue(
+      jsonResponse(successEnvelope({ rq_job_id: "rq-2", message: "queued" }), 202),
+    );
+
+    await POST(
+      postRequest({
+        companyName: "Acme",
+        documentId: "doc-1",
+        strategy: "warm_referral",
+        referralContext: "Met at a conference",
+        roleType: "technical",
+        seniority: "senior",
+      }),
+    );
+
+    const forwardedBody = JSON.parse(vi.mocked(backendFetch).mock.calls[0][1]?.body as string);
+    expect(forwardedBody.strategy).toBe("warm_referral");
+    expect(forwardedBody.referral_context).toBe("Met at a conference");
+    expect(forwardedBody.role_type).toBe("technical");
+    expect(forwardedBody.seniority).toBe("senior");
   });
 
   it("returns a validation error when companyName is missing", async () => {

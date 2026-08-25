@@ -406,7 +406,11 @@ def test_outreach_draft_route_returns_job_reference(
     response = client.post(
         "/api/outreach/drafts",
         headers=headers,
-        json={"company_name": "Acme", "document_id": str(doc.id)},
+        json={
+            "company_name": "Acme",
+            "document_id": str(doc.id),
+            "recipient_email": "hiring-manager@acme.example.com",
+        },
     )
     data = assert_success(response)
     assert "rq_job_id" in data
@@ -459,6 +463,7 @@ async def test_outreach_send_route(
         subject="Subject",
         body="Body",
         status="draft",
+        recipient_email="hiring-manager@acme.example.com",
     )
     db.add(message)
     await db.commit()

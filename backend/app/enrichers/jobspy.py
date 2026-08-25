@@ -83,10 +83,30 @@ _COUNTRY_NAME_TO_ISO2: dict[str, str] = {
     "united arab emirates": "ae",
     "uae": "ae",
     "south africa": "za",
+    # Middle East entries genuinely missing as of the 2026-08-22 snapshot (only
+    # UAE existed before) — added for demand_intelligence's India/Middle East
+    # resolution coverage requirement (machine-2-parallel-tracks/02).
+    "saudi arabia": "sa",
+    "qatar": "qa",
+    "israel": "il",
+    "egypt": "eg",
+}
+
+# JSearch defaults to the primary language of the "country" param when "language"
+# is omitted, but that default is not always correct for a country whose
+# JSearch-indexed postings are predominantly in a different language than its
+# broader population's primary language (e.g. India: en, not one of its many
+# regional languages) — see the language map below and _language_for_country().
+_COUNTRY_ISO2_TO_LANGUAGE: dict[str, str] = {
+    "in": "en",  # India: JSearch-indexed postings are predominantly English.
+    "ae": "en",  # UAE: business/tech postings are predominantly English.
+    "sa": "en",  # Saudi Arabia: same rationale as UAE.
+    "qa": "en",
+    "il": "en",
 }
 
 
-def _country_to_iso2(country: str | None) -> str:
+def country_to_iso2(country: str | None) -> str:
     """Best-effort mapping of a free-text country name to an ISO alpha-2 code for JSearch.
 
     Falls back to "us" (JSearch's own documented default) for unrecognized input rather
@@ -105,6 +125,23 @@ def _country_to_iso2(country: str | None) -> str:
 
     logger.warning(f"JSearch: unrecognized country {country!r}, defaulting to 'us'")
     return "us"
+
+
+# Backward-compatible alias: existing internal call sites/tests reference the
+# underscore-prefixed name. Kept as a plain alias (not a re-implementation) so
+# behavior is identical either way this chunk's own "no other change to this
+# function" constraint requires.
+_country_to_iso2 = country_to_iso2
+
+
+def _language_for_country(country_iso2: str) -> str | None:
+    """Non-English-primary-market language override for JSearch's "language" param.
+
+    Returns None (omit the param) for markets where JSearch's own
+    country-based default is already correct — only markets with a documented
+    mismatch (see _COUNTRY_ISO2_TO_LANGUAGE above) get an explicit override.
+    """
+    return _COUNTRY_ISO2_TO_LANGUAGE.get(country_iso2.lower())
 
 
 def _normalize_publisher(raw: str | None) -> str:
@@ -277,12 +314,16 @@ class JobSpyEnricher(Enricher):
             return []
 
         query = f"{search_term} in {location}" if location else search_term
+        iso2_country = _country_to_iso2(country)
         params = {
             "query": query,
             "num_pages": str(settings.jsearch_num_pages),
-            "country": _country_to_iso2(country),
+            "country": iso2_country,
             "date_posted": "all",
         }
+        language = _language_for_country(iso2_country)
+        if language:
+            params["language"] = language
         headers = {
             "X-RapidAPI-Key": settings.jsearch_api_key,
             "X-RapidAPI-Host": settings.jsearch_api_host,

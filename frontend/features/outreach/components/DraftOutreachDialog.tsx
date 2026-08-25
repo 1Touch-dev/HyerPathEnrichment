@@ -26,7 +26,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { ResumeReference } from "@/features/documents/components/ResumeReference";
 import { useMatches } from "@/features/job-matching/hooks/useMatches";
 import { fetchDocuments } from "@/src/lib/api-client";
-import type { DocumentSummary, OutreachMessageType } from "@/src/lib/types";
+import type {
+  DocumentSummary,
+  OutreachCompanyTierValue,
+  OutreachMessageType,
+  OutreachRoleType,
+  OutreachSeniority,
+  OutreachStrategy,
+} from "@/src/lib/types";
+import { useCompanyTier, useSetCompanyTier } from "../hooks/useOutreach";
 
 const MESSAGE_TYPE_OPTIONS: { value: OutreachMessageType; label: string }[] = [
   { value: "email", label: "Email" },
@@ -35,8 +43,57 @@ const MESSAGE_TYPE_OPTIONS: { value: OutreachMessageType; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
+const STRATEGY_OPTIONS: { value: OutreachStrategy; label: string }[] = [
+  { value: "direct_pitch", label: "Direct pitch" },
+  { value: "value_first", label: "Value first" },
+  { value: "curiosity", label: "Curiosity" },
+  { value: "warm_referral", label: "Warm referral" },
+];
+
+const ROLE_TYPE_OPTIONS: { value: OutreachRoleType; label: string }[] = [
+  { value: "technical", label: "Technical" },
+  { value: "non_technical", label: "Non-technical" },
+];
+
+const SENIORITY_OPTIONS: { value: OutreachSeniority; label: string }[] = [
+  { value: "junior", label: "Junior" },
+  { value: "senior", label: "Senior" },
+];
+
+const COMPANY_TIER_OPTIONS: { value: OutreachCompanyTierValue; label: string }[] = [
+  { value: "premium", label: "Premium" },
+  { value: "outsourcing", label: "Outsourcing" },
+];
+
+/** Sentinel used for the "unset" option of an otherwise-optional `<Select>` — Radix's
+ * `Select.Item` cannot use an empty string as a value, so `undefined` state is
+ * represented by this sentinel at the UI layer and converted back to `undefined`
+ * before reaching `onConfirm`/the mutation payload. */
+const UNSET = "__unset__";
+
 function isReadyDocument(doc: DocumentSummary): boolean {
   return doc.processingStatus === "completed" || doc.processingStatus === "embedded";
+}
+
+/** How long to wait after the last keystroke before treating `companyName` as
+ * settled for the company-tier lookup — avoids firing a `useCompanyTier` request
+ * (and flickering the tier select's mount) on every character typed into the
+ * freely-editable company-name field. */
+const COMPANY_TIER_LOOKUP_DEBOUNCE_MS = 350;
+
+/** No shared debounce utility exists in this codebase yet (checked across
+ * `frontend/`), so this is a small local hook rather than a new shared file —
+ * kept out of the render body so `companyName` can stay fully responsive to
+ * typing while only the value fed into `useCompanyTier` lags behind it. */
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => clearTimeout(timeoutId);
+  }, [value, delayMs]);
+
+  return debouncedValue;
 }
 
 export type DraftOutreachConfirmPayload = {
@@ -47,6 +104,10 @@ export type DraftOutreachConfirmPayload = {
   recipientRoleTitle?: string;
   jobMatchId?: string;
   jobDescription?: string;
+  strategy: OutreachStrategy;
+  referralContext?: string;
+  roleType?: OutreachRoleType;
+  seniority?: OutreachSeniority;
 };
 
 interface DraftOutreachDialogProps {
@@ -63,6 +124,13 @@ interface DraftOutreachDialogProps {
 /**
  * Confirmation step before enqueuing outreach draft generation: message type,
  * résumé reference, and optional JD (tracked match or paste).
+ *
+ * machine-2/03: also hosts the `strategy`/`roleType`/`seniority` drafting-approach
+ * selectors and the manual, per-employer "Company tier" control — this dialog is
+ * the surface that already renders `companyName` most prominently to a recruiter
+ * about to draft outreach (the dialog title itself), so the tier control lives here
+ * rather than on `SwipeCard.tsx`'s card, per the track spec's own guidance to pick
+ * whichever existing surface fits best rather than adding a new screen.
  */
 export function DraftOutreachDialog({
   open,
@@ -83,6 +151,10 @@ export function DraftOutreachDialog({
   const [selectedMatchId, setSelectedMatchId] = useState(initialJobMatchId ?? "");
   const [pastedJd, setPastedJd] = useState("");
   const [documentId, setDocumentId] = useState<string | undefined>(undefined);
+  const [strategy, setStrategy] = useState<OutreachStrategy>("direct_pitch");
+  const [referralContext, setReferralContext] = useState("");
+  const [roleType, setRoleType] = useState<OutreachRoleType | undefined>(undefined);
+  const [seniority, setSeniority] = useState<OutreachSeniority | undefined>(undefined);
 
   const { data: documents } = useQuery({
     queryKey: ["documents", "list"],
@@ -102,6 +174,20 @@ export function DraftOutreachDialog({
   const latestDocument = readyDocuments[0];
   const selectedDocument =
     readyDocuments.find((doc) => doc.documentId === documentId) ?? latestDocument;
+
+  const debouncedCompanyName = useDebouncedValue(companyName, COMPANY_TIER_LOOKUP_DEBOUNCE_MS);
+  const companyTier = useCompanyTier(debouncedCompanyName);
+  const setCompanyTierMutation = useSetCompanyTier();
+  const [tierValue, setTierValue] = useState<OutreachCompanyTierValue | undefined>(undefined);
+
+  // machine-2/03: pre-fill the tier select from the previously-set value for this
+  // company whenever the dialog opens for a (possibly different) company, so a
+  // tier set on an earlier draft to the same employer persists visibly here.
+  useEffect(() => {
+    if (open) {
+      setTierValue(companyTier.data?.tier);
+    }
+  }, [open, companyTier.data?.tier]);
 
   useEffect(() => {
     if (!open) return;
@@ -136,6 +222,14 @@ export function DraftOutreachDialog({
   }, [jdSource, matchesData, selectedMatchId, initialJobMatchId]);
 
   function handleOpenChange(next: boolean) {
+    if (!next) {
+      setMessageType("email");
+      setCustomInstruction("");
+      setStrategy("direct_pitch");
+      setReferralContext("");
+      setRoleType(undefined);
+      setSeniority(undefined);
+    }
     onOpenChange(next);
   }
 
@@ -147,6 +241,10 @@ export function DraftOutreachDialog({
       documentId: selectedDocument.documentId,
       companyName: companyName.trim(),
       recipientRoleTitle: roleTitle.trim() || undefined,
+      strategy,
+      referralContext: strategy === "warm_referral" ? referralContext.trim() : undefined,
+      roleType: roleType && seniority ? roleType : undefined,
+      seniority: roleType && seniority ? seniority : undefined,
     };
     if (jdSource === "tracked" && selectedMatchId) {
       payload.jobMatchId = selectedMatchId;
@@ -157,15 +255,26 @@ export function DraftOutreachDialog({
     onConfirm(payload);
   }
 
+  function handleTierChange(value: string) {
+    if (!companyName) return;
+    const nextTier = value === UNSET ? undefined : (value as OutreachCompanyTierValue);
+    setTierValue(nextTier);
+    if (nextTier) {
+      setCompanyTierMutation.mutate({ companyName, tier: nextTier });
+    }
+  }
+
   const isCustomInvalid = messageType === "custom" && customInstruction.trim().length === 0;
   const isPasteInvalid = jdSource === "paste" && pastedJd.trim().length < 50;
   const isTrackedInvalid = jdSource === "tracked" && !selectedMatchId && !initialJobMatchId;
+  const isReferralInvalid = strategy === "warm_referral" && referralContext.trim().length === 0;
   const canConfirm =
     Boolean(companyName.trim()) &&
     Boolean(selectedDocument) &&
     !isCustomInvalid &&
     !isPasteInvalid &&
-    !isTrackedInvalid;
+    !isTrackedInvalid &&
+    !isReferralInvalid;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -190,6 +299,25 @@ export function DraftOutreachDialog({
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g. Acme"
               />
+            </div>
+          ) : null}
+
+          {debouncedCompanyName.trim() ? (
+            <div className="space-y-2">
+              <Label htmlFor="draft-outreach-company-tier">Company tier</Label>
+              <Select value={tierValue ?? UNSET} onValueChange={handleTierChange}>
+                <SelectTrigger id="draft-outreach-company-tier">
+                  <SelectValue placeholder="Unset" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNSET}>Unset</SelectItem>
+                  {COMPANY_TIER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ) : null}
 
@@ -236,6 +364,82 @@ export function DraftOutreachDialog({
               />
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="draft-outreach-strategy">Strategy</Label>
+            <Select
+              value={strategy}
+              onValueChange={(value) => setStrategy(value as OutreachStrategy)}
+            >
+              <SelectTrigger id="draft-outreach-strategy">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STRATEGY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {strategy === "warm_referral" && (
+            <div className="space-y-2">
+              <Label htmlFor="draft-outreach-referral-context">Referral context</Label>
+              <Textarea
+                id="draft-outreach-referral-context"
+                placeholder="e.g. Referred by Jane Doe, who works on the platform team..."
+                value={referralContext}
+                onChange={(e) => setReferralContext(e.target.value)}
+                rows={4}
+              />
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="draft-outreach-role-type">Role type (optional)</Label>
+            <Select
+              value={roleType ?? UNSET}
+              onValueChange={(value) =>
+                setRoleType(value === UNSET ? undefined : (value as OutreachRoleType))
+              }
+            >
+              <SelectTrigger id="draft-outreach-role-type">
+                <SelectValue placeholder="Unset" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNSET}>Unset</SelectItem>
+                {ROLE_TYPE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="draft-outreach-seniority">Seniority (optional)</Label>
+            <Select
+              value={seniority ?? UNSET}
+              onValueChange={(value) =>
+                setSeniority(value === UNSET ? undefined : (value as OutreachSeniority))
+              }
+            >
+              <SelectTrigger id="draft-outreach-seniority">
+                <SelectValue placeholder="Unset" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNSET}>Unset</SelectItem>
+                {SENIORITY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="space-y-2">
             <Label className="mb-1 block">Job description</Label>

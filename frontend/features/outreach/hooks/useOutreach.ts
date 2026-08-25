@@ -3,10 +3,25 @@ import {
   draftOutreach,
   editOutreachDraft,
   fetchOutreachMessages,
+  getCompanyTier,
   sendOutreach,
+  setCompanyTier,
 } from "@/src/lib/api-client";
-import type { OutreachMessageType } from "@/src/lib/types";
+import type {
+  OutreachCompanyTierValue,
+  OutreachMessageType,
+  OutreachRoleType,
+  OutreachSeniority,
+  OutreachStrategy,
+} from "@/src/lib/types";
 import { outreachKeys } from "../api/keys";
+
+// machine-2/03: company-tier query keys live alongside `outreachKeys` (not added
+// to `api/keys.ts` itself, since that file is out of this chunk's edit scope) but
+// follow the same `[...outreachKeys.all, ...]` nesting convention.
+const companyTierKeys = {
+  detail: (companyName: string) => [...outreachKeys.all, "companyTier", companyName] as const,
+};
 
 export function useOutreachMessages(options: { poll?: boolean } = {}) {
   return useQuery({
@@ -26,6 +41,10 @@ export type DraftOutreachPayload = {
   jobDescription?: string;
   messageType?: OutreachMessageType;
   customInstruction?: string;
+  strategy?: OutreachStrategy;
+  referralContext?: string;
+  roleType?: OutreachRoleType;
+  seniority?: OutreachSeniority;
 };
 
 export function useDraftOutreach() {
@@ -69,5 +88,36 @@ export function useSendOutreach() {
   return useMutation({
     mutationFn: (messageId: string) => sendOutreach(messageId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: outreachKeys.list() }),
+  });
+}
+
+/**
+ * machine-2/03: reads the recruiter's manually-set `EmployerCompanyTier` for a given
+ * employer, so it persists/pre-fills across every future draft to the same company
+ * (rather than re-asking per-draft). Disabled while `companyName` is empty — mirrors
+ * the guard other per-entity queries in this codebase use for an not-yet-known id.
+ */
+export function useCompanyTier(companyName: string | null | undefined) {
+  return useQuery({
+    queryKey: companyTierKeys.detail(companyName ?? ""),
+    queryFn: async () => (await getCompanyTier(companyName as string)).data,
+    enabled: Boolean(companyName && companyName.trim()),
+  });
+}
+
+export function useSetCompanyTier() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      companyName,
+      tier,
+      notes,
+    }: {
+      companyName: string;
+      tier: OutreachCompanyTierValue;
+      notes?: string;
+    }) => setCompanyTier(companyName, tier, notes),
+    onSuccess: (_data, variables) =>
+      queryClient.invalidateQueries({ queryKey: companyTierKeys.detail(variables.companyName) }),
   });
 }

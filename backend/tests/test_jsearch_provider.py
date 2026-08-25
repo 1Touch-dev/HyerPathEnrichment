@@ -481,3 +481,87 @@ async def test_fetch_skips_llm_optimization_when_jsearch() -> None:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ---------------------------------------------------------------------------
+# demand_intelligence (machine-2-parallel-tracks/02): public country_to_iso2
+# export (rename/alias) + India/Middle East coverage + JSearch "language" param.
+# ---------------------------------------------------------------------------
+
+
+def test_country_to_iso2_public_export_is_same_function_as_private_alias() -> None:
+    """`country_to_iso2` (new public export) and `_country_to_iso2` (existing
+    private name, still used by call sites/tests above) must be the exact same
+    callable -- a plain alias, not a re-implementation that could drift."""
+    from app.enrichers.jobspy import _country_to_iso2, country_to_iso2
+
+    assert country_to_iso2 is _country_to_iso2
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("Saudi Arabia", "sa"),
+        ("saudi arabia", "sa"),
+        ("Qatar", "qa"),
+        ("Israel", "il"),
+        ("Egypt", "eg"),
+        # Regression lock (already present before this chunk): must be unchanged.
+        ("India", "in"),
+        ("UAE", "ae"),
+        ("United Arab Emirates", "ae"),
+    ],
+)
+def test_country_to_iso2_india_middle_east_coverage(raw: str, expected: str) -> None:
+    from app.enrichers.jobspy import country_to_iso2
+
+    assert country_to_iso2(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "country,expected_language",
+    [
+        ("India", "en"),
+        ("UAE", "en"),
+        ("Saudi Arabia", "en"),
+        ("Qatar", "en"),
+        ("Israel", "en"),
+    ],
+)
+def test_scrape_jsearch_sets_non_empty_language_for_non_english_primary_markets(
+    country: str, expected_language: str
+) -> None:
+    """These markets are not English-primary generally, but JSearch-indexed
+    professional postings for them are predominantly English -- omitting/
+    defaulting "language" risks JSearch silently returning fewer-or-zero
+    results (a false-negative failure mode, not an HTTP error)."""
+    enricher = JobSpyEnricher()
+    settings = _jsearch_settings()
+    response = _mock_response(200, {"data": []})
+
+    with patch("app.enrichers.jobspy.get_settings", return_value=settings):
+        with patch("httpx.Client") as mock_client_cls:
+            mock_get = mock_client_cls.return_value.__enter__.return_value.get
+            mock_get.return_value = response
+            enricher._scrape_jsearch("Software Engineer", None, country, 15)
+
+    params = mock_get.call_args.kwargs["params"]
+    assert params.get("language") == expected_language
+
+
+def test_scrape_jsearch_omits_language_param_when_no_override_needed() -> None:
+    """For markets with no documented country/JSearch-default mismatch (e.g.
+    Germany), no explicit "language" override is sent -- JSearch's own
+    country-based default already applies."""
+    enricher = JobSpyEnricher()
+    settings = _jsearch_settings()
+    response = _mock_response(200, {"data": []})
+
+    with patch("app.enrichers.jobspy.get_settings", return_value=settings):
+        with patch("httpx.Client") as mock_client_cls:
+            mock_get = mock_client_cls.return_value.__enter__.return_value.get
+            mock_get.return_value = response
+            enricher._scrape_jsearch("Software Engineer", "Berlin", "Germany", 15)
+
+    params = mock_get.call_args.kwargs["params"]
+    assert "language" not in params

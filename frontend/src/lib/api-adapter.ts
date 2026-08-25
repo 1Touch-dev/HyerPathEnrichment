@@ -33,6 +33,9 @@ import {
   BackendAdminReviewQueueDetail,
   BackendAdminReviewQueueItem,
   BackendAdminReviewQueueListResponse,
+  BackendLinkedInSendBatch,
+  BackendLinkedInSendTask,
+  BackendLinkedInTaskListResponse,
   BackendModeratePortfolioRequest,
   CandidateDocumentDetail,
   CandidateJobPreferences,
@@ -63,6 +66,8 @@ import {
   JobMatchAnalytics,
   JobMatchListResponse,
   JobStatus,
+  LinkedInSendBatch,
+  LinkedInSendTask,
   ManualJobEntry,
   MfaEnrollResult,
   MfaStatus,
@@ -960,6 +965,41 @@ export function mapBackendAdminOutreachMessageList(
     items: raw.items.map(mapBackendAdminOutreachMessage),
     nextCursor: raw.next_cursor,
     hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendLinkedInSendTask(raw: BackendLinkedInSendTask): LinkedInSendTask {
+  return {
+    id: raw.id,
+    outreachMessageId: raw.outreach_message_id,
+    batchId: raw.batch_id,
+    linkedinProfileUrl: raw.linkedin_profile_url,
+    actionType: raw.action_type,
+    status: raw.status,
+    claimedBy: raw.claimed_by,
+    claimedAt: raw.claimed_at,
+    completedAt: raw.completed_at,
+    outcomeNote: raw.outcome_note,
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendLinkedInTaskList(
+  raw: BackendLinkedInTaskListResponse,
+): LinkedInSendTask[] {
+  return raw.tasks.map(mapBackendLinkedInSendTask);
+}
+
+export function mapBackendLinkedInSendBatch(raw: BackendLinkedInSendBatch): LinkedInSendBatch {
+  return {
+    id: raw.id,
+    triggeredBy: raw.triggered_by,
+    multiloginProfileId: raw.multilogin_profile_id,
+    status: raw.status,
+    maxSendsPerDay: raw.max_sends_per_day,
+    startedAt: raw.started_at,
+    completedAt: raw.completed_at,
+    createdAt: raw.created_at,
   };
 }
 

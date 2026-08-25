@@ -40,6 +40,14 @@ export {
   useAdminOutreachMessage,
   useModerateOutreachMessage,
 } from "./hooks/useOutreachModeration";
+export {
+  useLinkedInTasks,
+  useClaimLinkedInTask,
+  useCompleteLinkedInTask,
+  useSkipLinkedInTask,
+  useCreateLinkedInSendBatch,
+  useStartLinkedInSendBatch,
+} from "./hooks/useLinkedInSendTasks";
 export { UsersTable } from "./components/UsersTable";
 export { UserDetailDrawer } from "./components/UserDetailDrawer";
 export { RoleBadge } from "./components/RoleBadge";
@@ -57,4 +65,5 @@ export { JobPostingsModerationPanel } from "./components/JobPostingsModerationPa
 export { DocumentsModerationPanel } from "./components/DocumentsModerationPanel";
 export { PortfolioModerationPanel } from "./components/PortfolioModerationPanel";
 export { OutreachModerationPanel } from "./components/OutreachModerationPanel";
+export { LinkedInTasksPanel } from "./components/LinkedInTasksPanel";
 export { adminKeys } from "./api/keys";

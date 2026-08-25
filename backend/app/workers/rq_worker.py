@@ -9,7 +9,7 @@ from rq.worker import BaseWorker
 
 # Import ORM registry FIRST to register all models with SQLAlchemy
 import app.database.orm_registry  # noqa: F401
-from app.core.config import get_settings, validate_tier1_settings
+from app.core.config import get_settings, validate_outreach_settings, validate_tier1_settings
 from app.core.logging import configure_logging
 from app.observability.error_tracking import init_error_tracking
 from app.workers.queue import get_redis_connection
@@ -30,6 +30,8 @@ class _NoOpDeathPenalty(BaseDeathPenalty):
 def main() -> None:
     # Fail closed when Tier 1 is enabled without Multilogin/bot (and prod R2).
     validate_tier1_settings(get_settings())
+    # Fail closed when outreach is enabled without a CAN-SPAM-required physical address.
+    validate_outreach_settings(get_settings())
     # Logging before Sentry so LoggingIntegration can attach to the root logger.
     configure_logging()
     init_error_tracking()
