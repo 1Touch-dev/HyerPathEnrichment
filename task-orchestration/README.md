@@ -55,7 +55,7 @@ graph TD
   M1_03[m1 03 auth org id claim - superseded stub]
   M1_05[m1 05 staff invite flow]
   M1_04[m1 04 cors retrofit, per-brand domain]
-  M1_06[m1 06 outbound ip strategy - deferred decision record]
+  M1_06[m1 06 outbound ip strategy - resolved decision record]
 
   M2_00[m2 00 overview]
   M2_01[m2 01 progressive profiling fields]
@@ -74,6 +74,12 @@ graph TD
   PTF_01[ptf 01 billing stripe integration]
   PTF_02[ptf 02 brand landing pages]
   PTF_03[ptf 03 brand deactivation]
+
+  subgraph SIDE["Side initiatives - pending Abhishek/multiagentic-system scoping or MCP research, NOT part of main merge order"]
+    PTF_04[ptf 04 upsell and side tools initiative - idea list only]
+    PTF_05[ptf 05 freelance bidding system - idea list only]
+    PTF_06[ptf 06 mcp job board research - idea list only]
+  end
 
   M1_00 --> M1_01 --> M1_02 --> M1_05 --> M1_04
   M1_03 -.->|superseded stub, no code, not on critical path| M1_02
@@ -98,6 +104,15 @@ graph TD
   M2_08 -.->|conceptual only, no structural dependency| M2_09
   M2_06 -.->|leads feed 06's queue as input, no code dependency| M2_12
 ```
+
+**`SIDE` (the three `post-tenancy-features/04, 05, 06` chunks) is deliberately drawn with zero
+edges into or out of the rest of this graph.** These three are new, separate initiatives added on
+2026-08-25 (see "Confirmed by leadership" entries and "Open questions" below) — idea lists only,
+not implementation-ready chunks, not mixed into the main Machine 1/Machine 2 merge order at all.
+`04` and `05` are hard-blocked on a conversation with Abhishek (multiagentic-system integration)
+that has not happened yet; `06` is blocked on a dedicated MCP-server-availability research pass.
+None of the three should be dispatched to a developer subagent until their respective blocker is
+cleared and a real chunk spec exists — see each file's own header for detail.
 
 `machine-2-*` nodes have **no edges into `machine-1-*`** except where a chunk's own file states a
 real schema dependency — `08-recruiter-candidate-assignment.md` and
@@ -147,16 +162,19 @@ note named `10` without `10` ever actually depending on `02`). This mirrors the 
 `M2_02 --> M2_07` edge exactly — same function, same read-only import, same flag-gated/additive
 contract — applied to the resume-tailoring prompt instead of the outreach-drafting prompt.
 
-`M1_06` (`machine-1-tenancy-core/06-outbound-ip-strategy-deferred.md`) is a new chunk: an explicit
-decision record, not implementation work, resolving the "multiple outbound IPs" ambiguity from
-the original task brief as an intentional deferral rather than a silent gap. Its two dashed
-incoming edges are citation-only, not code dependencies — it reads `M2_05`'s "no real
-outreach-sending infrastructure exists yet" ground truth (for its interpretation (A), dedicated
-sending IPs) and `M1_04`'s `Brand.custom_domain`/CORS-resolution design (for its interpretation
-(B), per-brand hosting isolation, which it concludes is already fully handled by `M1_04`'s
-existing design). `M1_06` produces no code and blocks nothing else in this doc set — it exists
-purely so a future reader finds a reasoned "defer, here's why, here's the trigger to revisit"
-record instead of silence.
+`M1_06` (`machine-1-tenancy-core/06-outbound-ip-strategy-resolved.md`) is a chunk resolving an
+explicit decision: the "multiple outbound IPs" ambiguity from the original task brief. Its two
+dashed incoming edges are citation-only, not code dependencies — it reads `M2_05`'s "no real
+outreach-sending infrastructure exists yet" ground truth (for its interpretation (A), now
+resolved as Multilogin per-account IP diversity, already covered by
+`machine-2-parallel-tracks/12-linkedin-sourcing-intern-multilogin.md`) and `M1_04`'s
+`Brand.custom_domain`/CORS-resolution design (for its interpretation (B), per-brand hosting
+isolation — confirmed as wanted by leadership on 2026-08-24/25, but genuinely underspecified
+relative to `M1_04`'s existing shared-backend design; see that file and this README's "Open
+questions blocking further work" section, item 8). `M1_06` produces no code and blocks nothing
+else in this doc set — it exists purely so a future reader finds a reasoned resolution record
+instead of silence, and so the still-open "what does separate hosting per brand actually mean"
+question is tracked explicitly rather than assumed either way.
 
 `PTF_03` (brand deactivation) has **no edge to `PTF_01`** (billing) — this is a deliberate
 absence, not an oversight. The prior "org offboarding" design depended on billing for
@@ -206,9 +224,17 @@ owned candidates), so there is no billing interaction to sequence against at all
    injection" section only reads `M2_02`'s existing read function, no schema coupling; `12`
    depends only on the existing RBAC `require_permission` mechanism, seeding its own permission
    row directly if `04` hasn't landed yet). Both may be dispatched and merged whenever convenient.
-   `machine-1-tenancy-core/06-outbound-ip-strategy-deferred.md` is also independent of the `01 →
+   `machine-1-tenancy-core/06-outbound-ip-strategy-resolved.md` is also independent of the `01 →
    02 → 05 → 04` chain and of every other chunk's merge status — it is a documentation-only
    decision record with no code and no schema, so it can be merged at any time and blocks nothing.
+6. **Not part of this merge order at all, and not to be treated as ready for any of the steps
+   above:** `post-tenancy-features/04, 05, 06` (the "Side initiatives" grouping — see the
+   dependency graph's `SIDE` subgraph note). These three are idea-list-only documents, each
+   explicitly blocked on either the Abhishek/multiagentic-system conversation (`04`, `05`) or a
+   dedicated MCP-server-availability research pass (`06`), neither of which has happened as of
+   2026-08-25. Do not dispatch a developer subagent to any of the three, and do not fold them into
+   step 1-5's ordering, until their blocker clears and a real implementation-ready chunk spec is
+   written as a follow-up to these idea-list files.
 
 ## LinkedIn legal-risk chunks
 
@@ -228,7 +254,7 @@ framing as decoration; it is the load-bearing legal-risk mitigation for both chu
 | Track | Developer | Reviewer | Tester | Notes |
 |---|---|---|---|---|
 | `machine-1-tenancy-core` (`01`, `02`, `05`, `04`) | 1 developer subagent, sequential dispatch (chunk N waits for chunk N-1's schema to exist; order is `01→02→05→04`) | 1 reviewer subagent per chunk, gates progression to next chunk | 1 tester subagent after chunk `04`, full CORS+invite-flow test pass | `03` is a superseded stub — no subagent dispatch of any kind; it is not implemented |
-| `machine-1-tenancy-core/06` | No developer subagent — this chunk is a decision record, not code; the file itself is the deliverable | 1 reviewer subagent confirms the file is linked from this README's dependency graph/gap-tracking section and that no other chunk contradicts its deferral decision | No tester subagent — nothing to test, see this chunk's own "Verification" (a documentation checklist) | Independent of the `01→02→05→04` chain; may be dispatched/merged whenever convenient (see "Merge order" §5) |
+| `machine-1-tenancy-core/06` | No developer subagent — this chunk is a decision record, not code; the file itself is the deliverable | 1 reviewer subagent confirms the file is linked from this README's dependency graph/gap-tracking section and that no other chunk contradicts its resolution | No tester subagent — nothing to test, see this chunk's own "Verification" (a documentation checklist) | Independent of the `01→02→05→04` chain; may be dispatched/merged whenever convenient (see "Merge order" §5) |
 | `machine-2-parallel-tracks/01, 02, 04, 08` | 1 developer subagent per track, dispatched in parallel | 1 reviewer subagent per track | 1 tester subagent per track | Independent CV/profiling, JobSpy-country, RBAC, and recruiter-assignment domains, zero file overlap |
 | `machine-2-parallel-tracks/03 → 05 → 06` | 1 developer subagent, sequential within this sub-chain (`06` imports the schema `03` defines and the compliance primitives `05` defines) | 1 reviewer subagent per chunk — `06`'s reviewer must also confirm the human-in-the-loop design boundary (no LinkedIn network call/browser automation anywhere in the diff) | 1 tester subagent after `06` | This sub-chain is internally sequential even though the whole `machine-2` track is parallel to `machine-1` |
 | `machine-2-parallel-tracks/07` | 1 developer subagent, dispatched after `02` and `03` (code-import dependency, not a schema one — see "Merge order" §1) | 1 reviewer subagent, byte-identical-when-disabled regression check is release-blocking | 1 tester subagent | Small, additive prompt-context chunk — no new table, no new migration |
@@ -238,6 +264,8 @@ framing as decoration; it is the load-bearing legal-risk mitigation for both chu
 | `machine-2-parallel-tracks/12` | 1 developer subagent, fully independent (seeds its own permission row if `04` hasn't landed) | 1 reviewer subagent — **release-blocking**: must confirm zero network calls to `linkedin.com`/browser automation anywhere in the diff, identical bar to `06`'s reviewer | 1 tester subagent | Manual lead-entry form only; see "LinkedIn legal-risk chunks" above |
 | `post-tenancy-features/01, 02` | 1 developer subagent per track, dispatched after `machine-1-tenancy-core` merges, parallel to each other | 1 reviewer subagent per track — `01`'s reviewer additionally confirms the server-side (never UI-only) blur/teaser paywall requirement | 1 tester subagent per track | No hard gate beyond `Brand` existing — the old isolation-test gate no longer applies |
 | `post-tenancy-features/03` | 1 developer subagent, dispatched after `machine-1-tenancy-core` merges — **no** dependency on `01` | 1 reviewer subagent, confirms zero candidate/recruiter/document/job-match/outreach rows are touched by deactivation (regression-blocking) | 1 tester subagent | Reuses existing admin audit logging; no new tombstone table, no grace period, fully reversible |
+| **Side initiatives (pending Abhishek/multiagentic-system scoping)** — `post-tenancy-features/04, 05` | **No developer subagent dispatch of any kind** — both files are idea lists only, explicitly not ready for implementation | 1 reviewer subagent confirms each file stays scoping-level (no `Files to create`/`Files to edit`/migration plan/effort estimate accidentally added) and remains linked from this table | No tester subagent — nothing to test | Hard-blocked on a conversation with Abhishek that has not happened as of 2026-08-25; do not dispatch a developer subagent to either file until that conversation occurs and a real chunk spec is written as a result |
+| **Side initiatives (pending MCP research pass)** — `post-tenancy-features/06` | **No developer subagent dispatch** — idea + research-need flag only | 1 reviewer subagent confirms the file names no specific MCP vendor/server as already-confirmed and remains linked from this table | No tester subagent — nothing to test | Hard-blocked on a dedicated research pass into existing MCP server availability for major job boards/ATSs per region (not yet done); distinct blocker from `04`/`05`'s Abhishek-conversation block, grouped here for consistency as a non-core-platform track |
 
 ## Branch naming convention
 
@@ -253,6 +281,9 @@ framing as decoration; it is the load-bearing legal-risk mitigation for both chu
   long as each is reviewable independently)
 - `feat/billing-stripe`, `feat/brand-landing-pages`, `feat/brand-deactivation` —
   post-tenancy-features
+- No branch for `post-tenancy-features/04, 05, 06` (the "Side initiatives" grouping) — none of
+  the three is ready for implementation, so none needs a branch yet; a branch name will be picked
+  when a real chunk spec exists as a follow-up to each idea-list file.
 
 All branches target `master-complete-foundation` directly (this repo does not use a long-lived
 `develop` branch). Per the repo's git workflow rule, no branch listed here is merged by the
@@ -302,4 +333,94 @@ is the traceability index for anyone auditing the doc set later.
 | 15 | Brand landing pages (`post-tenancy-features/02`) had no tier/segment variant | Extended with `/b/{slug}/{tier}` sub-pages, backed by `Brand.landing_page_tier_config` |
 | 16 | `03-outreach-strategy-dimension.md` deferred wiring `EmployerCompanyTier` into the LLM drafting prompt, leaving a manual, human-set field with no actual effect on drafting output | `machine-2-parallel-tracks/03-outreach-strategy-dimension.md`'s new "Company-tier-driven drafting variation" section — flag-gated (`enable_company_tier_in_outreach_drafting`, default `False`), byte-identical-when-disabled, human-review-before-broad-enable rollout |
 | 17 | `02-country-demand-intelligence.md` named `10-resume-tailoring.md` as a "future consumer" of country-demand data, but `10`'s own dependency list never actually included `02` — a dangling promise | `machine-2-parallel-tracks/10-resume-tailoring.md`'s new "Demand-intelligence context injection" section (mirrors `07`'s `_demand_context_line` contract under a new `enable_demand_intelligence_in_resume_tailoring` flag) + `07-demand-intelligence-resume-integration.md`'s new cross-reference note pointing to it |
-| 18 | The original task brief's "multiple different ips displaying account info or updates" phrase was ambiguous and had no documented resolution anywhere in this doc set | `machine-1-tenancy-core/06-outbound-ip-strategy-deferred.md` (new chunk) — an explicit decision record resolving both plausible interpretations (dedicated sending IPs; per-brand hosting isolation) as deferred, with concrete trigger conditions and citations, rather than a silent gap |
+| 18 | The original task brief's "multiple different ips displaying account info or updates" phrase was ambiguous and had no documented resolution anywhere in this doc set | `machine-1-tenancy-core/06-outbound-ip-strategy-resolved.md` (new chunk, later renamed from `-deferred.md` once leadership directly answered the ambiguity — see "Confirmed by leadership" entries below) — an explicit decision record resolving both plausible interpretations (Multilogin per-account IP diversity; per-brand hosting isolation) with concrete citations |
+
+## Confirmed by leadership (2026-08-24/25)
+
+James (leadership) answered a decision list and a follow-up round of questions on 2026-08-24/25.
+The six items below were directly confirmed — each is recorded as a targeted addition to an
+existing file (quoting his actual words, not a paraphrase), not a rewrite. This section is the
+traceability index for that round, mirroring the "Gaps closed" table's style above.
+
+| # | Decision confirmed | James's words | Recorded in |
+|---|---|---|---|
+| 1 | Candidate-level freemium billing (pay for full access; non-paying get a blurred/teaser preview) | "All candidates must pay; or non paying can get preview with blurred info... idea is to hire us to access [full details]. Better partnerships = more placement recruiting work." | `post-tenancy-features/01-billing-stripe-integration.md`'s new "Confirmed by leadership" note |
+| 2 | Any recruiter can work any candidate — no single-owner restriction | "No [single recruiter]? Multiple approaches, broaden strategy." | `machine-2-parallel-tracks/08-recruiter-candidate-assignment.md`'s new "Confirmed by leadership" note |
+| 3 | `recruiter_action_mode` (autonomous vs. approval-required) is the candidate's own choice | "Approval should be option to user whether to apply autonomously or requiring approval." | `machine-2-parallel-tracks/09-recruiter-initiated-apply-and-suggest.md`'s new "Confirmed by leadership" note |
+| 4 | Tier 1/2/3 (by competition/volume) country-tier methodology confirmed as exactly right | "Agreed, but do keyword research into finding specific markets in those regions, and 2nd tier (more low competition) markets, (mid tier volume), 3rd tier (low and low competition and search volume = low hanging fruit)." | `machine-2-parallel-tracks/02-country-demand-intelligence.md`'s new "Confirmed by leadership" note |
+| 5 | LinkedIn send design changed to support both manual and human-triggered automated modes (informed risk-acceptance, not a silent decision) | Asked: "we're planning to use real staff doing it manually, not automated bots, because LinkedIn has a history of suing companies over automation... are you comfortable with that?" Answered: "Both automated and manual. (automated w manual triggers)." | `machine-2-parallel-tracks/06-linkedin-outreach-send.md`'s new "Confirmed by leadership — design change" section |
+| 6 | Outbound-IP ambiguity resolved (not deferred): Multilogin per-account IP diversity, and separate hosting per brand confirmed as wanted (though still underspecified) | "Multiple different ips, is to use multilogin in order to create multiple users." and "Separate hosting per brand will be important." | `machine-1-tenancy-core/06-outbound-ip-strategy-resolved.md` (renamed from `-deferred.md`), plus a cross-reference added to `machine-2-parallel-tracks/12-linkedin-sourcing-intern-multilogin.md` |
+
+## Open questions blocking further work (as of 2026-08-25)
+
+The 2026-08-24/25 leadership round answered the six items above directly, but also surfaced items
+that are still genuinely open — James's answers either didn't address them, or raised a new
+question of their own. **Do not guess at these.** Each is listed below in plain language, with a
+one-line note on which existing/new chunk it would affect once answered.
+
+1. **Top-priority open item.** James's own 4-interface list — "1. for Clients (Ai Placement
+   Agency). 2. Internal platform (with external Clients) - where we act as placement agency.
+   3. Apply to Freelancer jobs and projects. 4. Apply to actual jobs" — is ambiguous on Interface
+   #1. Does "for Clients (AI Placement Agency)" mean other businesses running their **own**
+   placement agency on top of this platform (i.e. real multi-tenant reselling — a paying business
+   customer, not just a candidate, would need its own isolated view), which would directly
+   contradict the single-operator/shared-pool pivot `machine-1-tenancy-core/00-overview.md` and
+   `docs/adr/0018-tenancy-model.md` are built on? Or does it mean something else (e.g. a candidate-
+   facing storefront framing, which the existing `Brand` model already covers)? **If the former,
+   this could require reworking Machine 1's entire tenancy model** (the `Brand`-is-presentation-
+   only, no-`org_id`, no-isolation-boundary decision) from its foundation. Affects: potentially
+   all of `machine-1-tenancy-core/`, and by extension every chunk that depends on its "one shared
+   pool" premise.
+2. **Chatbots: shared bot with per-brand branding, or genuinely separate bots?** James's answer
+   was just "Yeah" to a question that offered both readings — ambiguous, not a real confirmation
+   of either. Affects: `machine-2-parallel-tracks/11-per-brand-chatbot-config.md`, which currently
+   specs the "one shared `CvChatService`, brand-config-prefixed system prompt" reading; if
+   "genuinely separate bots doing different jobs" is what's meant, that chunk's entire design
+   (a single service extended with a config lookup) would need to change to something closer to
+   per-brand bot instances/configurations with materially different behavior, not just tone.
+3. **Resume tailoring: persist each generated version, or regenerate fresh with nothing saved?**
+   Not addressed by the 2026-08-24/25 round. Affects: `machine-2-parallel-tracks/10-resume-
+   tailoring.md`, which currently specs the ephemeral, RQ-result-TTL, "never persisted" design as
+   definitive (see that file's own "Ambiguities resolved" section) — if persistence is actually
+   wanted, that file's central architectural decision would need to be revisited, not just
+   extended.
+4. **Country/demand data: change the resume's actual content, or only the outreach message?**
+   Not addressed by the 2026-08-24/25 round. Affects: `machine-2-parallel-tracks/07-demand-
+   intelligence-resume-integration.md` (currently outreach-message-only, per that chunk's own
+   explicit scope) and `machine-2-parallel-tracks/10-resume-tailoring.md`'s "Demand-intelligence
+   context injection" section (which does inject into resume-tailoring text, but only as a light,
+   "if relevant" framing note, not a content-altering signal) — whether either should go further
+   and actually change resume content based on target-market demand is unresolved.
+5. **Company tier (high-end vs. outsourcing): manually labeled by a recruiter, or auto-detected?**
+   Not addressed by the 2026-08-24/25 round. Affects: `machine-2-parallel-tracks/03-outreach-
+   strategy-dimension.md`'s `EmployerCompanyTier`, which is currently specced as explicitly
+   manual/human-judgment-only (see that file's own docstring: "NOT auto-computed from any
+   enrichment/scraping signal") — if auto-detection is wanted instead or in addition, that is a
+   design change to that chunk, not an extension of it.
+6. **LinkedIn-sourced candidates (via interns/Multilogin): normal recruiter-candidate workflow,
+   or a separate process?** James's "System should work autonomously" answer was given somewhere
+   in the round, but it's unclear which question it was actually answering — it may not be
+   responsive to this question at all. Affects: `machine-2-parallel-tracks/12-linkedin-sourcing-
+   intern-multilogin.md`, which currently specs sourced leads as a distinct `SourcedCandidateLead`
+   queue a recruiter separately decides whether to act on (explicitly not auto-wired into any
+   other workflow — see that file's own "Ambiguities resolved" section) — whether that decoupling
+   is still the right model, or whether sourced leads should instead flow directly into the normal
+   recruiter-candidate assignment/outreach pipeline, is unresolved.
+7. **What does "account management platform" mean to James specifically?** Candidate accounts,
+   staff accounts, or something else entirely? Not addressed by the 2026-08-24/25 round, and no
+   existing chunk in this doc set claims to be "the account management platform" by that name —
+   this needs a direct clarifying question before any chunk can be scoped or retrofitted to answer
+   it. Affects: potentially `backend/app/auth/` (if candidate/staff account self-service is meant)
+   or `machine-2-parallel-tracks/04-rbac-admin-platform.md` (if staff/admin account management is
+   meant) — no chunk is assigned this scope today.
+8. **"Separate hosting per brand" — literal separate deployed instances, or is domain-based
+   routing on shared infrastructure still acceptable?** Cross-referenced from Part 1 item 6(B) and
+   `machine-1-tenancy-core/06-outbound-ip-strategy-resolved.md`'s own interpretation (B) section.
+   James confirmed "Separate hosting per brand will be important," but that statement alone does
+   not disambiguate between (a) the existing `Brand.custom_domain` + shared-backend CORS-routing
+   design (`machine-1-tenancy-core/02-schema-and-migration.md`,
+   `04-cors-and-ratelimit-retrofit.md`) already satisfying the intent, versus (b) a genuinely new,
+   non-trivial infrastructure requirement (separate deployed backend instances/containers per
+   brand). Affects: `machine-1-tenancy-core/02` and `04`'s existing shared-backend design remains
+   unmodified and in place until this is answered — see `06-outbound-ip-strategy-resolved.md` for
+   the full tension this creates.
