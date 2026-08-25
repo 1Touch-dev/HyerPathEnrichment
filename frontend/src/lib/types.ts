@@ -1032,6 +1032,30 @@ export type SwipeDirection = "left" | "right" | "up";
 // (phase2_module4_application_lifecycle_and_interview_prep.md §11.4/§11.7).
 export type OutreachMessageType = "email" | "linkedin" | "generic" | "custom";
 
+// machine-2/03 (outreach strategy dimension): the drafting *approach* — independent
+// of `OutreachMessageType`'s channel dimension above. Mirrors the backend's
+// `OutreachStrategy` literal (backend/app/modules/outreach/schemas.py).
+export type OutreachStrategy = "direct_pitch" | "value_first" | "curiosity" | "warm_referral";
+
+// machine-2/03: role-type/seniority are recruiter-supplied, optional drafting
+// adjustments, independent of `OutreachStrategy`/`OutreachMessageType` above.
+// Mirror the backend's `OutreachRoleType`/`OutreachSeniority` literals.
+export type OutreachRoleType = "technical" | "non_technical";
+export type OutreachSeniority = "junior" | "senior";
+
+// machine-2/03: manual, recruiter-set employer classification (NOT auto-computed —
+// see backend's `EmployerCompanyTier`). Persists across every future draft for the
+// same `companyName`.
+export type OutreachCompanyTierValue = "premium" | "outsourcing";
+
+/** Mirrors the backend's `CompanyTierResponse` (backend/app/modules/outreach/schemas.py). */
+export interface OutreachCompanyTier {
+  companyName: string;
+  tier: OutreachCompanyTierValue;
+  notes: string | null;
+  updatedAt: string;
+}
+
 export interface OutreachMessage {
   messageId: string;
   companyName: string;
