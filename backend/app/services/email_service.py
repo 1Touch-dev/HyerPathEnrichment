@@ -30,6 +30,8 @@ class EmailTemplate(str, Enum):
     PORTFOLIO_PUBLISHED = "portfolio_published"
     INTERVIEW_SCHEDULED = "interview_scheduled"
     INTERVIEW_REMINDER = "interview_reminder"
+    RECRUITER_ACTION_PENDING = "recruiter_action_pending"
+    ROLE_SUGGESTED = "role_suggested"
 
 
 class EmailService:
@@ -167,6 +169,8 @@ class EmailService:
             EmailTemplate.PORTFOLIO_PUBLISHED: self._render_portfolio_published,
             EmailTemplate.INTERVIEW_SCHEDULED: self._render_interview_scheduled,
             EmailTemplate.INTERVIEW_REMINDER: self._render_interview_reminder,
+            EmailTemplate.RECRUITER_ACTION_PENDING: self._render_recruiter_action_pending,
+            EmailTemplate.ROLE_SUGGESTED: self._render_role_suggested,
         }
 
         renderer = templates.get(template)
@@ -756,6 +760,99 @@ class EmailService:
 
         Download .ics: {ics_download_url}
         Add to Google Calendar: {google_calendar_link}
+
+        ---
+        Hyrepath Enrichment | support@hyrepath.com
+        """
+
+        return html, text, subject
+
+    def _render_recruiter_action_pending(self, ctx: dict[str, Any]) -> tuple[str, str, str]:
+        """Render notification that a recruiter has proposed an action (e.g. applying
+        on the candidate's behalf) pending the candidate's approval.
+
+        Uses `job_title`/`company` from ctx when available; falls back to a generic
+        message otherwise (see recruiter_actions/service.py's apply_for_candidate —
+        enriching this further would require extra queries not worth adding here).
+        """
+        first_name = ctx.get("first_name", "")
+        job_title = ctx.get("job_title")
+        company = ctx.get("company")
+
+        if job_title and company:
+            body = f"A recruiter has proposed applying to <strong>{job_title}</strong> at <strong>{company}</strong> on your behalf."
+            text_body = (
+                f"A recruiter has proposed applying to {job_title} at {company} on your behalf."
+            )
+        else:
+            body = "A recruiter has proposed an action on your behalf."
+            text_body = body
+
+        subject = "A recruiter has proposed an action for your review"
+
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2c3e50;">Action pending your review{", " + first_name if first_name else ""}</h2>
+            <p>{body}</p>
+            <p>Please review and approve or reject this action in your dashboard.</p>
+
+            <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+                Hyrepath Enrichment | support@hyrepath.com
+            </p>
+        </body>
+        </html>
+        """
+
+        text = f"""
+        Action pending your review{", " + first_name if first_name else ""}
+
+        {text_body}
+
+        Please review and approve or reject this action in your dashboard.
+
+        ---
+        Hyrepath Enrichment | support@hyrepath.com
+        """
+
+        return html, text, subject
+
+    def _render_role_suggested(self, ctx: dict[str, Any]) -> tuple[str, str, str]:
+        """Render notification that a recruiter has suggested a role for the
+        candidate to review (see recruiter_actions/service.py's suggest_role)."""
+        first_name = ctx.get("first_name", "")
+        job_title = ctx.get("job_title")
+        company = ctx.get("company")
+
+        if job_title and company:
+            body = f"A recruiter has suggested <strong>{job_title}</strong> at <strong>{company}</strong> for you to review."
+            text_body = f"A recruiter has suggested {job_title} at {company} for you to review."
+        else:
+            body = "A recruiter has suggested a role for you to review."
+            text_body = body
+
+        subject = "A recruiter has suggested a role for you"
+
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2c3e50;">New role suggestion{", " + first_name if first_name else ""}</h2>
+            <p>{body}</p>
+            <p>Please review this suggestion in your dashboard.</p>
+
+            <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+                Hyrepath Enrichment | support@hyrepath.com
+            </p>
+        </body>
+        </html>
+        """
+
+        text = f"""
+        New role suggestion{", " + first_name if first_name else ""}
+
+        {text_body}
+
+        Please review this suggestion in your dashboard.
 
         ---
         Hyrepath Enrichment | support@hyrepath.com

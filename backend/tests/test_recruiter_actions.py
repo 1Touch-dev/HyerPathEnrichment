@@ -12,6 +12,7 @@ instance at import time.
 from __future__ import annotations
 
 from typing import Any
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -420,6 +421,102 @@ async def test_respond_to_suggestion_accept(
     )
     data = assert_success(response)
     assert data["status"] == "accepted"
+
+
+# ---------------------------------------------------------------------------
+# Email notifications (Track 09: RECRUITER_ACTION_PENDING / ROLE_SUGGESTED)
+# ---------------------------------------------------------------------------
+
+
+def _mock_enqueue_email():
+    """Patch `enqueue_email` at its source module `app.workers.queue`.
+
+    `recruiter_actions/service.py`'s `_notify_candidate_email` does
+    `from app.workers.queue import enqueue_email` *inside* the function body,
+    same pattern as `test_job_matching_worker.py`'s `_mock_enqueue_email` — so
+    patching the source attribute (rather than any already-imported reference)
+    is what actually gets picked up.
+    """
+    return patch("app.workers.queue.enqueue_email")
+
+
+async def test_apply_approval_required_sends_recruiter_action_pending_email(
+    client: TestClient, db: AsyncSession, candidate_approval_required: User, recruiter: User
+) -> None:
+    match = await _make_job_match(db, candidate_approval_required)
+
+    with _mock_enqueue_email() as mock_enqueue:
+        response = client.post(
+            "/api/recruiter-actions/apply",
+            headers=_auth_headers(str(recruiter.id)),
+            json={
+                "candidate_user_id": str(candidate_approval_required.id),
+                "job_match_id": str(match.id),
+            },
+        )
+    assert_success(response)
+
+    mock_enqueue.assert_called_once()
+    _, kwargs = mock_enqueue.call_args
+    assert kwargs["template"] == "recruiter_action_pending"
+    assert kwargs["recipient"] == candidate_approval_required.email
+
+
+async def test_suggest_role_sends_role_suggested_email(
+    client: TestClient, db: AsyncSession, recruiter: User
+) -> None:
+    candidate = await _make_user(db)
+    match = await _make_job_match(db, candidate)
+
+    with _mock_enqueue_email() as mock_enqueue:
+        response = client.post(
+            "/api/recruiter-actions/suggest",
+            headers=_auth_headers(str(recruiter.id)),
+            json={"candidate_user_id": str(candidate.id), "job_match_id": str(match.id)},
+        )
+    assert_success(response)
+
+    mock_enqueue.assert_called_once()
+    _, kwargs = mock_enqueue.call_args
+    assert kwargs["template"] == "role_suggested"
+    assert kwargs["recipient"] == candidate.email
+
+
+async def test_apply_approval_required_survives_enqueue_email_failure(
+    client: TestClient, db: AsyncSession, candidate_approval_required: User, recruiter: User
+) -> None:
+    """Fail-soft: an `enqueue_email` failure must not break the apply flow,
+    mirroring `_notify_candidate_push`'s existing fail-soft convention."""
+    match = await _make_job_match(db, candidate_approval_required)
+
+    with patch("app.workers.queue.enqueue_email", side_effect=RuntimeError("boom")):
+        response = client.post(
+            "/api/recruiter-actions/apply",
+            headers=_auth_headers(str(recruiter.id)),
+            json={
+                "candidate_user_id": str(candidate_approval_required.id),
+                "job_match_id": str(match.id),
+            },
+        )
+    data = assert_success(response)
+    assert data["mode"] == "approval_required"
+    assert data["status"] == "pending"
+
+
+async def test_suggest_role_survives_enqueue_email_failure(
+    client: TestClient, db: AsyncSession, recruiter: User
+) -> None:
+    candidate = await _make_user(db)
+    match = await _make_job_match(db, candidate)
+
+    with patch("app.workers.queue.enqueue_email", side_effect=RuntimeError("boom")):
+        response = client.post(
+            "/api/recruiter-actions/suggest",
+            headers=_auth_headers(str(recruiter.id)),
+            json={"candidate_user_id": str(candidate.id), "job_match_id": str(match.id)},
+        )
+    data = assert_success(response)
+    assert data["status"] == "pending"
 
 
 # ---------------------------------------------------------------------------

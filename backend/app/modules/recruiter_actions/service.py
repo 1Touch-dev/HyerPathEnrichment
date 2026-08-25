@@ -81,13 +81,9 @@ async def _notify_candidate_push(
     push-subscription plumbing (fail-soft, never raises — mirrors
     interview_scheduling/service.py's _send_scheduled_notification convention).
 
-    Deviation from spec: the spec additionally suggests adding new
-    EmailTemplate members (RECRUITER_ACTION_PENDING, ROLE_SUGGESTED) to
-    app/services/email_service.py. That file is outside this track's
-    explicitly enumerated file scope (shared with no other track in this
-    batch, but not listed as editable here), so only the push-notification
-    half of "reuse existing notification plumbing" is implemented. This does
-    not affect any release-blocking acceptance criterion for this track.
+    Both push and email notifications are sent for these events — see
+    `_notify_candidate_email` below for the email half, dispatched via the
+    same `enqueue_email` convention job_matching.py uses for its digest email.
     """
     try:
         subs = await list_subscriptions_for_user(db, candidate.id)
@@ -95,6 +91,21 @@ async def _notify_candidate_push(
             await push.send_push_notification(sub, payload)
     except Exception:
         logger.warning("recruiter_actions: push notification failed", exc_info=True)
+
+
+def _notify_candidate_email(template: str, candidate: User, context: dict[str, Any]) -> None:
+    """Best-effort email notification, fail-soft like `_notify_candidate_push`
+    above — an email-send failure must never break the apply/suggest flow.
+    Dispatched via `enqueue_email`, the same async-dispatch convention
+    job_matching.py's `_send_match_digest_async` uses for candidate-facing
+    notification emails.
+    """
+    try:
+        from app.workers.queue import enqueue_email
+
+        enqueue_email(template=template, recipient=candidate.email, context=context)
+    except Exception:
+        logger.warning("recruiter_actions: email notification failed", exc_info=True)
 
 
 def _to_pending_response(action: PendingRecruiterAction) -> PendingActionResponse:
@@ -155,6 +166,15 @@ async def apply_for_candidate(
         candidate,
         {
             "event": "recruiter_action_pending",
+            "pending_action_id": str(pending.id),
+            "job_match_id": str(job_match.id),
+        },
+    )
+    _notify_candidate_email(
+        "recruiter_action_pending",
+        candidate,
+        {
+            "first_name": candidate.first_name,
             "pending_action_id": str(pending.id),
             "job_match_id": str(job_match.id),
         },
@@ -259,6 +279,15 @@ async def suggest_role(
         candidate,
         {
             "event": "role_suggested",
+            "suggestion_id": str(suggestion.id),
+            "job_match_id": str(job_match.id),
+        },
+    )
+    _notify_candidate_email(
+        "role_suggested",
+        candidate,
+        {
+            "first_name": candidate.first_name,
             "suggestion_id": str(suggestion.id),
             "job_match_id": str(job_match.id),
         },
