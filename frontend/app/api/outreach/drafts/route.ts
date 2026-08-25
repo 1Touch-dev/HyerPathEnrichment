@@ -18,6 +18,11 @@ export const dynamic = "force-dynamic";
  * `custom_instruction` (required by the service layer when `message_type === "custom"`,
  * validated backend-side, not here) were added to the same request schema.
  *
+ * machine-2/03: `strategy` (default `"direct_pitch"`), `referral_context` (required by
+ * the service layer when `strategy === "warm_referral"`, validated backend-side),
+ * `role_type`, and `seniority` were added to the same request schema — mirroring the
+ * `message_type`/`custom_instruction` conditional-requirement pattern above.
+ *
  * Drafting is async (OutreachService.request_draft enqueues an RQ job and returns
  * `{rq_job_id, message}` immediately — the draft itself appears later via `GET /api/outreach`
  * once the worker finishes), so there is no `OutreachMessage` to adapt here.
@@ -44,6 +49,10 @@ export async function POST(request: NextRequest) {
         job_match_id: body.jobMatchId ?? null,
         message_type: body.messageType ?? "email",
         custom_instruction: body.customInstruction ?? null,
+        strategy: body.strategy ?? "direct_pitch",
+        referral_context: body.referralContext ?? null,
+        role_type: body.roleType ?? null,
+        seniority: body.seniority ?? null,
       }),
     });
   } catch {
