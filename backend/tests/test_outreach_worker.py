@@ -6,6 +6,7 @@ tests/test_error_tracking.py's `test_worker_path_captures_and_reraises`.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,10 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.core.config import get_settings
+from app.database.session import SessionLocal
 from app.domain.candidate import CVData
 from app.modules.admin.ai_supervision_models import AiActionAuditLog
 from app.modules.documents.models import CandidateDocument
-from app.modules.outreach.models import OutreachMessage
+from app.modules.outreach.models import EmployerCompanyTier, OutreachMessage
 from app.workers.tasks.outreach import (
     _COMPANY_TIER_INSTRUCTIONS,
     _COMPANY_TIER_JSON_SCHEMA,
@@ -1474,3 +1476,145 @@ async def test_draft_with_llm_user_content_byte_identical_when_flag_off(
         f"{_STRATEGY_INSTRUCTIONS['direct_pitch']}"
     )
     assert user_message == expected_user_content
+
+
+# --- Issue #4: cross-recruiter race on lazy company-tier classification ---
+
+
+class _RaceLockRedis:
+    """Minimal shared-state stand-in for the SET NX EX lock primitive used by
+    both OutreachService.request_draft (service.py) and
+    _classify_and_persist_company_tier (outreach.py). A plain dict is enough
+    here since asyncio only ever interleaves at real `await` points, never
+    truly in parallel."""
+
+    def __init__(self) -> None:
+        self._locks: dict[str, str] = {}
+
+    def set(self, key: str, value: str, nx: bool = False, ex: int | None = None) -> bool | None:
+        if nx and key in self._locks:
+            return None
+        self._locks[key] = value
+        return True
+
+    def delete(self, *keys: str) -> int:
+        removed = 0
+        for key in keys:
+            if self._locks.pop(key, None) is not None:
+                removed += 1
+        return removed
+
+
+async def test_classify_and_persist_company_tier_concurrent_calls_create_one_row(
+    db: AsyncSession,
+) -> None:
+    """Issue #4 regression, exercised directly against the new locked helper
+    (more deterministic than racing the full worker job through SQLite, whose
+    own file-level locking otherwise masks the very TOCTOU window this lock
+    exists to close).
+
+    Explicit interleaving (not two purely sequential calls that never
+    contend): the waiter coroutine is only released to start once the lock
+    holder coroutine has *already* acquired the lock and is confirmed
+    mid-classification (via an asyncio.Event set from inside the mocked
+    classify_company_tier) -- so the waiter's own lock attempt is guaranteed
+    to genuinely fail and fall into the poll loop, not race harmlessly before
+    the holder ever touches the lock.
+    """
+    from app.workers.tasks.outreach import _classify_and_persist_company_tier
+
+    shared_redis = _RaceLockRedis()
+    holder_acquired = asyncio.Event()
+    classify_calls: list[str] = []
+
+    async def _slow_classify(name: str, context: str) -> str:
+        classify_calls.append(name)
+        holder_acquired.set()
+        await asyncio.sleep(0.05)
+        return "premium"
+
+    company_name = f"RaceCo-{uuid4().hex[:8]}"
+
+    async def _holder() -> EmployerCompanyTier:
+        async with SessionLocal() as session:
+            with patch(
+                "app.workers.tasks.outreach.get_redis_connection", return_value=shared_redis
+            ):
+                with patch("app.workers.tasks.outreach.classify_company_tier", new=_slow_classify):
+                    return await _classify_and_persist_company_tier(
+                        session, company_name, "A tiny staffing shop."
+                    )
+
+    async def _waiter() -> EmployerCompanyTier:
+        await holder_acquired.wait()  # only start once the holder genuinely owns the lock
+        async with SessionLocal() as session:
+            with patch(
+                "app.workers.tasks.outreach.get_redis_connection", return_value=shared_redis
+            ):
+                with patch("app.workers.tasks.outreach.classify_company_tier", new=_slow_classify):
+                    return await _classify_and_persist_company_tier(
+                        session, company_name, "A tiny staffing shop."
+                    )
+
+    holder_result, waiter_result = await asyncio.gather(_holder(), _waiter())
+
+    # Both calls complete without raising (asserted implicitly by gather not
+    # propagating an exception) and both resolve to the SAME persisted row.
+    assert holder_result.tier == "premium"
+    assert waiter_result.id == holder_result.id
+
+    # Only the lock holder actually ran the classifier -- the waiter's poll
+    # loop found the holder's committed row and reused it, proving the lock
+    # (not luck) is what prevented a duplicate insert.
+    assert classify_calls == [company_name]
+
+    # Lock must not be left held after the holder releases it.
+    assert shared_redis._locks == {}
+
+    async with SessionLocal() as verify_session:
+        all_rows = await verify_session.execute(
+            select(EmployerCompanyTier).where(EmployerCompanyTier.company_name == company_name)
+        )
+        assert len(all_rows.scalars().all()) == 1
+
+
+async def test_classify_and_persist_company_tier_falls_back_to_classifying_locally_on_timeout(
+    db: AsyncSession,
+) -> None:
+    """Bounded-wait fallback: if the lock is held (e.g. the original holder
+    crashed) and never releases within the poll budget, the waiter must NOT
+    block indefinitely -- it falls back to classifying locally itself."""
+    from app.workers.tasks.outreach import (
+        _COMPANY_TIER_LOCK_POLL_INTERVAL_SECONDS,
+        _classify_and_persist_company_tier,
+    )
+
+    shared_redis = _RaceLockRedis()
+    company_name = f"StaleCo-{uuid4().hex[:8]}"
+    # Simulate a lock that is held by a (crashed) other worker and never released.
+    lock_key = f"company-tier-classify-lock:{company_name.strip().lower()}"
+    shared_redis._locks[lock_key] = "1"
+
+    with (
+        patch("app.workers.tasks.outreach.get_redis_connection", return_value=shared_redis),
+        patch(
+            "app.workers.tasks.outreach.classify_company_tier",
+            new=AsyncMock(return_value="outsourcing"),
+        ) as mock_classify,
+        patch("app.workers.tasks.outreach.asyncio.sleep", new=AsyncMock()),
+    ):
+        result = await _classify_and_persist_company_tier(db, company_name, "context")
+
+    mock_classify.assert_awaited_once_with(company_name, "context")
+    assert result.tier == "outsourcing"
+
+    persisted = await db.execute(
+        select(EmployerCompanyTier).where(EmployerCompanyTier.company_name == company_name)
+    )
+    assert len(persisted.scalars().all()) == 1
+    # The stale lock is left in place (this caller never held it, only the
+    # original -- now-gone -- holder could release it, or it expires via its
+    # own TTL); irrelevant to _COMPANY_TIER_LOCK_POLL_INTERVAL_SECONDS import
+    # above other than confirming the constant this test's docstring refers
+    # to actually exists and is imported from the real module.
+    assert _COMPANY_TIER_LOCK_POLL_INTERVAL_SECONDS > 0
