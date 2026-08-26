@@ -98,6 +98,32 @@ planning doc set was built from:
    active brands' custom domains, exactly as before, just keyed off `Brand.custom_domain` instead
    of `Organization.custom_origin`.
 
+### Confirmed by leadership (2026-08-26)
+
+James was asked directly whether interface #1 of his original 4-interface list ("for Clients —
+AI Placement Agency") meant other businesses running their own isolated placement agency on top
+of this platform (real multi-tenant reselling — a paying business customer with its own staff,
+users, clients, private candidate pool, branding, complete isolation, etc., which would directly
+contradict the Decision section above), or a candidate-facing storefront framing the existing
+`Brand` model already covers. His answer, quoted verbatim: **"No one should be able to run there
+own staff users clients private candidate pool branding complete isolations etc — #1 refers to
+the candidate facing user panel."** He also clarified interfaces #1/#2 are both candidate-facing
+panels where AI does the placement — one for real jobs, one for freelance work: **"User has panel
+that is client facing. Ai does placement on user panel for real job"** / **"user panel client
+facing with ai being placement agency's, focusing on freelancers."**
+
+This directly confirms the Decision section below — `Brand` as a presentation-only concept, no
+per-agency tenant, no `org_id`/isolation boundary, one shared candidate/recruiter pool — is
+correct as designed. **No rework of this ADR's Decision results from this answer.** The actual
+ADR document created from this spec (`docs/adr/0018-tenancy-model.md`, or whatever number it
+lands as) must include this confirmation note, verbatim-quoted, near its own Decision section —
+not just in this planning file. See `task-orchestration/README.md`'s "Confirmed by leadership"
+section (item 7) for the traceability-index entry, and that same file's cross-reference note
+tying interfaces #1/#2 to `post-tenancy-features/05-freelance-bidding-system.md` (freelance
+track) and to Machine 2's existing recruiter-apply/resume-tailoring chunks (`09`/`10` — the "real
+jobs" placement workflow) — neither interface requires new architecture beyond what this ADR and
+those chunks already spec.
+
 ### Tradeoffs section must include (at minimum)
 
 - Rejecting row-level brand/org filtering means this ADR is making a hard, explicit product bet:
@@ -134,9 +160,10 @@ existing row format:
 ```
 
 (Adjust the ADR number/filename/date if step "Naming" above found a different next-free number
-at implementation time. Status starts as `Accepted` per this planning doc set's intent — this
-is a settled decision for the effort, not a still-open discussion — but the implementer/reviewer
-may downgrade it to `Proposed` if genuinely still under debate at implementation time.)
+at implementation time. Status is `Accepted` — **confirmed, not provisional**: leadership
+directly confirmed this ADR's core premise on 2026-08-26 (see the "Confirmed by leadership"
+subsection above, quoting James's answer verbatim), so there is no live debate for a reviewer to
+downgrade this against. Do not downgrade to `Proposed`.)
 
 ## Verification
 
