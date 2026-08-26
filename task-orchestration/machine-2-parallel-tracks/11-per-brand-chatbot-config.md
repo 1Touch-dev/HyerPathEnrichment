@@ -31,6 +31,43 @@ untouched) or *which* fields it can write back (`_apply_field_value`'s field-nam
 untouched). It only changes the system prompt's brand-voice framing and, optionally, a
 brand-specific greeting/tone instruction layered on top of the existing per-field system prompt.
 
+### Confirmed by leadership (2026-08-26)
+
+James described what the chatbot should *do* (function), not how it should be structured. His
+answer, quoted verbatim: **"questions to employee [candidate], help evaluate cv, improve cv, ask
+questions about job interests salary experience etc, ask about potential interesting jobs or
+opportunities, ask what we can automate applying to."**
+
+**This doesn't require new capability — it confirms existing chunks already answer what he
+wants functionally:**
+
+- "Questions to [candidate], ask questions about job interests salary experience etc" —
+  `machine-2-parallel-tracks/01-progressive-profiling-fields.md`'s intake flow (the required-
+  fields chat plus its `interests`/`learning_style`/`prep_timeline_weeks` progressive-profiling
+  extension) already asks exactly this, via the existing `CvChatService` question flow this
+  chunk (`11`) extends.
+- "Help evaluate cv, improve cv" — the same `01`'s chatbot flow, plus the existing CV-completeness
+  scoring/feedback machinery (`cv_completeness.py`) this codebase already has, are the evaluation/
+  improvement mechanism; this chunk does not add a second one.
+- "Ask about potential interesting jobs or opportunities" and "ask what we can automate applying
+  to" — the "what can we automate" consent question is
+  `machine-2-parallel-tracks/09-recruiter-initiated-apply-and-suggest.md`'s
+  `users.recruiter_action_mode` preference (`"autonomous"` vs. `"approval_required"`) — a
+  candidate's own explicit choice of how much the platform can automate on their behalf.
+  "Potential interesting jobs" is the existing `JobMatch` surfacing pipeline (algorithmic) plus
+  `09`'s "suggest role to candidate" (recruiter-curated) — both pre-existing, not new scope this
+  chunk needs to build.
+
+**This chunk (`11`) only governs branding/tone on top of that shared capability set.** Nothing in
+James's answer asks for a materially different per-brand *capability* — it describes what the
+chatbot should be capable of in general, and every capability named is already covered elsewhere
+in this doc set. This confirms (does not change) `11`'s own scope as speced below: system-prompt
+brand-voice framing only, layered on top of the *same* underlying question flow/capabilities every
+brand shares. See `task-orchestration/README.md`'s "Open questions" entry on the separate
+(still-not-fully-closed) *structural* question — shared bot vs. genuinely separate bot instances —
+for why this functional confirmation does not, by itself, resolve that structural question, even
+though it makes a "separate bots doing different jobs" reading less likely.
+
 ## Files to create
 
 - `backend/alembic/versions/052_brand_chatbot_config.py` (verify real next number — third new
