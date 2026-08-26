@@ -85,6 +85,16 @@ CompanyTier = Literal["premium", "outsourcing"]
 
 
 class SetCompanyTierRequest(BaseModel):
+    """``notes`` intentionally stays a plain ``str | None`` field rather than a
+    custom sentinel wrapper type. Pydantic v2 already tracks, per-instance,
+    which fields were actually present in the parsed request body via
+    ``model_fields_set`` — the router's ``set_company_tier`` endpoint checks
+    ``"notes" in body.model_fields_set`` to distinguish "the client omitted
+    ``notes`` entirely" (leave any existing note untouched) from "the client
+    explicitly sent ``notes: null``/an empty string" (clear/overwrite it).
+    Reusing that native mechanism avoids inventing a parallel sentinel type
+    just for this one optional field."""
+
     company_name: str = Field(..., min_length=1, max_length=255)
     tier: CompanyTier
     notes: str | None = Field(default=None)

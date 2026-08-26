@@ -58,6 +58,7 @@ async def set_company_tier(
     set_by: Literal["llm", "recruiter"],
     set_by_user_id: UUID | None,
     notes: str | None,
+    update_notes: bool = True,
 ) -> EmployerCompanyTier:
     """Upsert by ``company_name`` — a recruiter re-setting an existing employer's
     tier overwrites the previous value/set_by/set_by_user_id/updated_at rather
@@ -68,13 +69,22 @@ async def set_company_tier(
     classifier run) is enforced one layer up, in the classifier's own
     write-path (see ``apply_classified_company_tier`` in ``service.py``), not
     here, since a recruiter's own explicit call to this function must still be
-    able to overwrite anything, including their own prior value."""
+    able to overwrite anything, including their own prior value.
+
+    ``update_notes`` defaults to ``True`` for backwards-compatible callers.
+    When ``False``, the update branch below leaves ``existing.notes``
+    untouched regardless of what was passed in ``notes`` — this is how the
+    router's sentinel handling (see ``SetCompanyTierRequest`` in
+    ``schemas.py``) implements "field omitted from the request body" without
+    clobbering a previously-saved note. The insert branch always uses
+    ``notes`` as given (a brand-new row has no existing note to preserve)."""
     existing = await get_company_tier(db, company_name)
     if existing is not None:
         existing.tier = tier
         existing.set_by = set_by
         existing.set_by_user_id = set_by_user_id
-        existing.notes = notes
+        if update_notes:
+            existing.notes = notes
         existing.updated_at = datetime.now(UTC)
         await db.commit()
         await db.refresh(existing)

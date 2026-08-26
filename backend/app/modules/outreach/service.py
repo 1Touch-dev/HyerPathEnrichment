@@ -267,13 +267,19 @@ class OutreachService:
         tier: str,
         set_by_user_id: UUID,
         notes: str | None,
+        update_notes: bool = True,
     ) -> EmployerCompanyTier:
         """Recruiter-override write path (PUT /company-tier). Always writes
         set_by="recruiter" and always overwrites unconditionally, regardless of
         the row's current set_by — the override-preservation rule only protects
         a recruiter's value from the classifier (see
         apply_classified_company_tier below), never from the recruiter
-        themselves."""
+        themselves.
+
+        ``update_notes`` (default ``True``) threads through to
+        ``repository.set_company_tier`` — the router passes ``False`` when the
+        request body omitted ``notes`` entirely (per ``model_fields_set``), so
+        a tier-only PUT never silently clears an existing note."""
         return await set_company_tier(
             self.db,
             company_name=company_name,
@@ -281,6 +287,7 @@ class OutreachService:
             set_by="recruiter",
             set_by_user_id=set_by_user_id,
             notes=notes,
+            update_notes=update_notes,
         )
 
 
@@ -300,6 +307,15 @@ async def apply_classified_company_tier(
     ``OutreachService`` method, since the worker task that calls it constructs
     its own bare ``AsyncSession`` (see ``_generate_outreach_draft_job``) rather
     than an ``OutreachService`` instance.
+
+    Passes ``notes=None, update_notes=False`` — the classifier never has an
+    opinion about ``notes`` (it only ever writes ``tier``), so this write-path
+    must never clear a recruiter's existing note either. This closes the same
+    latent-bug family as the recruiter PUT sentinel fix above: without
+    ``update_notes=False`` here, a classifier run against a company that
+    already has an LLM-set row (no recruiter override yet, so the early-return
+    above doesn't apply) would silently null out any note a recruiter had
+    added in the meantime via a tier-only PUT.
     """
     existing = await get_company_tier(db, company_name)
     if existing is not None and existing.set_by == "recruiter":
@@ -311,4 +327,5 @@ async def apply_classified_company_tier(
         set_by="llm",
         set_by_user_id=None,
         notes=None,
+        update_notes=False,
     )
