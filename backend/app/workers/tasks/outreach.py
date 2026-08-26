@@ -19,6 +19,7 @@ from app.core.config import Settings, get_settings
 from app.database.session import SessionLocal, engine
 from app.domain.candidate import CVData
 from app.infrastructure.redis import close_redis
+from app.modules.admin.ai_supervision_service import record_ai_action
 from app.modules.admin.moderation_flagging import flag_if_needed
 from app.modules.demand_intelligence.service import get_top_countries_for_role
 from app.modules.documents.models import CandidateDocument
@@ -370,6 +371,14 @@ async def _generate_outreach_draft_job(
             )
             session.add(message)
             await session.commit()
+
+            await record_ai_action(
+                session,
+                action_type="outreach_draft",
+                candidate_user_id=UUID(user_id),
+                related_id=message.id,
+                summary=f"Outreach draft generated for {company_name}",
+            )
 
             outreach_drafts_by_type_total.labels(message_type=message_type).inc()
 

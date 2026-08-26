@@ -27,6 +27,7 @@ from app.core.config import Settings, get_settings
 from app.database.session import SessionLocal, engine
 from app.domain.candidate import CVData
 from app.infrastructure.redis import close_redis
+from app.modules.admin.ai_supervision_service import record_ai_action
 from app.modules.documents.models import CandidateDocument
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,17 @@ async def _tailor_resume_job(
                 cv_data, target_company, target_role, context["summary"], settings, session
             )
             tailored["research_degraded"] = context["source"] != "perplexity"
+
+            # Metadata-only audit row -- never the tailored content itself (the
+            # `TailoredResume` result is ephemeral-only per this track's design;
+            # see this module's own docstring).
+            await record_ai_action(
+                session,
+                action_type="resume_tailoring",
+                candidate_user_id=UUID(user_id),
+                related_id=None,
+                summary=f"target_company={target_company}, target_role={target_role}",
+            )
             return tailored
     finally:
         await close_redis()

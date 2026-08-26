@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import User
 from app.core.config import get_settings
 from app.domain.candidate import CVData
+from app.modules.admin.ai_supervision_models import AiActionAuditLog
 from app.modules.documents.models import CandidateDocument
 from app.modules.outreach.models import OutreachMessage
 from app.workers.tasks.outreach import (
@@ -218,6 +219,51 @@ async def test_generate_outreach_draft_job_flag_if_needed_failure_does_not_break
     message = result.scalar_one()
     assert message.status == "draft"
     assert message.subject == "Interested in Acme"
+
+
+async def test_generate_outreach_draft_job_records_ai_action_audit_row(
+    db: AsyncSession, worker_user: User, worker_document: CandidateDocument
+) -> None:
+    """After the OutreachMessage is committed, record_ai_action() must be
+    called with action_type='outreach_draft' and related_id=message.id --
+    verified here by querying the ai_action_audit_log table for the row it
+    should have written (mirrors this file's existing db-query convention)."""
+    with (
+        _patched_worker_session(db),
+        patch("app.workers.tasks.outreach.close_redis", new=AsyncMock()),
+        patch("app.workers.tasks.outreach.engine") as mock_engine,
+        patch(
+            "app.workers.tasks.outreach.PerplexityClient.get_company_context",
+            new=AsyncMock(
+                return_value={
+                    "summary": "Acme builds widgets",
+                    "source": "perplexity",
+                    "citations": [],
+                }
+            ),
+        ),
+        patch(
+            "app.workers.tasks.outreach._draft_with_llm",
+            new=AsyncMock(return_value=("Interested in Acme", "Hello, I would love to join Acme.")),
+        ),
+    ):
+        mock_engine.dispose = AsyncMock()
+        await _generate_outreach_draft_job(
+            str(worker_user.id), str(worker_document.id), "Acme", "Engineer", None
+        )
+
+    message_result = await db.execute(
+        select(OutreachMessage).where(OutreachMessage.user_id == worker_user.id)
+    )
+    message = message_result.scalar_one()
+
+    audit_result = await db.execute(
+        select(AiActionAuditLog).where(AiActionAuditLog.related_id == message.id)
+    )
+    audit_row = audit_result.scalar_one()
+    assert audit_row.action_type == "outreach_draft"
+    assert audit_row.candidate_user_id == worker_user.id
+    assert audit_row.summary is not None
 
 
 async def test_generate_outreach_draft_job_missing_document_raises(
