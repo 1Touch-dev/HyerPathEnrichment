@@ -23,6 +23,7 @@ from app.modules.documents.models import CandidateDocument
 from app.modules.outreach.models import OutreachMessage
 from app.workers.tasks.outreach import (
     _COMPANY_TIER_INSTRUCTIONS,
+    _COMPANY_TIER_JSON_SCHEMA,
     _CUSTOM_INSTRUCTION_PREFIX,
     _EMAIL_SYSTEM_PROMPT,
     _GENERIC_SYSTEM_PROMPT,
@@ -31,6 +32,7 @@ from app.workers.tasks.outreach import (
     _STRATEGY_INSTRUCTIONS,
     _draft_with_llm,
     _generate_outreach_draft_job,
+    classify_company_tier,
     generate_outreach_draft_job,
 )
 
@@ -951,6 +953,169 @@ async def test_generate_outreach_draft_job_looks_up_company_tier_when_flag_on(
         )
 
     assert captured["company_tier"] == "premium"
+
+
+# --- machine-2/03: classify_company_tier (structured-output LLM classifier) ---
+
+
+async def test_classify_company_tier_returns_tier_from_mocked_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+
+    _, mock_client_cm = _mock_openai_client('{"tier": "premium"}')
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        result = await classify_company_tier("Acme", "A large well-known tech company.")
+
+    assert result == "premium"
+
+
+async def test_classify_company_tier_request_uses_strict_json_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Release-blocking: the request payload must actually use OpenAI's
+    structured-output mode (response_format={"type": "json_schema", ...,
+    "strict": True}), not a free-text prompt parsed with json.loads on a
+    hope."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+
+    mock_client, mock_client_cm = _mock_openai_client('{"tier": "outsourcing"}')
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        await classify_company_tier("Acme", "context")
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    assert sent_payload["response_format"] == _COMPANY_TIER_JSON_SCHEMA
+    assert sent_payload["response_format"]["json_schema"]["strict"] is True
+    assert sent_payload["response_format"]["json_schema"]["schema"]["additionalProperties"] is False
+    assert sent_payload["response_format"]["json_schema"]["schema"]["properties"]["tier"][
+        "enum"
+    ] == ["premium", "outsourcing"]
+
+
+async def test_classify_company_tier_fails_soft_to_outsourcing_on_http_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Never raises: a mocked HTTP/network failure must fail soft to
+    'outsourcing', not propagate an exception."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(side_effect=httpx.ConnectError("boom"))
+    mock_client_cm = AsyncMock()
+    mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client_cm.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        result = await classify_company_tier("Acme", "context")
+
+    assert result == "outsourcing"
+
+
+async def test_classify_company_tier_fails_soft_to_outsourcing_on_malformed_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Never raises: a schema-invalid/unparseable response (not valid JSON,
+    or missing the required 'tier' key) must also fail soft to 'outsourcing',
+    not just network errors."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+
+    _, mock_client_cm = _mock_openai_client("not valid json at all")
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        result = await classify_company_tier("Acme", "context")
+
+    assert result == "outsourcing"
+
+
+async def test_classify_company_tier_fails_soft_to_outsourcing_on_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Never raises: a structured-output refusal (surfaced via the "refusal"
+    field rather than "content") must also fail soft to 'outsourcing'."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+
+    mock_response = AsyncMock()
+    mock_response.raise_for_status = lambda: None
+    mock_response.json = lambda: {
+        "choices": [{"message": {"refusal": "I cannot classify this company."}}]
+    }
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client_cm = AsyncMock()
+    mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client_cm.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("app.workers.tasks.outreach.httpx.AsyncClient", return_value=mock_client_cm):
+        result = await classify_company_tier("Acme", "context")
+
+    assert result == "outsourcing"
+
+
+async def test_classify_company_tier_returns_outsourcing_when_no_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "openai_api_key", "")
+
+    result = await classify_company_tier("Acme", "context")
+
+    assert result == "outsourcing"
+
+
+async def test_generate_outreach_draft_job_classifies_and_persists_when_no_tier_row(
+    db: AsyncSession,
+    worker_user: User,
+    worker_document: CandidateDocument,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the flag is on and no EmployerCompanyTier row exists yet for this
+    company, the classifier runs lazily and its result is persisted (set_by=
+    'llm', set_by_user_id=None) and used for that same draft."""
+    from app.modules.outreach.repository import get_company_tier
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "enable_company_tier_in_outreach_drafting", True)
+
+    company_name = f"NewCo-{uuid4().hex[:8]}"
+    captured: dict[str, Any] = {}
+
+    async def _fake_draft_with_llm(*args, **kwargs):
+        captured["company_tier"] = args[12] if len(args) > 12 else kwargs.get("company_tier")
+        return "Interested in NewCo", "Body"
+
+    with (
+        _patched_worker_session(db),
+        patch("app.workers.tasks.outreach.close_redis", new=AsyncMock()),
+        patch("app.workers.tasks.outreach.engine") as mock_engine,
+        patch(
+            "app.workers.tasks.outreach.PerplexityClient.get_company_context",
+            new=AsyncMock(
+                return_value={"summary": "A small niche staffing firm.", "source": "perplexity"}
+            ),
+        ),
+        patch("app.workers.tasks.outreach._draft_with_llm", new=_fake_draft_with_llm),
+        patch(
+            "app.workers.tasks.outreach.classify_company_tier",
+            new=AsyncMock(return_value="premium"),
+        ) as mock_classify,
+    ):
+        mock_engine.dispose = AsyncMock()
+        await _generate_outreach_draft_job(
+            str(worker_user.id), str(worker_document.id), company_name, "Engineer", None
+        )
+
+    mock_classify.assert_awaited_once_with(company_name, "A small niche staffing firm.")
+    assert captured["company_tier"] == "premium"
+
+    persisted = await get_company_tier(db, company_name)
+    assert persisted is not None
+    assert persisted.tier == "premium"
+    assert persisted.set_by == "llm"
+    assert persisted.set_by_user_id is None
 
 
 # --- machine-2/07: demand-intelligence -> outreach context line ---

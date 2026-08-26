@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -54,16 +55,24 @@ async def set_company_tier(
     *,
     company_name: str,
     tier: str,
+    set_by: Literal["llm", "recruiter"],
     set_by_user_id: UUID | None,
     notes: str | None,
 ) -> EmployerCompanyTier:
     """Upsert by ``company_name`` — a recruiter re-setting an existing employer's
-    tier overwrites the previous value/set_by_user_id/updated_at rather than
-    creating a duplicate row (enforced at the DB level too via the unique
-    constraint on ``company_name``)."""
+    tier overwrites the previous value/set_by/set_by_user_id/updated_at rather
+    than creating a duplicate row (enforced at the DB level too via the unique
+    constraint on ``company_name``). This function always overwrites
+    unconditionally regardless of the existing row's ``set_by`` — the
+    override-preservation rule (a recruiter-set row must survive a later
+    classifier run) is enforced one layer up, in the classifier's own
+    write-path (see ``apply_classified_company_tier`` in ``service.py``), not
+    here, since a recruiter's own explicit call to this function must still be
+    able to overwrite anything, including their own prior value."""
     existing = await get_company_tier(db, company_name)
     if existing is not None:
         existing.tier = tier
+        existing.set_by = set_by
         existing.set_by_user_id = set_by_user_id
         existing.notes = notes
         existing.updated_at = datetime.now(UTC)
@@ -74,6 +83,7 @@ async def set_company_tier(
     row = EmployerCompanyTier(
         company_name=company_name,
         tier=tier,
+        set_by=set_by,
         set_by_user_id=set_by_user_id,
         notes=notes,
     )
