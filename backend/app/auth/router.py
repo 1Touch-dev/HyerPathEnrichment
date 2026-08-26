@@ -17,6 +17,7 @@ from app.auth.logged_out_tokens import LoggedOutTokenService
 from app.auth.models import AuthAuditLog, User
 from app.auth.password import hash_password, verify_password
 from app.auth.refresh_tokens import (
+    _ensure_aware,
     create_refresh_token,
     detect_token_reuse,
     revoke_refresh_token,
@@ -28,6 +29,7 @@ from app.auth.schemas import (
     LoginRequest,
     LoginResponse,
     MessageResponse,
+    RegisterResponse,
     ResendVerificationRequest,
     UserCreate,
     UserRead,
@@ -43,6 +45,10 @@ from app.core.config import get_settings
 from app.database.session import get_db_session
 from app.dependencies.rate_limit import enforce_auth_rate_limit
 from app.infrastructure.redis import get_redis_client
+from app.modules.admin import service as admin_service
+from app.modules.admin.models import Role
+from app.modules.staff_invites import repository as staff_invites_repository
+from app.modules.staff_invites.models import StaffInvite
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +126,7 @@ async def log_auth_event(
 
 @router.post(
     "/register",
-    response_model=MessageResponse,
+    response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(enforce_auth_rate_limit)],
 )
@@ -128,11 +134,14 @@ async def register(
     request: Request,
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db_session),
-) -> MessageResponse:
+) -> RegisterResponse:
     """
     Register new user account with email/password.
 
-    Sends verification email after successful registration.
+    Sends verification email after successful registration. Optionally accepts a
+    staff invite token (machine-1-tenancy-core/05-org-invite-flow.md) -- an
+    invalid/expired token never hard-fails registration, it just falls back to a
+    normal candidate signup with a `warning` in the response.
     """
     # Check if email already exists
     result = await db.execute(select(User).where(User.email == user_data.email))
@@ -143,6 +152,21 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
+
+    # Resolve an optional staff invite token. An invalid/expired token does NOT
+    # hard-fail signup -- the user still gets a normal candidate account, and the
+    # response carries a warning instead (see chunk 05's "Ambiguities resolved").
+    invite: StaffInvite | None = None
+    invite_warning: str | None = None
+    if user_data.invite_token:
+        invite = await staff_invites_repository.get_invite_by_token(db, user_data.invite_token)
+        invite_expired = invite is not None and _ensure_aware(invite.expires_at) < datetime.now(UTC)
+        if invite is None or invite.accepted_at is not None or invite_expired:
+            invite = None
+            invite_warning = (
+                "Your invite link is invalid or has expired; "
+                "your account was created without staff access."
+            )
 
     # Create user
     user = User(
@@ -156,6 +180,35 @@ async def register(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # Accept a valid staff invite: assign the requested role and mark it used.
+    # Unlike the superseded org-invite design, this sets nothing else on `User`
+    # -- there is no org/brand membership concept in this schema.
+    if invite is not None:
+        role_result = await db.execute(select(Role).where(Role.name == invite.role_name))
+        role = role_result.scalar_one_or_none()
+        if role is not None and invite.invited_by is not None:
+            await admin_service.assign_role(
+                db,
+                actor_id=invite.invited_by,
+                target_user_id=user.id,
+                role_id=role.id,
+                ip_address=get_client_ip(request),
+            )
+        else:
+            # Defensive fallback only -- RBAC roles (team_owner/recruiter) are
+            # fully merged, so this should not trigger in normal operation
+            # (it can still happen if the inviter's account was later deleted,
+            # since invited_by is SET NULL on delete).
+            logger.warning(
+                "Staff invite %s could not be resolved to a role assignment "
+                "(role=%r, invited_by=%r); skipping role assignment.",
+                invite.id,
+                invite.role_name,
+                invite.invited_by,
+            )
+        invite.accepted_at = datetime.now(UTC)
+        await db.commit()
 
     # Generate verification token
     verification_token = await generate_verification_token(db, user.id)
@@ -178,8 +231,9 @@ async def register(
         user.email,
     )
 
-    return MessageResponse(
-        message="Registration successful. Please check your email to verify your account."
+    return RegisterResponse(
+        message="Registration successful. Please check your email to verify your account.",
+        warning=invite_warning,
     )
 
 

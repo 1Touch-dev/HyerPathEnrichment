@@ -39,6 +39,8 @@ from app.modules.resume_tailoring.router import router as resume_tailoring_route
 from app.modules.sessions.router import router as sessions_router
 from app.modules.signals.router import list_router as signals_list_router
 from app.modules.signals.router import webhook_router as signals_webhook_router
+from app.modules.staff_invites.router import public_router as staff_invites_public_router
+from app.modules.staff_invites.router import router as staff_invites_router
 
 
 async def verify_token(
@@ -123,3 +125,5 @@ app.include_router(
 )
 app.include_router(signals_webhook_router)
 app.include_router(signals_list_router, dependencies=[Depends(current_verified_user)])
+app.include_router(staff_invites_router, dependencies=[Depends(current_verified_user)])
+app.include_router(staff_invites_public_router)

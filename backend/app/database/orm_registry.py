@@ -38,6 +38,7 @@ from app.modules.job_matching.models import (
 from app.modules.manual_jobs.models import ManualJobEntry
 from app.modules.sessions.models import PracticeSession, QuestionAttempt
 from app.modules.signals.models import SignalRecord
+from app.modules.staff_invites.models import StaffInvite
 from app.storage.models import PhotoCacheRecord
 
 _ = (
@@ -71,6 +72,7 @@ _ = (
     ManualJobEntry,
     Brand,
     RecruiterCandidateAssignment,
+    StaffInvite,
 )
 
 # Re-export for alembic env after patch
@@ -103,6 +105,7 @@ __all__ = [
     "Role",
     "RolePermission",
     "SignalRecord",
+    "StaffInvite",
     "SuppressionRecord",
     "TokenBlacklist",
     "User",
