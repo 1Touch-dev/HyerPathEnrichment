@@ -222,12 +222,18 @@ def test_create_lead_endpoint_succeeds_for_superuser(client: TestClient, superus
     assert data["status"] == "new"
 
 
-def test_list_leads_endpoint_requires_auth_only(client: TestClient, regular_user):
-    """`list_leads` requires authentication only, not the write permission —
-    a caller lacking `linkedin_sourcing:write` can still view the shared queue."""
+def test_list_leads_endpoint_requires_write_permission(client: TestClient, regular_user):
+    """`list_leads` requires ``linkedin_sourcing:write`` (same as create/review)."""
     response = client.get(
         "/api/linkedin-sourcing/leads", headers=_auth_headers(str(regular_user.id))
     )
+    from tests.envelope_helpers import assert_error
+
+    assert_error(response, 403)
+
+
+def test_list_leads_endpoint_allows_superuser(client: TestClient, superuser):
+    response = client.get("/api/linkedin-sourcing/leads", headers=_auth_headers(str(superuser.id)))
     from tests.envelope_helpers import assert_success
 
     assert_success(response)

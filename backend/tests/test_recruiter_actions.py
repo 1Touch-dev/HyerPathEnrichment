@@ -155,7 +155,8 @@ async def candidate_approval_required(db: AsyncSession) -> User:
 
 @pytest.fixture
 async def recruiter(db: AsyncSession) -> User:
-    return await _make_user(db)
+    # Superuser short-circuits require_permission("recruiter_actions", "write").
+    return await _make_user(db, is_superuser=True)
 
 
 # ---------------------------------------------------------------------------

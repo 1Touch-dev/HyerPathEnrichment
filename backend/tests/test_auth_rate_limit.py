@@ -168,7 +168,9 @@ def test_resend_verification_is_rate_limited(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_unrelated_auth_routes_are_not_rate_limited(monkeypatch: pytest.MonkeyPatch) -> None:
-    """/auth/me, /auth/logout, /auth/refresh, /auth/delete-account don't share the scope."""
+    """/auth/me, /auth/logout, /auth/delete-account don't share the login/register scope.
+    /auth/refresh has its own bucket (auth_refresh), not the auth register/login bucket.
+    """
     monkeypatch.setattr(get_settings(), "max_auth_requests_per_minute", 1)
     client = TestClient(app)
 
@@ -192,3 +194,16 @@ def test_unrelated_auth_routes_are_not_rate_limited(monkeypatch: pytest.MonkeyPa
 
     delete_response = client.post("/auth/delete-account")
     assert delete_response.status_code != 429
+
+
+def test_auth_refresh_is_independently_rate_limited(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(get_settings(), "max_auth_refresh_requests_per_minute", 1)
+    client = TestClient(app)
+
+    first = client.post("/auth/refresh")
+    assert first.status_code != 429
+    second = client.post("/auth/refresh")
+    assert second.status_code == 429
+    body = second.json()
+    assert body["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert body["meta"]["scope"] == "auth_refresh"

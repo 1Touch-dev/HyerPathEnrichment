@@ -23,7 +23,7 @@ class SourcedCandidateLead(Base):
     # row must be attributable to a specific human who actually looked at the
     # profile, both for accountability and because "who sourced this" is itself
     # useful recruiting-ops data.
-    sourced_by: Mapped[UUID] = mapped_column(
+    sourced_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
