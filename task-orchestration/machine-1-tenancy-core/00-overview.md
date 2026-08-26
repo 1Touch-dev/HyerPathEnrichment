@@ -71,7 +71,10 @@ another ADR has landed in the meantime. See that chunk's "Naming" note for detai
 - Anything under `machine-2-parallel-tracks/` scope (see those files) — no overlap expected, but
   if a conflict is discovered, `machine-1` wins (it is the blocking track).
 - Frontend: this track is backend-only. No changes under `frontend/` in any of these five
-  chunks.
+  chunks. **Flag, not a hand-off:** as of 2026-08-26 no other chunk anywhere in this doc set
+  (`machine-2-parallel-tracks/`, `post-tenancy-features/`) picks up the staff-invite UI either —
+  see the root `task-orchestration/README.md`'s "Known gaps not yet closed" table, item 1, for the
+  full gap and needed follow-up.
 
 ## Cross-track coordination
 
