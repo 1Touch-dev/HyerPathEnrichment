@@ -89,21 +89,40 @@ Add to `OutreachMessage`, directly after `message_type`:
     referral_context: Mapped[str | None] = mapped_column(Text, nullable=True)
 ```
 
-### Company tier (manual, target-employer-level)
+### Confirmed by leadership (2026-08-26)
+
+James was asked whether `EmployerCompanyTier` should stay manually set by a recruiter, per this
+file's original design (see this section's docstring below: "NOT auto-computed from any
+enrichment/scraping signal"), or be auto-detected instead. His answer, quoted verbatim:
+**"automate classifier w llm based on company size and niche."** This is a real design change,
+not just a confirmation of the existing manual design: the primary write-path for
+`EmployerCompanyTier` becomes an LLM-based classifier (see "LLM-based company-tier classifier"
+below), not a recruiter's manual judgment call. Manual setting is retained as a supported
+secondary path (recruiter override — see "Ambiguities resolved" below for why), so the section
+immediately below ("Company tier (manual, target-employer-level)") should now be read as
+describing one of two write-paths onto the same table, not the only one — the table shape itself
+(`EmployerCompanyTier`) is unchanged except for the new `set_by` column specified below.
+
+### Company tier (target-employer-level, system- or recruiter-populated)
 
 `OutreachMessage` today has a free-text `company_name` (line 28) with no notion of a persistent
 per-employer classification — every draft re-derives company context from scratch via
-`perplexity.py`. Add a small new table, `EmployerCompanyTier`, that lets a recruiter manually
-record a tier judgment per employer that persists across every future draft for that same
-company, rather than re-asking the question per-draft:
+`perplexity.py`. Add a small new table, `EmployerCompanyTier`, that persists a tier judgment per
+employer across every future draft for that same company, rather than re-asking/re-deriving the
+question per-draft. Per the "Confirmed by leadership" note above, this table is now populated by
+either of two paths — an LLM classifier (system-populated, the new primary path) or a recruiter's
+manual judgment call (the original design, retained as an override path):
 
 ```python
 class EmployerCompanyTier(Base):
-    """A recruiter's manual, human-set classification of a target employer. This is
-    NOT auto-computed from any enrichment/scraping signal — it reflects a recruiter's
-    own judgment call (e.g. a well-known, high-paying "premium" employer vs. a
-    lower-paying staffing/outsourcing shop), and is set/edited explicitly through the
-    admin UI, not derived by any background job."""
+    """A per-employer tier classification used to vary outreach-drafting tone
+    (see "Company-tier-driven drafting variation" below). Populated by one of
+    two paths, tracked by set_by: an LLM classifier (classify_company_tier,
+    see "LLM-based company-tier classifier" below) as the primary,
+    system-driven path, or a recruiter's own manual judgment call as an
+    override path. A recruiter-set value (set_by="recruiter") must never be
+    silently overwritten by a later auto-classification run — see "Ambiguities
+    resolved" below."""
 
     __tablename__ = "employer_company_tiers"
 
@@ -113,6 +132,11 @@ class EmployerCompanyTier(Base):
     # a name string, same as everywhere else in this module).
     company_name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     tier: Mapped[str] = mapped_column(String(20), nullable=False)  # "premium" | "outsourcing"
+    # Which write-path produced the current value. "llm" = classify_company_tier's
+    # output; "recruiter" = a human explicitly set/overrode it via the manual
+    # endpoint below. Distinguishing these lets the classifier re-run safely
+    # without clobbering a deliberate human override — see "Ambiguities resolved".
+    set_by: Mapped[str] = mapped_column(String(20), nullable=False, default="llm")  # "llm" | "recruiter"
     set_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
@@ -127,9 +151,12 @@ no other part of this module has it either; flag it as a pre-existing, shared ga
 solving it only for this new table.
 
 Read (`get_company_tier(db, company_name) -> EmployerCompanyTier | None`) and
-upsert (`set_company_tier(db, *, company_name, tier, set_by_user_id, notes) -> EmployerCompanyTier`)
-functions live in `repository.py`/`service.py` per the "Files to edit" note above, following
-whichever of those two files already owns direct DB access for this module's other functions.
+upsert (`set_company_tier(db, *, company_name, tier, set_by, set_by_user_id, notes) ->
+EmployerCompanyTier`) functions live in `repository.py`/`service.py` per the "Files to edit" note
+above, following whichever of those two files already owns direct DB access for this module's
+other functions. `set_by: Literal["llm", "recruiter"]` is a required parameter on the upsert now
+— see "Ambiguities resolved" below for the override-preservation rule governing how callers use
+it.
 
 ## Migration
 
@@ -143,7 +170,8 @@ use the real next number and real `down_revision`.
 
 ```python
 """Add outreach strategy dimension (strategy, referral_context) to outreach_messages,
-and the employer_company_tiers table for manual company-tier classification.
+and the employer_company_tiers table for company-tier classification (LLM- or
+recruiter-populated, see set_by).
 
 Revision ID: 047_outreach_strategy_dimension
 Revises: <real current head — verify before writing>
@@ -163,6 +191,7 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("company_name", sa.String(255), nullable=False),
         sa.Column("tier", sa.String(20), nullable=False),
+        sa.Column("set_by", sa.String(20), nullable=False, server_default="llm"),
         sa.Column("set_by_user_id", sa.UUID(), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -205,10 +234,13 @@ strategies for the same company are still "duplicate work" in the sense this loc
 so strategy is deliberately excluded from the lock key — document this reasoning inline if the
 implementer's judgment differs).
 
-### Company-tier endpoint
+### Company-tier endpoint (manual/recruiter-override path)
 
 Add a small manual-set endpoint to whichever router file owns this module's other outreach
-endpoints (see "Files to edit" note above — verify the exact file/router name before adding):
+endpoints (see "Files to edit" note above — verify the exact file/router name before adding).
+This is the recruiter-override write path — a recruiter using this endpoint always writes
+`set_by="recruiter"` (never `"llm"`; that value is reserved for the classifier's own writes, see
+below):
 
 ```python
 @router.put("/company-tier", response_model=CompanyTierResponse)
@@ -227,14 +259,78 @@ async def get_company_tier(
 ```
 
 `set_company_tier` upserts by `company_name` (a recruiter re-setting an existing employer's tier
-overwrites the previous value and `set_by_user_id`/`updated_at`, it does not create a duplicate
-row — `company_name`'s `unique=True` constraint on `EmployerCompanyTier` enforces this at the DB
-level too). No permission beyond the existing gate protecting other outreach endpoints in this
-same router is required — this is not more sensitive than the drafting endpoints it sits beside.
+overwrites the previous value, `set_by`, and `set_by_user_id`/`updated_at`, it does not create a
+duplicate row — `company_name`'s `unique=True` constraint on `EmployerCompanyTier` enforces this
+at the DB level too). A recruiter's own explicit `PUT` always wins regardless of the row's
+current `set_by` value — the override-preservation rule below only protects a recruiter's value
+*from the classifier*, not from the recruiter themselves. No permission beyond the existing gate
+protecting other outreach endpoints in this same router is required — this is not more sensitive
+than the drafting endpoints it sits beside.
 
 `request_draft()` looks up the company tier and threads it into the LLM drafting prompt — see
 "Company-tier-driven drafting variation" below for the concrete wiring (this supersedes an earlier
 draft of this chunk that deferred this wiring as a follow-up; it is now in scope).
+
+### LLM-based company-tier classifier
+
+**Confirmed by leadership (2026-08-26) — see the note above.** Add a
+`classify_company_tier` function that calls an LLM with whatever company size/niche signal is
+already available in this codebase, rather than requiring a recruiter to set the tier manually
+for every new employer before the tier can affect drafting:
+
+```python
+async def classify_company_tier(
+    company_name: str, company_context: str
+) -> Literal["premium", "outsourcing"]:
+    """LLM-based company-tier classifier (confirmed by leadership 2026-08-26:
+    "automate classifier w llm based on company size and niche"). company_context
+    is the same public-company-summary string this module already fetches via
+    PerplexityClient.get_company_context(company_name, role_title) — see
+    backend/app/clients/perplexity.py's get_company_context, reused here as-is,
+    not re-fetched by a second research call. Never raises: on any LLM-call
+    failure, fail soft by returning "outsourcing" (the more conservative,
+    less-differentiated tier — see Ambiguities resolved for why that default,
+    not "premium", is the safe fallback) rather than blocking drafting."""
+    ...
+```
+
+**Prompt shape** (sibling to `_STRATEGY_INSTRUCTIONS`/`_ROLE_TYPE_INSTRUCTIONS`/
+`_COMPANY_TIER_INSTRUCTIONS` in `backend/app/workers/tasks/outreach.py`, or co-located with
+`classify_company_tier` itself if that reads more naturally — implementer's choice, document
+whichever is picked):
+
+```python
+_COMPANY_TIER_CLASSIFIER_SYSTEM_PROMPT = (
+    "You classify a company into exactly one of two tiers based on its size and "
+    "niche, using only the public company context provided. "
+    '"premium": a well-known, established, or high-paying employer (e.g. a large '
+    "company, a recognized brand, a well-funded/well-regarded firm in its niche). "
+    '"outsourcing": a staffing/outsourcing/body-shop employer, or any company too '
+    "small/obscure/context-poor to confidently call premium. When genuinely "
+    'uncertain, prefer "outsourcing" — it is the more conservative default. '
+    'Respond with a JSON object: {"tier": "premium" | "outsourcing"}.'
+)
+```
+
+**Write-path.** `classify_company_tier`'s result is persisted onto the same `EmployerCompanyTier`
+row the manual endpoint writes to, via the same `set_company_tier` upsert function, called with
+`set_by="llm"` and `set_by_user_id=None` (there is no human actor for a system-populated write).
+**Before writing, the write-path must check the override-preservation rule below** — this is the
+one behavior difference between the classifier's write-path and the recruiter endpoint's: the
+classifier must never blindly overwrite an existing `set_by="recruiter"` row.
+
+**Call site.** Run the classifier lazily, the same place `get_company_tier` is already looked up
+in `request_draft()`/`_generate_outreach_draft_job` (see "Company-tier-driven drafting variation"
+below): if `get_company_tier(db, company_name)` returns `None` (no row yet for this employer) and
+`enable_company_tier_in_outreach_drafting` is on, call `classify_company_tier` using the same
+Perplexity company-context lookup this call site already performs for `_COMPANY_TIER_INSTRUCTIONS`
+wiring, persist the result via `set_company_tier(..., set_by="llm")`, then proceed with drafting
+using the freshly-classified tier. This keeps classification an on-demand, lazy side effect of
+drafting rather than a separate scheduled batch job — no new worker/cron task is added in this
+chunk; if a future chunk wants proactive/batch classification ahead of the first draft for a
+given employer, that is separate scope, not implied here.
+
+
 
 ## `backend/app/workers/tasks/outreach.py`
 
@@ -403,12 +499,16 @@ enable_company_tier_in_outreach_drafting: bool = Field(
 so this specific mechanism can be reviewed against a small batch of real drafts before enabling it
 broadly — see "Ambiguities resolved" below for why.
 
-**Regression safety.** When no `EmployerCompanyTier` row exists for a given `company_name` (the
-default state for every employer today, since this table is new), `get_company_tier` returns
-`None`, `_COMPANY_TIER_INSTRUCTIONS.get(None)` returns `None`, and nothing is appended to
-`user_content` — behavior for every existing caller/test must be byte-identical to pre-this-
-section behavior. This is an explicit release-blocking verification item below, not just an
-implied property.
+**Regression safety.** With the flag **off** (the default), `_COMPANY_TIER_INSTRUCTIONS.get(None)`
+returns `None` and `classify_company_tier` is never called — behavior for every existing
+caller/test must be byte-identical to pre-this-section behavior. This is an explicit
+release-blocking verification item below, not just an implied property. With the flag **on** and
+no `EmployerCompanyTier` row yet for a given `company_name` (the default state for every employer
+today, since this table is new), behavior is intentionally **not** a no-op once the LLM classifier
+lands: `classify_company_tier` now runs lazily on that first draft, persists a row, and the
+resulting tier fragment is appended for that same draft — this is new, intended behavior gated
+entirely behind the flag, not a regression risk (a deployment with the flag off, or one still
+running an older revision of this chunk before the classifier subsection landed, is unaffected).
 
 ## Do not touch
 
@@ -455,6 +555,28 @@ implied property.
   reads as intended and not as a strange/off-putting insertion, and only then enable it broadly.
   This is a process recommendation for the rollout, not new code — there is no ticket to build an
   A/B-testing harness in this chunk.
+- **Should a recruiter-set tier ever be silently overwritten by a later automatic
+  classification run?** No — add `set_by: Literal["llm", "recruiter"]` (see `EmployerCompanyTier`
+  above) and enforce, in `classify_company_tier`'s write-path specifically (not in
+  `set_company_tier` itself, which a recruiter's own explicit `PUT` may still use to overwrite
+  anything, including their own prior value), that a row with `set_by="recruiter"` is never
+  overwritten by a subsequent `set_by="llm"` write — the classifier's write-path must check the
+  existing row's `set_by` first and skip persisting if it is already `"recruiter"`. **This is a
+  reasonable default this file is choosing pending explicit confirmation, not a leadership-
+  confirmed detail** — James's answer ("automate classifier w llm based on company size and
+  niche") did not address what happens if a recruiter has already set a value; this override-
+  preservation behavior is this doc set's own judgment call, on the general principle (used
+  elsewhere in this doc set, e.g. `09`'s conservative `approval_required` default) that a
+  human's deliberate input should not be silently clobbered by automation. Flag this explicitly in
+  review rather than treating it as settled.
+- **Why does `classify_company_tier` fail soft to `"outsourcing"`, not `"premium"`, on error?**
+  `"outsourcing"` is this file's own pre-existing conservative-default convention (see the
+  `_COMPANY_TIER_INSTRUCTIONS["outsourcing"]` fragment's own framing — "make genuine interest
+  explicit and warm rather than assumed") — an unclassifiable/low-signal company is more likely to
+  actually be a smaller or less-established employer than a "premium" one, and the "outsourcing"
+  tone fragment is the safer default to apply to an unknown company (it does not risk sounding
+  presumptuous the way `"premium"`'s "skip generic company introductions" framing would if
+  wrongly applied to an actual small employer).
 
 ## Verification
 
@@ -488,6 +610,18 @@ implied property.
   (the flag gates whether the *result* is used in the prompt, not whether the lookup runs) —
   document this explicitly if the implementer's judgment instead gates the lookup itself behind
   the flag too (either is defensible; be consistent and explicit about which was chosen).
+- Add a test for `classify_company_tier`: mock the LLM call, assert it returns `"premium"`/
+  `"outsourcing"` per the mocked response, and assert it returns `"outsourcing"` (not an
+  exception) when the mocked LLM call raises/fails.
+- Add a test for the override-preservation behavior (release-blocking for this subsection): seed
+  an `EmployerCompanyTier` row with `set_by="recruiter"`, then invoke the classifier's write-path
+  for the same `company_name` with a different classified tier, and assert the row is **unchanged**
+  (`tier`, `set_by`, `set_by_user_id` all still the recruiter's original values) — the LLM write
+  must be a no-op against an existing recruiter-set row. Add a companion test that a
+  `set_by="llm"` row **is** overwritten by a subsequent classifier run (confirming the skip logic
+  is specific to `set_by="recruiter"`, not a blanket "never update" rule), and a third test that a
+  recruiter's own explicit `PUT /company-tier` call always overwrites regardless of the existing
+  row's `set_by` (recruiter override always wins over anything, including their own prior value).
 
 ## Frontend
 
