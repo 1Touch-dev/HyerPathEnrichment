@@ -7,8 +7,8 @@ CV-chat qualification flow. No new permission needed here -- the conversion
 endpoint reuses the existing linkedin_sourcing:write permission seeded by
 047_linkedin_sourced_leads.
 
-Revision ID: 052_linkedin_lead_conversion
-Revises: 051_merge_machine2_parallel_track_heads
+Revision ID: 054_linkedin_lead_conversion
+Revises: 053_ai_action_audit_log
 Create Date: 2026-08-26
 """
 
@@ -19,8 +19,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "052_linkedin_lead_conversion"
-down_revision: str | Sequence[str] | None = "051_merge_machine2_parallel_track_heads"
+revision: str = "054_linkedin_lead_conversion"
+down_revision: str | Sequence[str] | None = "053_ai_action_audit_log"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

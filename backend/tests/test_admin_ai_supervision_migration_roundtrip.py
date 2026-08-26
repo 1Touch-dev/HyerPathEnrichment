@@ -1,4 +1,4 @@
-"""Round-trip test for 052_ai_action_audit_log (machine-2-parallel-tracks/
+"""Round-trip test for 053_ai_action_audit_log (machine-2-parallel-tracks/
 04-rbac-admin-platform.md's AI-agent supervision Verification section):
 upgrade -> downgrade -> upgrade again, confirming the seed migration's
 downgrade removes only the `ai_supervision:read` permission (and its
@@ -23,7 +23,7 @@ from alembic import command
 from tests.migration_helpers import alembic_config, sqlite_file_url, sync_engine_for, table_names
 
 REV_BEFORE = "051_merge_machine2_parallel_track_heads"
-REV_THIS = "052_ai_action_audit_log"
+REV_THIS = "053_ai_action_audit_log"
 
 NEW_PERMISSION = ("ai_supervision", "read")
 

@@ -6,8 +6,8 @@ See task-orchestration/machine-2-parallel-tracks/04-rbac-admin-platform.md's
 no DB-level FK constraint on `related_id` (polymorphic loose reference to a
 JobMatch/OutreachMessage id, or None for resume_tailoring).
 
-Revision ID: 052_ai_action_audit_log
-Revises: 051_merge_machine2_parallel_track_heads
+Revision ID: 053_ai_action_audit_log
+Revises: 052_employer_company_tier_set_by
 Create Date: 2026-08-26
 """
 
@@ -19,8 +19,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "052_ai_action_audit_log"
-down_revision: str | Sequence[str] | None = "051_merge_machine2_parallel_track_heads"
+revision: str = "053_ai_action_audit_log"
+down_revision: str | Sequence[str] | None = "052_employer_company_tier_set_by"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
