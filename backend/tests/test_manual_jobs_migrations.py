@@ -26,7 +26,7 @@ from tests.migration_helpers import (
 REV_INTERVIEW_SCHEDULES = "042_interview_schedules"
 REV_MANUAL_JOB_ENTRIES = "043_manual_job_entries"
 REV_MERGE_ADMIN_AND_MODULE4_HEADS = "044_merge_admin_and_module4_heads"
-REV_CURRENT_SINGLE_HEAD = "051_merge_machine2_parallel_track_heads"
+REV_CURRENT_SINGLE_HEAD = "053_staff_invites"
 
 
 @pytest.fixture
