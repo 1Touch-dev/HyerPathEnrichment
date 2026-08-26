@@ -14,6 +14,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.compliance.identifiers import linkedin_slug_from_identifier
 from app.modules.linkedin_sourcing import repository
 from app.modules.linkedin_sourcing.models import SourcedCandidateLead
 from app.modules.linkedin_sourcing.schemas import (
@@ -22,15 +23,15 @@ from app.modules.linkedin_sourcing.schemas import (
     SourcedLeadResponse,
 )
 
-_LINKEDIN_PROFILE_URL_PREFIX = "https://www.linkedin.com/"
 
-
-def _validate_profile_url(url: str) -> None:
-    if not url.startswith(_LINKEDIN_PROFILE_URL_PREFIX):
+def _normalize_profile_url(url: str) -> str:
+    slug = linkedin_slug_from_identifier(url)
+    if slug is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"linkedin_profile_url must start with '{_LINKEDIN_PROFILE_URL_PREFIX}'",
+            detail="linkedin_profile_url must be a https LinkedIn /in/{slug} profile URL",
         )
+    return f"https://www.linkedin.com/in/{slug}"
 
 
 async def create_lead(
@@ -47,14 +48,14 @@ async def create_lead(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="An authenticated caller identity is required to log a sourced lead",
         )
-    _validate_profile_url(body.linkedin_profile_url)
+    normalized_url = _normalize_profile_url(body.linkedin_profile_url)
 
     lead = SourcedCandidateLead(
         sourced_by=sourced_by,
         full_name=body.full_name,
         headline=body.headline,
         location=body.location,
-        linkedin_profile_url=body.linkedin_profile_url,
+        linkedin_profile_url=normalized_url,
         target_role=body.target_role,
         notes=body.notes,
     )

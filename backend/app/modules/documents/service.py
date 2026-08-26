@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.embeddings import get_embeddings_client
+from app.core.file_sniff import claimed_mime_matches_bytes
 from app.domain.candidate import CVData
 from app.domain.cv_completeness import completeness_score, compute_missing_fields
 from app.modules.documents.models import (
@@ -100,6 +101,12 @@ class DocumentService:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=f"File too large. Maximum size: {MAX_FILE_SIZE_BYTES / (1024 * 1024):.0f} MB",
+            )
+
+        if not claimed_mime_matches_bytes(file.content_type, file_data):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File content does not match declared Content-Type",
             )
 
         # Calculate file hash for deduplication
