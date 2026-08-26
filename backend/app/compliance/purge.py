@@ -55,6 +55,9 @@ async def _purge_matching_jobs(db: AsyncSession, target_hash: str) -> int:
             continue
 
         job.dossier_payload = {}
+        # Clear request identifiers too — otherwise email/LinkedIn remain after
+        # opt-out/DSAR deletion even though the dossier is empty.
+        job.request_payload = {}
         job.status = JobStatus.purged.value
         job.updated_at = now
         cleared += 1

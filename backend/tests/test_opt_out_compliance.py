@@ -40,6 +40,7 @@ def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:
             assert job is not None
             assert job.status == "purged"
             assert job.dossier_payload == {}
+            assert job.request_payload == {}
 
             audit = await session.execute(select(AuditLog))
             events = {row.event_type for row in audit.scalars().all()}

@@ -19,31 +19,24 @@ def client() -> TestClient:
         yield test_client
 
 
-def test_changedetection_webhook_accepts_without_token_when_key_unset(
+def test_changedetection_webhook_rejects_when_key_unset(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(get_settings(), "changedetection_api_key", "")
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "")
 
-    with patch("app.modules.signals.router.notify_change_signal", new_callable=AsyncMock) as notify:
-        response = client.post(
-            "/api/signals/changedetection",
-            json={
-                "watch_uuid": "abc-123",
-                "watch_title": "Acme Careers",
-                "watch_url": "https://acme.example/careers",
-            },
-        )
-
-    assert response.status_code == 202
-    assert response.json()["data"] == {"status": "accepted"}
-    notify.assert_awaited_once_with(
-        watch_id="abc-123",
-        title="Acme Careers",
-        url="https://acme.example/careers",
-        timestamp=None,
+    response = client.post(
+        "/api/signals/changedetection",
+        headers={"X-Signal-Token": "anything"},
+        json={
+            "watch_uuid": "abc-123",
+            "watch_title": "Acme Careers",
+            "watch_url": "https://acme.example/careers",
+        },
     )
+
+    assert response.status_code == 401
 
 
 def test_changedetection_webhook_rejects_invalid_token(
@@ -96,7 +89,7 @@ async def test_notify_skipped_when_webhook_url_unset(
 async def test_notify_posts_non_pii_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(get_settings(), "notify_webhook_url", "https://hooks.example/notify")
+    monkeypatch.setattr(get_settings(), "notify_webhook_url", "https://example.com/notify")
 
     with patch("httpx.AsyncClient") as client_cls:
         client = AsyncMock()
@@ -107,12 +100,16 @@ async def test_notify_posts_non_pii_payload(
         client.__aexit__ = AsyncMock(return_value=None)
         client_cls.return_value = client
 
-        sent = await notify_change_signal(
-            watch_id="w1",
-            title="Careers",
-            url="https://acme.example/jobs",
-            timestamp="1710000000",
-        )
+        with patch(
+            "app.clients.notify.assert_safe_webhook_url",
+            return_value="https://example.com/notify",
+        ):
+            sent = await notify_change_signal(
+                watch_id="w1",
+                title="Careers",
+                url="https://acme.example/jobs",
+                timestamp="1710000000",
+            )
 
     assert sent is True
     client.post.assert_awaited_once()
@@ -130,7 +127,7 @@ async def test_notify_posts_non_pii_payload(
 async def test_notify_fail_soft_on_http_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(get_settings(), "notify_webhook_url", "https://hooks.example/notify")
+    monkeypatch.setattr(get_settings(), "notify_webhook_url", "https://example.com/notify")
 
     with patch("httpx.AsyncClient") as client_cls:
         client = AsyncMock()
@@ -139,10 +136,14 @@ async def test_notify_fail_soft_on_http_error(
         client.__aexit__ = AsyncMock(return_value=None)
         client_cls.return_value = client
 
-        sent = await notify_change_signal(
-            watch_id="w1",
-            title="Careers",
-            url="https://acme.example/jobs",
-        )
+        with patch(
+            "app.clients.notify.assert_safe_webhook_url",
+            return_value="https://example.com/notify",
+        ):
+            sent = await notify_change_signal(
+                watch_id="w1",
+                title="Careers",
+                url="https://acme.example/jobs",
+            )
 
     assert sent is False

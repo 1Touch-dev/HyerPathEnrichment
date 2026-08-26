@@ -4,7 +4,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.auth.logged_out_tokens import LoggedOutTokenService
-from app.core.config import get_settings, validate_outreach_settings
+from app.core.config import (
+    get_settings,
+    validate_outreach_settings,
+    validate_production_security_settings,
+)
 from app.core.logging import configure_logging
 from app.database.session import get_db_session
 from app.infrastructure.redis import close_redis, get_redis_client
@@ -20,7 +24,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # CAN-SPAM: fail closed rather than silently omitting the required physical
     # address from every outbound email (service.send_message runs on this
     # process, not just the RQ worker).
-    validate_outreach_settings(get_settings())
+    settings = get_settings()
+    validate_outreach_settings(settings)
+    # Staging/production: refuse default JWT/API secrets, insecure cookies, or
+    # an open changedetection webhook (empty CHANGEDETECTION_API_KEY).
+    validate_production_security_settings(settings)
     redis_client = get_redis_client()
 
     # Sync logged-out tokens from PostgreSQL to Redis on startup

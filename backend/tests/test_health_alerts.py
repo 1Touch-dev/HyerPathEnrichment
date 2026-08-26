@@ -33,7 +33,13 @@ async def test_notify_ops_alert_posts_non_pii_payload(
 ) -> None:
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "https://hooks.example/ops")
 
-    with patch("httpx.AsyncClient") as client_cls:
+    with (
+        patch(
+            "app.clients.notify.assert_safe_webhook_url",
+            return_value="https://hooks.example/ops",
+        ),
+        patch("httpx.AsyncClient") as client_cls,
+    ):
         client = AsyncMock()
         response = AsyncMock()
         response.raise_for_status = lambda: None
@@ -190,7 +196,13 @@ async def test_notify_ops_alert_fail_soft_on_http_error(
 ) -> None:
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "https://hooks.example/ops")
 
-    with patch("httpx.AsyncClient") as client_cls:
+    with (
+        patch(
+            "app.clients.notify.assert_safe_webhook_url",
+            return_value="https://hooks.example/ops",
+        ),
+        patch("httpx.AsyncClient") as client_cls,
+    ):
         client = AsyncMock()
         client.post = AsyncMock(side_effect=httpx.HTTPError("boom"))
         client.__aenter__ = AsyncMock(return_value=client)
