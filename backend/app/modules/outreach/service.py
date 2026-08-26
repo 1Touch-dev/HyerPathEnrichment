@@ -268,10 +268,47 @@ class OutreachService:
         set_by_user_id: UUID,
         notes: str | None,
     ) -> EmployerCompanyTier:
+        """Recruiter-override write path (PUT /company-tier). Always writes
+        set_by="recruiter" and always overwrites unconditionally, regardless of
+        the row's current set_by — the override-preservation rule only protects
+        a recruiter's value from the classifier (see
+        apply_classified_company_tier below), never from the recruiter
+        themselves."""
         return await set_company_tier(
             self.db,
             company_name=company_name,
             tier=tier,
+            set_by="recruiter",
             set_by_user_id=set_by_user_id,
             notes=notes,
         )
+
+
+async def apply_classified_company_tier(
+    db: AsyncSession, company_name: str, tier: str
+) -> EmployerCompanyTier:
+    """The LLM classifier's own write-path (called by
+    ``classify_company_tier``'s call site in ``backend/app/workers/tasks/outreach.py``).
+
+    Enforces the override-preservation rule from 03-outreach-strategy-dimension.md's
+    "Ambiguities resolved" section: a recruiter-set value must never be silently
+    overwritten by a later automatic classification run. Looks up the existing
+    row first; if it exists and was set by a recruiter, returns it unchanged
+    (no write at all). Otherwise upserts via ``set_company_tier`` with
+    ``set_by="llm"`` and ``set_by_user_id=None`` (there is no human actor for a
+    system-populated write). This is a module-level function, not an
+    ``OutreachService`` method, since the worker task that calls it constructs
+    its own bare ``AsyncSession`` (see ``_generate_outreach_draft_job``) rather
+    than an ``OutreachService`` instance.
+    """
+    existing = await get_company_tier(db, company_name)
+    if existing is not None and existing.set_by == "recruiter":
+        return existing
+    return await set_company_tier(
+        db,
+        company_name=company_name,
+        tier=tier,
+        set_by="llm",
+        set_by_user_id=None,
+        notes=None,
+    )
