@@ -42,3 +42,11 @@ class SourcedCandidateLead(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+    # Set once a recruiter explicitly links this lead to the real signup who went
+    # through it (see "Qualification path: SourcedCandidateLead -> User" in this
+    # module's parent doc). This is an additional fact recorded alongside whatever
+    # `status` already is -- conversion never overwrites `status`.
+    converted_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
