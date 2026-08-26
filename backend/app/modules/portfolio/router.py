@@ -18,7 +18,9 @@ from app.modules.portfolio.schemas import (
 from app.modules.portfolio.service import PortfolioService
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"], route_class=EnvelopeAPIRoute)
-public_router = APIRouter(prefix="/api/portfolio", tags=["portfolio-public"], route_class=EnvelopeAPIRoute)
+public_router = APIRouter(
+    prefix="/api/portfolio", tags=["portfolio-public"], route_class=EnvelopeAPIRoute
+)
 
 
 @router.put("/profile", response_model=PortfolioProfileResponse)
@@ -46,7 +48,7 @@ async def add_item(
     return await PortfolioService(db).add_item(current_user.id, body)
 
 
-@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_item(
     item_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
 ) -> None:

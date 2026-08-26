@@ -92,7 +92,9 @@ async def get_interview_schedule(
     return _to_response(schedule) if schedule else None
 
 
-@router.delete("/matches/{match_id}/schedule", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/matches/{match_id}/schedule", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
 async def cancel_interview(
     match_id: str,
     current_user: CurrentUser,
