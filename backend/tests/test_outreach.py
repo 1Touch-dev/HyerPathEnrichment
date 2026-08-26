@@ -16,6 +16,7 @@ from app.modules.documents.models import CandidateDocument
 from app.modules.outreach.models import OutreachMessage
 from app.modules.outreach.schemas import OutreachDraftRequest, OutreachEditRequest
 from app.modules.outreach.service import OutreachService
+from tests.envelope_helpers import assert_success
 
 
 @pytest.fixture
@@ -1109,6 +1110,108 @@ async def test_apply_classified_company_tier_creates_row_when_none_exists(db):
     assert result.tier == "premium"
     assert result.set_by == "llm"
     assert result.set_by_user_id is None
+
+
+async def test_apply_classified_company_tier_does_not_clear_existing_notes(db):
+    """The classifier's write path always calls set_company_tier with
+    notes=None -- verify it now passes update_notes=False so re-classifying a
+    non-recruiter-owned row (e.g. a prior set_by='llm' row that had a note
+    added some other way) never wipes that note out."""
+    from app.modules.outreach.repository import set_company_tier
+    from app.modules.outreach.service import apply_classified_company_tier
+
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    await set_company_tier(
+        db,
+        company_name=company_name,
+        tier="outsourcing",
+        set_by="llm",
+        set_by_user_id=None,
+        notes="Pre-existing note",
+    )
+
+    result = await apply_classified_company_tier(db, company_name, "premium")
+
+    assert result.tier == "premium"
+    assert result.set_by == "llm"
+    assert result.notes == "Pre-existing note"
+
+
+# --- Track F (issue #3): notes sentinel semantics on PUT /api/outreach/company-tier ---
+#
+# These exercise the actual HTTP layer (not just the service function) since
+# the sentinel behavior hinges on Pydantic's `model_fields_set`, which is only
+# meaningfully "field omitted vs. explicitly sent" when the request body is
+# parsed from real JSON rather than constructed via Python kwargs.
+
+
+async def test_put_company_tier_omitting_notes_key_preserves_existing_note(
+    client, auth_headers, test_user
+):
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    headers = auth_headers(test_user.id)
+
+    create_response = client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "premium", "notes": "Existing note"},
+        headers=headers,
+    )
+    created = assert_success(create_response)
+    assert created["notes"] == "Existing note"
+
+    update_response = client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "outsourcing"},
+        headers=headers,
+    )
+    updated = assert_success(update_response)
+
+    assert updated["tier"] == "outsourcing"
+    assert updated["notes"] == "Existing note"
+
+
+async def test_put_company_tier_explicit_null_notes_clears_existing_note(
+    client, auth_headers, test_user
+):
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    headers = auth_headers(test_user.id)
+
+    client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "premium", "notes": "Existing note"},
+        headers=headers,
+    )
+
+    update_response = client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "premium", "notes": None},
+        headers=headers,
+    )
+    updated = assert_success(update_response)
+
+    assert updated["notes"] is None
+
+
+async def test_put_company_tier_explicit_new_notes_string_updates_note(
+    client, auth_headers, test_user
+):
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    headers = auth_headers(test_user.id)
+
+    client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "premium", "notes": "Original note"},
+        headers=headers,
+    )
+
+    update_response = client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "premium", "notes": "Updated note"},
+        headers=headers,
+    )
+    updated = assert_success(update_response)
+
+    assert updated["notes"] == "Updated note"
 
 
 # --- machine-2/05: CAN-SPAM send compliance ---
