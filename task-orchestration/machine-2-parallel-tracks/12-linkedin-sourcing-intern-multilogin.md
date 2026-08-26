@@ -49,7 +49,23 @@ already-drafted message to a known target). This chunk is about sourcing/scoutin
 candidate profiles in the first place, before any outreach message exists. Read `06` for the
 "how prominent should the risk section be, and how does this repo phrase task-queue-not-automation
 designs" convention, but do not import from or depend on `06`'s files (`linkedin_send_*`) — this
-chunk has its own new module, entirely separate from `06`'s queue.
+chunk has its own new module, entirely separate from `06`'s queue. Also depends on the existing
+CV-completeness qualification flow (`machine-2-parallel-tracks/01-progressive-profiling-fields.md`,
+`backend/app/modules/documents/cv_chat_service.py`) as the reused (not reinvented) conversion path
+— see "Qualification path: SourcedCandidateLead -> User" below.
+
+### Confirmed by leadership (2026-08-26)
+
+James was asked what should happen to a LinkedIn-sourced lead — whether it stays a separate lead
+workflow indefinitely, or joins the normal candidate/recruiter pipeline. His answer, quoted
+verbatim: **"No they will become a user, get qualified improve cv etc than become user in our
+talent pool; that we apply to jobs for them."** This confirms a lead is not a permanently distinct
+data type — it is a staging record that converts into a normal `User`/candidate once it goes
+through the same qualification flow (CV chat, CV improvement) every other candidate goes through,
+after which it is indistinguishable from any other candidate in the shared pool that recruiters
+apply to jobs on behalf of (`09-recruiter-initiated-apply-and-suggest.md`'s territory once
+converted). See "Qualification path: `SourcedCandidateLead` -> `User`" below for the concrete
+conversion design this answer requires.
 
 ## Design: manual lead-entry form, not a browser/scraping integration
 
@@ -225,14 +241,19 @@ GET  /api/linkedin-sourcing/leads          -> list_leads    (recruiter review qu
                                                               ?status= filter)
 POST /api/linkedin-sourcing/leads/{id}/review -> review_lead (recruiter marks
                                                               reviewed/contacted/dismissed)
+POST /api/linkedin-sourcing/leads/{id}/convert -> mark_lead_converted (recruiter links a
+                                                              completed-qualification User to
+                                                              this lead — see "Qualification
+                                                              path: SourcedCandidateLead -> User"
+                                                              below; body: {"user_id": UUID})
 ```
 
-Gate behind a new permission `("linkedin_sourcing", "write")` for `create_lead`/`review_lead`
-(seed via this chunk's migration, following `04-rbac-admin-platform.md`'s seeding pattern if it
-has landed, else seed directly here without blocking on `04` — identical "do not block" note as
-every other new chunk in this batch); `list_leads` requires authentication only (any
-recruiter/staff can view the shared queue, per the "not access-restrictive" note in `service.py`
-above).
+Gate behind a new permission `("linkedin_sourcing", "write")` for
+`create_lead`/`review_lead`/`mark_lead_converted` (seed via this chunk's migration, following
+`04-rbac-admin-platform.md`'s seeding pattern if it has landed, else seed directly here without
+blocking on `04` — identical "do not block" note as every other new chunk in this batch);
+`list_leads` requires authentication only (any recruiter/staff can view the shared queue, per the
+"not access-restrictive" note in `service.py` above).
 
 ## Multilogin profile/account management (at a level consistent with how `06` discusses infrastructure)
 
@@ -274,6 +295,60 @@ practice for the human intern, not a code integration:
   assignment/tracking, if wanted, is an operational/HR bookkeeping concern outside this
   platform's database, not a feature this chunk needs to build to satisfy its stated goal
   (logging sourced leads). Do not add such a column speculatively.
+
+## Qualification path: `SourcedCandidateLead` -> `User`
+
+**Confirmed by leadership (2026-08-26) — see the note above.** A `SourcedCandidateLead` is a
+staging record, not a permanent parallel candidate type. Once a lead completes the same
+qualification flow every other candidate goes through, it converts into a normal `User`/candidate
+row and its own workflow ends there.
+
+**Reuse the existing qualification mechanism — do not invent a separate one.** The "qualified,
+improve cv etc" flow James refers to is the CV-completeness chatbot already built by
+`machine-2-parallel-tracks/01-progressive-profiling-fields.md` and implemented in
+`backend/app/modules/documents/cv_chat_service.py`'s `CvChatService` — the same required-fields
+completion gate (`compute_missing_fields`/`REQUIRED_FIELDS`, `CvChatSession.status ==
+"completed"`) every direct signup already goes through. This chunk does not build a second
+qualification/CV-chat mechanism specifically for sourced leads.
+
+**Conversion point.** Once a recruiter (per `review_lead`'s existing `"contacted"` transition, or
+a new explicit follow-up step — see below) gets the sourced lead's real-world subject to actually
+sign up and go through document upload + `CvChatService`'s normal chat flow to completion (i.e.
+their own new `CandidateDocument` reaches `processing_status == "completed"` and their
+`CvChatSession.status == "completed"`, exactly the same completeness bar any other signup meets),
+create/link a normal `User` row from the lead:
+
+- Add `converted_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id",
+  ondelete="SET NULL"), nullable=True)` and `converted_at: Mapped[datetime | None] =
+  mapped_column(DateTime(timezone=True), nullable=True)` to `SourcedCandidateLead` (same
+  migration as the table itself, or a small follow-up migration if this chunk's own migration has
+  already landed by the time this section is implemented — verify current schema state first).
+- Add a service function, `mark_lead_converted(db, *, lead_id: UUID, user_id: UUID) ->
+  SourcedCandidateLead`, called once the underlying person's new `User` row exists and has
+  completed CV chat — sets `converted_user_id`/`converted_at` and `status="contacted"` (or leaves
+  `status` as whatever the recruiter workflow already set it to; conversion is an additional fact
+  recorded alongside `status`, not a replacement for it). This chunk does **not** build the
+  candidate-facing signup/CV-chat flow itself (that already exists, per `01`'s chunk) — it only
+  adds the linking call once that existing flow completes for a person who happens to have
+  originated from a sourced lead.
+- **How does the system know a new signup "is" a given lead, to call `mark_lead_converted`?**
+  This chunk does not build automatic matching (e.g. fuzzy name/LinkedIn-URL matching between a
+  new signup and existing leads) — that is a real, separate design problem (name collisions,
+  no verified LinkedIn identity on the `User` side) out of scope here. The realistic path is
+  operational: the recruiter who reached out to the lead (via `06`'s existing send-task flow,
+  using the lead's `linkedin_profile_url`) knows which lead corresponds to which new signup
+  (e.g. because they personally invited that person to sign up, or the person mentions the
+  outreach when signing up) and calls a small recruiter-facing endpoint,
+  `POST /api/linkedin-sourcing/leads/{id}/convert` (body: `{"user_id": UUID}`), to make the link
+  explicit. This keeps the connection an explicit, human-confirmed act, consistent with this
+  chunk's overall "human confirms, system doesn't infer" design posture (see Legal risk section).
+- **After conversion, the lead's own workflow ends.** `list_leads` may still show converted leads
+  (for historical/sourcing-effectiveness reporting — e.g. "how many of an intern's leads
+  eventually converted"), but a converted lead is not surfaced anywhere as an actionable item
+  requiring further review; the person themselves is now visible and actionable purely as a normal
+  `User`/candidate row, identical to any other candidate in the shared pool per `08`'s "any
+  recruiter can act on any candidate" model — recruiters `apply`/`suggest` for them via `09`'s
+  existing recruiter-actions flow like any other candidate, not via any lead-specific mechanism.
 
 ## Ambiguities resolved
 
@@ -327,6 +402,15 @@ practice for the human intern, not a code integration:
 - Test: `review_lead` updates `status`/`reviewed_by`/`reviewed_at`; rejects an invalid `status`
   value outside the three allowed transitions (422, via the schema's `pattern` constraint).
 - Test: `POST /api/linkedin-sourcing/leads` 403s for a caller lacking `linkedin_sourcing:write`.
+- Test: `mark_lead_converted` sets `converted_user_id`/`converted_at` on the target lead and is
+  idempotent-safe to inspect afterward (re-fetching the lead reflects the conversion); test that a
+  lead's `status` is preserved as whatever it already was (conversion does not silently overwrite
+  an existing `"dismissed"`/`"reviewed"` status).
+- Test: `POST .../convert` 403s for a caller lacking `linkedin_sourcing:write`, same gate as
+  `create_lead`/`review_lead`.
+- Test: converted leads remain visible via `list_leads` (e.g. `?status=` filtering still returns
+  them) — conversion does not delete or hide the lead row, per "After conversion, the lead's own
+  workflow ends" above (visible for reporting, not actionable).
 - **Design-boundary check (release-blocking, code-review item not an automated test):** the
   reviewer of this chunk's PR must confirm no HTTP client call, browser-automation import, or any
   code path in the diff reads from or requests `linkedin.com` in any form — the entire feature
@@ -334,3 +418,8 @@ practice for the human intern, not a code integration:
   third-party site. If the reviewer finds any such call, this is an automatic block, not a style
   comment — mirroring `06`'s own "no LinkedIn network call, browser automation, or credential
   usage" verification requirement, applied here to the sourcing side instead of the sending side.
+- **Design-boundary check for the conversion path:** the reviewer must also confirm
+  `mark_lead_converted`'s call site does not build any new CV-chat/qualification logic — it must
+  call/link into the *existing* `CvChatService`/document-completeness flow (`01`'s chunk) rather
+  than duplicating a parallel qualification check, per "reuse the existing qualification
+  mechanism, do not invent a separate one" above.
