@@ -5,6 +5,7 @@ from app.auth.dependencies import VerifiedUser
 from app.auth.router import router as auth_router
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import Settings, get_settings
+from app.core.cors import CORS_ORIGINS
 from app.core.errors import UnauthorizedError
 from app.core.exception_handlers import register_exception_handlers
 from app.core.lifespan import lifespan
@@ -70,11 +71,14 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(AdminAuditFallbackMiddleware)
 
-# CORS configuration for frontend
-settings = get_settings()
+# CORS configuration for frontend. `CORS_ORIGINS` is the same list object
+# `app/core/lifespan.py`'s startup sequence mutates in place once active
+# brands' custom_domain values are resolved (machine-1-tenancy-core/04);
+# CORSMiddleware only ever reads from it, so it picks up that update even
+# though the middleware itself is constructed once, here, at import time.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_allowed_origins,
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     # Actual verb set used across app/modules/*/router.py + OPTIONS for preflight.
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

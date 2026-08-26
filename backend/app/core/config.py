@@ -355,6 +355,15 @@ class Settings(BaseSettings):
             return origins
         return [self.FRONTEND_URL] if self.FRONTEND_URL else ["http://localhost:3000"]
 
+    # Brand (docs/adr/0019-tenancy-model.md): include active brands' custom_domain
+    # values in the CORS allow-list at startup, in addition to
+    # CORS_ALLOWED_ORIGINS/FRONTEND_URL. Default False so existing deployments are
+    # unaffected until opted in. Purely a routing/presentation concern -- Brand never
+    # gates data access, so this flag has no security implication beyond "which
+    # origins may make credentialed requests," identical in kind to the existing
+    # CORS_ALLOWED_ORIGINS behavior it extends.
+    enable_brand_cors_origins: bool = Field(default=False, alias="ENABLE_BRAND_CORS_ORIGINS")
+
     # Cookie settings
     COOKIE_SECURE: bool = Field(default=False, alias="COOKIE_SECURE")
     COOKIE_DOMAIN: str | None = Field(default=None, alias="COOKIE_DOMAIN")
