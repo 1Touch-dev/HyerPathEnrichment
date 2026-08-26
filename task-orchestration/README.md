@@ -184,6 +184,13 @@ owned candidates), so there is no billing interaction to sequence against at all
 
 ## Merge order
 
+**Note (2026-08-26):** the risk noted in the old "Open questions" item 1 — that Machine 1's
+tenancy model might need reworking depending on how James's interface #1 was meant — is resolved
+(see "Confirmed by leadership," item 7). Machine 1 was never actually gated on that answer in the
+step-by-step order below (its own chunks proceeded on the `Brand`-is-presentation-only premise
+regardless), but the *risk* of a retroactive rework hung over the whole track until now. It does
+not; step 3 below stands as originally speced, with no rework and no new blocker.
+
 1. **Anytime, any order, fully parallel:** `machine-2-parallel-tracks/01`, `02`, `04`, and `08`
    may be implemented and merged to `master-complete-foundation` independently of everything else
    in this document (each touches disjoint files — see each file's "Do not touch" list). Two soft
@@ -335,12 +342,13 @@ is the traceability index for anyone auditing the doc set later.
 | 17 | `02-country-demand-intelligence.md` named `10-resume-tailoring.md` as a "future consumer" of country-demand data, but `10`'s own dependency list never actually included `02` — a dangling promise | `machine-2-parallel-tracks/10-resume-tailoring.md`'s new "Demand-intelligence context injection" section (mirrors `07`'s `_demand_context_line` contract under a new `enable_demand_intelligence_in_resume_tailoring` flag) + `07-demand-intelligence-resume-integration.md`'s new cross-reference note pointing to it |
 | 18 | The original task brief's "multiple different ips displaying account info or updates" phrase was ambiguous and had no documented resolution anywhere in this doc set | `machine-1-tenancy-core/06-outbound-ip-strategy-resolved.md` (new chunk, later renamed from `-deferred.md` once leadership directly answered the ambiguity — see "Confirmed by leadership" entries below) — an explicit decision record resolving both plausible interpretations (Multilogin per-account IP diversity; per-brand hosting isolation) with concrete citations |
 
-## Confirmed by leadership (2026-08-24/25)
+## Confirmed by leadership (2026-08-24/25/26)
 
-James (leadership) answered a decision list and a follow-up round of questions on 2026-08-24/25.
-The six items below were directly confirmed — each is recorded as a targeted addition to an
-existing file (quoting his actual words, not a paraphrase), not a rewrite. This section is the
-traceability index for that round, mirroring the "Gaps closed" table's style above.
+James (leadership) answered a decision list and a follow-up round of questions on 2026-08-24/25,
+then a further round on 2026-08-26. Each item below was directly confirmed and is recorded as a
+targeted addition to an existing file (quoting his actual words, not a paraphrase), not a
+rewrite. This section is the traceability index for those rounds, mirroring the "Gaps closed"
+table's style above.
 
 | # | Decision confirmed | James's words | Recorded in |
 |---|---|---|---|
@@ -350,70 +358,57 @@ traceability index for that round, mirroring the "Gaps closed" table's style abo
 | 4 | Tier 1/2/3 (by competition/volume) country-tier methodology confirmed as exactly right | "Agreed, but do keyword research into finding specific markets in those regions, and 2nd tier (more low competition) markets, (mid tier volume), 3rd tier (low and low competition and search volume = low hanging fruit)." | `machine-2-parallel-tracks/02-country-demand-intelligence.md`'s new "Confirmed by leadership" note |
 | 5 | LinkedIn send design changed to support both manual and human-triggered automated modes (informed risk-acceptance, not a silent decision) | Asked: "we're planning to use real staff doing it manually, not automated bots, because LinkedIn has a history of suing companies over automation... are you comfortable with that?" Answered: "Both automated and manual. (automated w manual triggers)." | `machine-2-parallel-tracks/06-linkedin-outreach-send.md`'s new "Confirmed by leadership — design change" section |
 | 6 | Outbound-IP ambiguity resolved (not deferred): Multilogin per-account IP diversity, and separate hosting per brand confirmed as wanted (though still underspecified) | "Multiple different ips, is to use multilogin in order to create multiple users." and "Separate hosting per brand will be important." | `machine-1-tenancy-core/06-outbound-ip-strategy-resolved.md` (renamed from `-deferred.md`), plus a cross-reference added to `machine-2-parallel-tracks/12-linkedin-sourcing-intern-multilogin.md` |
+| 7 | **Top-priority item resolved:** interface #1 ("for Clients — AI Placement Agency") is a candidate-facing panel, not multi-tenant reselling — no other business can run its own isolated staff/users/clients/candidate-pool/branding on this platform. Interfaces #1/#2 are both candidate-facing panels where AI does the placement, for real jobs and freelance work respectively. | "No one should be able to run there own staff users clients private candidate pool branding complete isolations etc — #1 refers to the candidate facing user panel." / "User has panel that is client facing. Ai does placement on user panel for real job" / "user panel client facing with ai being placement agency's, focusing on freelancers." | `machine-1-tenancy-core/01-adr-0015-tenancy-model.md`'s new "Confirmed by leadership" subsection — confirms the existing single-operator/multi-brand/shared-pool model with no rework. Interfaces #1/#2 map onto existing planned work, not new architecture: #2 (freelance placement) is `post-tenancy-features/05-freelance-bidding-system.md`'s track (still idea-list-only, hard-blocked on the Abhishek conversation per that file), and #1 (real-job placement) is the core Machine 2 workflow already spec'd across `machine-2-parallel-tracks/09-recruiter-initiated-apply-and-suggest.md` and `10-resume-tailoring.md` |
+| 8 | Company tier (`EmployerCompanyTier`) is auto-classified by an LLM based on company size/niche, not manually set by a recruiter — recruiter override still preserved. | "automate classifier w llm based on company size and niche." | `machine-2-parallel-tracks/03-outreach-strategy-dimension.md`'s new "Confirmed by leadership" note and "LLM-based company-tier classifier" subsection |
+| 9 | LinkedIn-sourced candidate leads go through the same CV-chat qualification flow as any other signup, then join the shared candidate pool as a normal user — not a permanently separate lead workflow. | "No they will become a user, get qualified improve cv etc than become user in our talent pool; that we apply to jobs for them." | `machine-2-parallel-tracks/12-linkedin-sourcing-intern-multilogin.md`'s new "Confirmed by leadership" note and "Qualification path: SourcedCandidateLead -> User" section |
+| 10 | "Account management platform" means both manual staff/employee management (already covered) and AI-agent supervision — an admin-facing audit view over every autonomous AI action (applies, outreach drafts, resume tailoring). | "Account management (manual employee management and ai agent supervision, of all job applications cvs eyes)." | `machine-2-parallel-tracks/04-rbac-admin-platform.md`'s new "Confirmed by leadership" note and "AI-agent supervision (audit/oversight view)" section |
 
-## Open questions blocking further work (as of 2026-08-25)
+This resolves this doc set's single biggest open risk: nothing in Machine 1's `01 → 02 → 05 → 04`
+implementation order, or in `docs/adr/0018-tenancy-model.md`'s Decision section, needs to change
+or be redone. Everywhere below that previously described Machine 1 as carrying "potential rework
+risk" pending this answer (see the old "Open questions" item 1, now moved above) should be read as
+resolved — Machine 1 proceeds exactly as speced in "Merge order" below, with no new blocker and no
+retroactive change to work already landed or in flight.
 
-The 2026-08-24/25 leadership round answered the six items above directly, but also surfaced items
-that are still genuinely open — James's answers either didn't address them, or raised a new
-question of their own. **Do not guess at these.** Each is listed below in plain language, with a
-one-line note on which existing/new chunk it would affect once answered.
+## Open questions blocking further work (as of 2026-08-26)
 
-1. **Top-priority open item.** James's own 4-interface list — "1. for Clients (Ai Placement
-   Agency). 2. Internal platform (with external Clients) - where we act as placement agency.
-   3. Apply to Freelancer jobs and projects. 4. Apply to actual jobs" — is ambiguous on Interface
-   #1. Does "for Clients (AI Placement Agency)" mean other businesses running their **own**
-   placement agency on top of this platform (i.e. real multi-tenant reselling — a paying business
-   customer, not just a candidate, would need its own isolated view), which would directly
-   contradict the single-operator/shared-pool pivot `machine-1-tenancy-core/00-overview.md` and
-   `docs/adr/0018-tenancy-model.md` are built on? Or does it mean something else (e.g. a candidate-
-   facing storefront framing, which the existing `Brand` model already covers)? **If the former,
-   this could require reworking Machine 1's entire tenancy model** (the `Brand`-is-presentation-
-   only, no-`org_id`, no-isolation-boundary decision) from its foundation. Affects: potentially
-   all of `machine-1-tenancy-core/`, and by extension every chunk that depends on its "one shared
-   pool" premise.
-2. **Chatbots: shared bot with per-brand branding, or genuinely separate bots?** James's answer
+The 2026-08-24/25 leadership round answered six items directly (see "Confirmed by leadership"
+above); a further round on 2026-08-26 resolved the single most critical remaining item (#1,
+below) plus three more (company tier, LinkedIn-sourced-candidate flow, account-management scope
+— all now recorded in "Confirmed by leadership" above as items 8-10). What's left below is only
+what's still genuinely open — James's answers either didn't address it, or (for the chatbot
+question) made it largely moot without fully closing it. **Do not guess at these.** Each is listed
+below in plain language, with a one-line note on which existing/new chunk it would affect once
+answered.
+
+1. **Chatbots: shared bot with per-brand branding, or genuinely separate bots?** James's answer
    was just "Yeah" to a question that offered both readings — ambiguous, not a real confirmation
-   of either. Affects: `machine-2-parallel-tracks/11-per-brand-chatbot-config.md`, which currently
-   specs the "one shared `CvChatService`, brand-config-prefixed system prompt" reading; if
-   "genuinely separate bots doing different jobs" is what's meant, that chunk's entire design
-   (a single service extended with a config lookup) would need to change to something closer to
-   per-brand bot instances/configurations with materially different behavior, not just tone.
-3. **Resume tailoring: persist each generated version, or regenerate fresh with nothing saved?**
-   Not addressed by the 2026-08-24/25 round. Affects: `machine-2-parallel-tracks/10-resume-
+   of either. **Largely moot as of 2026-08-26, though not formally closed:** James's latest answer
+   describes chatbot *function* (CV evaluation/improvement, interest/salary/experience intake, job
+   suggestions, "what can we automate" consent) rather than *structure*, and that functional answer
+   is already fully covered by existing chunks — see
+   `machine-2-parallel-tracks/11-per-brand-chatbot-config.md`'s new "Confirmed by leadership" note.
+   The original structural question (one shared `CvChatService` instance vs. genuinely separate
+   per-brand bot instances/configurations) is still technically unanswered, but nothing in the
+   2026-08-26 round suggests James is asking for materially different per-brand *behavior* — only
+   tone/branding on top of one shared capability set. Affects:
+   `machine-2-parallel-tracks/11-per-brand-chatbot-config.md`, which currently specs the "one
+   shared `CvChatService`, brand-config-prefixed system prompt" reading; treat this as low-risk to
+   proceed against unless a future answer explicitly asks for separate bot instances.
+2. **Resume tailoring: persist each generated version, or regenerate fresh with nothing saved?**
+   Not addressed by either round. Affects: `machine-2-parallel-tracks/10-resume-
    tailoring.md`, which currently specs the ephemeral, RQ-result-TTL, "never persisted" design as
    definitive (see that file's own "Ambiguities resolved" section) — if persistence is actually
    wanted, that file's central architectural decision would need to be revisited, not just
    extended.
-4. **Country/demand data: change the resume's actual content, or only the outreach message?**
-   Not addressed by the 2026-08-24/25 round. Affects: `machine-2-parallel-tracks/07-demand-
+3. **Country/demand data: change the resume's actual content, or only the outreach message?**
+   Not addressed by either round. Affects: `machine-2-parallel-tracks/07-demand-
    intelligence-resume-integration.md` (currently outreach-message-only, per that chunk's own
    explicit scope) and `machine-2-parallel-tracks/10-resume-tailoring.md`'s "Demand-intelligence
    context injection" section (which does inject into resume-tailoring text, but only as a light,
    "if relevant" framing note, not a content-altering signal) — whether either should go further
    and actually change resume content based on target-market demand is unresolved.
-5. **Company tier (high-end vs. outsourcing): manually labeled by a recruiter, or auto-detected?**
-   Not addressed by the 2026-08-24/25 round. Affects: `machine-2-parallel-tracks/03-outreach-
-   strategy-dimension.md`'s `EmployerCompanyTier`, which is currently specced as explicitly
-   manual/human-judgment-only (see that file's own docstring: "NOT auto-computed from any
-   enrichment/scraping signal") — if auto-detection is wanted instead or in addition, that is a
-   design change to that chunk, not an extension of it.
-6. **LinkedIn-sourced candidates (via interns/Multilogin): normal recruiter-candidate workflow,
-   or a separate process?** James's "System should work autonomously" answer was given somewhere
-   in the round, but it's unclear which question it was actually answering — it may not be
-   responsive to this question at all. Affects: `machine-2-parallel-tracks/12-linkedin-sourcing-
-   intern-multilogin.md`, which currently specs sourced leads as a distinct `SourcedCandidateLead`
-   queue a recruiter separately decides whether to act on (explicitly not auto-wired into any
-   other workflow — see that file's own "Ambiguities resolved" section) — whether that decoupling
-   is still the right model, or whether sourced leads should instead flow directly into the normal
-   recruiter-candidate assignment/outreach pipeline, is unresolved.
-7. **What does "account management platform" mean to James specifically?** Candidate accounts,
-   staff accounts, or something else entirely? Not addressed by the 2026-08-24/25 round, and no
-   existing chunk in this doc set claims to be "the account management platform" by that name —
-   this needs a direct clarifying question before any chunk can be scoped or retrofitted to answer
-   it. Affects: potentially `backend/app/auth/` (if candidate/staff account self-service is meant)
-   or `machine-2-parallel-tracks/04-rbac-admin-platform.md` (if staff/admin account management is
-   meant) — no chunk is assigned this scope today.
-8. **"Separate hosting per brand" — literal separate deployed instances, or is domain-based
+4. **"Separate hosting per brand" — literal separate deployed instances, or is domain-based
    routing on shared infrastructure still acceptable?** Cross-referenced from Part 1 item 6(B) and
    `machine-1-tenancy-core/06-outbound-ip-strategy-resolved.md`'s own interpretation (B) section.
    James confirmed "Separate hosting per brand will be important," but that statement alone does
@@ -421,6 +416,6 @@ one-line note on which existing/new chunk it would affect once answered.
    design (`machine-1-tenancy-core/02-schema-and-migration.md`,
    `04-cors-and-ratelimit-retrofit.md`) already satisfying the intent, versus (b) a genuinely new,
    non-trivial infrastructure requirement (separate deployed backend instances/containers per
-   brand). Affects: `machine-1-tenancy-core/02` and `04`'s existing shared-backend design remains
-   unmodified and in place until this is answered — see `06-outbound-ip-strategy-resolved.md` for
-   the full tension this creates.
+   brand). Not addressed by the 2026-08-26 round. Affects: `machine-1-tenancy-core/02` and `04`'s
+   existing shared-backend design remains unmodified and in place until this is answered — see
+   `06-outbound-ip-strategy-resolved.md` for the full tension this creates.
