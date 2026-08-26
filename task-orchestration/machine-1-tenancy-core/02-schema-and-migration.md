@@ -212,9 +212,11 @@ required for this chunk).
 
 Follow the exact header/revision-id/downgrade conventions in `046_admin_seed_module4_permissions.py`
 (revision id is the filename stem, `down_revision` points to the current single head,
-`branch_labels`/`depends_on` are `None`). Current head at time of writing is
-`046_admin_seed_module4_permissions` — **verify this is still the head** by running
-`python -m alembic heads` from `backend/` before writing `down_revision`; if another migration has
+`branch_labels`/`depends_on` are `None`). **Stale note, corrected 2026-08-26:** this section
+originally said the head was `046_admin_seed_module4_permissions`; the Machine-2 merge (PR #255)
+has since landed 5 more migrations, so the real current single head, verified today, is
+`051_merge_machine2_parallel_track_heads`. **Verify this is still the head** by running
+`python -m alembic heads` from `backend/` before writing `down_revision` regardless — if another migration has
 landed in the meantime, point `down_revision` at whatever the actual current head is instead.
 
 ```python
