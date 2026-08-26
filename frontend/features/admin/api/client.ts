@@ -18,6 +18,8 @@ import type {
   AdminReviewQueueDetail,
   AdminReviewQueueItem,
   AdminReviewQueueListResponse,
+  AiAction,
+  AiActionListResponse,
   FailedJob,
   FeatureFlag,
   ImpersonationStatus,
@@ -188,6 +190,34 @@ export async function fetchAuditLogs(
   if (action) params.set("action", action);
   const res = await fetch(`/api/admin/audit-logs?${params.toString()}`);
   return unwrap(res, "Failed to fetch audit logs");
+}
+
+export type AiActionFilters = {
+  candidateId?: string | null;
+  recruiterId?: string | null;
+  actionType?: string | null;
+  since?: string | null;
+  until?: string | null;
+};
+
+export async function fetchAiActions(
+  cursor: string | null,
+  filters: AiActionFilters = {},
+): Promise<AiActionListResponse> {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  if (filters.candidateId) params.set("candidate_id", filters.candidateId);
+  if (filters.recruiterId) params.set("recruiter_id", filters.recruiterId);
+  if (filters.actionType) params.set("action_type", filters.actionType);
+  if (filters.since) params.set("since", filters.since);
+  if (filters.until) params.set("until", filters.until);
+  const res = await fetch(`/api/admin/ai-actions?${params.toString()}`);
+  return unwrap(res, "Failed to fetch AI actions");
+}
+
+export async function fetchAiAction(id: string): Promise<AiAction> {
+  const res = await fetch(`/api/admin/ai-actions/${id}`);
+  return unwrap(res, "Failed to fetch AI action");
 }
 
 export type AdminPortfolioFilters = {

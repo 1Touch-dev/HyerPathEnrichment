@@ -1,4 +1,5 @@
 import type { JobPostingFilters, AdminPortfolioFilters } from "./client";
+import type { AiActionFilters } from "./client";
 
 export const adminKeys = {
   all: ["admin"] as const,
@@ -7,6 +8,18 @@ export const adminKeys = {
   roles: () => [...adminKeys.all, "roles"] as const,
   auditLogs: (cursor: string | null, action: string | null) =>
     [...adminKeys.all, "audit-logs", cursor, action] as const,
+  aiActionsAll: () => [...adminKeys.all, "ai-actions"] as const,
+  aiActions: (cursor: string | null, filters: AiActionFilters = {}) =>
+    [
+      ...adminKeys.aiActionsAll(),
+      cursor,
+      filters.candidateId ?? null,
+      filters.recruiterId ?? null,
+      filters.actionType ?? null,
+      filters.since ?? null,
+      filters.until ?? null,
+    ] as const,
+  aiAction: (id: string) => [...adminKeys.aiActionsAll(), id] as const,
   featureFlags: () => [...adminKeys.all, "feature-flags"] as const,
   queues: () => [...adminKeys.all, "queues"] as const,
   failedJobs: (queueName: string) => [...adminKeys.all, "queues", queueName, "failed"] as const,
