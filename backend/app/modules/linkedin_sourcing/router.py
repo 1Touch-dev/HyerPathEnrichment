@@ -16,6 +16,7 @@ from app.database.session import get_db_session
 from app.modules.admin.permissions import require_permission
 from app.modules.linkedin_sourcing import service
 from app.modules.linkedin_sourcing.schemas import (
+    ConvertLeadRequest,
     CreateSourcedLeadRequest,
     ReviewSourcedLeadRequest,
     SourcedLeadResponse,
@@ -52,3 +53,13 @@ async def review_lead(
     db: AsyncSession = Depends(get_db_session),
 ) -> SourcedLeadResponse:
     return await service.review_lead(db, lead_id=lead_id, reviewer_id=current_user.id, body=body)
+
+
+@router.post("/leads/{lead_id}/convert", response_model=SourcedLeadResponse)
+async def convert_lead(
+    lead_id: UUID,
+    body: ConvertLeadRequest,
+    current_user: User = Depends(require_permission("linkedin_sourcing", "write")),
+    db: AsyncSession = Depends(get_db_session),
+) -> SourcedLeadResponse:
+    return await service.mark_lead_converted(db, lead_id=lead_id, user_id=body.user_id)

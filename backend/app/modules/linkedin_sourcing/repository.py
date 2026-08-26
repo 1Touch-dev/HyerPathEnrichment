@@ -44,3 +44,16 @@ async def mark_reviewed(
     await db.commit()
     await db.refresh(lead)
     return lead
+
+
+async def mark_converted(
+    db: AsyncSession, lead: SourcedCandidateLead, *, user_id: UUID, converted_at: datetime
+) -> SourcedCandidateLead:
+    """Link this lead to the real `User` row it converted into. Does not touch
+    `status` -- conversion is an additional fact recorded alongside whatever
+    status the lead already has."""
+    lead.converted_user_id = user_id
+    lead.converted_at = converted_at
+    await db.commit()
+    await db.refresh(lead)
+    return lead
