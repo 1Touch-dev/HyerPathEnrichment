@@ -92,6 +92,23 @@ queue.enqueue(
 
 ## `backend/app/workers/tasks/resume_tailoring.py`
 
+**Cross-reference (2026-08-26): AI-agent supervision.** Per
+`machine-2-parallel-tracks/04-rbac-admin-platform.md`'s new "AI-agent supervision
+(audit/oversight view)" section (leadership-confirmed scope: "ai agent supervision, of all job
+applications cvs eyes"), `_tailor_resume_job` must insert an `AiActionAuditLog` row
+(`action_type="resume_tailoring"`, `candidate_user_id=user_id`, `triggered_by_user_id=None` — the
+candidate triggers their own tailoring, there is no recruiter in this loop, per this chunk's
+Router section's own "no recruiter-facing variant is built here" note, `related_id=None` since
+the tailored output itself is never persisted, `summary` carrying `target_company`/`target_role`
+as short text) after generating the tailored result, alongside (not instead of) RQ's own
+result-TTL storage. This is a small, additive write — it does not create a `TailoredResume`
+row and does not weaken this chunk's own release-blocking "no-persistence" invariant (see
+Goal section and the "No-persistence regression test" in Verification below): the audit-log row
+records *that a tailoring event happened*, never the generated resume text itself. If `04`'s
+`AiActionAuditLog` table doesn't exist yet when this chunk is implemented, this write is a
+no-op/deferred TODO flagged in the PR description, not a hard blocker for this chunk's own core
+tailoring functionality.
+
 ```python
 """RQ worker task: generate an ephemeral, on-demand tailored resume version for
 one candidate + target company/role pair. Mirrors

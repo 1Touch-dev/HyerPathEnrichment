@@ -221,6 +221,20 @@ class RecruiterActionModeUpdateRequest(BaseModel):
 
 ## `backend/app/modules/recruiter_actions/service.py` — key functions
 
+**Cross-reference (2026-08-26): AI-agent supervision.** Per
+`04-rbac-admin-platform.md`'s new "AI-agent supervision (audit/oversight view)" section
+(leadership-confirmed scope: "ai agent supervision, of all job applications cvs eyes"), the
+autonomous branch below must insert an `AiActionAuditLog` row (`action_type="autonomous_apply"`,
+`related_id=job_match_id`, `candidate_user_id`, `triggered_by_user_id=recruiter.id`) immediately
+after writing `JobMatch.application_status`/`applied_at` — the `approval_required` branch's
+`PendingRecruiterAction` does not get an audit-log row at creation time (it isn't an executed AI
+action yet), but `approve_pending_action` below should insert one at the point it actually applies
+the underlying `JobMatch` write, for the same reason. This is a small, additive write in this
+chunk's own service layer, not a dependency on `04` landing first — if `04`'s `AiActionAuditLog`
+table doesn't exist yet when this chunk is implemented, this write is a no-op/deferred TODO
+flagged in the PR description, not a hard blocker for this chunk's own core apply/suggest
+functionality.
+
 ```python
 async def apply_for_candidate(
     db: AsyncSession, *, recruiter: User, body: ApplyForCandidateRequest
