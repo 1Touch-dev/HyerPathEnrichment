@@ -52,6 +52,7 @@ async def create_brand(
     db: AsyncSession = Depends(get_db_session),
 ) -> BrandResponse:
     brand = await repository.create_brand(db, **body.model_dump())
+    await db.commit()
     return BrandResponse.model_validate(brand)
 
 
@@ -78,4 +79,5 @@ async def update_brand(
     brand = await repository.update_brand(db, brand_id, **fields)
     if brand is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")
+    await db.commit()
     return BrandResponse.model_validate(brand)
