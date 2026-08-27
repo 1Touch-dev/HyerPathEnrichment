@@ -39,6 +39,7 @@ dependencies = [
   "pydub>=0.25,<1.0",
   "pywebpush>=2.0,<3.0",
   "tenacity>=8.2,<10.0",
+  "stripe>=15.6,<16.0",
 ]
 
 [project.optional-dependencies]
