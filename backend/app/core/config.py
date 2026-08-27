@@ -460,6 +460,13 @@ class Settings(BaseSettings):
     # on this data being live at launch, not bolted on later.
     enable_demand_intelligence: bool = Field(default=True, alias="ENABLE_DEMAND_INTELLIGENCE")
 
+    # Billing (docs/adr/0020-billing-provider.md): Stripe integration. Default disabled --
+    # no billing enforcement until an operator explicitly opts in with real Stripe keys.
+    enable_billing: bool = Field(default=False, alias="ENABLE_BILLING")
+    stripe_secret_key: SecretStr = Field(default=SecretStr(""), alias="STRIPE_SECRET_KEY")
+    stripe_webhook_secret: SecretStr = Field(default=SecretStr(""), alias="STRIPE_WEBHOOK_SECRET")
+    stripe_price_id_premium: str = Field(default="", alias="STRIPE_PRICE_ID_PREMIUM")
+
 
 _TIER1_PROD_ENVS = frozenset({"production", "staging"})
 
@@ -525,6 +532,30 @@ def validate_outreach_settings(settings: Settings | None = None) -> None:
         return
     if not cfg.outreach_physical_address.strip():
         raise RuntimeError("OUTREACH_PHYSICAL_ADDRESS is required when OUTREACH_ENABLED is true")
+
+
+def validate_billing_settings(settings: Settings | None = None) -> None:
+    """Fail fast when billing is enabled without required Stripe credentials.
+
+    Raises RuntimeError listing missing env key *names* only (never secret values).
+    No-op when ``enable_billing`` is false.
+    """
+    cfg = settings if settings is not None else get_settings()
+    if not cfg.enable_billing:
+        return
+
+    missing: list[str] = []
+    if not cfg.stripe_secret_key.get_secret_value().strip():
+        missing.append("STRIPE_SECRET_KEY")
+    if not cfg.stripe_webhook_secret.get_secret_value().strip():
+        missing.append("STRIPE_WEBHOOK_SECRET")
+    if not cfg.stripe_price_id_premium.strip():
+        missing.append("STRIPE_PRICE_ID_PREMIUM")
+
+    if missing:
+        raise RuntimeError(
+            "ENABLE_BILLING=true but required settings are missing: " + ", ".join(missing)
+        )
 
 
 @lru_cache
