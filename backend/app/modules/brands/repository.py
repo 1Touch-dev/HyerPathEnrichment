@@ -89,3 +89,52 @@ async def list_assigned_candidate_ids(db: AsyncSession, recruiter_user_id: UUID)
         )
     )
     return list(result.scalars().all())
+
+
+async def delete_assignment(
+    db: AsyncSession, *, recruiter_user_id: UUID, candidate_user_id: UUID
+) -> bool:
+    """Idempotent unassign: returns False (no-op, not an error) if no matching
+    row existed. Deleting this row only affects 'my assigned candidates' views
+    and notification routing — see models.py's RecruiterCandidateAssignment
+    docstring; it never cascades to or hides any other domain data."""
+    result = await db.execute(
+        select(RecruiterCandidateAssignment).where(
+            RecruiterCandidateAssignment.recruiter_user_id == recruiter_user_id,
+            RecruiterCandidateAssignment.candidate_user_id == candidate_user_id,
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing is None:
+        return False
+    await db.delete(existing)
+    await db.flush()
+    return True
+
+
+async def list_assignments_for_recruiter(
+    db: AsyncSession, recruiter_user_id: UUID
+) -> list[RecruiterCandidateAssignment]:
+    """Full assignment rows for a recruiter's 'my assigned candidates' view —
+    see list_assigned_candidate_ids above for the ids-only variant used
+    elsewhere; this one backs MyCandidatesListResponse's richer shape."""
+    result = await db.execute(
+        select(RecruiterCandidateAssignment).where(
+            RecruiterCandidateAssignment.recruiter_user_id == recruiter_user_id
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def list_assigned_recruiters_for_candidate(
+    db: AsyncSession, candidate_user_id: UUID
+) -> list[RecruiterCandidateAssignment]:
+    """Read path for a future notification-dispatch chunk (see the spec's Goal
+    §3) — not called by anything in this chunk itself, provided so that chunk
+    doesn't have to add its own query against this table's raw columns."""
+    result = await db.execute(
+        select(RecruiterCandidateAssignment).where(
+            RecruiterCandidateAssignment.candidate_user_id == candidate_user_id
+        )
+    )
+    return list(result.scalars().all())
