@@ -155,5 +155,15 @@ services:
       retries: 3
       start_period: 30s
 
+  # This overlay otherwise only adds document/embedding/job-matching workers
+  # (no `api` service block exists here). Billing passthrough is added so
+  # `api` keeps its env when this file is combined with the others.
+  api:
+    environment:
+      ENABLE_BILLING: ${ENABLE_BILLING:-false}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_ID_PREMIUM: ${STRIPE_PRICE_ID_PREMIUM:-}
+
 volumes:
   document_cache:
