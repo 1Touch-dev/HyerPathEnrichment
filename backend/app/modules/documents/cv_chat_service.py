@@ -350,20 +350,18 @@ class CvChatService:
         return None
 
     async def _resolve_brand_chatbot_config(self, user_id: UUID) -> dict[str, Any] | None:
-        """Loads the candidate's users.signup_brand_id, then that Brand's
-        chatbot_config, if both exist. Returns None (falls back to default
-        chatbot behavior) when: the user has no signup_brand_id, the referenced
+        """Loads the candidate's users.signup_brand_id and that Brand's
+        chatbot_config/is_active in a single joined query. Returns None (falls back to
+        default chatbot behavior) when: the user has no signup_brand_id, the referenced
         Brand row is missing/inactive, or chatbot_config itself is NULL/empty —
         all three cases must produce identical (no customization) behavior, not
         three different fallback shapes."""
-        result = await self.db.execute(select(User.signup_brand_id).where(User.id == user_id))
-        brand_id = result.scalar_one_or_none()
-        if brand_id is None:
-            return None
-        brand_result = await self.db.execute(
-            select(Brand.chatbot_config, Brand.is_active).where(Brand.id == brand_id)
+        result = await self.db.execute(
+            select(Brand.chatbot_config, Brand.is_active)
+            .join(User, User.signup_brand_id == Brand.id)
+            .where(User.id == user_id)
         )
-        row = brand_result.one_or_none()
+        row = result.one_or_none()
         if row is None or not row.is_active:
             return None
         return row.chatbot_config or None

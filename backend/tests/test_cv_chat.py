@@ -1085,8 +1085,8 @@ async def test_resolve_brand_chatbot_config_performs_at_most_one_extra_query(
     db, test_user, brand_with_chatbot_config
 ):
     """_resolve_brand_chatbot_config must not introduce an N+1 or repeated-lookup pattern —
-    at most one extra query is allowed per chat turn (asserted via SQLAlchemy's engine-level
-    query-count instrumentation, not just correctness of the result)."""
+    it issues a single joined query (asserted via SQLAlchemy's engine-level query-count
+    instrumentation, not just correctness of the result)."""
     from sqlalchemy import event
 
     test_user.signup_brand_id = brand_with_chatbot_config.id
@@ -1108,6 +1108,6 @@ async def test_resolve_brand_chatbot_config_performs_at_most_one_extra_query(
         event.remove(sync_engine, "before_cursor_execute", _count_query)
 
     assert result == brand_with_chatbot_config.chatbot_config
-    # Exactly two SELECTs (signup_brand_id lookup + brand row lookup) — "at most one extra
-    # query per chat turn" beyond the base chat-turn queries already issued elsewhere.
-    assert query_count <= 2
+    # Exactly one SELECT: the User/Brand lookup is now a single joined query instead of
+    # two separate round-trips.
+    assert query_count <= 1
