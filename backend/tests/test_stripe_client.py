@@ -59,6 +59,7 @@ async def test_create_customer_dispatches_via_to_thread_and_returns_customer_id(
         mock_create,
         email="a@example.com",
         metadata={"user_id": str(user_id)},
+        api_key="sk_test_dummy",
     )
     # The real SDK call must never run directly on the event loop.
     mock_create.assert_not_called()
@@ -96,6 +97,7 @@ async def test_create_checkout_session_dispatches_via_to_thread_and_returns_url(
         mode="subscription",
         success_url="https://app.example.com/success",
         cancel_url="https://app.example.com/cancel",
+        api_key="sk_test_dummy",
     )
     mock_create.assert_not_called()
 
@@ -156,6 +158,7 @@ async def test_create_billing_portal_session_dispatches_via_to_thread_and_return
         mock_create,
         customer="cus_123",
         return_url="https://app.example.com/account",
+        api_key="sk_test_dummy",
     )
     mock_create.assert_not_called()
 
@@ -190,5 +193,7 @@ def test_verify_webhook_signature_returns_event_without_using_to_thread(
         result = stripe_client.verify_webhook_signature(b"payload-bytes", "sig-header")
 
     assert result is fake_event
-    mock_construct.assert_called_once_with(b"payload-bytes", "sig-header", "whsec_test")
+    mock_construct.assert_called_once_with(
+        b"payload-bytes", "sig-header", "whsec_test", api_key="sk_test_dummy"
+    )
     mock_to_thread.assert_not_called()
