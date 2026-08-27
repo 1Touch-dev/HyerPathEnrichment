@@ -76,12 +76,19 @@ async def set_company_tier(
 ) -> CompanyTierResponse:
     """Manual, human-set employer tier classification (machine-2/03) — upserts by
     company_name; no permission beyond the existing gate protecting the other
-    outreach endpoints in this router is required."""
+    outreach endpoints in this router is required.
+
+    ``update_notes`` is derived from Pydantic's native ``model_fields_set``
+    rather than an ``is None`` check on ``body.notes`` — the latter can't tell
+    "the client didn't send `notes` at all" apart from "the client explicitly
+    sent `notes: null`", and the former (omitted) must never clear an existing
+    note while the latter (explicit null) must."""
     row = await OutreachService(db).set_company_tier(
         company_name=body.company_name,
         tier=body.tier,
         set_by_user_id=current_user.id,
         notes=body.notes,
+        update_notes="notes" in body.model_fields_set,
     )
     return CompanyTierResponse(
         company_name=row.company_name,

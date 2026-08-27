@@ -68,11 +68,14 @@ class OutreachMessage(Base):
 
 
 class EmployerCompanyTier(Base):
-    """A recruiter's manual, human-set classification of a target employer. This is
-    NOT auto-computed from any enrichment/scraping signal — it reflects a recruiter's
-    own judgment call (e.g. a well-known, high-paying "premium" employer vs. a
-    lower-paying staffing/outsourcing shop), and is set/edited explicitly through the
-    admin UI, not derived by any background job."""
+    """A per-employer tier classification used to vary outreach-drafting tone
+    (see "Company-tier-driven drafting variation" in 03-outreach-strategy-dimension.md).
+    Populated by one of two paths, tracked by set_by: an LLM classifier
+    (classify_company_tier, see backend/app/workers/tasks/outreach.py) as the
+    primary, system-driven path, or a recruiter's own manual judgment call
+    (via the PUT /company-tier endpoint) as an override path. A recruiter-set
+    value (set_by="recruiter") must never be silently overwritten by a later
+    auto-classification run — see apply_classified_company_tier in service.py."""
 
     __tablename__ = "employer_company_tiers"
 
@@ -82,6 +85,14 @@ class EmployerCompanyTier(Base):
     # a name string, same as everywhere else in this module).
     company_name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     tier: Mapped[str] = mapped_column(String(20), nullable=False)  # "premium" | "outsourcing"
+    # Which write-path produced the current value. "llm" = classify_company_tier's
+    # output; "recruiter" = a human explicitly set/overrode it via the manual
+    # PUT /company-tier endpoint. Distinguishing these lets the classifier re-run
+    # safely without clobbering a deliberate human override (see
+    # apply_classified_company_tier in service.py).
+    set_by: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="llm"
+    )  # "llm" | "recruiter"
     set_by_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

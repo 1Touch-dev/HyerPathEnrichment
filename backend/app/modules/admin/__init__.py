@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from app.modules.admin.ai_supervision_router import router as ai_supervision_router
 from app.modules.admin.analytics_router import router as analytics_router
 from app.modules.admin.applications_router import router as applications_router
 from app.modules.admin.audit_router import router as audit_router
@@ -46,3 +47,4 @@ router.include_router(review_queue_router)
 router.include_router(applications_router)
 router.include_router(interview_schedules_router)
 router.include_router(manual_job_entries_router)
+router.include_router(ai_supervision_router)

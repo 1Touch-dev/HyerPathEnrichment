@@ -16,6 +16,7 @@ from app.modules.documents.models import CandidateDocument
 from app.modules.outreach.models import OutreachMessage
 from app.modules.outreach.schemas import OutreachDraftRequest, OutreachEditRequest
 from app.modules.outreach.service import OutreachService
+from tests.envelope_helpers import assert_success
 
 
 @pytest.fixture
@@ -999,6 +1000,218 @@ async def test_get_company_tier_returns_set_row(db, test_user):
     result = await service.get_company_tier(company_name)
     assert result is not None
     assert result.tier == "outsourcing"
+
+
+# --- machine-2/03: LLM company-tier classifier + set_by override preservation ---
+
+
+async def test_set_company_tier_always_writes_set_by_recruiter(db, test_user):
+    """The recruiter-facing PUT path (OutreachService.set_company_tier) always
+    writes set_by='recruiter', regardless of any prior value."""
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    service = OutreachService(db, redis_conn=MagicMock())
+    row = await service.set_company_tier(
+        company_name=company_name, tier="premium", set_by_user_id=test_user.id, notes=None
+    )
+    assert row.set_by == "recruiter"
+
+
+async def test_recruiter_put_always_overwrites_regardless_of_existing_set_by(db, test_user):
+    """A recruiter's own explicit PUT /company-tier call always overwrites,
+    regardless of the existing row's set_by -- including a row the classifier
+    itself previously wrote (set_by='llm')."""
+    from app.modules.outreach.repository import set_company_tier
+
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    await set_company_tier(
+        db,
+        company_name=company_name,
+        tier="outsourcing",
+        set_by="llm",
+        set_by_user_id=None,
+        notes=None,
+    )
+
+    service = OutreachService(db, redis_conn=MagicMock())
+    row = await service.set_company_tier(
+        company_name=company_name,
+        tier="premium",
+        set_by_user_id=test_user.id,
+        notes="Recruiter call",
+    )
+    assert row.tier == "premium"
+    assert row.set_by == "recruiter"
+    assert row.set_by_user_id == test_user.id
+    assert row.notes == "Recruiter call"
+
+
+async def test_apply_classified_company_tier_preserves_recruiter_override(db, test_user):
+    """Release-blocking: seed a row with set_by='recruiter', then invoke the
+    classifier's write path for the same company_name with a different tier --
+    the row must be completely unchanged (tier, set_by, set_by_user_id all
+    still the recruiter's original values)."""
+    from app.modules.outreach.repository import get_company_tier
+    from app.modules.outreach.service import apply_classified_company_tier
+
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    service = OutreachService(db, redis_conn=MagicMock())
+    original = await service.set_company_tier(
+        company_name=company_name,
+        tier="premium",
+        set_by_user_id=test_user.id,
+        notes="Recruiter judgment",
+    )
+
+    result = await apply_classified_company_tier(db, company_name, "outsourcing")
+
+    assert result.tier == "premium"
+    assert result.set_by == "recruiter"
+    assert result.set_by_user_id == test_user.id
+    assert result.notes == "Recruiter judgment"
+
+    refetched = await get_company_tier(db, company_name)
+    assert refetched.tier == original.tier
+    assert refetched.set_by == original.set_by
+    assert refetched.set_by_user_id == original.set_by_user_id
+
+
+async def test_apply_classified_company_tier_overwrites_llm_row(db):
+    """Companion test: a set_by='llm' row IS overwritten by a subsequent
+    classifier run -- the skip logic is specific to set_by='recruiter', not a
+    blanket "never update" rule."""
+    from app.modules.outreach.repository import set_company_tier
+    from app.modules.outreach.service import apply_classified_company_tier
+
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    await set_company_tier(
+        db,
+        company_name=company_name,
+        tier="outsourcing",
+        set_by="llm",
+        set_by_user_id=None,
+        notes=None,
+    )
+
+    result = await apply_classified_company_tier(db, company_name, "premium")
+
+    assert result.tier == "premium"
+    assert result.set_by == "llm"
+    assert result.set_by_user_id is None
+
+
+async def test_apply_classified_company_tier_creates_row_when_none_exists(db):
+    """No prior row for this employer -- the classifier's write path creates
+    one with set_by='llm' and set_by_user_id=None (no human actor)."""
+    from app.modules.outreach.service import apply_classified_company_tier
+
+    company_name = f"NewCo-{uuid4().hex[:8]}"
+    result = await apply_classified_company_tier(db, company_name, "premium")
+
+    assert result.tier == "premium"
+    assert result.set_by == "llm"
+    assert result.set_by_user_id is None
+
+
+async def test_apply_classified_company_tier_does_not_clear_existing_notes(db):
+    """The classifier's write path always calls set_company_tier with
+    notes=None -- verify it now passes update_notes=False so re-classifying a
+    non-recruiter-owned row (e.g. a prior set_by='llm' row that had a note
+    added some other way) never wipes that note out."""
+    from app.modules.outreach.repository import set_company_tier
+    from app.modules.outreach.service import apply_classified_company_tier
+
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    await set_company_tier(
+        db,
+        company_name=company_name,
+        tier="outsourcing",
+        set_by="llm",
+        set_by_user_id=None,
+        notes="Pre-existing note",
+    )
+
+    result = await apply_classified_company_tier(db, company_name, "premium")
+
+    assert result.tier == "premium"
+    assert result.set_by == "llm"
+    assert result.notes == "Pre-existing note"
+
+
+# --- Track F (issue #3): notes sentinel semantics on PUT /api/outreach/company-tier ---
+#
+# These exercise the actual HTTP layer (not just the service function) since
+# the sentinel behavior hinges on Pydantic's `model_fields_set`, which is only
+# meaningfully "field omitted vs. explicitly sent" when the request body is
+# parsed from real JSON rather than constructed via Python kwargs.
+
+
+async def test_put_company_tier_omitting_notes_key_preserves_existing_note(
+    client, auth_headers, test_user
+):
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    headers = auth_headers(test_user.id)
+
+    create_response = client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "premium", "notes": "Existing note"},
+        headers=headers,
+    )
+    created = assert_success(create_response)
+    assert created["notes"] == "Existing note"
+
+    update_response = client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "outsourcing"},
+        headers=headers,
+    )
+    updated = assert_success(update_response)
+
+    assert updated["tier"] == "outsourcing"
+    assert updated["notes"] == "Existing note"
+
+
+async def test_put_company_tier_explicit_null_notes_clears_existing_note(
+    client, auth_headers, test_user
+):
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    headers = auth_headers(test_user.id)
+
+    client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "premium", "notes": "Existing note"},
+        headers=headers,
+    )
+
+    update_response = client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "premium", "notes": None},
+        headers=headers,
+    )
+    updated = assert_success(update_response)
+
+    assert updated["notes"] is None
+
+
+async def test_put_company_tier_explicit_new_notes_string_updates_note(
+    client, auth_headers, test_user
+):
+    company_name = f"Acme-{uuid4().hex[:8]}"
+    headers = auth_headers(test_user.id)
+
+    client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "premium", "notes": "Original note"},
+        headers=headers,
+    )
+
+    update_response = client.put(
+        "/api/outreach/company-tier",
+        json={"company_name": company_name, "tier": "premium", "notes": "Updated note"},
+        headers=headers,
+    )
+    updated = assert_success(update_response)
+
+    assert updated["notes"] == "Updated note"
 
 
 # --- machine-2/05: CAN-SPAM send compliance ---

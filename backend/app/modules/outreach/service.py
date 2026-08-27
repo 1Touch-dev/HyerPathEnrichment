@@ -267,11 +267,65 @@ class OutreachService:
         tier: str,
         set_by_user_id: UUID,
         notes: str | None,
+        update_notes: bool = True,
     ) -> EmployerCompanyTier:
+        """Recruiter-override write path (PUT /company-tier). Always writes
+        set_by="recruiter" and always overwrites unconditionally, regardless of
+        the row's current set_by — the override-preservation rule only protects
+        a recruiter's value from the classifier (see
+        apply_classified_company_tier below), never from the recruiter
+        themselves.
+
+        ``update_notes`` (default ``True``) threads through to
+        ``repository.set_company_tier`` — the router passes ``False`` when the
+        request body omitted ``notes`` entirely (per ``model_fields_set``), so
+        a tier-only PUT never silently clears an existing note."""
         return await set_company_tier(
             self.db,
             company_name=company_name,
             tier=tier,
+            set_by="recruiter",
             set_by_user_id=set_by_user_id,
             notes=notes,
+            update_notes=update_notes,
         )
+
+
+async def apply_classified_company_tier(
+    db: AsyncSession, company_name: str, tier: str
+) -> EmployerCompanyTier:
+    """The LLM classifier's own write-path (called by
+    ``classify_company_tier``'s call site in ``backend/app/workers/tasks/outreach.py``).
+
+    Enforces the override-preservation rule from 03-outreach-strategy-dimension.md's
+    "Ambiguities resolved" section: a recruiter-set value must never be silently
+    overwritten by a later automatic classification run. Looks up the existing
+    row first; if it exists and was set by a recruiter, returns it unchanged
+    (no write at all). Otherwise upserts via ``set_company_tier`` with
+    ``set_by="llm"`` and ``set_by_user_id=None`` (there is no human actor for a
+    system-populated write). This is a module-level function, not an
+    ``OutreachService`` method, since the worker task that calls it constructs
+    its own bare ``AsyncSession`` (see ``_generate_outreach_draft_job``) rather
+    than an ``OutreachService`` instance.
+
+    Passes ``notes=None, update_notes=False`` — the classifier never has an
+    opinion about ``notes`` (it only ever writes ``tier``), so this write-path
+    must never clear a recruiter's existing note either. This closes the same
+    latent-bug family as the recruiter PUT sentinel fix above: without
+    ``update_notes=False`` here, a classifier run against a company that
+    already has an LLM-set row (no recruiter override yet, so the early-return
+    above doesn't apply) would silently null out any note a recruiter had
+    added in the meantime via a tier-only PUT.
+    """
+    existing = await get_company_tier(db, company_name)
+    if existing is not None and existing.set_by == "recruiter":
+        return existing
+    return await set_company_tier(
+        db,
+        company_name=company_name,
+        tier=tier,
+        set_by="llm",
+        set_by_user_id=None,
+        notes=None,
+        update_notes=False,
+    )

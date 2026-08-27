@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
+from app.modules.admin.ai_supervision_service import record_ai_action
 from app.modules.documents.models import CandidateDocument
 from app.modules.job_matching import push
 from app.modules.job_matching.models import JobMatch
@@ -137,6 +138,14 @@ async def apply_for_candidate(
         job_match.status_updated_at = now
         await db.commit()
         await db.refresh(job_match)
+        await record_ai_action(
+            db,
+            action_type="autonomous_apply",
+            candidate_user_id=candidate.id,
+            triggered_by_user_id=recruiter.id,
+            related_id=job_match.id,
+            summary=f"Autonomous application submitted for job_match {job_match.id}",
+        )
         await _notify_candidate_push(
             db,
             candidate,

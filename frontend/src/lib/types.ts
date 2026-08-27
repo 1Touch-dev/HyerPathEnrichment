@@ -338,6 +338,22 @@ export type AdminAuditLogListResponse = {
   hasMore: boolean;
 };
 
+export type AiAction = {
+  id: string;
+  actionType: string;
+  candidateUserId: string | null;
+  triggeredByUserId: string | null;
+  relatedId: string | null;
+  summary: string | null;
+  createdAt: string;
+};
+
+export type AiActionListResponse = {
+  items: AiAction[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
 export type FeatureFlag = {
   key: string;
   enabled: boolean;

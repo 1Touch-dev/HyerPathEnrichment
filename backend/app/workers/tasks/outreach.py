@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from typing import Literal
 from uuid import UUID, uuid4
 
 import httpx
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.database.orm_registry  # noqa: F401
@@ -18,6 +20,7 @@ from app.core.config import Settings, get_settings
 from app.database.session import SessionLocal, engine
 from app.domain.candidate import CVData
 from app.infrastructure.redis import close_redis
+from app.modules.admin.ai_supervision_service import record_ai_action
 from app.modules.admin.moderation_flagging import flag_if_needed
 from app.modules.demand_intelligence.service import get_top_countries_for_role
 from app.modules.documents.models import CandidateDocument
@@ -26,9 +29,11 @@ from app.modules.documents.models import CandidateDocument
 # read-only, never redefined, same cross-module convention job_swipe/repository.py
 # already uses for its own read-only access to Module 1's tables.
 from app.modules.job_matching.models import JobMatch, JobPosting
-from app.modules.outreach.models import OutreachMessage
+from app.modules.outreach.models import EmployerCompanyTier, OutreachMessage
 from app.modules.outreach.repository import get_company_tier
+from app.modules.outreach.service import apply_classified_company_tier
 from app.observability.outreach_metrics import outreach_drafts_by_type_total
+from app.workers.queue import get_redis_connection
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +122,188 @@ _COMPANY_TIER_INSTRUCTIONS = {
     "tone that could be mistaken for a mass-sent template.",
 }
 
+# Sibling to _STRATEGY_INSTRUCTIONS/_ROLE_TYPE_INSTRUCTIONS/_COMPANY_TIER_INSTRUCTIONS
+# above (co-located with classify_company_tier itself would also read fine; kept
+# here since it's a plain constant like its siblings, not classifier-specific logic).
+_COMPANY_TIER_CLASSIFIER_SYSTEM_PROMPT = (
+    "You classify a company into exactly one of two tiers based on its size and "
+    "niche, using only the public company context provided. "
+    '"premium": a well-known, established, or high-paying employer (e.g. a large '
+    "company, a recognized brand, a well-funded/well-regarded firm in its niche). "
+    '"outsourcing": a staffing/outsourcing/body-shop employer, or any company too '
+    "small/obscure/context-poor to confidently call premium. When genuinely "
+    'uncertain, prefer "outsourcing" — it is the more conservative default. '
+    'Respond with a JSON object: {"tier": "premium" | "outsourcing"}.'
+)
+
+# Structured-output JSON schema for classify_company_tier — OpenAI's
+# response_format={"type": "json_schema", ...} strict mode, not free-text
+# parsed with json.loads on a hope (matches this file's existing httpx +
+# with_transient_retry call shape used by _draft_with_llm for consistency).
+_COMPANY_TIER_JSON_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "company_tier",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "tier": {"type": "string", "enum": ["premium", "outsourcing"]},
+            },
+            "required": ["tier"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+async def classify_company_tier(
+    company_name: str, company_context: str
+) -> Literal["premium", "outsourcing"]:
+    """LLM-based company-tier classifier (confirmed by leadership 2026-08-26:
+    "automate classifier w llm based on company size and niche"). company_context
+    is the same public-company-summary string this module already fetches via
+    PerplexityClient.get_company_context(company_name, role_title) — see
+    backend/app/clients/perplexity.py's get_company_context, reused here as-is,
+    not re-fetched by a second research call.
+
+    Never raises: on ANY failure mode -- network/HTTP exception, a
+    schema-invalid/unparseable response, or a refusal -- this fails soft by
+    returning "outsourcing" (the more conservative, less-differentiated tier;
+    see 03-outreach-strategy-dimension.md's "Ambiguities resolved" for why that
+    default, not "premium", is the safe fallback) rather than blocking
+    drafting.
+    """
+    settings = get_settings()
+    api_key = settings.openai_api_key.strip()
+    if not api_key:
+        return "outsourcing"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Same call shape as _draft_with_llm below: raise_for_status() must
+            # run *inside* the retried operation, not after with_transient_retry
+            # returns, so status-code errors (429/502/503/504) actually trigger
+            # a retry, not just network-level failures.
+            async def _do_post() -> httpx.Response:
+                resp = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [
+                            {"role": "system", "content": _COMPANY_TIER_CLASSIFIER_SYSTEM_PROMPT},
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"Company: {company_name}\n"
+                                    f"Public company context: {company_context or '(none available)'}"
+                                ),
+                            },
+                        ],
+                        "response_format": _COMPANY_TIER_JSON_SCHEMA,
+                        "temperature": 0.0,
+                    },
+                )
+                resp.raise_for_status()
+                return resp
+
+            response = await with_transient_retry(_do_post)
+            result = response.json()
+            choice = result["choices"][0]["message"]
+            # A refusal surfaces via the "refusal" field in structured-output
+            # mode rather than "content" — treat it the same as any other
+            # unparseable-response failure mode.
+            if choice.get("refusal"):
+                return "outsourcing"
+            content = choice["content"]
+            parsed = json.loads(content)
+            tier = parsed["tier"]
+            if tier == "premium":
+                return "premium"
+            return "outsourcing"
+    except Exception:
+        logger.warning(
+            "classify_company_tier failed; failing soft to 'outsourcing'",
+            exc_info=True,
+            extra={"company_name": company_name},
+        )
+        return "outsourcing"
+
+
+# Bounds on how long a draft job will wait for a concurrent draft-to-the-same-
+# -company classification to finish before falling back to classifying
+# locally itself -- see _classify_and_persist_company_tier below (Issue #4).
+_COMPANY_TIER_LOCK_TTL_SECONDS = 15
+_COMPANY_TIER_LOCK_POLL_INTERVAL_SECONDS = 0.2
+_COMPANY_TIER_LOCK_POLL_MAX_ATTEMPTS = 10  # ~2s total wait
+
+
+async def _classify_and_persist_company_tier(
+    session: AsyncSession, company_name: str, company_context: str
+) -> EmployerCompanyTier:
+    """Classify and persist a brand-new company's tier row, guarded by a
+    Redis lock keyed on ``company_name`` (Issue #4, cross-recruiter race).
+
+    Without this, two concurrent draft requests for the same not-yet-tiered
+    employer (e.g. from two different recruiters/candidates) could both see
+    no existing ``EmployerCompanyTier`` row in
+    ``_generate_outreach_draft_job``, both call ``classify_company_tier``,
+    and both attempt to insert a row via ``apply_classified_company_tier`` --
+    only one can win the unique constraint on ``EmployerCompanyTier.company_name``,
+    crashing the loser's draft job with an unhandled ``IntegrityError``.
+
+    Reuses the exact ``SET NX EX`` lock primitive
+    ``OutreachService.request_draft`` already uses for its own per-draft
+    lock (see ``app/modules/outreach/service.py``), via the same
+    ``get_redis_connection()`` helper -- this worker module had no other
+    Redis usage before this.
+
+    Lock-holder path: classify, persist, release.
+
+    Non-lock-holder path: poll ``get_company_tier`` every ~200ms for up to
+    ~2s (bounded -- this can never block indefinitely). If a row appears in
+    the meantime, use it. If the wait times out with still no row (e.g. the
+    lock holder crashed or is unusually slow), fall back to classifying
+    locally rather than blocking the draft forever.
+
+    Either path also wraps the ``apply_classified_company_tier`` call in a
+    defensive ``try/except IntegrityError`` backstop: even with the lock
+    above, a duplicate-key race is still theoretically possible (lock TTL
+    expiring mid-write, or the no-lock fallback path racing the original
+    holder's own write) -- on that exception, re-read and return the
+    now-existing row instead of letting the draft job crash.
+    """
+    lock_key = f"company-tier-classify-lock:{company_name.strip().lower()}"
+    redis_conn = get_redis_connection()
+    lock_acquired = redis_conn.set(lock_key, "1", nx=True, ex=_COMPANY_TIER_LOCK_TTL_SECONDS)
+
+    if not lock_acquired:
+        for _ in range(_COMPANY_TIER_LOCK_POLL_MAX_ATTEMPTS):
+            await asyncio.sleep(_COMPANY_TIER_LOCK_POLL_INTERVAL_SECONDS)
+            existing = await get_company_tier(session, company_name)
+            if existing is not None:
+                return existing
+        # Timed out waiting for the lock holder to finish -- fall back to
+        # classifying locally below rather than waiting indefinitely.
+
+    try:
+        classified_tier = await classify_company_tier(company_name, company_context)
+        try:
+            return await apply_classified_company_tier(session, company_name, classified_tier)
+        except IntegrityError:
+            await session.rollback()
+            existing = await get_company_tier(session, company_name)
+            if existing is not None:
+                return existing
+            raise
+    finally:
+        if lock_acquired:
+            redis_conn.delete(lock_key)
+
 
 def generate_outreach_draft_job(
     user_id: str,
@@ -203,7 +390,24 @@ async def _generate_outreach_draft_job(
             tier: str | None = None
             if settings.enable_company_tier_in_outreach_drafting:
                 tier_row = await get_company_tier(session, company_name)
-                tier = tier_row.tier if tier_row is not None else None
+                if tier_row is not None:
+                    tier = tier_row.tier
+                else:
+                    # No row yet for this employer — classify lazily as a
+                    # side effect of this draft rather than requiring a
+                    # recruiter to set the tier manually first (machine-2/03,
+                    # "LLM-based company-tier classifier"). classify_company_tier
+                    # never raises (fails soft to "outsourcing"), and
+                    # apply_classified_company_tier enforces the
+                    # override-preservation rule before persisting.
+                    # _classify_and_persist_company_tier additionally guards
+                    # this against the cross-recruiter race where two
+                    # concurrent drafts for the same brand-new company both
+                    # try to insert a row (Issue #4).
+                    tier_row = await _classify_and_persist_company_tier(
+                        session, company_name, context["summary"]
+                    )
+                    tier = tier_row.tier
 
             subject, body = await _draft_with_llm(
                 cv_data,
@@ -243,6 +447,14 @@ async def _generate_outreach_draft_job(
             )
             session.add(message)
             await session.commit()
+
+            await record_ai_action(
+                session,
+                action_type="outreach_draft",
+                candidate_user_id=UUID(user_id),
+                related_id=message.id,
+                summary=f"Outreach draft generated for {company_name}",
+            )
 
             outreach_drafts_by_type_total.labels(message_type=message_type).inc()
 
