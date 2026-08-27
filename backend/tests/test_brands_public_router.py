@@ -113,7 +113,7 @@ async def test_public_brand_requires_no_authentication(client, brand_factory):
     not merely that it also works when authenticated."""
     await brand_factory(slug="no-auth-needed")
 
-    assert "authorization" not in {h.lower() for h in client.headers.keys()}
+    assert "authorization" not in {h.lower() for h in client.headers}
     response = client.get("/api/brands/public/no-auth-needed", headers={})
 
     body = assert_success(response)
