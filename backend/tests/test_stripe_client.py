@@ -5,16 +5,11 @@ Mocking convention follows `tests/test_linkedin_browser.py`'s pattern for
 module's namespace and assert it was invoked with the expected target
 function/kwargs, rather than letting the real thread-pool dispatch run).
 
-NOTE on the "no hosted URL" test below: as of this commit, `client.py` in
-*this* worktree still has the pre-fix `assert session.url is not None` in
-`create_checkout_session`. The fix (raising `RuntimeError` instead) lives on
-the sibling branch `fix/stripe-client-bugs`, developed concurrently in a
-different worktree and not yet merged here. That test is written against the
-*target* contract (both branches share this contract) and is therefore
-EXPECTED TO FAIL against today's unfixed code with an `AssertionError` rather
-than the `AssertionError` being turned into a passing `RuntimeError` check.
-Once `fix/stripe-client-bugs` is merged into this branch, the test will pass
-without any changes.
+NOTE on the "no hosted URL" test below: it targets `create_checkout_session`
+raising `RuntimeError` (not the old bare `assert session.url is not None`)
+when Stripe returns a session without a hosted URL. That fix landed via
+`fix/stripe-client-bugs` and is merged into this branch; the test passes
+against the real, current `client.py`.
 """
 
 from __future__ import annotations
@@ -105,13 +100,9 @@ async def test_create_checkout_session_dispatches_via_to_thread_and_returns_url(
 async def test_create_checkout_session_raises_runtime_error_when_no_hosted_url(
     stripe_client: StripeClient,
 ) -> None:
-    """Target contract (shared with `fix/stripe-client-bugs`): a session with
-    `url=None` must raise `RuntimeError`, not rely on a bare `assert` (which
-    is stripped under `-O` and raises the wrong exception type otherwise).
-
-    EXPECTED TO FAIL against this worktree's current `client.py`, which still
-    has `assert session.url is not None` -> `AssertionError`, not
-    `RuntimeError`. This is intentional; see module docstring.
+    """A session with `url=None` must raise `RuntimeError`, not rely on a
+    bare `assert` (which is stripped under `-O` and raises the wrong
+    exception type otherwise). Fix landed via `fix/stripe-client-bugs`.
     """
     fake_session = SimpleNamespace(url=None)
 
