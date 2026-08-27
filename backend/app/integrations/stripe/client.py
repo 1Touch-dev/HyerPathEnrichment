@@ -24,9 +24,7 @@ class StripeClient:
 
     def __init__(self, api_key: str | None = None) -> None:
         settings = get_settings()
-        # stripe_secret_key is added to Settings by a concurrent track (Track C);
-        # not yet present on this branch's config.py until the two are merged.
-        stripe.api_key = api_key or settings.stripe_secret_key.get_secret_value()  # type: ignore[attr-defined]
+        stripe.api_key = api_key or settings.stripe_secret_key.get_secret_value()
 
     async def create_customer(self, *, user_id: UUID, email: str) -> str:
         """Create a Stripe customer for ``user_id`` and return its Stripe customer ID."""
@@ -66,11 +64,9 @@ class StripeClient:
         )
         return session.url
 
-    def verify_webhook_signature(self, payload: bytes, signature_header: str) -> "stripe.Event":
+    def verify_webhook_signature(self, payload: bytes, signature_header: str) -> stripe.Event:
         """Verify and construct a Stripe webhook event from the raw request payload."""
         settings = get_settings()
-        # stripe_webhook_secret is added to Settings by a concurrent track (Track C);
-        # not yet present on this branch's config.py until the two are merged.
-        webhook_secret = settings.stripe_webhook_secret.get_secret_value()  # type: ignore[attr-defined]
+        webhook_secret = settings.stripe_webhook_secret.get_secret_value()
         event = stripe.Webhook.construct_event(payload, signature_header, webhook_secret)
         return cast("stripe.Event", event)
