@@ -11,7 +11,7 @@ subscription seat count and does not gate on the retrofit wave (that wave no lon
 ## Ground truth (verified 2026-08-22)
 
 No Stripe (or any payment provider) integration exists anywhere in this repo today —
-`backend/requirements.txt` has no `stripe` package, no `backend/app/integrations/stripe/` or
+`backend/pyproject.toml` has no `stripe` package, no `backend/app/integrations/stripe/` or
 similar directory exists, and no billing-related model/table exists. This chunk is genuinely
 net-new, not a retrofit.
 
@@ -40,7 +40,7 @@ relationship of its own and never appears as an FK target on any billing table.
 
 ## Files to edit
 
-- `backend/requirements.txt` — add `stripe` (pin to whatever the latest stable major version is
+- `backend/pyproject.toml` — add `stripe` (pin to whatever the latest stable major version is
   at implementation time; check PyPI, do not guess a version number here).
 - `backend/app/core/config.py`
 - `backend/app/main.py` — register `billing.router` and `billing.webhook_router`.
