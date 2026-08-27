@@ -22,7 +22,13 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    inviteToken?: string,
+  ) => Promise<void>;
   deleteAccount: () => Promise<void>;
   refetchUser: () => Promise<void>;
 }
@@ -98,16 +104,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  const register = async (email: string, password: string, firstName: string, lastName: string) => {
+  const register = async (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    inviteToken?: string,
+  ) => {
+    const body: {
+      email: string;
+      password: string;
+      first_name: string;
+      last_name: string;
+      invite_token?: string;
+    } = {
+      email,
+      password,
+      first_name: firstName,
+      last_name: lastName,
+    };
+    // Omit the key entirely when absent (not an empty string) -- backend
+    // auth/router.py keys its invite-lookup logic on `if user_data.invite_token:`.
+    if (inviteToken) {
+      body.invite_token = inviteToken;
+    }
+
     const response = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email,
-        password,
-        first_name: firstName,
-        last_name: lastName,
-      }),
+      body: JSON.stringify(body),
       credentials: "include",
     });
 
