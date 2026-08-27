@@ -29,3 +29,34 @@ class BrandResponse(BaseModel):
     landing_page_tier_config: dict[str, Any] | None
     is_active: bool
     created_at: datetime
+
+
+# Recruiter-candidate assignment schemas (machine-2-parallel-tracks/
+# 08-recruiter-candidate-assignment.md). Ownership marker only — see
+# docs/adr/0019-tenancy-model.md Decision §4; never used for access control.
+#
+# Deviation from the original spec doc: the spec's `AssignmentResponse`
+# includes `assigned_by`/`assigned_at` fields, but `RecruiterCandidateAssignment`
+# already exists in models.py (added by machine-1-tenancy-core/02) with only
+# `id`, `recruiter_user_id`, `candidate_user_id`, `created_at` -- no
+# `assigned_by` column. Since models.py is out of this chunk's edit scope,
+# this response mirrors the model's real columns instead of the spec's
+# illustrative shape.
+
+
+class AssignCandidateRequest(BaseModel):
+    candidate_user_id: UUID
+    recruiter_user_id: UUID
+
+
+class AssignmentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    recruiter_user_id: UUID
+    candidate_user_id: UUID
+    created_at: datetime
+
+
+class MyCandidatesListResponse(BaseModel):
+    assignments: list[AssignmentResponse]

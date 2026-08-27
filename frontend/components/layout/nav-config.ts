@@ -76,6 +76,7 @@ export const adminNav: NavSection = {
     { href: "/app/admin/system-health", label: "System health", icon: Activity },
     { href: "/app/admin/users", label: "Users", icon: Users },
     { href: "/app/admin/roles", label: "Roles", icon: ShieldCheck },
+    { href: "/app/admin/staff-invites", label: "Staff invites", icon: Mail },
     { href: "/app/admin/audit-logs", label: "Audit logs", icon: ScrollText },
     { href: "/app/admin/feature-flags", label: "Feature flags", icon: Flag },
     { href: "/app/admin/queues", label: "Queues", icon: ListTodo },
