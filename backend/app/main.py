@@ -15,6 +15,7 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.modules.admin import router as admin_router
 from app.modules.admin.audit import AdminAuditFallbackMiddleware
 from app.modules.application_tracker.router import router as application_tracker_router
+from app.modules.brands.public_router import public_router as brands_public_router
 from app.modules.demand_intelligence.router import router as demand_intelligence_router
 from app.modules.documents.router import router as documents_router
 from app.modules.dsar.router import router as dsar_router
@@ -115,6 +116,7 @@ app.include_router(interview_scheduling_router, dependencies=[Depends(current_ve
 app.include_router(jd_practice_router, dependencies=[Depends(current_verified_user)])
 app.include_router(portfolio_router, dependencies=[Depends(current_verified_user)])
 app.include_router(portfolio_public_router)
+app.include_router(brands_public_router)
 app.include_router(job_swipe_router, dependencies=[Depends(current_verified_user)])
 app.include_router(outreach_router, dependencies=[Depends(current_verified_user)])
 app.include_router(linkedin_send_router, dependencies=[Depends(current_verified_user)])
