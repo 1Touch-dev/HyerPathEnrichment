@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
@@ -11,6 +12,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.models import User
 from app.clients.llm_tools import (
     _PREP_STRATEGY_SYSTEM_PROMPT,
     RECORD_CV_ANSWER_TOOL,
@@ -28,6 +30,7 @@ from app.domain.cv_completeness import (
     question_for_progressive_field,
     should_generate_prep_strategy_suggestion,
 )
+from app.modules.brands.models import Brand
 from app.modules.documents.models import (
     DOCUMENT_READY_STATUSES,
     CandidateDocument,
@@ -185,7 +188,9 @@ class CvChatService:
         self.db.add(user_message)
         await self.db.flush()
 
-        tool_result = await self._call_llm_with_tool(current_field, question, content)
+        tool_result = await self._call_llm_with_tool(
+            current_field, question, content, session.user_id
+        )
 
         if tool_result is not None:
             field_name, value = tool_result
@@ -289,15 +294,19 @@ class CvChatService:
         )
 
     async def _call_llm_with_tool(
-        self, field_name: str, question: str, candidate_reply: str
+        self, field_name: str, question: str, candidate_reply: str, user_id: UUID
     ) -> tuple[str, str] | None:
         """One turn-based (non-streamed) OpenAI call, per Decision 2. Returns (field_name, value) or None."""
         if not self._settings.openai_api_key:
             return None
+        brand_config = await self._resolve_brand_chatbot_config(user_id)
         payload = {
             "model": "gpt-4o-mini",
             "messages": [
-                {"role": "system", "content": build_chat_system_prompt(field_name, question)},
+                {
+                    "role": "system",
+                    "content": build_chat_system_prompt(field_name, question, brand_config),
+                },
                 {"role": "user", "content": candidate_reply},
             ],
             "tools": [RECORD_CV_ANSWER_TOOL],
@@ -339,6 +348,25 @@ class CvChatService:
                 except (KeyError, ValueError):
                     continue
         return None
+
+    async def _resolve_brand_chatbot_config(self, user_id: UUID) -> dict[str, Any] | None:
+        """Loads the candidate's users.signup_brand_id, then that Brand's
+        chatbot_config, if both exist. Returns None (falls back to default
+        chatbot behavior) when: the user has no signup_brand_id, the referenced
+        Brand row is missing/inactive, or chatbot_config itself is NULL/empty —
+        all three cases must produce identical (no customization) behavior, not
+        three different fallback shapes."""
+        result = await self.db.execute(select(User.signup_brand_id).where(User.id == user_id))
+        brand_id = result.scalar_one_or_none()
+        if brand_id is None:
+            return None
+        brand_result = await self.db.execute(
+            select(Brand.chatbot_config, Brand.is_active).where(Brand.id == brand_id)
+        )
+        row = brand_result.one_or_none()
+        if row is None or not row.is_active:
+            return None
+        return row.chatbot_config or None
 
     async def _generate_prep_strategy_suggestion(self, cv_data: CVData) -> str | None:
         """One-off, free-text OpenAI call generating the interview-prep strategy suggestion.
