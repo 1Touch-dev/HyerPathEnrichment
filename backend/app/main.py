@@ -15,6 +15,7 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.modules.admin import router as admin_router
 from app.modules.admin.audit import AdminAuditFallbackMiddleware
 from app.modules.application_tracker.router import router as application_tracker_router
+from app.modules.brands.deactivation_router import router as brand_deactivation_router
 from app.modules.brands.public_router import public_router as brands_public_router
 from app.modules.brands.router import router as brands_router
 from app.modules.demand_intelligence.router import router as demand_intelligence_router
@@ -104,6 +105,7 @@ app.include_router(auth_router)
 
 # Protected routes (require verified user)
 app.include_router(admin_router, dependencies=[Depends(current_verified_user)])
+app.include_router(brand_deactivation_router, dependencies=[Depends(current_verified_user)])
 app.include_router(brands_router, dependencies=[Depends(current_verified_user)])
 app.include_router(documents_router, dependencies=[Depends(current_verified_user)])
 app.include_router(enrich_router, dependencies=[Depends(current_verified_user)])
