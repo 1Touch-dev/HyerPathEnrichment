@@ -34,6 +34,28 @@ async def list_active_brands(db: AsyncSession) -> list[Brand]:
     return list(result.scalars().all())
 
 
+async def list_all_brands(db: AsyncSession) -> list[Brand]:
+    """Unlike list_active_brands, returns every brand regardless of is_active —
+    admin management (brands/router.py) needs visibility into inactive/deactivated
+    brands too, not just the ones a storefront visitor would see."""
+    result = await db.execute(select(Brand))
+    return list(result.scalars().all())
+
+
+async def update_brand(db: AsyncSession, brand_id: UUID, **fields: Any) -> Brand | None:
+    """Partial update for admin-managed brand fields. Callers must never pass
+    is_active here — brand activation/deactivation is a separate, audited flow
+    (post-tenancy-features/03-org-offboarding-and-deletion.md), not a plain field
+    edit through this function."""
+    brand = await get_brand_by_id(db, brand_id)
+    if brand is None:
+        return None
+    for key, value in fields.items():
+        setattr(brand, key, value)
+    await db.flush()
+    return brand
+
+
 async def create_assignment(
     db: AsyncSession, *, recruiter_user_id: UUID, candidate_user_id: UUID
 ) -> RecruiterCandidateAssignment:
