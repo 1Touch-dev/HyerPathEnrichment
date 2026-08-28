@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +10,11 @@ import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, UserPlus } from "lucide-react";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const { register } = useAuth();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("invite_token") ?? undefined;
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -35,7 +37,13 @@ export default function RegisterPage() {
     }
 
     try {
-      await register(formData.email, formData.password, formData.first_name, formData.last_name);
+      await register(
+        formData.email,
+        formData.password,
+        formData.first_name,
+        formData.last_name,
+        inviteToken,
+      );
       router.push("/verify-email-pending");
     } catch (err: any) {
       setError(err.message || "Registration failed");
@@ -152,5 +160,13 @@ export default function RegisterPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   );
 }

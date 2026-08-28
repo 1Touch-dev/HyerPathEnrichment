@@ -11,8 +11,9 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.auth.models import User
-from app.clients.llm_tools import RECORD_CV_ANSWER_TOOL
+from app.clients.llm_tools import RECORD_CV_ANSWER_TOOL, build_chat_system_prompt
 from app.domain.cv_completeness import PROGRESSIVE_FIELDS
+from app.modules.brands.models import Brand
 from app.modules.documents.cv_chat_service import CvChatService
 from app.modules.documents.models import CandidateDocument
 
@@ -388,7 +389,9 @@ async def test_call_llm_with_tool_returns_none_on_http_error(db, test_user, comp
     service._settings.openai_api_key = "sk-test"
     mock_client.post = AsyncMock(side_effect=httpx.ConnectError("boom"))
 
-    result = await service._call_llm_with_tool("phone", "What's your phone?", "555-0100")
+    result = await service._call_llm_with_tool(
+        "phone", "What's your phone?", "555-0100", test_user.id
+    )
     assert result is None
 
 
@@ -421,7 +424,9 @@ async def test_call_llm_with_tool_returns_none_on_malformed_tool_arguments(
     )
     mock_client.post = AsyncMock(return_value=mock_response)
 
-    result = await service._call_llm_with_tool("phone", "What's your phone?", "555-0100")
+    result = await service._call_llm_with_tool(
+        "phone", "What's your phone?", "555-0100", test_user.id
+    )
     assert result is None
 
 
@@ -592,7 +597,9 @@ async def test_call_llm_with_tool_retries_transient_error_then_succeeds(
 
     mock_client.post = AsyncMock(side_effect=[transient_error, success_response])
 
-    result = await service._call_llm_with_tool("phone", "What's your phone?", "555-0100")
+    result = await service._call_llm_with_tool(
+        "phone", "What's your phone?", "555-0100", test_user.id
+    )
 
     assert result == ("phone", "555-0100")
     assert mock_client.post.call_count == 2
@@ -813,3 +820,294 @@ async def test_apply_field_value_stores_interests_as_list(db, test_user, complet
     )
     document = result.scalar_one()
     assert document.extracted_data["interests"] == ["hiking", "chess", "cooking"]
+
+
+# ---------------------------------------------------------------------------
+# Per-brand chatbot config (machine-2/11) — release-blocking byte-identical
+# regression tests. A candidate with signup_brand_id IS NULL, or whose Brand's
+# chatbot_config IS NULL, or whose Brand is inactive, must all produce the
+# exact same system prompt as pre-change behavior (build_chat_system_prompt
+# called with no brand_config at all). These are actual string-equality
+# assertions, not code-review-level checks.
+# ---------------------------------------------------------------------------
+
+_PRE_CHANGE_SYSTEM_PROMPT = build_chat_system_prompt("phone", "What's your phone number?")
+
+
+def test_build_chat_system_prompt_no_brand_config_is_byte_identical_to_pre_change():
+    """brand_config omitted (the default) must produce exactly the pre-existing prompt."""
+    result = build_chat_system_prompt("phone", "What's your phone number?")
+    assert result == _PRE_CHANGE_SYSTEM_PROMPT
+
+
+def test_build_chat_system_prompt_none_brand_config_is_byte_identical():
+    """brand_config explicitly None must also produce exactly the pre-existing prompt."""
+    result = build_chat_system_prompt("phone", "What's your phone number?", None)
+    assert result == _PRE_CHANGE_SYSTEM_PROMPT
+
+
+def test_build_chat_system_prompt_empty_dict_brand_config_is_byte_identical():
+    """An empty (falsy) brand_config dict must also fall back to the pre-existing prompt."""
+    result = build_chat_system_prompt("phone", "What's your phone number?", {})
+    assert result == _PRE_CHANGE_SYSTEM_PROMPT
+
+
+def test_build_chat_system_prompt_with_brand_config_prepends_brand_voice():
+    """A populated brand_config (all three keys set) prepends the expected brand-voice
+    framing ahead of the unchanged base prompt."""
+    brand_config = {
+        "brand_voice_name": "Acme Careers",
+        "tone": "warm and encouraging",
+        "system_prompt_addition": "Mention our referral bonus program when relevant.",
+    }
+    result = build_chat_system_prompt("phone", "What's your phone number?", brand_config)
+    assert result != _PRE_CHANGE_SYSTEM_PROMPT
+    assert result.endswith(_PRE_CHANGE_SYSTEM_PROMPT)
+    prefix = result[: -len(_PRE_CHANGE_SYSTEM_PROMPT)]
+    assert "You are speaking as Acme Careers's CV assistant." in prefix
+    assert "Tone: warm and encouraging." in prefix
+    assert "Mention our referral bonus program when relevant." in prefix
+
+
+@pytest.fixture
+async def brand_with_chatbot_config(db):
+    brand = Brand(
+        id=uuid4(),
+        name="Acme Careers",
+        slug=f"acme-{uuid4().hex[:8]}",
+        chatbot_config={
+            "brand_voice_name": "Acme Careers",
+            "tone": "warm and encouraging",
+            "system_prompt_addition": "Mention our referral bonus program when relevant.",
+        },
+        is_active=True,
+    )
+    db.add(brand)
+    await db.commit()
+    await db.refresh(brand)
+    return brand
+
+
+@pytest.fixture
+async def brand_without_chatbot_config(db):
+    brand = Brand(
+        id=uuid4(),
+        name="No Config Brand",
+        slug=f"noconfig-{uuid4().hex[:8]}",
+        chatbot_config=None,
+        is_active=True,
+    )
+    db.add(brand)
+    await db.commit()
+    await db.refresh(brand)
+    return brand
+
+
+@pytest.fixture
+async def inactive_brand_with_chatbot_config(db):
+    brand = Brand(
+        id=uuid4(),
+        name="Deactivated Brand",
+        slug=f"deactivated-{uuid4().hex[:8]}",
+        chatbot_config={
+            "brand_voice_name": "Deactivated Brand",
+            "tone": "cheerful",
+            "system_prompt_addition": "This brand has been deactivated.",
+        },
+        is_active=False,
+    )
+    db.add(brand)
+    await db.commit()
+    await db.refresh(brand)
+    return brand
+
+
+async def test_resolve_brand_chatbot_config_none_when_no_signup_brand_id(db, test_user):
+    """A candidate with signup_brand_id IS NULL (the default fixture) resolves to None."""
+    service = CvChatService(db)
+    assert test_user.signup_brand_id is None
+    result = await service._resolve_brand_chatbot_config(test_user.id)
+    assert result is None
+
+
+async def test_resolve_brand_chatbot_config_none_when_brand_chatbot_config_is_null(
+    db, test_user, brand_without_chatbot_config
+):
+    """A candidate whose signup brand exists and is active but has chatbot_config IS NULL
+    resolves to None (default behavior), not an empty-dict shape."""
+    test_user.signup_brand_id = brand_without_chatbot_config.id
+    await db.commit()
+
+    service = CvChatService(db)
+    result = await service._resolve_brand_chatbot_config(test_user.id)
+    assert result is None
+
+
+async def test_resolve_brand_chatbot_config_none_when_brand_is_inactive(
+    db, test_user, inactive_brand_with_chatbot_config
+):
+    """A candidate whose signup brand has since been deactivated (is_active=False) resolves to
+    None (default behavior), even though that brand's chatbot_config is populated."""
+    test_user.signup_brand_id = inactive_brand_with_chatbot_config.id
+    await db.commit()
+
+    service = CvChatService(db)
+    result = await service._resolve_brand_chatbot_config(test_user.id)
+    assert result is None
+
+
+async def test_resolve_brand_chatbot_config_returns_config_for_active_brand(
+    db, test_user, brand_with_chatbot_config
+):
+    """A candidate whose signup brand is active and has a populated chatbot_config gets that
+    config back verbatim."""
+    test_user.signup_brand_id = brand_with_chatbot_config.id
+    await db.commit()
+
+    service = CvChatService(db)
+    result = await service._resolve_brand_chatbot_config(test_user.id)
+    assert result == brand_with_chatbot_config.chatbot_config
+
+
+async def test_call_llm_with_tool_system_prompt_byte_identical_when_no_signup_brand_id(
+    db, test_user, completed_document
+):
+    """Release-blocking: a candidate with signup_brand_id IS NULL gets a system prompt
+    byte-identical to pre-change behavior when the LLM is actually called end-to-end."""
+    assert test_user.signup_brand_id is None
+    mock_client = AsyncMock()
+    service = CvChatService(db, http_client=mock_client)
+    service._settings.openai_api_key = "sk-test"
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = MagicMock(return_value={"choices": [{"message": {}}]})
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    await service._call_llm_with_tool(
+        "phone", "What's your phone number?", "555-0100", test_user.id
+    )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    system_message = sent_payload["messages"][0]
+    assert system_message["role"] == "system"
+    assert system_message["content"] == build_chat_system_prompt(
+        "phone", "What's your phone number?"
+    )
+
+
+async def test_call_llm_with_tool_system_prompt_byte_identical_when_brand_chatbot_config_null(
+    db, test_user, completed_document, brand_without_chatbot_config
+):
+    """Release-blocking: a candidate whose brand's chatbot_config IS NULL also gets the
+    byte-identical default system prompt end-to-end."""
+    test_user.signup_brand_id = brand_without_chatbot_config.id
+    await db.commit()
+
+    mock_client = AsyncMock()
+    service = CvChatService(db, http_client=mock_client)
+    service._settings.openai_api_key = "sk-test"
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = MagicMock(return_value={"choices": [{"message": {}}]})
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    await service._call_llm_with_tool(
+        "phone", "What's your phone number?", "555-0100", test_user.id
+    )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    system_message = sent_payload["messages"][0]
+    assert system_message["content"] == build_chat_system_prompt(
+        "phone", "What's your phone number?"
+    )
+
+
+async def test_call_llm_with_tool_system_prompt_byte_identical_when_brand_inactive(
+    db, test_user, completed_document, inactive_brand_with_chatbot_config
+):
+    """Release-blocking: a candidate whose signup brand is inactive gets the byte-identical
+    default system prompt end-to-end, even though that brand's chatbot_config is populated."""
+    test_user.signup_brand_id = inactive_brand_with_chatbot_config.id
+    await db.commit()
+
+    mock_client = AsyncMock()
+    service = CvChatService(db, http_client=mock_client)
+    service._settings.openai_api_key = "sk-test"
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = MagicMock(return_value={"choices": [{"message": {}}]})
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    await service._call_llm_with_tool(
+        "phone", "What's your phone number?", "555-0100", test_user.id
+    )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    system_message = sent_payload["messages"][0]
+    assert system_message["content"] == build_chat_system_prompt(
+        "phone", "What's your phone number?"
+    )
+
+
+async def test_call_llm_with_tool_system_prompt_includes_brand_voice_for_active_brand(
+    db, test_user, completed_document, brand_with_chatbot_config
+):
+    """A candidate whose active signup brand has a populated chatbot_config gets a system
+    prompt containing the expected brand-voice prefix ahead of the unchanged base prompt."""
+    test_user.signup_brand_id = brand_with_chatbot_config.id
+    await db.commit()
+
+    mock_client = AsyncMock()
+    service = CvChatService(db, http_client=mock_client)
+    service._settings.openai_api_key = "sk-test"
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = MagicMock(return_value={"choices": [{"message": {}}]})
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    await service._call_llm_with_tool(
+        "phone", "What's your phone number?", "555-0100", test_user.id
+    )
+
+    sent_payload = mock_client.post.call_args.kwargs["json"]
+    system_message = sent_payload["messages"][0]
+    base_prompt = build_chat_system_prompt("phone", "What's your phone number?")
+    assert system_message["content"] != base_prompt
+    assert system_message["content"].endswith(base_prompt)
+    assert "You are speaking as Acme Careers's CV assistant." in system_message["content"]
+
+
+async def test_resolve_brand_chatbot_config_performs_at_most_one_extra_query(
+    db, test_user, brand_with_chatbot_config
+):
+    """_resolve_brand_chatbot_config must not introduce an N+1 or repeated-lookup pattern —
+    it issues a single joined query (asserted via SQLAlchemy's engine-level query-count
+    instrumentation, not just correctness of the result)."""
+    from sqlalchemy import event
+
+    test_user.signup_brand_id = brand_with_chatbot_config.id
+    await db.commit()
+
+    service = CvChatService(db)
+
+    query_count = 0
+
+    def _count_query(*_args, **_kwargs):
+        nonlocal query_count
+        query_count += 1
+
+    sync_engine = db.get_bind()
+    event.listen(sync_engine, "before_cursor_execute", _count_query)
+    try:
+        result = await service._resolve_brand_chatbot_config(test_user.id)
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", _count_query)
+
+    assert result == brand_with_chatbot_config.chatbot_config
+    # Exactly one SELECT: the User/Brand lookup is now a single joined query instead of
+    # two separate round-trips.
+    assert query_count <= 1

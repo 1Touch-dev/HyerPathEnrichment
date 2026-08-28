@@ -55,14 +55,23 @@ RECORD_CV_ANSWER_TOOL: dict[str, Any] = {
 }
 
 
-def build_chat_system_prompt(field_name: str, question: str) -> str:
+def build_chat_system_prompt(
+    field_name: str, question: str, brand_config: dict[str, Any] | None = None
+) -> str:
     """System prompt for one chatbot turn — scoped to exactly one field at a time.
 
     Scoping to one field per turn (rather than a general "help complete this CV"
     system prompt) is what makes the turn-based, non-streamed design in Decision 2
     workable: each call is a small, bounded, cheap GPT-4o-mini request.
+
+    `brand_config` (machine-2/11) optionally prefixes the base prompt with a
+    brand-voice framing line derived from the candidate's signup brand's
+    `chatbot_config`. `brand_config=None` (the default, and the only value ever
+    passed for a candidate with signup_brand_id IS NULL or a brand with
+    chatbot_config IS NULL) must produce byte-identical output to this function's
+    pre-existing behavior.
     """
-    return (
+    base_prompt = (
         "You are a friendly assistant helping a job candidate complete their CV. "
         f"You are currently asking about ONE field: '{field_name}'. "
         f'Your question to the candidate is: "{question}" '
@@ -75,6 +84,25 @@ def build_chat_system_prompt(field_name: str, question: str) -> str:
         "the tool, and gently steer back to the question. Never invent a value the "
         "candidate did not provide."
     )
+
+    if not brand_config:
+        return base_prompt
+
+    voice_name = brand_config.get("brand_voice_name", "").strip()
+    tone = brand_config.get("tone", "").strip()
+    addition = brand_config.get("system_prompt_addition", "").strip()
+
+    brand_lines = []
+    if voice_name:
+        brand_lines.append(f"You are speaking as {voice_name}'s CV assistant.")
+    if tone:
+        brand_lines.append(f"Tone: {tone}.")
+    if addition:
+        brand_lines.append(addition)
+
+    if not brand_lines:
+        return base_prompt
+    return f"{' '.join(brand_lines)}\n\n{base_prompt}"
 
 
 _PREP_STRATEGY_SYSTEM_PROMPT = (
