@@ -27,10 +27,9 @@ def client() -> TestClient:
 
 
 @pytest.fixture(autouse=True)
-def _no_signal_webhook_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the public changedetection webhook focused on rate limiting, not token
-    auth or outbound notifications (mirrors `test_signals_list.py`)."""
-    monkeypatch.setattr(get_settings(), "changedetection_api_key", "")
+def _signal_webhook_test_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin a known webhook token so rate-limit tests are not blocked by auth."""
+    monkeypatch.setattr(get_settings(), "changedetection_api_key", "test-signal-token")
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "")
 
 
@@ -56,6 +55,7 @@ def _post_webhook(client: TestClient, watch_id: str = "test-1"):
     with patch("app.modules.signals.router.notify_change_signal", new_callable=AsyncMock):
         return client.post(
             "/api/signals/changedetection",
+            headers={"X-Signal-Token": "test-signal-token"},
             json={
                 "watch_uuid": watch_id,
                 "watch_title": "Test",

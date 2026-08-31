@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import html
 import logging
 from enum import Enum
 from typing import Any
+from urllib.parse import urlparse
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Content, Email, Mail, ReplyTo, To
@@ -12,6 +14,20 @@ from sendgrid.helpers.mail import Content, Email, Mail, ReplyTo, To
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _e(value: object) -> str:
+    return html.escape("" if value is None else str(value), quote=True)
+
+
+def _safe_href(url: object, fallback: str = "#") -> str:
+    raw = ("" if url is None else str(url)).strip()
+    parsed = urlparse(raw)
+    if parsed.scheme in {"http", "https"} and parsed.netloc:
+        return _e(raw)
+    if parsed.scheme == "mailto" and parsed.path:
+        return _e(raw)
+    return fallback
 
 
 class EmailTemplate(str, Enum):
@@ -198,20 +214,20 @@ class EmailService:
             <table style="border: 1px solid #ddd; border-collapse: collapse; width: 100%; margin: 20px 0;">
                 <tr style="background: #f8f9fa;">
                     <td style="padding: 12px; border: 1px solid #ddd;"><strong>Business:</strong></td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{business_name}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{_e(business_name)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 12px; border: 1px solid #ddd;"><strong>Job ID:</strong></td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{job_id}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{_e(job_id)}</td>
                 </tr>
                 <tr style="background: #f8f9fa;">
                     <td style="padding: 12px; border: 1px solid #ddd;"><strong>Fields Enriched:</strong></td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{len(enriched_fields)}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{_e(len(enriched_fields))}</td>
                 </tr>
             </table>
 
             <p>
-                <a href="https://yourdomain.com/app/jobs/{job_id}"
+                <a href="{_safe_href(f"https://yourdomain.com/app/jobs/{job_id}")}"
                    style="background: #4CAF50; color: white; padding: 12px 24px;
                           text-decoration: none; border-radius: 4px; display: inline-block;">
                     View Results
@@ -259,15 +275,15 @@ class EmailService:
             <table style="border: 1px solid #ddd; border-collapse: collapse; width: 100%; margin: 20px 0;">
                 <tr style="background: #f8f9fa;">
                     <td style="padding: 12px; border: 1px solid #ddd;"><strong>Business:</strong></td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{business_name}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{_e(business_name)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 12px; border: 1px solid #ddd;"><strong>Job ID:</strong></td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{job_id}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{_e(job_id)}</td>
                 </tr>
                 <tr style="background: #f8f9fa;">
                     <td style="padding: 12px; border: 1px solid #ddd;"><strong>Error:</strong></td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{error}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{_e(error)}</td>
                 </tr>
             </table>
 
@@ -307,7 +323,7 @@ class EmailService:
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #2c3e50;">Data Deletion Confirmation</h2>
             <p>Your data deletion request has been processed successfully.</p>
-            <p><strong>Request ID:</strong> {request_id}</p>
+            <p><strong>Request ID:</strong> {_e(request_id)}</p>
             <p style="color: #666; font-size: 12px; margin-top: 30px;">
                 Hyrepath Enrichment | support@hyrepath.com
             </p>
@@ -339,7 +355,7 @@ class EmailService:
             <h2 style="color: #2c3e50;">Data Access Verification</h2>
             <p>Your verification code for data access request:</p>
             <h1 style="background: #f5f5f5; padding: 20px; text-align: center;
-                       letter-spacing: 8px; font-size: 32px;">{verification_code}</h1>
+                       letter-spacing: 8px; font-size: 32px;">{_e(verification_code)}</h1>
             <p style="color: #666;">This code expires in 1 hour.</p>
         </body>
         </html>
@@ -366,7 +382,7 @@ class EmailService:
             <h2 style="color: #2c3e50;">Verification Code</h2>
             <p>Your verification code is:</p>
             <h1 style="background: #f5f5f5; padding: 20px; text-align: center;
-                       letter-spacing: 8px; font-size: 32px;">{otp}</h1>
+                       letter-spacing: 8px; font-size: 32px;">{_e(otp)}</h1>
             <p style="color: #666;">This code expires in 10 minutes.</p>
         </body>
         </html>
@@ -387,10 +403,10 @@ class EmailService:
         html = f"""
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #2c3e50;">{title}</h2>
+            <h2 style="color: #2c3e50;">{_e(title)}</h2>
             <div>{content}</div>
             <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
-                <a href="{unsubscribe_link}">Unsubscribe</a> | Hyrepath Enrichment | support@hyrepath.com
+                <a href="{_safe_href(unsubscribe_link)}">Unsubscribe</a> | Hyrepath Enrichment | support@hyrepath.com
             </p>
         </body>
         </html>
@@ -419,11 +435,11 @@ class EmailService:
         html = f"""
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #2c3e50;">Welcome to Hyrepath Enrichment{", " + first_name if first_name else ""}!</h2>
+            <h2 style="color: #2c3e50;">Welcome to Hyrepath Enrichment{", " + _e(first_name) if first_name else ""}!</h2>
             <p>Thank you for registering. Please verify your email address to activate your account.</p>
 
             <p style="text-align: center; margin: 30px 0;">
-                <a href="{verification_link}"
+                <a href="{_safe_href(verification_link)}"
                    style="background: #4CAF50; color: white; padding: 14px 28px;
                           text-decoration: none; border-radius: 4px; display: inline-block; font-size: 16px;">
                     Verify Email Address
@@ -432,11 +448,11 @@ class EmailService:
 
             <p style="color: #666; font-size: 14px;">
                 Or copy and paste this link into your browser:<br>
-                <a href="{verification_link}" style="color: #4CAF50; word-break: break-all;">{verification_link}</a>
+                <a href="{_safe_href(verification_link)}" style="color: #4CAF50; word-break: break-all;">{_e(verification_link)}</a>
             </p>
 
             <p style="color: #999; font-size: 12px; margin-top: 30px;">
-                This verification link expires in {expiry_hours} hours.
+                This verification link expires in {_e(expiry_hours)} hours.
             </p>
 
             <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
@@ -474,11 +490,11 @@ class EmailService:
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #2c3e50;">Email Verification Reminder</h2>
-            <p>Hi{" " + first_name if first_name else ""},</p>
+            <p>Hi{" " + _e(first_name) if first_name else ""},</p>
             <p>You requested a new verification link. Please verify your email address to activate your account.</p>
 
             <p style="text-align: center; margin: 30px 0;">
-                <a href="{verification_link}"
+                <a href="{_safe_href(verification_link)}"
                    style="background: #4CAF50; color: white; padding: 14px 28px;
                           text-decoration: none; border-radius: 4px; display: inline-block; font-size: 16px;">
                     Verify Email Address
@@ -487,11 +503,11 @@ class EmailService:
 
             <p style="color: #666; font-size: 14px;">
                 Or copy and paste this link into your browser:<br>
-                <a href="{verification_link}" style="color: #4CAF50; word-break: break-all;">{verification_link}</a>
+                <a href="{_safe_href(verification_link)}" style="color: #4CAF50; word-break: break-all;">{_e(verification_link)}</a>
             </p>
 
             <p style="color: #999; font-size: 12px; margin-top: 30px;">
-                This verification link expires in {expiry_hours} hours.
+                This verification link expires in {_e(expiry_hours)} hours.
             </p>
 
             <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
@@ -532,11 +548,11 @@ class EmailService:
             f"""
             <tr>
               <td style="padding:12px;border-bottom:1px solid #eee;">
-                <strong>{m["title"]}</strong> at {m["company"]}<br/>
-                <span style="color:#666;">{m.get("location") or "Remote/Unspecified"}</span><br/>
-                <span style="color:#0a7;">Match score: {m["overall_score"]}/100</span><br/>
-                <p>{m.get("explanation", "")}</p>
-                <a href="{m.get("source_url", "#")}">View job</a>
+                <strong>{_e(m["title"])}</strong> at {_e(m["company"])}<br/>
+                <span style="color:#666;">{_e(m.get("location") or "Remote/Unspecified")}</span><br/>
+                <span style="color:#0a7;">Match score: {_e(m["overall_score"])}/100</span><br/>
+                <p>{_e(m.get("explanation", ""))}</p>
+                <a href="{_safe_href(m.get("source_url", "#"))}">View job</a>
               </td>
             </tr>
             """
@@ -558,17 +574,17 @@ class EmailService:
 
         subject = "Finish setting up your CV"
 
-        missing_list_html = "".join(f"<li>{field}</li>" for field in missing_fields)
+        missing_list_html = "".join(f"<li>{_e(field)}</li>" for field in missing_fields)
 
         html = f"""
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #2c3e50;">Your CV is almost ready{", " + first_name if first_name else ""}!</h2>
+            <h2 style="color: #2c3e50;">Your CV is almost ready{", " + _e(first_name) if first_name else ""}!</h2>
             <p>A few details are still missing from your CV. Completing them helps us match you with better jobs.</p>
             <ul>{missing_list_html}</ul>
 
             <p style="text-align: center; margin: 30px 0;">
-                <a href="{chat_link}"
+                <a href="{_safe_href(chat_link)}"
                    style="background: #4CAF50; color: white; padding: 14px 28px;
                           text-decoration: none; border-radius: 4px; display: inline-block; font-size: 16px;">
                     Finish My CV
@@ -605,11 +621,11 @@ class EmailService:
         html = f"""
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #2c3e50;">Your portfolio is live{", " + first_name if first_name else ""}!</h2>
+            <h2 style="color: #2c3e50;">Your portfolio is live{", " + _e(first_name) if first_name else ""}!</h2>
             <p>Your public portfolio page has been published and is ready to share.</p>
 
             <p style="text-align: center; margin: 30px 0;">
-                <a href="{portfolio_url}"
+                <a href="{_safe_href(portfolio_url)}"
                    style="background: #4CAF50; color: white; padding: 14px 28px;
                           text-decoration: none; border-radius: 4px; display: inline-block; font-size: 16px;">
                     View My Portfolio
@@ -618,7 +634,7 @@ class EmailService:
 
             <p style="color: #666; font-size: 14px;">
                 Or copy and paste this link into your browser:<br>
-                <a href="{portfolio_url}" style="color: #4CAF50; word-break: break-all;">{portfolio_url}</a>
+                <a href="{_safe_href(portfolio_url)}" style="color: #4CAF50; word-break: break-all;">{_e(portfolio_url)}</a>
             </p>
 
             <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
@@ -659,22 +675,22 @@ class EmailService:
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #2c3e50;">Your interview is scheduled!</h2>
-            <p>Your interview for <strong>{title}</strong> at <strong>{company}</strong> is confirmed.</p>
+            <p>Your interview for <strong>{_e(title)}</strong> at <strong>{_e(company)}</strong> is confirmed.</p>
 
             <table style="border: 1px solid #ddd; border-collapse: collapse; width: 100%; margin: 20px 0;">
                 <tr style="background: #f8f9fa;">
                     <td style="padding: 12px; border: 1px solid #ddd;"><strong>When:</strong></td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{scheduled_at}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{_e(scheduled_at)}</td>
                 </tr>
             </table>
 
             <p style="text-align: center; margin: 30px 0;">
-                <a href="{ics_download_url}"
+                <a href="{_safe_href(ics_download_url)}"
                    style="background: #4CAF50; color: white; padding: 12px 24px;
                           text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
                     Download .ics
                 </a>
-                <a href="{google_calendar_link}"
+                <a href="{_safe_href(google_calendar_link)}"
                    style="background: #4285F4; color: white; padding: 12px 24px;
                           text-decoration: none; border-radius: 4px; display: inline-block;">
                     Add to Google Calendar
@@ -721,23 +737,23 @@ class EmailService:
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #2c3e50;">Your interview is coming up!</h2>
-            <p>This is a reminder that your interview for <strong>{title}</strong> at
-               <strong>{company}</strong> is coming up.</p>
+            <p>This is a reminder that your interview for <strong>{_e(title)}</strong> at
+               <strong>{_e(company)}</strong> is coming up.</p>
 
             <table style="border: 1px solid #ddd; border-collapse: collapse; width: 100%; margin: 20px 0;">
                 <tr style="background: #f8f9fa;">
                     <td style="padding: 12px; border: 1px solid #ddd;"><strong>When:</strong></td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">{scheduled_at}</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">{_e(scheduled_at)}</td>
                 </tr>
             </table>
 
             <p style="text-align: center; margin: 30px 0;">
-                <a href="{ics_download_url}"
+                <a href="{_safe_href(ics_download_url)}"
                    style="background: #4CAF50; color: white; padding: 12px 24px;
                           text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
                     Download .ics
                 </a>
-                <a href="{google_calendar_link}"
+                <a href="{_safe_href(google_calendar_link)}"
                    style="background: #4285F4; color: white; padding: 12px 24px;
                           text-decoration: none; border-radius: 4px; display: inline-block;">
                     Add to Google Calendar
@@ -780,7 +796,7 @@ class EmailService:
         company = ctx.get("company")
 
         if job_title and company:
-            body = f"A recruiter has proposed applying to <strong>{job_title}</strong> at <strong>{company}</strong> on your behalf."
+            body = f"A recruiter has proposed applying to <strong>{_e(job_title)}</strong> at <strong>{_e(company)}</strong> on your behalf."
             text_body = (
                 f"A recruiter has proposed applying to {job_title} at {company} on your behalf."
             )
@@ -793,7 +809,7 @@ class EmailService:
         html = f"""
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #2c3e50;">Action pending your review{", " + first_name if first_name else ""}</h2>
+            <h2 style="color: #2c3e50;">Action pending your review{", " + _e(first_name) if first_name else ""}</h2>
             <p>{body}</p>
             <p>Please review and approve or reject this action in your dashboard.</p>
 
@@ -825,7 +841,7 @@ class EmailService:
         company = ctx.get("company")
 
         if job_title and company:
-            body = f"A recruiter has suggested <strong>{job_title}</strong> at <strong>{company}</strong> for you to review."
+            body = f"A recruiter has suggested <strong>{_e(job_title)}</strong> at <strong>{_e(company)}</strong> for you to review."
             text_body = f"A recruiter has suggested {job_title} at {company} for you to review."
         else:
             body = "A recruiter has suggested a role for you to review."
@@ -836,7 +852,7 @@ class EmailService:
         html = f"""
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #2c3e50;">New role suggestion{", " + first_name if first_name else ""}</h2>
+            <h2 style="color: #2c3e50;">New role suggestion{", " + _e(first_name) if first_name else ""}</h2>
             <p>{body}</p>
             <p>Please review this suggestion in your dashboard.</p>
 

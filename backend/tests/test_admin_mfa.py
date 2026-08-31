@@ -23,8 +23,8 @@ async def test_enroll_generates_valid_provisioning_uri(db_session, regular_user)
 async def test_confirm_enrollment_with_valid_code_enables_mfa(db_session, regular_user):
     from app.modules.admin.mfa import confirm_enrollment, enroll_mfa
 
-    await enroll_mfa(db_session, regular_user)
-    code = pyotp.TOTP(regular_user.mfa_secret).now()
+    enrolled = await enroll_mfa(db_session, regular_user)
+    code = pyotp.TOTP(enrolled.secret).now()
     await confirm_enrollment(db_session, regular_user, code)
     assert regular_user.mfa_enabled is True
     assert regular_user.mfa_enrolled_at is not None
@@ -44,8 +44,8 @@ async def test_confirm_enrollment_with_invalid_code_rejected(db_session, regular
 async def test_disable_mfa_clears_secret_and_flag(db_session, regular_user):
     from app.modules.admin.mfa import confirm_enrollment, disable_mfa, enroll_mfa
 
-    await enroll_mfa(db_session, regular_user)
-    code = pyotp.TOTP(regular_user.mfa_secret).now()
+    enrolled = await enroll_mfa(db_session, regular_user)
+    code = pyotp.TOTP(enrolled.secret).now()
     await confirm_enrollment(db_session, regular_user, code)
     assert regular_user.mfa_enabled is True
 

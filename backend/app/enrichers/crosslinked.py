@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from app.clients.cli_args import sanitize_cli_arg
 from app.clients.process import run_command
 from app.clients.proxy import ProxyProvider
 from app.core.config import get_settings
@@ -23,9 +24,16 @@ class CrossLinkedEnricher(Enricher):
 
     async def _fetch(self, request: EnrichmentRequest) -> dict[str, Any]:
         settings = get_settings()
-        company = request.company or ""
-        domain = slugify_domain(company)
+        try:
+            company = sanitize_cli_arg(request.company or "", label="company")
+            domain = sanitize_cli_arg(slugify_domain(company), label="domain")
+        except ValueError:
+            return {}
         search = settings.crosslinked_search_engines.strip() or "yahoo"
+        try:
+            search = sanitize_cli_arg(search, label="search")
+        except ValueError:
+            return {}
         outfile = "crosslinked_names"
 
         args = [
@@ -36,6 +44,7 @@ class CrossLinkedEnricher(Enricher):
             f"{{first}}.{{last}}@{domain}",
             "-o",
             outfile,
+            "--",
             company,
         ]
         proxy = self.proxies.get()

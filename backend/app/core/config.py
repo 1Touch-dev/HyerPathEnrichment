@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     app_name: str = Field(default="Hyrepath Enrichment Backend", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
     api_token: str = Field(default="change-me", alias="API_TOKEN")
+    metrics_token: str = Field(
+        default="",
+        alias="METRICS_TOKEN",
+        description="Optional scrape token for /metrics; falls back to API_TOKEN when empty",
+    )
     database_url: str = Field(default="sqlite+aiosqlite:///./hyrepath.db", alias="DATABASE_URL")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     r2_bucket: str = Field(default="hyrepath-assets", alias="R2_BUCKET")
@@ -33,6 +38,9 @@ class Settings(BaseSettings):
         default=20, alias="MAX_COMPLIANCE_REQUESTS_PER_MINUTE"
     )
     max_auth_requests_per_minute: int = Field(default=5, alias="MAX_AUTH_REQUESTS_PER_MINUTE")
+    max_auth_refresh_requests_per_minute: int = Field(
+        default=30, alias="MAX_AUTH_REFRESH_REQUESTS_PER_MINUTE"
+    )
     max_documents_upload_requests_per_minute: int = Field(
         default=10, alias="MAX_DOCUMENTS_UPLOAD_REQUESTS_PER_MINUTE"
     )
@@ -555,6 +563,48 @@ def validate_billing_settings(settings: Settings | None = None) -> None:
     if missing:
         raise RuntimeError(
             "ENABLE_BILLING=true but required settings are missing: " + ", ".join(missing)
+        )
+
+
+_INSECURE_SECRET_KEYS = frozenset(
+    {
+        "change-me-in-production-use-openssl-rand-hex-32",
+        "change-me",
+        "secret",
+        "changeme",
+    }
+)
+_INSECURE_API_TOKENS = frozenset({"change-me", "changeme", "dev-token", "dev-token-123"})
+_PROD_LIKE_ENVS = frozenset({"production", "staging"})
+
+
+def validate_production_security_settings(settings: Settings | None = None) -> None:
+    """Refuse to start staging/production with insecure auth or cookie settings.
+
+    Development remains permissive so local defaults keep working.
+    """
+    cfg = settings if settings is not None else get_settings()
+    if cfg.app_env.strip().lower() not in _PROD_LIKE_ENVS:
+        return
+
+    problems: list[str] = []
+    secret = cfg.SECRET_KEY.strip()
+    if not secret or secret.lower() in _INSECURE_SECRET_KEYS or len(secret) < 32:
+        problems.append(
+            "SECRET_KEY must be set to a unique value of at least 32 characters "
+            "(generate with: openssl rand -hex 32)"
+        )
+    api_token = cfg.api_token.strip()
+    if not api_token or api_token.lower() in _INSECURE_API_TOKENS:
+        problems.append("API_TOKEN must be set to a non-default production value")
+    if not cfg.COOKIE_SECURE:
+        problems.append("COOKIE_SECURE must be true when APP_ENV is staging or production")
+    if not cfg.changedetection_api_key.strip():
+        problems.append("CHANGEDETECTION_API_KEY must be set (signals webhook must not be open)")
+
+    if problems:
+        raise RuntimeError(
+            "Refusing to start with insecure production settings: " + "; ".join(problems)
         )
 
 

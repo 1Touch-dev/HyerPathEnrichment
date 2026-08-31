@@ -24,7 +24,8 @@ class StripeClient:
 
     def __init__(self, api_key: str | None = None) -> None:
         settings = get_settings()
-        stripe.api_key = api_key or settings.stripe_secret_key.get_secret_value()
+        self._api_key = api_key or settings.stripe_secret_key.get_secret_value()
+        stripe.api_key = self._api_key
 
     async def create_customer(self, *, user_id: UUID, email: str) -> str:
         """Create a Stripe customer for ``user_id`` and return its Stripe customer ID."""
@@ -32,6 +33,7 @@ class StripeClient:
             stripe.Customer.create,
             email=email,
             metadata={"user_id": str(user_id)},
+            api_key=self._api_key,
         )
         return customer.id
 
@@ -51,8 +53,10 @@ class StripeClient:
             mode="subscription",
             success_url=success_url,
             cancel_url=cancel_url,
+            api_key=self._api_key,
         )
-        assert session.url is not None
+        if session.url is None:
+            raise RuntimeError("Stripe checkout session created without a hosted URL")
         return session.url
 
     async def create_billing_portal_session(self, *, customer_id: str, return_url: str) -> str:
@@ -61,6 +65,7 @@ class StripeClient:
             stripe.billing_portal.Session.create,
             customer=customer_id,
             return_url=return_url,
+            api_key=self._api_key,
         )
         return session.url
 
@@ -68,5 +73,7 @@ class StripeClient:
         """Verify and construct a Stripe webhook event from the raw request payload."""
         settings = get_settings()
         webhook_secret = settings.stripe_webhook_secret.get_secret_value()
-        event = stripe.Webhook.construct_event(payload, signature_header, webhook_secret)
+        event = stripe.Webhook.construct_event(
+            payload, signature_header, webhook_secret, api_key=self._api_key
+        )
         return cast("stripe.Event", event)

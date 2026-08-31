@@ -13,6 +13,7 @@ from rq import Queue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError
+from app.core.webhook_url import UnsafeWebhookUrlError, assert_safe_webhook_url
 from app.modules.application_tracker import repository as application_tracker_repository
 from app.modules.job_matching import repository
 from app.modules.job_matching.models import JobMatch
@@ -80,9 +81,20 @@ class JobMatchingService:
         # exclude_unset: only fields the client actually sent should overwrite existing
         # preferences. A full model_dump() would reset every omitted field back to its
         # schema default on every PUT, silently destroying previously-saved preferences.
-        await repository.upsert_preferences(
-            self.db, user_id, payload.model_dump(exclude_unset=True)
-        )
+        data = payload.model_dump(exclude_unset=True)
+        if "webhook_url" in data:
+            raw_url = data.get("webhook_url")
+            if raw_url is None or (isinstance(raw_url, str) and not raw_url.strip()):
+                data["webhook_url"] = None
+            else:
+                try:
+                    data["webhook_url"] = assert_safe_webhook_url(str(raw_url))
+                except UnsafeWebhookUrlError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=str(exc),
+                    ) from exc
+        await repository.upsert_preferences(self.db, user_id, data)
         return await self.get_preferences(user_id)
 
     async def list_matches(self, user_id: UUID, limit: int, offset: int) -> JobMatchListResponse:

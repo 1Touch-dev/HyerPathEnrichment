@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import logging
 from typing import Any
 
@@ -49,7 +50,9 @@ async def changedetection_webhook(
     """Consume changedetection.io change notifications."""
     settings = get_settings()
     expected = settings.changedetection_api_key.strip()
-    if expected and x_signal_token != expected:
+    provided = (x_signal_token or "").strip()
+    # Fail closed: empty configured key or missing/wrong token → unauthorized.
+    if not expected or not provided or not hmac.compare_digest(provided, expected):
         raise UnauthorizedError("invalid signal token")
 
     watch_id, title, url, timestamp = _parse_changedetection_payload(payload)

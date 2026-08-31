@@ -6,10 +6,10 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Cookie, Depends, HTTPException, Request, status
-from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.jwt_tokens import PyJWTError, decode_access_token
 from app.auth.logged_out_tokens import LoggedOutTokenService
 from app.auth.models import User
 from app.core.config import get_settings
@@ -64,12 +64,8 @@ async def get_current_user_from_cookie(
     settings = get_settings()
 
     try:
-        # Decode JWT
-        payload = jwt.decode(
-            access_token,
-            settings.SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM],
-        )
+        # Decode JWT (HS256 only)
+        payload = decode_access_token(access_token, settings.SECRET_KEY)
         user_id: str | None = payload.get("sub")
         jti: str | None = payload.get("jti")
 
@@ -98,7 +94,7 @@ async def get_current_user_from_cookie(
             user_agent=request.headers.get("User-Agent"),
         )
 
-    except JWTError:
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

@@ -18,22 +18,23 @@ def client() -> TestClient:
 
 
 @pytest.fixture(autouse=True)
-def _no_signal_webhook_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Disable the local dev changedetection API key/webhook so tests don't
-    depend on secrets configured in a developer's local .env file."""
+def _signal_webhook_test_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin a known webhook token so tests do not depend on local .env secrets."""
     from app.core.config import get_settings
 
-    monkeypatch.setattr(get_settings(), "changedetection_api_key", "")
+    monkeypatch.setattr(get_settings(), "changedetection_api_key", "test-signal-token")
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "")
 
 
 AUTH_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+SIGNAL_HEADERS = {"X-Signal-Token": "test-signal-token"}
 
 
 def _post_signal(client: TestClient, watch_id: str, title: str, url: str) -> None:
     with patch("app.modules.signals.router.notify_change_signal", new_callable=AsyncMock):
         response = client.post(
             "/api/signals/changedetection",
+            headers=SIGNAL_HEADERS,
             json={
                 "watch_uuid": watch_id,
                 "watch_title": title,
@@ -80,13 +81,14 @@ def test_webhook_persists_before_notify(
 ) -> None:
     from app.core.config import get_settings
 
-    monkeypatch.setattr(get_settings(), "changedetection_api_key", "")
+    monkeypatch.setattr(get_settings(), "changedetection_api_key", "test-signal-token")
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "")
 
     watch_id = "persist-watch-1"
     with patch("app.modules.signals.router.notify_change_signal", new_callable=AsyncMock) as notify:
         response = client.post(
             "/api/signals/changedetection",
+            headers={"X-Signal-Token": "test-signal-token"},
             json={
                 "watch_uuid": watch_id,
                 "watch_title": "Persist Test",

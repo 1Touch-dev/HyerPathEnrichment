@@ -8,9 +8,9 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Response, status
-from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.jwt_tokens import encode_access_token
 from app.auth.models import User
 from app.core.config import get_settings
 from app.modules.admin import repository
@@ -30,18 +30,24 @@ async def start_impersonation(
     response: Response,
     ip_address: str | None,
 ) -> ImpersonationStartResponse:
-    if admin.mfa_enabled:
-        if not mfa_code or not verify_mfa_code(admin, mfa_code):
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN,
-                "Valid MFA code required to start an impersonation session",
-            )
+    # Privileged action: MFA is mandatory for every impersonation start, not only
+    # when the admin already enrolled (empty enrollments must not skip the gate).
+    if not admin.mfa_enabled or not mfa_code or not verify_mfa_code(admin, mfa_code):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Valid MFA code required to start an impersonation session",
+        )
 
     target = await repository.get_user_by_id(db, target_user_id)
     if target is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Target user not found")
     if target.id == admin.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot impersonate yourself")
+    if target.is_superuser:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Cannot impersonate a superuser",
+        )
 
     settings = get_settings()
     jti = uuid4().hex
@@ -55,11 +61,7 @@ async def start_impersonation(
         "imp": str(admin.id),
         "exp": expires_at,
     }
-    # ✅ DIRECT (verified against backend/app/core/config.py and
-    # backend/app/auth/router.py / dependencies.py, which already encode/decode
-    # JWTs this way): settings.SECRET_KEY and settings.JWT_ALGORITHM match the
-    # plan's assumed names exactly, no rename needed.
-    token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    token = encode_access_token(payload, settings.SECRET_KEY)
     response.set_cookie(
         "access_token",
         token,

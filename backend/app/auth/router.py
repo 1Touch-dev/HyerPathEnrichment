@@ -8,11 +8,11 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
-from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import CurrentUser
+from app.auth.jwt_tokens import PyJWTError, decode_access_token, encode_access_token
 from app.auth.logged_out_tokens import LoggedOutTokenService
 from app.auth.models import AuthAuditLog, User
 from app.auth.password import hash_password, verify_password
@@ -20,6 +20,7 @@ from app.auth.refresh_tokens import (
     _ensure_aware,
     create_refresh_token,
     detect_token_reuse,
+    revoke_all_refresh_tokens,
     revoke_refresh_token,
     revoke_token_family,
     rotate_refresh_token,
@@ -43,7 +44,7 @@ from app.auth.verification import (
 )
 from app.core.config import get_settings
 from app.database.session import get_db_session
-from app.dependencies.rate_limit import enforce_auth_rate_limit
+from app.dependencies.rate_limit import enforce_auth_rate_limit, enforce_auth_refresh_rate_limit
 from app.infrastructure.redis import get_redis_client
 from app.modules.admin import service as admin_service
 from app.modules.admin.models import Role
@@ -96,7 +97,7 @@ def create_access_token(user_id: str, email: str) -> tuple[str, str]:
         "iat": datetime.now(UTC),
     }
 
-    token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    token = encode_access_token(payload, settings.SECRET_KEY)
     return token, jti
 
 
@@ -322,7 +323,7 @@ async def login(
         value=refresh_token_value,
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="lax",
+        samesite="strict",
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         domain=settings.COOKIE_DOMAIN,
         path="/",
@@ -354,9 +355,7 @@ async def logout(
     if access_token:
         try:
             # Decode to get JTI and expiry
-            payload = jwt.decode(
-                access_token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-            )
+            payload = decode_access_token(access_token, settings.SECRET_KEY)
             jti = payload.get("jti")
             exp = payload.get("exp")
 
@@ -371,7 +370,7 @@ async def logout(
                     token_jti=jti,
                     expires_at=datetime.fromtimestamp(exp, tz=UTC),
                 )
-        except JWTError as e:
+        except PyJWTError as e:
             logger.warning(f"Failed to decode token for blacklisting: {e}")
 
     # Clear cookie (must match path from set_cookie)
@@ -399,7 +398,11 @@ async def logout(
     return MessageResponse(message="Logged out successfully")
 
 
-@router.post("/refresh", response_model=LoginResponse)
+@router.post(
+    "/refresh",
+    response_model=LoginResponse,
+    dependencies=[Depends(enforce_auth_refresh_rate_limit)],
+)
 async def refresh_token(
     request: Request,
     response: Response,
@@ -535,7 +538,7 @@ async def refresh_token(
         value=new_refresh_token_value,
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="lax",
+        samesite="strict",
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         domain=settings.COOKIE_DOMAIN,
         path="/",
@@ -576,9 +579,7 @@ async def delete_account(
     access_token = request.cookies.get("access_token")
     if access_token:
         try:
-            payload = jwt.decode(
-                access_token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-            )
+            payload = decode_access_token(access_token, settings.SECRET_KEY)
             jti = payload.get("jti")
             exp = payload.get("exp")
 
@@ -592,15 +593,26 @@ async def delete_account(
                     token_jti=jti,
                     expires_at=datetime.fromtimestamp(exp, tz=UTC),
                 )
-        except JWTError as e:
+        except PyJWTError as e:
             logger.warning(f"Failed to decode token for blacklisting: {e}")
 
-    # Soft delete
+    # Revoke all refresh sessions before soft-delete so stolen cookies cannot rotate.
+    await revoke_all_refresh_tokens(db, current_user.id, reason="account deleted")
+
+    # Erase user-owned product data (CVs, chat, outreach, sourced-lead PII).
+    from app.compliance.account_erase import erase_user_owned_data
+
+    await erase_user_owned_data(db, current_user.id)
+
+    # Soft delete + clear MFA secret
     current_user.deleted_at = datetime.now(UTC)
+    current_user.mfa_enabled = False
+    current_user.mfa_secret = None
     await db.commit()
 
-    # Clear cookie (must match path from set_cookie)
+    # Clear cookies (must match path from set_cookie)
     response.delete_cookie(key="access_token", domain=settings.COOKIE_DOMAIN, path="/")
+    response.delete_cookie(key="refresh_token", domain=settings.COOKIE_DOMAIN, path="/")
 
     # Log account deletion
     await log_auth_event(
