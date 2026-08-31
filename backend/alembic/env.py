@@ -128,6 +128,11 @@ def _widen_version_table_if_needed(connection: Connection) -> None:
 
 def do_run_migrations(connection: Connection) -> None:
     _widen_version_table_if_needed(connection)
+    # Widen's SELECTs (and any no-op path) leave SQLAlchemy 2 autobegin open.
+    # Alembic then uses a SAVEPOINT; connection.__exit__ rolls back the outer
+    # transaction and the upgrade never sticks on Postgres. Commit first so
+    # begin_transaction() owns a real top-level transaction.
+    connection.commit()
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
