@@ -5,6 +5,7 @@ import {
 } from "@/src/lib/api-adapter";
 import { backendFetch } from "@/src/lib/backend-client";
 import { bffServiceUnavailable, handleBackendJson } from "@/src/lib/bff-response";
+import { forwardBackendSetCookies } from "@/src/lib/forward-backend-cookies";
 
 export async function POST(
   request: NextRequest,
@@ -25,14 +26,6 @@ export async function POST(
   }
 
   const bffResponse = await handleBackendJson(backendResponse, mapBackendImpersonationStart);
-
-  // Backend swaps the caller's `access_token` cookie for a scoped impersonation
-  // token on success (backend/app/modules/admin/impersonation.py) — forward it,
-  // matching the existing Set-Cookie relay pattern in app/api/auth/login/route.ts.
-  const setCookieHeader = backendResponse.headers.get("set-cookie");
-  if (setCookieHeader) {
-    bffResponse.headers.set("set-cookie", setCookieHeader);
-  }
-
+  forwardBackendSetCookies(backendResponse, bffResponse);
   return bffResponse;
 }

@@ -24,7 +24,18 @@ Related code hardenings in the same change:
 - Candidate/operator webhook POSTs reject non-https and private/local targets (`follow_redirects=False`)
 - `/api/email/test` requires `X-API-Token` and returns 404 in staging/production
 
-**Still open (deferred):** email confirmation before opt-out purge; full cascade erase of CV/chat/outreach/sourced leads.
+**Still open (deferred):** email confirmation before opt-out purge.
+
+### P1 hardenings (branch `fix/security-p1-master-complete-foundation`)
+
+- Refresh tokens stored as SHA-256 hashes (dual-read upgrades legacy plaintext); account delete revokes all refresh sessions and clears both cookies
+- Account delete cascades erase of CVs/chat/outreach and scrubs sourced-lead PII; identifier purge also scrubs outreach recipients + sourced leads
+- MFA secrets sealed at rest (Fernet derived from `SECRET_KEY`); legacy plaintext still verifies
+- `recruiter_actions:write` required for apply/suggest; LinkedIn lead list requires `linkedin_sourcing:write`
+- Support cannot deactivate superusers (only another superuser can)
+- Transactional email HTML escapes dynamic fields; href schemes allowlisted
+- BFF forwards multi-`Set-Cookie` via `getSetCookie()` helper
+- `/auth/refresh` rate-limited; cookie-auth rate limits key on cookie+IP when Bearer is absent
 
 ---
 

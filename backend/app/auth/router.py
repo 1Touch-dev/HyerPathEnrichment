@@ -20,6 +20,7 @@ from app.auth.refresh_tokens import (
     _ensure_aware,
     create_refresh_token,
     detect_token_reuse,
+    revoke_all_refresh_tokens,
     revoke_refresh_token,
     revoke_token_family,
     rotate_refresh_token,
@@ -43,7 +44,7 @@ from app.auth.verification import (
 )
 from app.core.config import get_settings
 from app.database.session import get_db_session
-from app.dependencies.rate_limit import enforce_auth_rate_limit
+from app.dependencies.rate_limit import enforce_auth_rate_limit, enforce_auth_refresh_rate_limit
 from app.infrastructure.redis import get_redis_client
 from app.modules.admin import service as admin_service
 from app.modules.admin.models import Role
@@ -399,7 +400,11 @@ async def logout(
     return MessageResponse(message="Logged out successfully")
 
 
-@router.post("/refresh", response_model=LoginResponse)
+@router.post(
+    "/refresh",
+    response_model=LoginResponse,
+    dependencies=[Depends(enforce_auth_refresh_rate_limit)],
+)
 async def refresh_token(
     request: Request,
     response: Response,
@@ -595,12 +600,23 @@ async def delete_account(
         except JWTError as e:
             logger.warning(f"Failed to decode token for blacklisting: {e}")
 
-    # Soft delete
+    # Revoke all refresh sessions before soft-delete so stolen cookies cannot rotate.
+    await revoke_all_refresh_tokens(db, current_user.id, reason="account deleted")
+
+    # Erase user-owned product data (CVs, chat, outreach, sourced-lead PII).
+    from app.compliance.account_erase import erase_user_owned_data
+
+    await erase_user_owned_data(db, current_user.id)
+
+    # Soft delete + clear MFA secret
     current_user.deleted_at = datetime.now(UTC)
+    current_user.mfa_enabled = False
+    current_user.mfa_secret = None
     await db.commit()
 
-    # Clear cookie (must match path from set_cookie)
+    # Clear cookies (must match path from set_cookie)
     response.delete_cookie(key="access_token", domain=settings.COOKIE_DOMAIN, path="/")
+    response.delete_cookie(key="refresh_token", domain=settings.COOKIE_DOMAIN, path="/")
 
     # Log account deletion
     await log_auth_event(

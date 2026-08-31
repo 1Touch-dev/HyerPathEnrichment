@@ -26,7 +26,7 @@ from tests.migration_helpers import (
 REV_INTERVIEW_SCHEDULES = "042_interview_schedules"
 REV_MANUAL_JOB_ENTRIES = "043_manual_job_entries"
 REV_MERGE_ADMIN_AND_MODULE4_HEADS = "044_merge_admin_and_module4_heads"
-REV_CURRENT_SINGLE_HEAD = "059_merge_billing_and_brands_permissions_heads"
+REV_CURRENT_SINGLE_HEAD = "060_merge_security_p1_and_billing_heads"
 
 
 @pytest.fixture
@@ -322,15 +322,9 @@ class TestDowngrade:
 
 
 def test_043_is_in_the_migration_chain_and_is_the_single_head(sqlite_url: str) -> None:
-    """Named after 043 (this module's own migration), but after the admin-module
-    merge (migration 044, a no-op fork-resolution) and the subsequent Module 3
-    (045) / Module 4 (046) admin-permission migrations, plus the later
-    tenancy-core/machine-2 merge (055), the Machine 1 six-track dispatch's
-    three-way brands-permissions head merge (058), and the billing-stripe
-    merge (059, reconciling 056_billing_stripe_tables with 058), the single
-    head is now 059, with 044 (and therefore 043) reachable as an ancestor.
-    This test still confirms 043 (and 042) are reachable from the single
-    head, just not the head itself anymore.
+    """Named after 043 (this module's own migration). The Alembic single head
+    advances with later revisions (currently ``REV_CURRENT_SINGLE_HEAD``);
+    this test confirms 043/042 remain ancestors of that head.
     """
     from alembic.script import ScriptDirectory
 

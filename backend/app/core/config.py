@@ -33,6 +33,9 @@ class Settings(BaseSettings):
         default=20, alias="MAX_COMPLIANCE_REQUESTS_PER_MINUTE"
     )
     max_auth_requests_per_minute: int = Field(default=5, alias="MAX_AUTH_REQUESTS_PER_MINUTE")
+    max_auth_refresh_requests_per_minute: int = Field(
+        default=30, alias="MAX_AUTH_REFRESH_REQUESTS_PER_MINUTE"
+    )
     max_documents_upload_requests_per_minute: int = Field(
         default=10, alias="MAX_DOCUMENTS_UPLOAD_REQUESTS_PER_MINUTE"
     )

@@ -254,6 +254,7 @@ def test_generate_feedback_uses_question_via_fk(in_memory_db):
     fix); attempt_metadata only stores strengths/improvements after generation.
     """
     question = InterviewQuestion(
+        id=uuid4(),
         question_text="Custom question from bank",
         question_category="technical",
         difficulty="medium",
@@ -271,6 +272,8 @@ def test_generate_feedback_uses_question_via_fk(in_memory_db):
         response_type="text",
         text_response="My answer here",
     )
+    # Stale metadata must not win over the FK lookup.
+    attempt.attempt_metadata = {"question_text": "Stale metadata question"}
     in_memory_db.add(attempt)
     in_memory_db.commit()
 

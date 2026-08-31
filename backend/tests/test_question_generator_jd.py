@@ -105,6 +105,7 @@ class TestBuildJdGenerationMessages:
         content = messages[1]["content"]
 
         assert "3 unique interview questions" in content
+        # json_object response_format requires an object wrapper, not a raw array.
         assert (
             'Return a JSON object with a "questions" array containing 3 question objects.'
             in content
