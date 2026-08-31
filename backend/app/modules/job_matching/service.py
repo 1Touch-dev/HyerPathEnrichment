@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import NotFoundError
 from app.core.webhook_url import UnsafeWebhookUrlError, assert_safe_webhook_url
 from app.modules.application_tracker import repository as application_tracker_repository
+from app.modules.billing import service as billing_service
 from app.modules.job_matching import repository
 from app.modules.job_matching.models import JobMatch
 from app.modules.job_matching.schemas import (
@@ -98,11 +99,15 @@ class JobMatchingService:
         return await self.get_preferences(user_id)
 
     async def list_matches(self, user_id: UUID, limit: int, offset: int) -> JobMatchListResponse:
+        tier = await billing_service.get_effective_tier(self.db, user_id)
         rows, total = await repository.list_matches_for_user(self.db, user_id, limit, offset)
         matches = []
         for match, posting, manual_entry in rows:
             title, company, location, source_url = repository.resolve_match_display_fields(
                 posting, manual_entry
+            )
+            explanation, is_blurred = billing_service.blur_match_explanation(
+                match.explanation, tier=tier
             )
             matches.append(
                 JobMatchResponse(
@@ -122,7 +127,8 @@ class JobMatchingService:
                     salary_currency=posting.salary_currency if posting else None,
                     overall_score=match.overall_score,
                     score_breakdown=match.score_breakdown,
-                    explanation=match.explanation,
+                    explanation=explanation,
+                    is_blurred=is_blurred,
                     is_new=match.notified_at is None,
                     viewed_at=match.viewed_at,
                     feedback=cast('Literal["up", "down"] | None', match.feedback),

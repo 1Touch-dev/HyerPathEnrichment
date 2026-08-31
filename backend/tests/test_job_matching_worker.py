@@ -1220,6 +1220,35 @@ class TestSendMatchDigest:
         assert refreshed is not None
         assert refreshed.notified_at is not None
 
+    def test_free_tier_digest_email_uses_teaser_not_real_explanation(self, monkeypatch):
+        """Paywall side-channel: digest email must not leak real match explanations."""
+        from pydantic import SecretStr
+
+        from app.core.config import get_settings
+        from app.modules.billing.service import MATCH_EXPLANATION_TEASER
+
+        settings = get_settings()
+        monkeypatch.setattr(settings, "enable_billing", True)
+        monkeypatch.setattr(settings, "stripe_secret_key", SecretStr("sk_test_x"))
+        monkeypatch.setattr(settings, "stripe_webhook_secret", SecretStr("whsec_test"))
+        monkeypatch.setattr(settings, "stripe_price_id_premium", "price_test")
+
+        secret = "SECRET: You match because of your Rust experience and leadership."
+        user = _create_user(email=f"digest-paywall-{uuid.uuid4().hex[:10]}@example.com")
+        _create_preferences(user.id, notification_channels=["email"])
+        posting = _create_posting()
+        _create_match(user.id, posting.id, notified_at=None, explanation=secret)
+
+        with _mock_enqueue_email() as mock_enqueue:
+            result = send_match_digest(str(user.id))
+
+        assert result == {"sent": 1}
+        _, kwargs = mock_enqueue.call_args
+        match_ctx = kwargs["context"]["matches"][0]
+        assert match_ctx["explanation"] == MATCH_EXPLANATION_TEASER
+        assert "SECRET" not in match_ctx["explanation"]
+        assert secret not in str(kwargs["context"])
+
     def test_returns_zero_sent_when_no_unnotified_matches(self):
         user = _create_user()
         _create_preferences(user.id, notification_channels=["email"])

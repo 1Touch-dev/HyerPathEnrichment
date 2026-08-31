@@ -477,6 +477,7 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
     itself fails (see the webhook/push failure tests below).
     """
     from app.clients.notify import notify_job_match
+    from app.modules.billing import service as billing_service
     from app.modules.job_matching import push
     from app.workers.queue import enqueue_email
 
@@ -506,6 +507,10 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
         # computed once per row rather than re-derived per payload shape below.
         display_fields = [(m, repository.resolve_match_display_fields(p, e)) for m, p, e in top_5]
 
+        # Freemium paywall: never ship real match explanations to free-tier candidates
+        # via email (or any other side channel) — same rule as the HTTP list/detail APIs.
+        tier = await billing_service.get_effective_tier(session, UUID(user_id))
+
         match_payload = [
             {
                 "title": title,
@@ -523,22 +528,25 @@ async def _send_match_digest_async(user_id: str) -> dict[str, int]:
 
             user = await session.get(User, UUID(user_id))
             if user:
+                email_matches = []
+                for m, (title, company, location, source_url) in display_fields:
+                    explanation, _is_blurred = billing_service.blur_match_explanation(
+                        m.explanation, tier=tier
+                    )
+                    email_matches.append(
+                        {
+                            "title": title,
+                            "company": company,
+                            "location": location,
+                            "overall_score": m.overall_score,
+                            "explanation": explanation or "",
+                            "source_url": source_url or "",
+                        }
+                    )
                 enqueue_email(
                     template="job_match_digest",
                     recipient=user.email,
-                    context={
-                        "matches": [
-                            {
-                                "title": title,
-                                "company": company,
-                                "location": location,
-                                "overall_score": m.overall_score,
-                                "explanation": m.explanation or "",
-                                "source_url": source_url or "",
-                            }
-                            for m, (title, company, location, source_url) in display_fields
-                        ],
-                    },
+                    context={"matches": email_matches},
                 )
                 job_matching_digest_emails_sent_total.inc()
 

@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from app.auth.logged_out_tokens import LoggedOutTokenService
 from app.core.config import (
     get_settings,
+    validate_billing_settings,
     validate_outreach_settings,
     validate_production_security_settings,
 )
@@ -27,6 +28,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # process, not just the RQ worker).
     settings = get_settings()
     validate_outreach_settings(settings)
+    validate_billing_settings(settings)
     # Staging/production: refuse default JWT/API secrets, insecure cookies, or
     # an open changedetection webhook (empty CHANGEDETECTION_API_KEY).
     validate_production_security_settings(settings)

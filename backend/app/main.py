@@ -15,6 +15,8 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.modules.admin import router as admin_router
 from app.modules.admin.audit import AdminAuditFallbackMiddleware
 from app.modules.application_tracker.router import router as application_tracker_router
+from app.modules.billing.router import router as billing_router
+from app.modules.billing.webhook_router import router as billing_webhook_router
 from app.modules.brands.assignment_router import router as recruiter_assignments_router
 from app.modules.brands.deactivation_router import router as brand_deactivation_router
 from app.modules.brands.public_router import public_router as brands_public_router
@@ -117,6 +119,8 @@ app.include_router(questions_router, dependencies=[Depends(current_verified_user
 app.include_router(practice_audio_router, dependencies=[Depends(current_verified_user)])
 app.include_router(job_matching_router, dependencies=[Depends(current_verified_user)])
 app.include_router(demand_intelligence_router, dependencies=[Depends(current_verified_user)])
+app.include_router(billing_router, dependencies=[Depends(current_verified_user)])
+app.include_router(billing_webhook_router)
 app.include_router(application_tracker_router, dependencies=[Depends(current_verified_user)])
 app.include_router(interview_scheduling_router, dependencies=[Depends(current_verified_user)])
 app.include_router(jd_practice_router, dependencies=[Depends(current_verified_user)])

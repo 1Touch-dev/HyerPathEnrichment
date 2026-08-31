@@ -1,6 +1,7 @@
 # Module 2: Tinder-Style Job Board + CV Management — side-effect imports only,
 # so Alembic autogenerate and metadata.create_all() see these ORM classes even
 # when nothing else in the import graph has touched these modules yet.
+import app.modules.billing.models
 import app.modules.documents.models
 import app.modules.job_swipe.models
 import app.modules.outreach.linkedin_send_models
@@ -25,6 +26,7 @@ from app.modules.admin.models import (
     Role,
     RolePermission,
 )
+from app.modules.billing.models import StripeWebhookEvent, UserSubscription
 from app.modules.brands.models import Brand, RecruiterCandidateAssignment
 from app.modules.enrichment.models import JobRecord
 from app.modules.interview_scheduling.models import InterviewSchedule
@@ -73,6 +75,8 @@ _ = (
     Brand,
     RecruiterCandidateAssignment,
     StaffInvite,
+    StripeWebhookEvent,
+    UserSubscription,
 )
 
 # Re-export for alembic env after patch
@@ -106,7 +110,9 @@ __all__ = [
     "RolePermission",
     "SignalRecord",
     "StaffInvite",
+    "StripeWebhookEvent",
     "SuppressionRecord",
     "TokenBlacklist",
     "User",
+    "UserSubscription",
 ]

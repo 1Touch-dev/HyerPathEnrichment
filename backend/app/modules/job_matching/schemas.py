@@ -60,6 +60,7 @@ class JobMatchResponse(BaseModel):
     overall_score: float
     score_breakdown: dict[str, float | bool]
     explanation: str | None
+    is_blurred: bool = False
     is_new: bool  # notified_at is None
     viewed_at: datetime | None
     feedback: Literal["up", "down"] | None

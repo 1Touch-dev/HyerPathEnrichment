@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { UpgradeButton } from "@/features/billing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,13 +85,25 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
 
   return (
     <div className="space-y-6">
+      {report.isBlurred ? (
+        <div className="rounded-lg border border-dashed p-4">
+          <p className="text-sm text-muted-foreground">
+            Premium CV feedback is blurred on free accounts. Upgrade to unlock strengths,
+            improvements, and rewritten bullets.
+          </p>
+          <div className="mt-3">
+            <UpgradeButton />
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">ATS score</span>
         <Badge>{report.atsScore}/100</Badge>
       </div>
 
       {report.strengths.length > 0 && (
-        <div>
+        <div className={report.isBlurred ? "blur-sm select-none" : undefined}>
           <h3 className="text-sm font-semibold">Strengths</h3>
           <ul className="mt-1 list-inside list-disc text-sm text-muted-foreground">
             {report.strengths.map((s, i) => (
@@ -100,8 +113,19 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
         </div>
       )}
 
+      {report.improvements.length > 0 && (
+        <div className={report.isBlurred ? "blur-sm select-none" : undefined}>
+          <h3 className="text-sm font-semibold">Improvements</h3>
+          <ul className="mt-1 list-inside list-disc text-sm text-muted-foreground">
+            {report.improvements.map((item, i) => (
+              <li key={i}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {report.rewrittenBullets.length > 0 && (
-        <div>
+        <div className={report.isBlurred ? "blur-sm select-none" : undefined}>
           <h3 className="text-sm font-semibold">Suggested rewrites</h3>
           <div className="mt-2 space-y-3">
             {report.rewrittenBullets.map((bullet, index) => {
