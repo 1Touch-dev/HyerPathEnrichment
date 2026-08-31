@@ -8,9 +8,9 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Response, status
-from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.jwt_tokens import encode_access_token
 from app.auth.models import User
 from app.core.config import get_settings
 from app.modules.admin import repository
@@ -61,11 +61,7 @@ async def start_impersonation(
         "imp": str(admin.id),
         "exp": expires_at,
     }
-    # ✅ DIRECT (verified against backend/app/core/config.py and
-    # backend/app/auth/router.py / dependencies.py, which already encode/decode
-    # JWTs this way): settings.SECRET_KEY and settings.JWT_ALGORITHM match the
-    # plan's assumed names exactly, no rename needed.
-    token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    token = encode_access_token(payload, settings.SECRET_KEY)
     response.set_cookie(
         "access_token",
         token,

@@ -118,7 +118,7 @@ async def test_complete_auth_e2e_flow(db: AsyncSession):
         assert logout_response.status_code == 200
 
         # 10. Verify token was blacklisted
-        from jose import jwt
+        import jwt
 
         from app.core.config import get_settings
 
@@ -127,7 +127,7 @@ async def test_complete_auth_e2e_flow(db: AsyncSession):
         token_payload = jwt.decode(
             cookies["access_token"],
             settings.SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM],
+            algorithms=["HS256"],
         )
         jti = token_payload["jti"]
 

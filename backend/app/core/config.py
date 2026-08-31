@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     app_name: str = Field(default="Hyrepath Enrichment Backend", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
     api_token: str = Field(default="change-me", alias="API_TOKEN")
+    metrics_token: str = Field(
+        default="",
+        alias="METRICS_TOKEN",
+        description="Optional scrape token for /metrics; falls back to API_TOKEN when empty",
+    )
     database_url: str = Field(default="sqlite+aiosqlite:///./hyrepath.db", alias="DATABASE_URL")
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     r2_bucket: str = Field(default="hyrepath-assets", alias="R2_BUCKET")
