@@ -9,11 +9,14 @@ module does not call into or import `06`'s files."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.documents.models import CvChatSession
 from app.modules.linkedin_sourcing import repository
 from app.modules.linkedin_sourcing.models import SourcedCandidateLead
 from app.modules.linkedin_sourcing.schemas import (
@@ -78,4 +81,37 @@ async def review_lead(
     if not lead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     lead = await repository.mark_reviewed(db, lead, reviewer_id=reviewer_id, new_status=body.status)
+    return SourcedLeadResponse.model_validate(lead)
+
+
+async def mark_lead_converted(
+    db: AsyncSession, *, lead_id: UUID, user_id: UUID
+) -> SourcedLeadResponse:
+    """Link a sourced lead to the real `User` row it converted into, once that
+    person has completed the existing CV-chat qualification flow (see
+    12-linkedin-sourcing-intern-multilogin.md's "Qualification path:
+    SourcedCandidateLead -> User"). Reuses `CvChatSession.status == "completed"`
+    — the same completeness gate every other candidate goes through — rather
+    than building a second qualification mechanism.
+
+    Does not touch/overwrite `status`: conversion is an additional fact
+    recorded alongside whatever status the lead already has."""
+    lead = await repository.get_by_id(db, lead_id)
+    if not lead:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+
+    result = await db.execute(
+        select(CvChatSession).where(
+            CvChatSession.user_id == user_id, CvChatSession.status == "completed"
+        )
+    )
+    if result.scalars().first() is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Target user has not completed CV-chat qualification yet",
+        )
+
+    lead = await repository.mark_converted(
+        db, lead, user_id=user_id, converted_at=datetime.now(UTC)
+    )
     return SourcedLeadResponse.model_validate(lead)

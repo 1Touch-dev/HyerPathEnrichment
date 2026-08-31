@@ -355,6 +355,15 @@ class Settings(BaseSettings):
             return origins
         return [self.FRONTEND_URL] if self.FRONTEND_URL else ["http://localhost:3000"]
 
+    # Brand (docs/adr/0019-tenancy-model.md): include active brands' custom_domain
+    # values in the CORS allow-list at startup, in addition to
+    # CORS_ALLOWED_ORIGINS/FRONTEND_URL. Default False so existing deployments are
+    # unaffected until opted in. Purely a routing/presentation concern -- Brand never
+    # gates data access, so this flag has no security implication beyond "which
+    # origins may make credentialed requests," identical in kind to the existing
+    # CORS_ALLOWED_ORIGINS behavior it extends.
+    enable_brand_cors_origins: bool = Field(default=False, alias="ENABLE_BRAND_CORS_ORIGINS")
+
     # Cookie settings
     COOKIE_SECURE: bool = Field(default=False, alias="COOKIE_SECURE")
     COOKIE_DOMAIN: str | None = Field(default=None, alias="COOKIE_DOMAIN")
@@ -451,6 +460,13 @@ class Settings(BaseSettings):
     # on this data being live at launch, not bolted on later.
     enable_demand_intelligence: bool = Field(default=True, alias="ENABLE_DEMAND_INTELLIGENCE")
 
+    # Billing (docs/adr/0020-billing-provider.md): Stripe integration. Default disabled --
+    # no billing enforcement until an operator explicitly opts in with real Stripe keys.
+    enable_billing: bool = Field(default=False, alias="ENABLE_BILLING")
+    stripe_secret_key: SecretStr = Field(default=SecretStr(""), alias="STRIPE_SECRET_KEY")
+    stripe_webhook_secret: SecretStr = Field(default=SecretStr(""), alias="STRIPE_WEBHOOK_SECRET")
+    stripe_price_id_premium: str = Field(default="", alias="STRIPE_PRICE_ID_PREMIUM")
+
 
 _TIER1_PROD_ENVS = frozenset({"production", "staging"})
 
@@ -516,6 +532,30 @@ def validate_outreach_settings(settings: Settings | None = None) -> None:
         return
     if not cfg.outreach_physical_address.strip():
         raise RuntimeError("OUTREACH_PHYSICAL_ADDRESS is required when OUTREACH_ENABLED is true")
+
+
+def validate_billing_settings(settings: Settings | None = None) -> None:
+    """Fail fast when billing is enabled without required Stripe credentials.
+
+    Raises RuntimeError listing missing env key *names* only (never secret values).
+    No-op when ``enable_billing`` is false.
+    """
+    cfg = settings if settings is not None else get_settings()
+    if not cfg.enable_billing:
+        return
+
+    missing: list[str] = []
+    if not cfg.stripe_secret_key.get_secret_value().strip():
+        missing.append("STRIPE_SECRET_KEY")
+    if not cfg.stripe_webhook_secret.get_secret_value().strip():
+        missing.append("STRIPE_WEBHOOK_SECRET")
+    if not cfg.stripe_price_id_premium.strip():
+        missing.append("STRIPE_PRICE_ID_PREMIUM")
+
+    if missing:
+        raise RuntimeError(
+            "ENABLE_BILLING=true but required settings are missing: " + ", ".join(missing)
+        )
 
 
 _INSECURE_SECRET_KEYS = frozenset(

@@ -79,7 +79,7 @@ async def start_impersonation(
     )
 
 
-@router.post("/end", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/end", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def end_impersonation(
     request: Request,
     response: Response,

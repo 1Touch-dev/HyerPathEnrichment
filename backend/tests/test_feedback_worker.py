@@ -18,6 +18,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.database.base import Base
+from app.models import InterviewQuestion  # noqa: F401 — register on Base for create_all
 from app.modules.sessions.models import QuestionAttempt
 from app.workers.tasks.feedback import _generate_feedback_sync, generate_feedback_job
 
@@ -246,16 +247,30 @@ def test_generate_feedback_job_tracks_failure():
             mock_track_failure.assert_called_once_with(model="gpt-4o-mini", operation="feedback")
 
 
-def test_generate_feedback_uses_question_from_metadata(in_memory_db):
-    """Question text is extracted from attempt attempt_metadata."""
+def test_generate_feedback_uses_question_via_fk(in_memory_db):
+    """Question text is resolved via QuestionAttempt.question_id -> InterviewQuestion.
+
+    Metadata is no longer the source of truth for question text (phase2 Module 3
+    fix); attempt_metadata only stores strengths/improvements after generation.
+    """
+    question = InterviewQuestion(
+        question_text="Custom question from bank",
+        question_category="technical",
+        difficulty="medium",
+        job_roles=["software_engineer"],
+        technologies=["python"],
+    )
+    in_memory_db.add(question)
+    in_memory_db.flush()
+
     attempt = QuestionAttempt(
         id=uuid4(),
         session_id=uuid4(),
         user_id=uuid4(),
+        question_id=question.id,
         response_type="text",
         text_response="My answer here",
     )
-    attempt.attempt_metadata = {"question_text": "Custom question from metadata"}
     in_memory_db.add(attempt)
     in_memory_db.commit()
 
@@ -284,7 +299,6 @@ def test_generate_feedback_uses_question_from_metadata(in_memory_db):
         with patch("app.workers.tasks.feedback.track_llm_cost", new_callable=AsyncMock):
             _generate_feedback_sync(str(attempt.id), in_memory_db)
 
-            # Verify correct question was passed
             call_kwargs = mock_generate.call_args.kwargs
-            assert call_kwargs["question"] == "Custom question from metadata"
+            assert call_kwargs["question"] == "Custom question from bank"
             assert call_kwargs["answer"] == "My answer here"

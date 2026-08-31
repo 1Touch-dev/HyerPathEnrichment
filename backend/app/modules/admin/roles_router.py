@@ -69,7 +69,7 @@ async def create_role(
     return _role_to_response(refreshed_role)
 
 
-@router.post("/{role_id}/permissions", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/{role_id}/permissions", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def attach_permission(
     role_id: UUID,
     body: AttachPermissionRequest,
@@ -81,7 +81,11 @@ async def attach_permission(
     )
 
 
-@router.delete("/{role_id}/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{role_id}/permissions/{permission_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
 async def detach_permission(
     role_id: UUID,
     permission_id: UUID,

@@ -9,6 +9,7 @@ from app.core.config import (
     validate_outreach_settings,
     validate_production_security_settings,
 )
+from app.core.cors import CORS_ORIGINS, resolve_cors_origins
 from app.core.logging import configure_logging
 from app.database.session import get_db_session
 from app.infrastructure.redis import close_redis, get_redis_client
@@ -43,6 +44,19 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
         logger = logging.getLogger(__name__)
         logger.error(f"Failed to sync logged-out tokens on startup: {e}")
+
+    # Brand (docs/adr/0019-tenancy-model.md): fold active brands' custom_domain
+    # values into the CORS allow-list. Mutates CORS_ORIGINS in place -- see
+    # app/core/cors.py and app/main.py's CORSMiddleware registration.
+    try:
+        async for db in get_db_session():
+            CORS_ORIGINS[:] = await resolve_cors_origins(get_settings(), db)
+            break  # Only need one session for startup resolution
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to resolve brand CORS origins on startup: {e}")
 
     yield
     await close_redis()

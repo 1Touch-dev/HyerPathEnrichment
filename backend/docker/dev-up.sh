@@ -17,6 +17,16 @@
 # Usage:
 #   bash dev-up.sh
 #
+# On Windows: there is no native Docker CLI in PowerShell/cmd — Docker
+# Desktop's engine is reached through its WSL2 integration, so this script
+# must be run inside the Ubuntu WSL distro, not directly from PowerShell:
+#   wsl -d Ubuntu -- bash dev-up.sh
+# (or run `wsl -d Ubuntu` first to drop into that shell, cd to this
+# directory, then run `bash dev-up.sh` natively from there.) Every `docker`/
+# `docker compose` invocation below — and any ad hoc docker command run
+# manually while working on this stack from Windows — should go through
+# `wsl -d Ubuntu -- <command>` the same way.
+#
 # Env:
 #   DEV_ENV_FILE  path to the env file passed to `--env-file` (default: ../.env.production)
 #   DEV_PROFILES  space-separated `--profile` flags (default: "--profile llm --profile paid --profile observability")

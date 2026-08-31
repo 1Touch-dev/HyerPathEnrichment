@@ -1,5 +1,6 @@
 export { useAdminUsers, useUpdateUserStatus, useAssignUserRole } from "./hooks/useAdminUsers";
 export { useAuditLogs } from "./hooks/useAuditLogs";
+export { useAiActions, useAiAction } from "./hooks/useAiActions";
 export { useFeatureFlags, useUpsertFeatureFlag } from "./hooks/useFeatureFlags";
 export { useQueuesOverview, useFailedJobs, useRetryFailedJob } from "./hooks/useQueues";
 export { useSystemHealth } from "./hooks/useSystemHealth";
@@ -52,6 +53,7 @@ export { UsersTable } from "./components/UsersTable";
 export { UserDetailDrawer } from "./components/UserDetailDrawer";
 export { RoleBadge } from "./components/RoleBadge";
 export { AuditLogTable } from "./components/AuditLogTable";
+export { AiActionsTable } from "./components/AiActionsTable";
 export { FeatureFlagsPanel } from "./components/FeatureFlagsPanel";
 export { QueueMonitor } from "./components/QueueMonitor";
 export { SystemHealthPanel } from "./components/SystemHealthPanel";

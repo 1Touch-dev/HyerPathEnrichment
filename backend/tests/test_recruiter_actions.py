@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import User
 from app.core.config import get_settings
 from app.main import app, current_verified_user
+from app.modules.admin.ai_supervision_models import AiActionAuditLog
 from app.modules.documents.models import CandidateDocument
 from app.modules.job_matching.models import JobMatch, JobPosting
 from app.modules.recruiter_actions.models import PendingRecruiterAction, RoleSuggestion
@@ -186,6 +187,33 @@ async def test_apply_autonomous_mode_applies_immediately(
         select(PendingRecruiterAction).where(PendingRecruiterAction.job_match_id == match.id)
     )
     assert pending_result.scalar_one_or_none() is None
+
+
+async def test_apply_autonomous_mode_records_ai_action_audit_row(
+    client: TestClient, db: AsyncSession, candidate_autonomous: User, recruiter: User
+) -> None:
+    """The autonomous branch must call record_ai_action() after its own commit
+    -- verified here by querying the ai_action_audit_log table for the row it
+    should have written, per this file's existing db-query convention (see
+    test_admin_ai_supervision.py for the write helper's own unit tests)."""
+    match = await _make_job_match(db, candidate_autonomous)
+    headers = _auth_headers(str(recruiter.id))
+
+    response = client.post(
+        "/api/recruiter-actions/apply",
+        headers=headers,
+        json={"candidate_user_id": str(candidate_autonomous.id), "job_match_id": str(match.id)},
+    )
+    assert_success(response)
+
+    result = await db.execute(
+        select(AiActionAuditLog).where(AiActionAuditLog.related_id == match.id)
+    )
+    audit_row = result.scalar_one()
+    assert audit_row.action_type == "autonomous_apply"
+    assert audit_row.candidate_user_id == candidate_autonomous.id
+    assert audit_row.triggered_by_user_id == recruiter.id
+    assert audit_row.summary is not None
 
 
 async def test_apply_approval_required_creates_pending_action_without_touching_job_match(

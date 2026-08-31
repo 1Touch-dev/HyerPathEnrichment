@@ -15,11 +15,13 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.core.config import get_settings
 from app.domain.candidate import CVData
+from app.modules.admin.ai_supervision_models import AiActionAuditLog
 from app.modules.documents.models import CandidateDocument
 from app.workers.tasks.resume_tailoring import (
     _demand_context_line_for_tailoring,
@@ -176,6 +178,49 @@ async def test_tailor_resume_job_marks_research_degraded_when_perplexity_unavail
         result = await _tailor_resume_job(str(worker_user.id), str(worker_document.id), "Acme")
 
     assert result["research_degraded"] is True
+
+
+async def test_tailor_resume_job_records_ai_action_audit_row_without_persisting_content(
+    db: AsyncSession, worker_user: User, worker_document: CandidateDocument
+) -> None:
+    """After the tailored result is generated, record_ai_action() must be
+    called with action_type='resume_tailoring' -- and, per the release-blocking
+    ephemeral-only invariant for this track, the audit row's summary must be
+    a short descriptive string, never the tailored resume content itself
+    (verified by asserting the actual tailored summary text is absent from
+    the persisted audit row's summary column)."""
+    with (
+        _patched_worker_session(db),
+        patch("app.workers.tasks.resume_tailoring.close_redis", new=AsyncMock()),
+        patch("app.workers.tasks.resume_tailoring.engine") as mock_engine,
+        patch(
+            "app.workers.tasks.resume_tailoring.PerplexityClient.get_company_context",
+            new=AsyncMock(return_value={"summary": "Acme builds widgets", "source": "perplexity"}),
+        ),
+        patch(
+            "app.workers.tasks.resume_tailoring._tailor_with_llm",
+            new=AsyncMock(
+                return_value={
+                    "summary": "This is the full tailored resume summary text.",
+                    "emphasized_skills": ["python"],
+                    "reordered_bullets": ["Did a thing"],
+                }
+            ),
+        ),
+    ):
+        mock_engine.dispose = AsyncMock()
+        await _tailor_resume_job(
+            str(worker_user.id), str(worker_document.id), "Acme", "Backend Engineer"
+        )
+
+    result = await db.execute(
+        select(AiActionAuditLog).where(AiActionAuditLog.candidate_user_id == worker_user.id)
+    )
+    audit_row = result.scalar_one()
+    assert audit_row.action_type == "resume_tailoring"
+    assert audit_row.related_id is None
+    assert audit_row.summary == "target_company=Acme, target_role=Backend Engineer"
+    assert "This is the full tailored resume summary text." not in audit_row.summary
 
 
 async def test_tailor_resume_job_missing_document_raises(

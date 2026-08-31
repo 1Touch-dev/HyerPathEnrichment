@@ -1,6 +1,8 @@
 import {
   AdminAuditLogEntry,
   AdminAuditLogListResponse,
+  AiAction,
+  AiActionListResponse,
   AdminDocument,
   AdminDocumentListResponse,
   AdminJobPosting,
@@ -638,6 +640,22 @@ interface BackendAdminAuditLogListResponse {
   has_more: boolean;
 }
 
+interface BackendAiActionResponse {
+  id: string;
+  action_type: string;
+  candidate_user_id: string | null;
+  triggered_by_user_id: string | null;
+  related_id: string | null;
+  summary: string | null;
+  created_at: string;
+}
+
+interface BackendAiActionListResponse {
+  items: BackendAiActionResponse[];
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
 export interface BackendRoleWithPermissionsResponse {
   id: string;
   name: string;
@@ -1026,6 +1044,26 @@ export function mapBackendAuditLogList(
 ): AdminAuditLogListResponse {
   return {
     items: raw.items.map(mapBackendAuditLogEntry),
+    nextCursor: raw.next_cursor,
+    hasMore: raw.has_more,
+  };
+}
+
+export function mapBackendAiAction(raw: BackendAiActionResponse): AiAction {
+  return {
+    id: raw.id,
+    actionType: raw.action_type,
+    candidateUserId: raw.candidate_user_id,
+    triggeredByUserId: raw.triggered_by_user_id,
+    relatedId: raw.related_id,
+    summary: raw.summary,
+    createdAt: raw.created_at,
+  };
+}
+
+export function mapBackendAiActionList(raw: BackendAiActionListResponse): AiActionListResponse {
+  return {
+    items: raw.items.map(mapBackendAiAction),
     nextCursor: raw.next_cursor,
     hasMore: raw.has_more,
   };

@@ -131,20 +131,21 @@ async def test_generate_cv_improvement_no_api_key_raises():
 async def test_generate_cv_improvement_calls_openai_and_parses():
     settings = Settings(openai_api_key="sk-test")
 
+    bullets = ", ".join(
+        f'{{"original": "orig {i}", "rewritten": "new {i}", "rationale": "r{i}"}}' for i in range(5)
+    )
+    strengths = ", ".join(f'"s{i}"' for i in range(4))
+    improvements = ", ".join(f'"i{i}"' for i in range(4))
+    mock_content = (
+        f'{{"ats_score": 80, "strengths": [{strengths}], '
+        f'"improvements": [{improvements}], "rewritten_bullets": [{bullets}]}}'
+    )
+
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     mock_response.json = MagicMock(
         return_value={
-            "choices": [
-                {
-                    "message": {
-                        "content": (
-                            '{"ats_score": 80, "strengths": [], "improvements": [], '
-                            '"rewritten_bullets": []}'
-                        )
-                    }
-                }
-            ],
+            "choices": [{"message": {"content": mock_content}}],
             "usage": {"prompt_tokens": 100, "completion_tokens": 50},
         }
     )

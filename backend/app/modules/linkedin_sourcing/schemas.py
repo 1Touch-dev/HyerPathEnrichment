@@ -32,7 +32,13 @@ class SourcedLeadResponse(BaseModel):
     notes: str | None
     status: str
     created_at: datetime
+    converted_user_id: UUID | None
+    converted_at: datetime | None
 
 
 class ReviewSourcedLeadRequest(BaseModel):
     status: str = Field(..., pattern="^(reviewed|contacted|dismissed)$")
+
+
+class ConvertLeadRequest(BaseModel):
+    user_id: UUID

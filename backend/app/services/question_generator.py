@@ -212,16 +212,21 @@ def _parse_generation_response(content: str, expected_count: int = 1) -> list[Qu
     set to json_object.
     """
     try:
-        if "{" in content:
-            start = content.index("{")
-            end = content.rindex("}") + 1
-            data = json.loads(content[start:end])
-        elif "[" in content:
-            start = content.index("[")
-            end = content.rindex("]") + 1
-            data = json.loads(content[start:end])
-        else:
+        # Prefer whichever JSON root appears first. A raw array like
+        # ``[{...}, {...}]`` also contains ``{``, so checking for braces
+        # first would slice from the first object to the last ``}`` and
+        # ``json.loads`` would raise "Extra data".
+        brace_idx = content.find("{")
+        bracket_idx = content.find("[")
+        if brace_idx == -1 and bracket_idx == -1:
             raise ValueError("No JSON object or array found in response")
+        if bracket_idx != -1 and (brace_idx == -1 or bracket_idx < brace_idx):
+            start = bracket_idx
+            end = content.rindex("]") + 1
+        else:
+            start = brace_idx
+            end = content.rindex("}") + 1
+        data = json.loads(content[start:end])
 
         if isinstance(data, dict):
             if isinstance(data.get("questions"), list):

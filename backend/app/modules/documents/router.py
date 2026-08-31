@@ -195,7 +195,7 @@ async def list_documents(
     return await service.list_documents(current_user.id, limit)
 
 
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_document(
     document_id: str,
     current_user: CurrentUser,

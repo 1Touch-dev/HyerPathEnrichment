@@ -31,7 +31,9 @@ async def list_failed_jobs(
     return queues_service.list_failed_jobs(name, limit=limit)
 
 
-@router.post("/{name}/failed/{job_id}/retry", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{name}/failed/{job_id}/retry", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
 async def retry_failed_job(
     name: str,
     job_id: str,

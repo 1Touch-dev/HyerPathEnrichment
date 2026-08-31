@@ -59,3 +59,13 @@ services:
       # On WSL2+Docker Engine the base compose also maps host.docker.internal to
       # the docker0 gateway; the first /etc/hosts hit would miss Windows.
       MULTILOGIN_SELENIUM_HOST: http://launcher.mlx.yt
+
+  # This overlay doesn't otherwise touch `api` (Tier 1 runs on the worker
+  # only). Billing is unrelated to Tier 1, but must still pass through here
+  # so `api` keeps its env when this file is combined with the others.
+  api:
+    environment:
+      ENABLE_BILLING: ${ENABLE_BILLING:-false}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_ID_PREMIUM: ${STRIPE_PRICE_ID_PREMIUM:-}

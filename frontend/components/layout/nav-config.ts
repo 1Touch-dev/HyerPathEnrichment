@@ -24,6 +24,9 @@ import {
   ClipboardList,
   GraduationCap,
   Send,
+  Bot,
+  UserSearch,
+  Globe,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -73,6 +76,7 @@ export const adminNav: NavSection = {
     { href: "/app/admin/system-health", label: "System health", icon: Activity },
     { href: "/app/admin/users", label: "Users", icon: Users },
     { href: "/app/admin/roles", label: "Roles", icon: ShieldCheck },
+    { href: "/app/admin/staff-invites", label: "Staff invites", icon: Mail },
     { href: "/app/admin/audit-logs", label: "Audit logs", icon: ScrollText },
     { href: "/app/admin/feature-flags", label: "Feature flags", icon: Flag },
     { href: "/app/admin/queues", label: "Queues", icon: ListTodo },
@@ -83,5 +87,8 @@ export const adminNav: NavSection = {
     { href: "/app/admin/portfolio", label: "Portfolio", icon: Layers },
     { href: "/app/admin/outreach", label: "Outreach", icon: MailCheck },
     { href: "/app/admin/linkedin-tasks", label: "LinkedIn tasks", icon: Send },
+    { href: "/app/admin/ai-actions", label: "AI actions", icon: Bot },
+    { href: "/app/admin/sourcing-leads", label: "Sourcing leads", icon: UserSearch },
+    { href: "/app/admin/demand-intelligence", label: "Demand intelligence", icon: Globe },
   ],
 };

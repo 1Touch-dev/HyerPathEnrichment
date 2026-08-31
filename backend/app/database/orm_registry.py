@@ -25,6 +25,7 @@ from app.modules.admin.models import (
     Role,
     RolePermission,
 )
+from app.modules.brands.models import Brand, RecruiterCandidateAssignment
 from app.modules.enrichment.models import JobRecord
 from app.modules.interview_scheduling.models import InterviewSchedule
 from app.modules.job_matching.models import (
@@ -37,6 +38,7 @@ from app.modules.job_matching.models import (
 from app.modules.manual_jobs.models import ManualJobEntry
 from app.modules.sessions.models import PracticeSession, QuestionAttempt
 from app.modules.signals.models import SignalRecord
+from app.modules.staff_invites.models import StaffInvite
 from app.storage.models import PhotoCacheRecord
 
 _ = (
@@ -68,6 +70,9 @@ _ = (
     ImpersonationSession,
     InterviewSchedule,
     ManualJobEntry,
+    Brand,
+    RecruiterCandidateAssignment,
+    StaffInvite,
 )
 
 # Re-export for alembic env after patch
@@ -76,6 +81,7 @@ __all__ = [
     "AuditLog",
     "AuthAuditLog",
     "Base",
+    "Brand",
     "CandidateJobPreferences",
     "DsarRecord",
     "EmailVerificationToken",
@@ -94,10 +100,12 @@ __all__ = [
     "PracticeSession",
     "PushSubscription",
     "QuestionAttempt",
+    "RecruiterCandidateAssignment",
     "RefreshToken",
     "Role",
     "RolePermission",
     "SignalRecord",
+    "StaffInvite",
     "SuppressionRecord",
     "TokenBlacklist",
     "User",

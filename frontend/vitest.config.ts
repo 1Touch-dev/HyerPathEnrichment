@@ -27,6 +27,8 @@ export default defineConfig({
       "components/**/*.test.tsx",
       "app/**/*.test.ts",
       "app/**/*.test.tsx",
+      "providers/**/*.test.ts",
+      "providers/**/*.test.tsx",
     ],
     exclude: ["e2e/**", "node_modules/**"],
   },

@@ -5,6 +5,7 @@ from app.auth.dependencies import VerifiedUser
 from app.auth.router import router as auth_router
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import Settings, get_settings
+from app.core.cors import CORS_ORIGINS
 from app.core.errors import UnauthorizedError
 from app.core.exception_handlers import register_exception_handlers
 from app.core.lifespan import lifespan
@@ -14,6 +15,10 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.modules.admin import router as admin_router
 from app.modules.admin.audit import AdminAuditFallbackMiddleware
 from app.modules.application_tracker.router import router as application_tracker_router
+from app.modules.brands.assignment_router import router as recruiter_assignments_router
+from app.modules.brands.deactivation_router import router as brand_deactivation_router
+from app.modules.brands.public_router import public_router as brands_public_router
+from app.modules.brands.router import router as brands_router
 from app.modules.demand_intelligence.router import router as demand_intelligence_router
 from app.modules.documents.router import router as documents_router
 from app.modules.dsar.router import router as dsar_router
@@ -39,6 +44,8 @@ from app.modules.resume_tailoring.router import router as resume_tailoring_route
 from app.modules.sessions.router import router as sessions_router
 from app.modules.signals.router import list_router as signals_list_router
 from app.modules.signals.router import webhook_router as signals_webhook_router
+from app.modules.staff_invites.router import public_router as staff_invites_public_router
+from app.modules.staff_invites.router import router as staff_invites_router
 
 
 async def verify_token(
@@ -68,11 +75,14 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(AdminAuditFallbackMiddleware)
 
-# CORS configuration for frontend
-settings = get_settings()
+# CORS configuration for frontend. `CORS_ORIGINS` is the same list object
+# `app/core/lifespan.py`'s startup sequence mutates in place once active
+# brands' custom_domain values are resolved (machine-1-tenancy-core/04);
+# CORSMiddleware only ever reads from it, so it picks up that update even
+# though the middleware itself is constructed once, here, at import time.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_allowed_origins,
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     # Actual verb set used across app/modules/*/router.py + OPTIONS for preflight.
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -96,6 +106,9 @@ app.include_router(auth_router)
 
 # Protected routes (require verified user)
 app.include_router(admin_router, dependencies=[Depends(current_verified_user)])
+app.include_router(brand_deactivation_router, dependencies=[Depends(current_verified_user)])
+app.include_router(brands_router, dependencies=[Depends(current_verified_user)])
+app.include_router(recruiter_assignments_router, dependencies=[Depends(current_verified_user)])
 app.include_router(documents_router, dependencies=[Depends(current_verified_user)])
 app.include_router(enrich_router, dependencies=[Depends(current_verified_user)])
 app.include_router(email_router, dependencies=[Depends(current_verified_user)])
@@ -109,6 +122,7 @@ app.include_router(interview_scheduling_router, dependencies=[Depends(current_ve
 app.include_router(jd_practice_router, dependencies=[Depends(current_verified_user)])
 app.include_router(portfolio_router, dependencies=[Depends(current_verified_user)])
 app.include_router(portfolio_public_router)
+app.include_router(brands_public_router)
 app.include_router(job_swipe_router, dependencies=[Depends(current_verified_user)])
 app.include_router(outreach_router, dependencies=[Depends(current_verified_user)])
 app.include_router(linkedin_send_router, dependencies=[Depends(current_verified_user)])
@@ -123,3 +137,5 @@ app.include_router(
 )
 app.include_router(signals_webhook_router)
 app.include_router(signals_list_router, dependencies=[Depends(current_verified_user)])
+app.include_router(staff_invites_router, dependencies=[Depends(current_verified_user)])
+app.include_router(staff_invites_public_router)

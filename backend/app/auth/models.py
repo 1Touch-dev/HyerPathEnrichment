@@ -47,6 +47,14 @@ class User(Base):
     mfa_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
     mfa_enrolled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Brand attribution (docs/adr/0019-tenancy-model.md): which brand storefront this
+    # candidate signed up through, if any. Presentation-only — NEVER used to filter
+    # any query or restrict which recruiter can act on this candidate. NULL means
+    # signed up directly (no storefront), or predates the Brand concept.
+    signup_brand_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("brands.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # Email verification
     verification_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
     verification_sent_at: Mapped[datetime | None] = mapped_column(

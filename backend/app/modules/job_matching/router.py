@@ -58,7 +58,9 @@ async def list_matches(
     return await service.list_matches(current_user.id, limit, offset)
 
 
-@router.post("/matches/{match_id}/view", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/matches/{match_id}/view", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
 async def mark_match_viewed(
     match_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
 ) -> None:
@@ -66,7 +68,9 @@ async def mark_match_viewed(
     await service.mark_viewed(match_id, current_user.id)
 
 
-@router.post("/matches/{match_id}/feedback", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/matches/{match_id}/feedback", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
 async def submit_match_feedback(
     match_id: str,
     payload: JobMatchFeedbackRequest,
@@ -103,6 +107,7 @@ async def apply_redirect(
     "/matches/{match_id}/mark-applied",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(enforce_job_matching_apply_rate_limit)],
+    response_model=None,
 )
 async def mark_applied(
     match_id: str,
@@ -145,7 +150,7 @@ async def stream_unread_match_events(
     )
 
 
-@router.post("/push-subscription", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/push-subscription", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def create_push_subscription(
     payload: PushSubscriptionRequest,
     current_user: CurrentUser,
@@ -154,7 +159,7 @@ async def create_push_subscription(
     await push.subscribe(db, current_user.id, payload.endpoint, payload.p256dh, payload.auth)
 
 
-@router.delete("/push-subscription", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/push-subscription", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_push_subscription(
     payload: PushUnsubscribeRequest,
     current_user: CurrentUser,

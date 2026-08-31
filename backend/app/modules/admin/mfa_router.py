@@ -28,6 +28,7 @@ async def enroll_mfa(
     "/confirm",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(enforce_admin_mfa_verify_rate_limit)],
+    response_model=None,
 )
 async def confirm_mfa_enrollment(
     payload: MfaVerifyRequest,
@@ -37,7 +38,7 @@ async def confirm_mfa_enrollment(
     await mfa.confirm_enrollment(db, current_user, payload.code)
 
 
-@router.post("/disable", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/disable", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def disable_mfa(
     current_user: VerifiedUser,
     db: AsyncSession = Depends(get_db_session),
