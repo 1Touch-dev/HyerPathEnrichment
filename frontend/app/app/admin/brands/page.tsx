@@ -18,14 +18,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { parseResponseEnvelopeError, unwrapEnvelopeData } from "@/src/lib/api-envelope";
+import {
+  parseBrandLandingConfig,
+  RESERVED_KEYS,
+  serializeBrandLandingConfig,
+  type BrandLandingCopy,
+  type ParsedBrandLandingConfig,
+} from "@/src/lib/brand-landing-config";
 import type { AdminBrand, AdminBrandCreate, AdminBrandUpdate } from "@/src/lib/types";
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 
-const LANDING_CONFIG_PLACEHOLDER = `{
-  "free": { "headline": "Join on the free plan", "cta_label": "Get started" },
-  "premium": { "headline": "Premium desk", "cta_label": "Join premium" }
-}`;
+const TIERS_FIXTURE_WARNING =
+  "This JSON uses a reserved `tiers` key, so public tier URLs will 404. Saving overwrites it with a slug-keyed map.";
+
+type LandingTierRow = {
+  slug: string;
+  headline: string;
+  ctaLabel: string;
+};
+
+const EMPTY_TIER_ROW: LandingTierRow = { slug: "", headline: "", ctaLabel: "" };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -61,6 +74,50 @@ function parseJsonObjectField(raw: string, previousHadValue: boolean): JsonField
 
 function stringifyConfig(value: Record<string, unknown> | null): string {
   return value ? JSON.stringify(value, null, 2) : "";
+}
+
+function parsedLandingToRows(parsed: ParsedBrandLandingConfig): LandingTierRow[] {
+  return Object.entries(parsed.tiers).map(([slug, copy]) => ({
+    slug,
+    headline: copy.headline ?? "",
+    ctaLabel: copy.ctaLabel ?? "",
+  }));
+}
+
+function formToParsedLanding(
+  generalHeadline: string,
+  generalCta: string,
+  rows: LandingTierRow[],
+): { ok: true; parsed: ParsedBrandLandingConfig } | { ok: false; error: string } {
+  const headline = generalHeadline.trim();
+  const ctaLabel = generalCta.trim();
+  const generalCopy: BrandLandingCopy | null =
+    headline || ctaLabel
+      ? {
+          ...(headline ? { headline } : {}),
+          ...(ctaLabel ? { ctaLabel } : {}),
+        }
+      : null;
+
+  const tiers: Record<string, BrandLandingCopy> = {};
+  for (const row of rows) {
+    const slug = row.slug.trim();
+    const rowHeadline = row.headline.trim();
+    const rowCta = row.ctaLabel.trim();
+    if (!slug && !rowHeadline && !rowCta) continue;
+    if (!slug) {
+      return { ok: false, error: "Landing page: tier slug is required" };
+    }
+    if (slug in tiers) {
+      return { ok: false, error: `Landing page: duplicate tier slug "${slug}"` };
+    }
+    tiers[slug] = {
+      ...(rowHeadline ? { headline: rowHeadline } : {}),
+      ...(rowCta ? { ctaLabel: rowCta } : {}),
+    };
+  }
+
+  return { ok: true, parsed: { generalCopy, tiers } };
 }
 
 async function readBrandResponse(res: Response): Promise<AdminBrand> {
@@ -317,7 +374,9 @@ function BrandFormDialog({
   const [slug, setSlug] = useState("");
   const [customDomain, setCustomDomain] = useState("");
   const [chatbotConfigText, setChatbotConfigText] = useState("");
-  const [landingConfigText, setLandingConfigText] = useState("");
+  const [landingHeadline, setLandingHeadline] = useState("");
+  const [landingCta, setLandingCta] = useState("");
+  const [landingTiers, setLandingTiers] = useState<LandingTierRow[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [landingWarning, setLandingWarning] = useState<string | null>(null);
 
@@ -328,17 +387,24 @@ function BrandFormDialog({
     setSlug(source?.slug ?? "");
     setCustomDomain(source?.customDomain ?? "");
     setChatbotConfigText(stringifyConfig(source?.chatbotConfig ?? null));
-    setLandingConfigText(stringifyConfig(source?.landingPageTierConfig ?? null));
+    const parsed = parseBrandLandingConfig(source?.landingPageTierConfig ?? null);
+    setLandingHeadline(parsed.generalCopy?.headline ?? "");
+    setLandingCta(parsed.generalCopy?.ctaLabel ?? "");
+    setLandingTiers(parsedLandingToRows(parsed));
     setFormError(null);
     setLandingWarning(
       source?.landingPageTierConfig && looksLikeTiersFixture(source.landingPageTierConfig)
-        ? "This JSON uses a reserved `tiers` key, so public tier URLs will 404. Prefer a map like the placeholder."
+        ? TIERS_FIXTURE_WARNING
         : null,
     );
   }, [open, mode, brand]);
 
   function handleOpenChange(next: boolean) {
     onOpenChange(next);
+  }
+
+  function updateLandingTier(index: number, patch: Partial<LandingTierRow>) {
+    setLandingTiers((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
 
   function handleConfirm() {
@@ -363,18 +429,19 @@ function BrandFormDialog({
       setFormError(`Chatbot config: ${chatbot.error}`);
       return;
     }
-    const landing = parseJsonObjectField(landingConfigText, previousLanding);
+
+    const landingForm = formToParsedLanding(landingHeadline, landingCta, landingTiers);
+    if (!landingForm.ok) {
+      setFormError(landingForm.error);
+      return;
+    }
+    const landing = serializeBrandLandingConfig(landingForm.parsed, {
+      previousWasObject: previousLanding,
+      isCreate: mode === "create",
+    });
     if (!landing.ok) {
       setFormError(`Landing page tier config: ${landing.error}`);
       return;
-    }
-
-    if (landing.value && looksLikeTiersFixture(landing.value)) {
-      setLandingWarning(
-        "This JSON uses a reserved `tiers` key, so public tier URLs will 404. Prefer a map like the placeholder.",
-      );
-    } else {
-      setLandingWarning(null);
     }
 
     const payload: AdminBrandCreate | AdminBrandUpdate = {
@@ -466,33 +533,94 @@ function BrandFormDialog({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="brand-landing-config">Landing page tier config</Label>
-          <Textarea
-            id="brand-landing-config"
-            className="font-mono text-xs"
-            rows={8}
-            placeholder={LANDING_CONFIG_PLACEHOLDER}
-            value={landingConfigText}
-            onChange={(e) => {
-              const text = e.target.value;
-              setLandingConfigText(text);
-              try {
-                const parsed: unknown = JSON.parse(text);
-                setLandingWarning(
-                  looksLikeTiersFixture(parsed)
-                    ? "This JSON uses a reserved `tiers` key, so public tier URLs will 404. Prefer a map like the placeholder."
-                    : null,
-                );
-              } catch {
-                setLandingWarning(null);
-              }
-            }}
-          />
+          <Label>Landing page copy</Label>
+          <div className="space-y-2">
+            <Label htmlFor="landing-general-headline" className="text-xs text-muted-foreground">
+              Headline
+            </Label>
+            <Input
+              id="landing-general-headline"
+              placeholder="Join Acme"
+              value={landingHeadline}
+              onChange={(e) => setLandingHeadline(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="landing-general-cta" className="text-xs text-muted-foreground">
+              CTA label
+            </Label>
+            <Input
+              id="landing-general-cta"
+              placeholder="Get started"
+              value={landingCta}
+              onChange={(e) => setLandingCta(e.target.value)}
+            />
+          </div>
+          {landingTiers.map((row, index) => {
+            const trimmedTierSlug = row.slug.trim();
+            const tierSlugInvalid =
+              trimmedTierSlug.length > 0 &&
+              (!SLUG_PATTERN.test(trimmedTierSlug) || RESERVED_KEYS.has(trimmedTierSlug));
+            return (
+              <div key={index} className="space-y-2 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label
+                    htmlFor={`landing-tier-${index}-slug`}
+                    className="text-xs text-muted-foreground"
+                  >
+                    Tier
+                  </Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setLandingTiers((rows) => rows.filter((_, i) => i !== index))}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <Input
+                  id={`landing-tier-${index}-slug`}
+                  placeholder="free"
+                  value={row.slug}
+                  onChange={(e) => updateLandingTier(index, { slug: e.target.value })}
+                  aria-invalid={tierSlugInvalid}
+                />
+                {tierSlugInvalid ? (
+                  <p className="text-sm text-destructive">
+                    {RESERVED_KEYS.has(trimmedTierSlug)
+                      ? `"${trimmedTierSlug}" is reserved and cannot be a tier slug`
+                      : "Tier slug must match ^[a-z0-9-]+$"}
+                  </p>
+                ) : null}
+                <Input
+                  id={`landing-tier-${index}-headline`}
+                  placeholder="Headline"
+                  value={row.headline}
+                  onChange={(e) => updateLandingTier(index, { headline: e.target.value })}
+                />
+                <Input
+                  id={`landing-tier-${index}-cta`}
+                  placeholder="CTA label"
+                  value={row.ctaLabel}
+                  onChange={(e) => updateLandingTier(index, { ctaLabel: e.target.value })}
+                />
+              </div>
+            );
+          })}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setLandingTiers((rows) => [...rows, { ...EMPTY_TIER_ROW }])}
+          >
+            Add tier
+          </Button>
           {landingWarning ? (
             <p className="text-sm text-amber-600 dark:text-amber-400">{landingWarning}</p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Tier-keyed map of headline / cta_label objects. Invalid JSON is not submitted.
+              Optional general and per-tier headline / CTA. Empty omits the field on create.
             </p>
           )}
         </div>

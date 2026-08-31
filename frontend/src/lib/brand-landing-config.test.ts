@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getTierCopy, isComingSoonConfig, parseBrandLandingConfig } from "./brand-landing-config";
+import {
+  getTierCopy,
+  isComingSoonConfig,
+  parseBrandLandingConfig,
+  serializeBrandLandingConfig,
+} from "./brand-landing-config";
 
 describe("parseBrandLandingConfig", () => {
   it("treats null as coming soon with no tiers", () => {
@@ -82,5 +87,113 @@ describe("parseBrandLandingConfig", () => {
     expect(getTierCopy(parsed, "missing")).toBeNull();
     expect(getTierCopy(parsed, "headline")).toBeNull();
     expect(getTierCopy(parsed, "cta_label")).toBeNull();
+  });
+});
+
+describe("serializeBrandLandingConfig", () => {
+  it("round-trips general copy plus a tier map using cta_label on the wire", () => {
+    const raw = {
+      headline: "Join Acme",
+      cta_label: "Apply",
+      free: { headline: "Free desk", cta_label: "Start free" },
+      premium: { cta_label: "Go premium" },
+    };
+    const parsed = parseBrandLandingConfig(raw);
+    const result = serializeBrandLandingConfig(parsed, {
+      previousWasObject: true,
+      isCreate: false,
+    });
+
+    expect(result).toEqual({ ok: true, value: raw });
+    if (result.ok && result.value) {
+      expect(result.value).not.toHaveProperty("tiers");
+      expect(result.value).not.toHaveProperty("_default");
+      expect(parseBrandLandingConfig(result.value)).toEqual(parsed);
+    }
+  });
+
+  it("loads { headline, tiers: [free] } as general copy only and serializes without a free tier", () => {
+    const parsed = parseBrandLandingConfig({
+      headline: "Join Acme",
+      tiers: ["free"],
+    });
+    expect(parsed.generalCopy).toEqual({ headline: "Join Acme" });
+    expect(getTierCopy(parsed, "free")).toBeNull();
+
+    const result = serializeBrandLandingConfig(parsed, {
+      previousWasObject: true,
+      isCreate: false,
+    });
+    expect(result).toEqual({ ok: true, value: { headline: "Join Acme" } });
+    if (result.ok && result.value) {
+      expect(result.value).not.toHaveProperty("tiers");
+      expect(result.value).not.toHaveProperty("free");
+    }
+  });
+
+  it("rejects reserved slugs", () => {
+    for (const slug of ["tiers", "headline", "cta_label", "_default"]) {
+      const result = serializeBrandLandingConfig(
+        { generalCopy: null, tiers: { [slug]: { headline: "nope" } } },
+        { previousWasObject: false, isCreate: true },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain(slug);
+      }
+    }
+  });
+
+  it("rejects slugs that fail ^[a-z0-9-]+$", () => {
+    const result = serializeBrandLandingConfig(
+      { generalCopy: null, tiers: { "Free Plan": { headline: "nope" } } },
+      { previousWasObject: false, isCreate: true },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/Free Plan/);
+    }
+  });
+
+  it("omits on create when general copy and tiers are empty", () => {
+    expect(
+      serializeBrandLandingConfig(
+        { generalCopy: null, tiers: {} },
+        { previousWasObject: false, isCreate: true },
+      ),
+    ).toEqual({ ok: true, value: undefined });
+  });
+
+  it("omits when empty and previously null, rather than writing null", () => {
+    expect(
+      serializeBrandLandingConfig(
+        { generalCopy: null, tiers: {} },
+        { previousWasObject: false, isCreate: false },
+      ),
+    ).toEqual({ ok: true, value: undefined });
+  });
+
+  it("returns null when the user cleared a previous object", () => {
+    expect(
+      serializeBrandLandingConfig(
+        { generalCopy: null, tiers: {} },
+        { previousWasObject: true, isCreate: false },
+      ),
+    ).toEqual({ ok: true, value: null });
+  });
+
+  it("emits _default-parsed copy at top level, not as _default", () => {
+    const parsed = parseBrandLandingConfig({
+      headline: "Top-level headline",
+      _default: { headline: "Default wins", cta_label: "Apply" },
+    });
+    const result = serializeBrandLandingConfig(parsed, {
+      previousWasObject: true,
+      isCreate: false,
+    });
+    expect(result).toEqual({
+      ok: true,
+      value: { headline: "Default wins", cta_label: "Apply" },
+    });
   });
 });
