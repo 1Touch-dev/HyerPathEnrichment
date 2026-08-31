@@ -223,6 +223,17 @@ async def test_create_brand_403_without_brands_write_permission(client, regular_
     assert_error(response, 403)
 
 
+async def test_create_brand_409_on_duplicate_slug(client, superuser, auth_headers, db_session):
+    existing = await _create_brand(db_session)
+    payload = {
+        "name": "Duplicate Slug Brand",
+        "slug": existing.slug,
+    }
+
+    response = client.post("/api/admin/brands", json=payload, headers=auth_headers(superuser.id))
+    assert_error(response, 409)
+
+
 # ---------------------------------------------------------------------------
 # GET /api/admin/brands/{brand_id}
 # ---------------------------------------------------------------------------
@@ -314,6 +325,20 @@ async def test_update_brand_403_without_brands_write_permission(
         headers=auth_headers(regular_user.id),
     )
     assert_error(response, 403)
+
+
+async def test_update_brand_409_when_slug_belongs_to_another_brand(
+    client, superuser, auth_headers, db_session
+):
+    owner = await _create_brand(db_session)
+    other = await _create_brand(db_session)
+
+    response = client.patch(
+        f"/api/admin/brands/{other.id}",
+        json={"slug": owner.slug},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 409)
 
 
 @pytest.mark.xfail(
