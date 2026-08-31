@@ -2,8 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   adaptCvFeedbackReport,
   adaptPortfolioProfile,
+  adaptPublicBrand,
   adaptPublicPortfolioProfile,
   adaptSwipeDeck,
+  mapBackendAdminBrand,
+  toBackendBrandCreate,
+  toBackendBrandUpdate,
 } from "./api-adapter";
 
 // Realistic raw backend-shaped fixtures (matching the real Pydantic schemas) run
@@ -90,6 +94,92 @@ describe("adaptPublicPortfolioProfile", () => {
     expect(profile.displayName).toBe("Jane Doe");
     expect(profile).not.toHaveProperty("userId");
     expect(profile).not.toHaveProperty("publicUrl");
+  });
+});
+
+describe("adaptPublicBrand", () => {
+  it("maps name/slug/landing_page_tier_config and drops admin-only fields", () => {
+    const raw = {
+      name: "Acme Staffing",
+      slug: "acme-staffing",
+      landing_page_tier_config: { headline: "Join Acme", tiers: ["free"] },
+      id: "should-drop",
+      custom_domain: "acme.example",
+      chatbot_config: { widget: true },
+      is_active: true,
+    };
+
+    const brand = adaptPublicBrand(raw);
+
+    expect(brand).toEqual({
+      name: "Acme Staffing",
+      slug: "acme-staffing",
+      landingPageTierConfig: { headline: "Join Acme", tiers: ["free"] },
+    });
+    expect(brand).not.toHaveProperty("id");
+    expect(brand).not.toHaveProperty("customDomain");
+    expect(brand).not.toHaveProperty("chatbotConfig");
+    expect(brand).not.toHaveProperty("isActive");
+  });
+});
+
+describe("mapBackendAdminBrand", () => {
+  it("maps BrandResponse snake_case including is_active", () => {
+    const mapped = mapBackendAdminBrand({
+      id: "b1",
+      name: "Acme",
+      slug: "acme",
+      custom_domain: null,
+      chatbot_config: null,
+      landing_page_tier_config: { headline: "Join" },
+      is_active: false,
+      created_at: "2026-01-01T00:00:00Z",
+    });
+
+    expect(mapped.isActive).toBe(false);
+    expect(mapped.customDomain).toBeNull();
+    expect(mapped.landingPageTierConfig).toEqual({ headline: "Join" });
+  });
+});
+
+describe("toBackendBrandCreate", () => {
+  it("always sends name + slug and omits undefined optionals", () => {
+    expect(toBackendBrandCreate({ name: "Acme", slug: "acme" })).toEqual({
+      name: "Acme",
+      slug: "acme",
+    });
+  });
+});
+
+describe("toBackendBrandUpdate", () => {
+  it("serializes a name-only payload with no other keys", () => {
+    expect(toBackendBrandUpdate({ name: "Acme" })).toEqual({ name: "Acme" });
+  });
+
+  it("emits custom_domain: null for an explicit clear", () => {
+    expect(toBackendBrandUpdate({ customDomain: null })).toEqual({
+      custom_domain: null,
+    });
+  });
+
+  it("omits custom_domain when customDomain is undefined", () => {
+    expect(toBackendBrandUpdate({ customDomain: undefined })).not.toHaveProperty("custom_domain");
+  });
+
+  it("never emits is_active / isActive even if extras are cast in", () => {
+    const sneaky = {
+      name: "Acme",
+      isActive: false,
+      is_active: false,
+    } as Parameters<typeof toBackendBrandUpdate>[0] & {
+      isActive: boolean;
+      is_active: boolean;
+    };
+
+    const payload = toBackendBrandUpdate(sneaky);
+    expect(payload).toEqual({ name: "Acme" });
+    expect(payload).not.toHaveProperty("is_active");
+    expect(payload).not.toHaveProperty("isActive");
   });
 });
 

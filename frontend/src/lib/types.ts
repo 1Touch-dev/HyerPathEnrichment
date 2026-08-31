@@ -1218,3 +1218,41 @@ export interface ManualJobEntry {
   jobMatchId: string;
   createdAt: string;
 }
+
+// Brand landing / admin (Wave 2). Public DTO mirrors PublicBrandResponse —
+// name, slug, landing_page_tier_config only. AdminBrand mirrors BrandResponse.
+
+export type PublicBrand = {
+  name: string;
+  slug: string;
+  landingPageTierConfig: Record<string, unknown> | null;
+};
+
+export type AdminBrand = {
+  id: string;
+  name: string;
+  slug: string;
+  customDomain: string | null;
+  chatbotConfig: Record<string, unknown> | null;
+  landingPageTierConfig: Record<string, unknown> | null;
+  isActive: boolean;
+  createdAt: string;
+};
+
+/** Create payload — required name + slug; write-key allowlist only (no isActive). */
+export type AdminBrandCreate = {
+  name: string;
+  slug: string;
+  customDomain?: string | null;
+  chatbotConfig?: Record<string, unknown> | null;
+  landingPageTierConfig?: Record<string, unknown> | null;
+};
+
+/** PATCH allowlist — all five optional. No id / isActive / createdAt. */
+export type AdminBrandUpdate = {
+  name?: string;
+  slug?: string;
+  customDomain?: string | null;
+  chatbotConfig?: Record<string, unknown> | null;
+  landingPageTierConfig?: Record<string, unknown> | null;
+};
