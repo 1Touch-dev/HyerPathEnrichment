@@ -134,7 +134,7 @@ happen inside `resolveSubdomainRewrite` itself.** Two options:
   itself** the disambiguation point: it already calls `GET /api/portfolio/public/{slug}` and
   calls `notFound()` on a non-OK response (see `frontend/app/p/[slug]/page.tsx` lines 10-11) —
   extend it to, on a 404 from the portfolio endpoint, fall through to a **second** check against
-  the new brand public endpoint (`GET /api/orgs/public/{slug}`), rendering `BrandLandingPage`
+  the new brand public endpoint (`GET /api/brands/public/{slug}`), rendering `BrandLandingPage`
   instead if that succeeds, and only calling `notFound()` if *both* miss.
 
 **Use approach (b).** It requires zero changes to the well-tested `resolveSubdomainRewrite`
@@ -171,7 +171,7 @@ export default async function PublicSlugPage({ params }: { params: Promise<{ slu
   // Falls through to the brand namespace on a portfolio miss — see
   // post-tenancy-features/02-brand-landing-pages.md for why this dual-check lives
   // here rather than in middleware.ts/subdomain.ts (no DB access at the Edge layer).
-  const brandResponse = await backendFetchPublic(`/api/orgs/public/${slug}`);
+  const brandResponse = await backendFetchPublic(`/api/brands/public/${slug}`);
   if (!brandResponse.ok) notFound();
 
   const brandRaw = await brandResponse.json();
@@ -196,7 +196,7 @@ export default async function BrandTierPage({
 }) {
   const { slug, tier } = await params;
 
-  const brandResponse = await backendFetchPublic(`/api/orgs/public/${slug}`);
+  const brandResponse = await backendFetchPublic(`/api/brands/public/${slug}`);
   if (!brandResponse.ok) notFound();
 
   const brandRaw = await brandResponse.json();
@@ -287,7 +287,7 @@ Accept the optional `tierConfig` prop described above for the tier sub-page case
 - Test: a request to `/p/{candidate-slug}` still renders `PublicPortfolioPage` exactly as before
   this chunk (regression check on the existing, unmodified-in-behavior first branch).
 - Test: a request to `/p/{unknown-slug}` (matching neither) still 404s.
-- Test: `GET /api/orgs/public/{slug}` for an `is_active=False` brand 404s (a brand that's
+- Test: `GET /api/brands/public/{slug}` for an `is_active=False` brand 404s (a brand that's
   deactivated shouldn't keep a public landing page live).
 - Test: `PublicBrandResponse`'s serialized shape contains no `custom_domain`, `chatbot_config`, or
   other internal-only fields.

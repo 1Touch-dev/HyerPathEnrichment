@@ -11,6 +11,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
@@ -51,8 +52,17 @@ async def create_brand(
     _user: User = Depends(require_permission("brands", "write")),
     db: AsyncSession = Depends(get_db_session),
 ) -> BrandResponse:
-    brand = await repository.create_brand(db, **body.model_dump())
-    await db.commit()
+    existing = await repository.get_brand_by_slug(db, body.slug)
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Slug already taken")
+    try:
+        brand = await repository.create_brand(db, **body.model_dump())
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Slug already taken"
+        ) from None
     return BrandResponse.model_validate(brand)
 
 
@@ -76,8 +86,24 @@ async def update_brand(
     db: AsyncSession = Depends(get_db_session),
 ) -> BrandResponse:
     fields = body.model_dump(exclude_unset=True)
-    brand = await repository.update_brand(db, brand_id, **fields)
+    if "slug" in fields:
+        existing = await repository.get_brand_by_slug(db, fields["slug"])
+        if existing is not None and existing.id != brand_id:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Slug already taken")
+    try:
+        brand = await repository.update_brand(db, brand_id, **fields)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Slug already taken"
+        ) from None
     if brand is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Slug already taken"
+        ) from None
     return BrandResponse.model_validate(brand)
