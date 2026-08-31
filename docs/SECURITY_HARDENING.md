@@ -37,6 +37,18 @@ Related code hardenings in the same change:
 - BFF forwards multi-`Set-Cookie` via `getSetCookie()` helper
 - `/auth/refresh` rate-limited; cookie-auth rate limits key on cookie+IP when Bearer is absent
 
+### P2 hardenings (branch `fix/security-p2-master-complete-foundation`)
+
+- pgvector similarity SQL uses bound `CAST(:emb AS vector)` params (documents + swipe boost)
+- Enricher CLI user tokens sanitized (reject leading `-` / NUL); `--` before positionals where safe
+- Document uploads sniff magic bytes and reject Content-Type mismatches
+- LinkedIn sourcing requires `/in/{slug}` via `extract_linkedin_slug` and stores the normalized URL
+- `/metrics` requires scrape token in staging/production (or whenever `METRICS_TOKEN` is set)
+- Access JWTs via PyJWT with hardcoded `HS256`; refresh cookies use `SameSite=strict`
+- `LEGAL.md` aligned with authenticated DSAR + current purge/account-erase behavior
+
+**Still open (deferred):** email confirmation before opt-out purge; full CSRF synchronizer tokens; privacy/consent ledger; OAuth token encryption at rest.
+
 ---
 
 ## 1. API Token Security

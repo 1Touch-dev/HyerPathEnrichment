@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.clients.cli_args import sanitize_cli_arg
 from app.clients.process import run_command
 from app.clients.proxy import ProxyProvider
 from app.core.config import get_settings
@@ -25,13 +26,17 @@ class MaigretEnricher(Enricher):
         # Maigret >=0.6 dropped --print-found; found accounts still print as
         # "[+] Site: https://..." on stdout. Cap sites so default timeouts finish.
         settings = get_settings()
-        username = request.username or ""
+        try:
+            username = sanitize_cli_arg(request.username or "", label="username")
+        except ValueError:
+            return {}
         args = [
             "maigret",
             "--no-color",
             "--no-progressbar",
             "--top-sites",
             "150",
+            "--",
             username,
         ]
         proxy = self.proxies.get()

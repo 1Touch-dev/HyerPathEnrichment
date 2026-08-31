@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.clients.cli_args import sanitize_cli_arg
 from app.clients.process import run_command
 from app.core.config import get_settings
 from app.domain.enrichment import EnrichmentRequest
@@ -18,8 +19,12 @@ class EmailDiscoverEnricher(Enricher):
 
     async def _fetch(self, request: EnrichmentRequest) -> dict[str, Any]:
         settings = get_settings()
-        username = request.username or (request.email or "candidate").split("@")[0]
-        domain = self._domain(request)
+        raw_name = request.username or (request.email or "candidate").split("@")[0]
+        try:
+            username = sanitize_cli_arg(raw_name, label="username")
+            domain = sanitize_cli_arg(self._domain(request), label="domain")
+        except ValueError:
+            return {}
 
         emails = await self._email_sleuth(settings.email_sleuth_bin, username, domain)
         if not emails:

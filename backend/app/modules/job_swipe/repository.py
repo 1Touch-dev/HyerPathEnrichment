@@ -7,9 +7,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import literal_column
 
 from app.core.config import get_settings
 
@@ -18,7 +17,7 @@ from app.core.config import get_settings
 # until Module 1 is implemented; see §4.1's explicit cross-module dependency note.
 from app.modules.job_matching.models import JobMatch, JobPosting, JobPostingEmbedding
 from app.modules.job_swipe.models import JobSwipeAction
-from app.services.vector_search import cosine_similarity
+from app.services.vector_search import _embedding_as_pgvector_literal, cosine_similarity
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ async def _compute_similarity_boosts(
     """Max cosine similarity of each candidate posting's embedding to any liked posting's embedding.
 
     Mirrors app.services.vector_search.similarity_search's dialect-aware approach: pgvector's
-    ``<=>`` operator (via a raw literal_column, same as vector_search.py) on PostgreSQL, a
+    ``<=>`` operator with bound CAST(:emb AS vector) params on PostgreSQL, a
     Python cosine_similarity() fallback on SQLite (or if the pgvector query fails).
     """
     if not candidate_posting_ids or not liked_posting_ids:
@@ -72,24 +71,28 @@ async def _compute_similarity_boosts(
             if not liked_vectors:
                 return {}
 
-            # Same literal-embedding-string trick as vector_search.py: pgvector's ::vector
-            # cast doesn't work with parameter binding, so each vector is inlined as SQL text.
-            similarity_exprs = [
-                f"(1 - (embedding <=> '{'[' + ','.join(str(x) for x in vec) + ']'}'::vector))"
-                for vec in liked_vectors
-            ]
+            params: dict[str, Any] = {
+                "candidate_ids": tuple(str(pid) for pid in candidate_posting_ids),
+            }
+            similarity_exprs: list[str] = []
+            for i, vec in enumerate(liked_vectors):
+                key = f"liked_emb_{i}"
+                params[key] = _embedding_as_pgvector_literal(list(vec))
+                similarity_exprs.append(f"(1 - (embedding <=> CAST(:{key} AS vector)))")
             best_expr = (
                 f"GREATEST({', '.join(similarity_exprs)})"
                 if len(similarity_exprs) > 1
                 else similarity_exprs[0]
             )
+            boost_sql = text(
+                f"""
+                SELECT job_posting_id, {best_expr} AS similarity
+                FROM job_posting_embeddings
+                WHERE job_posting_id IN :candidate_ids
+                """
+            ).bindparams(bindparam("candidate_ids", expanding=True))
 
-            pg_stmt: Any = select(
-                JobPostingEmbedding.job_posting_id,
-                literal_column(best_expr).label("similarity"),
-            ).where(JobPostingEmbedding.job_posting_id.in_(candidate_posting_ids))
-
-            result = await db.execute(pg_stmt)
+            result = await db.execute(boost_sql, params)
             return {row.job_posting_id: float(row.similarity) for row in result.all()}
         except Exception as e:
             logger.error(
