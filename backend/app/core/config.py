@@ -518,6 +518,48 @@ def validate_outreach_settings(settings: Settings | None = None) -> None:
         raise RuntimeError("OUTREACH_PHYSICAL_ADDRESS is required when OUTREACH_ENABLED is true")
 
 
+_INSECURE_SECRET_KEYS = frozenset(
+    {
+        "change-me-in-production-use-openssl-rand-hex-32",
+        "change-me",
+        "secret",
+        "changeme",
+    }
+)
+_INSECURE_API_TOKENS = frozenset({"change-me", "changeme", "dev-token", "dev-token-123"})
+_PROD_LIKE_ENVS = frozenset({"production", "staging"})
+
+
+def validate_production_security_settings(settings: Settings | None = None) -> None:
+    """Refuse to start staging/production with insecure auth or cookie settings.
+
+    Development remains permissive so local defaults keep working.
+    """
+    cfg = settings if settings is not None else get_settings()
+    if cfg.app_env.strip().lower() not in _PROD_LIKE_ENVS:
+        return
+
+    problems: list[str] = []
+    secret = cfg.SECRET_KEY.strip()
+    if not secret or secret.lower() in _INSECURE_SECRET_KEYS or len(secret) < 32:
+        problems.append(
+            "SECRET_KEY must be set to a unique value of at least 32 characters "
+            "(generate with: openssl rand -hex 32)"
+        )
+    api_token = cfg.api_token.strip()
+    if not api_token or api_token.lower() in _INSECURE_API_TOKENS:
+        problems.append("API_TOKEN must be set to a non-default production value")
+    if not cfg.COOKIE_SECURE:
+        problems.append("COOKIE_SECURE must be true when APP_ENV is staging or production")
+    if not cfg.changedetection_api_key.strip():
+        problems.append("CHANGEDETECTION_API_KEY must be set (signals webhook must not be open)")
+
+    if problems:
+        raise RuntimeError(
+            "Refusing to start with insecure production settings: " + "; ".join(problems)
+        )
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

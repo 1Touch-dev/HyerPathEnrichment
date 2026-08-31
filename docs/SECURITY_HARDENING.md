@@ -4,7 +4,27 @@ Production security best practices for Hyrepath Enrichment operators. This guide
 
 **Target audience:** Self-hosted stack operators deploying to staging or production.
 
-**Last updated:** July 2026
+**Last updated:** August 2026
+
+---
+
+## 0. P0 runtime guards (code-enforced)
+
+As of branch `fix/security-p0-master-complete-foundation`, the API **refuses to start** when `APP_ENV` is `staging` or `production` and any of the following are true:
+
+- `SECRET_KEY` is missing, shorter than 32 characters, or still a known default
+- `API_TOKEN` is missing or still a known default (`change-me`, etc.)
+- `COOKIE_SECURE` is not `true`
+- `CHANGEDETECTION_API_KEY` is empty (signals webhook must not be open)
+
+Related code hardenings in the same change:
+
+- Opt-out/DSAR purge clears both `dossier_payload` and `request_payload`
+- Impersonation always requires MFA and cannot target a superuser
+- Candidate/operator webhook POSTs reject non-https and private/local targets (`follow_redirects=False`)
+- `/api/email/test` requires `X-API-Token` and returns 404 in staging/production
+
+**Still open (deferred):** email confirmation before opt-out purge; full cascade erase of CV/chat/outreach/sourced leads.
 
 ---
 

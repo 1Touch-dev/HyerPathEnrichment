@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from app.core.config import get_settings
+from app.core.webhook_url import UnsafeWebhookUrlError, assert_safe_webhook_url
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,13 @@ async def _post_webhook(payload: dict[str, Any], *, url: str | None = None) -> b
         return False
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        webhook_url = assert_safe_webhook_url(webhook_url)
+    except UnsafeWebhookUrlError:
+        logger.warning("notify webhook URL rejected as unsafe", exc_info=True)
+        return False
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
             response = await client.post(webhook_url, json=payload)
             response.raise_for_status()
         return True

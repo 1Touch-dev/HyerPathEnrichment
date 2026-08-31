@@ -30,18 +30,24 @@ async def start_impersonation(
     response: Response,
     ip_address: str | None,
 ) -> ImpersonationStartResponse:
-    if admin.mfa_enabled:
-        if not mfa_code or not verify_mfa_code(admin, mfa_code):
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN,
-                "Valid MFA code required to start an impersonation session",
-            )
+    # Privileged action: MFA is mandatory for every impersonation start, not only
+    # when the admin already enrolled (empty enrollments must not skip the gate).
+    if not admin.mfa_enabled or not mfa_code or not verify_mfa_code(admin, mfa_code):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Valid MFA code required to start an impersonation session",
+        )
 
     target = await repository.get_user_by_id(db, target_user_id)
     if target is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Target user not found")
     if target.id == admin.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot impersonate yourself")
+    if target.is_superuser:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Cannot impersonate a superuser",
+        )
 
     settings = get_settings()
     jti = uuid4().hex
