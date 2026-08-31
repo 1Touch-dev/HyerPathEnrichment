@@ -111,6 +111,9 @@ function formToParsedLanding(
     if (slug in tiers) {
       return { ok: false, error: `Landing page: duplicate tier slug "${slug}"` };
     }
+    if (!rowHeadline && !rowCta) {
+      return { ok: false, error: `Landing page: tier "${slug}" needs a headline or CTA` };
+    }
     tiers[slug] = {
       ...(rowHeadline ? { headline: rowHeadline } : {}),
       ...(rowCta ? { ctaLabel: rowCta } : {}),
@@ -261,6 +264,13 @@ export default function AdminBrandsPage() {
                   >
                     Edit
                   </Button>
+                  {brand.isActive ? (
+                    <Button asChild size="sm" variant="outline">
+                      <a href={`/b/${brand.slug}`} target="_blank" rel="noreferrer">
+                        View landing page
+                      </a>
+                    </Button>
+                  ) : null}
                   {brand.isActive ? (
                     <Button
                       size="sm"
@@ -467,7 +477,15 @@ function BrandFormDialog({
   }
 
   const slugInvalid = slug.trim().length > 0 && !SLUG_PATTERN.test(slug.trim());
-  const canSubmit = name.trim().length > 0 && SLUG_PATTERN.test(slug.trim());
+  const landingTierSlugInvalid = landingTiers.some((row) => {
+    const rowSlug = row.slug.trim();
+    const rowHeadline = row.headline.trim();
+    const rowCta = row.ctaLabel.trim();
+    if (!rowSlug && !rowHeadline && !rowCta) return false;
+    return !SLUG_PATTERN.test(rowSlug) || RESERVED_KEYS.has(rowSlug);
+  });
+  const canSubmit =
+    name.trim().length > 0 && SLUG_PATTERN.test(slug.trim()) && !landingTierSlugInvalid;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -476,7 +494,7 @@ function BrandFormDialog({
           <DialogTitle>{mode === "create" ? "Create brand" : "Edit brand"}</DialogTitle>
           <DialogDescription>
             {mode === "create"
-              ? "Required name and slug. JSON configs are optional objects, not strings."
+              ? "Required name and slug. Chatbot config is optional JSON. Landing copy uses headline, CTA, and per-tier fields."
               : "Updates the write allowlist only. Status is changed with Deactivate / Reactivate."}
           </DialogDescription>
         </DialogHeader>
