@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { forwardBackendSetCookies } from "@/src/lib/forward-backend-cookies";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,14 +19,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(data, { status: response.status });
     }
 
-    // Forward cookies from backend to client
     const nextResponse = NextResponse.json(data);
-
-    const setCookieHeader = response.headers.get("set-cookie");
-    if (setCookieHeader) {
-      nextResponse.headers.set("set-cookie", setCookieHeader);
-    }
-
+    forwardBackendSetCookies(response, nextResponse);
     return nextResponse;
   } catch (error) {
     console.error("Login error:", error);

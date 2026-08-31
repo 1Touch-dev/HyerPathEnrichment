@@ -159,10 +159,11 @@ async def test_generate_cv_improvement_calls_openai_and_parses():
     assert tokens["input_tokens"] == 100
     assert tokens["output_tokens"] == 50
     assert result["ats_score_methodology"]
-
-    assert len(result["rewritten_bullets"]) == 5
-    assert len(result["strengths"]) == 4
-    assert len(result["improvements"]) == 4
+    # Empty lists from the model are preserved; caps are covered by
+    # test_generate_cv_improvement_caps_bullets_end_to_end.
+    assert result["rewritten_bullets"] == []
+    assert result["strengths"] == []
+    assert result["improvements"] == []
 
 
 async def test_generate_cv_improvement_truncates_long_cv_text():

@@ -1,17 +1,9 @@
 """FastAPI router for recruiter-initiated apply/suggest actions on behalf of a
 candidate (machine-2/09).
 
-Recruiter-facing endpoints (apply, suggest) require authentication only — no
-require_permission gate beyond being a logged-in recruiter/staff account,
-consistent with 08's "any recruiter can act on any candidate" model.
-
-Deviation from spec: the plan asks for `PATCH /api/users/me/recruiter-action-mode`
-to live "under the existing user-profile router if one exists". No such
-self-service user-profile router exists in this codebase today (verified:
-`auth/router.py` only exposes a read-only `GET /me`, and it is on this track's
-do-not-touch list) — so that route is added here instead, under this module's
-own router, rather than inventing a new profile router or touching
-auth/router.py.
+Recruiter-facing endpoints (apply, suggest) require ``recruiter_actions:write``.
+Candidate-facing approve/reject/list/mode endpoints remain self-service
+(``CurrentUser`` only).
 """
 
 from __future__ import annotations
@@ -23,8 +15,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import CurrentUser
+from app.auth.models import User
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.modules.admin.permissions import require_permission
 from app.modules.recruiter_actions import repository, service
 from app.modules.recruiter_actions.schemas import (
     ApplyForCandidateRequest,
@@ -48,7 +42,7 @@ users_router = APIRouter(prefix="/api/users", tags=["users"], route_class=Envelo
 @router.post("/apply")
 async def apply_for_candidate(
     body: ApplyForCandidateRequest,
-    current_user: CurrentUser,
+    current_user: User = Depends(require_permission("recruiter_actions", "write")),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     return await service.apply_for_candidate(db, recruiter=current_user, body=body)
@@ -57,7 +51,7 @@ async def apply_for_candidate(
 @router.post("/suggest", response_model=RoleSuggestionResponse)
 async def suggest_role(
     body: SuggestRoleRequest,
-    current_user: CurrentUser,
+    current_user: User = Depends(require_permission("recruiter_actions", "write")),
     db: AsyncSession = Depends(get_db_session),
 ) -> RoleSuggestionResponse:
     return await service.suggest_role(db, recruiter=current_user, body=body)

@@ -1,6 +1,7 @@
 """FastAPI router for LinkedIn sourcing leads (manual data-entry only — see
-12-linkedin-sourcing-intern-multilogin.md). Gated behind `linkedin_sourcing:write`
-for create/review; listing requires authentication only (shared recruiter queue)."""
+12-linkedin-sourcing-intern-multilogin.md). Create/list/review require
+``linkedin_sourcing:write``.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +10,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import CurrentUser
 from app.auth.models import User
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
@@ -37,7 +37,7 @@ async def create_lead(
 
 @router.get("/leads", response_model=list[SourcedLeadResponse])
 async def list_leads(
-    current_user: CurrentUser,
+    current_user: User = Depends(require_permission("linkedin_sourcing", "write")),
     status: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[SourcedLeadResponse]:

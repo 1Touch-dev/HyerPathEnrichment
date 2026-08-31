@@ -1,5 +1,6 @@
 import { backendFetch } from "@/src/lib/backend-client";
 import { backendFailureResponse, bffServiceUnavailable, bffSuccess } from "@/src/lib/bff-response";
+import { forwardBackendSetCookies } from "@/src/lib/forward-backend-cookies";
 
 export async function POST() {
   let backendResponse: Response;
@@ -17,10 +18,6 @@ export async function POST() {
   // (backend/app/modules/admin/impersonation.py) — forward it, matching the
   // existing Set-Cookie relay pattern in app/api/auth/login/route.ts.
   const bffResponse = bffSuccess(null);
-  const setCookieHeader = backendResponse.headers.get("set-cookie");
-  if (setCookieHeader) {
-    bffResponse.headers.set("set-cookie", setCookieHeader);
-  }
-
+  forwardBackendSetCookies(backendResponse, bffResponse);
   return bffResponse;
 }

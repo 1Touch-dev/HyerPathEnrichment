@@ -212,7 +212,14 @@ def _parse_generation_response(content: str, expected_count: int = 1) -> list[Qu
     set to json_object.
     """
     try:
-        if "{" in content:
+        # Prefer the outermost JSON value. A raw array `[{...},{...}]` also
+        # contains `{`, so checking `{` first incorrectly slices mid-array.
+        stripped = content.strip()
+        if stripped.startswith("["):
+            start = content.index("[")
+            end = content.rindex("]") + 1
+            data = json.loads(content[start:end])
+        elif "{" in content:
             start = content.index("{")
             end = content.rindex("}") + 1
             data = json.loads(content[start:end])

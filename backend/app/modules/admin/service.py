@@ -58,6 +58,14 @@ async def update_user_status(
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
 
+    if user.is_superuser and not is_active:
+        actor = await repository.get_user_by_id(db, actor_id)
+        if actor is None or not actor.is_superuser:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "Only a superuser can deactivate another superuser",
+            )
+
     before = {"is_active": user.is_active}
     user.is_active = is_active
     await db.flush()
