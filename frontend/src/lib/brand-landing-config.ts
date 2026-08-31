@@ -20,10 +20,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** A non-array object that has headline and/or cta_label. `{ body }` only is not copy. */
+/** A non-array object with a non-empty trimmed headline and/or cta_label. `{ body }` only is not copy. */
 function isCopyObject(value: unknown): value is Record<string, unknown> {
   if (!isPlainObject(value)) return false;
-  return typeof value.headline === "string" || typeof value.cta_label === "string";
+  const headline = typeof value.headline === "string" ? value.headline.trim() : "";
+  const ctaLabel = typeof value.cta_label === "string" ? value.cta_label.trim() : "";
+  return headline.length > 0 || ctaLabel.length > 0;
 }
 
 function toCopy(value: Record<string, unknown>): BrandLandingCopy {

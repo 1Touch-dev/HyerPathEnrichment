@@ -67,6 +67,24 @@ describe("parseBrandLandingConfig", () => {
     expect(getTierCopy(parsed, "premium")).toBeNull();
   });
 
+  it("does not treat empty or whitespace-only headline as a tier copy object", () => {
+    for (const headline of ["", "   "]) {
+      const parsed = parseBrandLandingConfig({
+        premium: { headline },
+      });
+
+      expect(isComingSoonConfig(parsed)).toBe(true);
+      expect(getTierCopy(parsed, "premium")).toBeNull();
+    }
+  });
+
+  it("treats a whitespace-only top-level headline as coming soon", () => {
+    const parsed = parseBrandLandingConfig({ headline: "   " });
+
+    expect(isComingSoonConfig(parsed)).toBe(true);
+    expect(parsed.generalCopy).toBeNull();
+  });
+
   it("treats an object-valued key with headline or cta_label as a tier when not reserved", () => {
     const parsed = parseBrandLandingConfig({
       headline: "General",
