@@ -61,7 +61,7 @@ def test_subscription_free_user(client: TestClient, billing_user: User) -> None:
     assert data["effective_tier"] == "premium"  # billing disabled in tests by default
 
 
-@patch("app.modules.billing.service.StripeClient")
+@patch("app.modules.billing.service.get_stripe_client")
 @pytest.mark.asyncio
 async def test_checkout_session_returns_url_and_persists_incomplete_subscription(
     mock_client_cls: AsyncMock,
@@ -99,7 +99,7 @@ async def test_checkout_session_returns_url_and_persists_incomplete_subscription
     assert sub.stripe_subscription_id is None
 
 
-@patch("app.modules.billing.service.StripeClient")
+@patch("app.modules.billing.service.get_stripe_client")
 @pytest.mark.asyncio
 async def test_repeat_checkout_reuses_existing_stripe_customer(
     mock_client_cls: AsyncMock,
@@ -165,7 +165,7 @@ async def subscribed_user(db: AsyncSession, billing_user: User) -> User:
     return billing_user
 
 
-@patch("app.modules.billing.service.StripeClient")
+@patch("app.modules.billing.service.get_stripe_client")
 def test_portal_session_returns_url(
     mock_client_cls: AsyncMock,
     client: TestClient,
