@@ -90,6 +90,15 @@ audit-log-only approach to webhook idempotency, for the following reasons:
   entry point referenced in Decision §1)
 - `backend/app/modules/billing/repository.py` (`event_already_processed` / `mark_event_processed`,
   the dedup operations referenced in Decision §3)
-- Forward-reference: the (deferred) `webhook_router.py` and `service.py` are the eventual callers
-  of the repository functions named above; this ADR's decisions constrain their design once they
-  are implemented, per `task-orchestration/post-tenancy-features/01-billing-stripe-integration.md`.
+- `backend/app/modules/billing/webhook_router.py` and `service.py` call those repository
+  functions; mock and live share the same service, webhook handler, and frontend redirect.
+- `STRIPE_MODE=live|mock` (default `live`). Mock is development-only:
+  `validate_billing_settings` rejects mock when `APP_ENV` is `staging` or `production`.
+- `ENABLE_BILLING=false` is not free-tier: `get_effective_tier` returns premium for everyone.
+  The free-tier paywall requires `ENABLE_BILLING=true`.
+- Local mock: `get_stripe_client()` returns `MockStripeClient`; hosted mock checkout/portal at
+  `/api/billing/mock/*` POST HMAC-signed events through the existing
+  `/api/billing/webhooks/stripe` handler (`construct_event`). Swap to live by setting real
+  `STRIPE_*` keys and `STRIPE_MODE=live`.
+- Optional `STRIPE_API_BASE` points the live SDK at stripe-mock later; ignored in mock mode.
+- Basil: `current_period_end` is read from `items.data[0]` first, then the top-level fallback.

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import User
 from app.core.config import get_settings
 from app.core.errors import NotFoundError, ValidationAppError
-from app.integrations.stripe.client import StripeClient
+from app.integrations.stripe.client import get_stripe_client
 from app.modules.billing import repository
 from app.modules.billing.models import UserSubscription
 from app.modules.billing.schemas import (
@@ -114,7 +114,7 @@ async def create_checkout_session_for_user(
     if not settings.enable_billing:
         raise ValidationAppError("Billing is not enabled")
 
-    stripe_client = StripeClient()
+    stripe_client = get_stripe_client()
     subscription = await repository.get_subscription_for_user(db, user.id)
     if subscription is not None:
         customer_id = subscription.stripe_customer_id
@@ -154,7 +154,7 @@ async def create_portal_session_for_user(
     if subscription is None:
         raise NotFoundError("No billing account found")
 
-    stripe_client = StripeClient()
+    stripe_client = get_stripe_client()
     url = await stripe_client.create_billing_portal_session(
         customer_id=subscription.stripe_customer_id,
         return_url=return_url,
@@ -177,6 +177,25 @@ def _stripe_obj_get(obj: Any, key: str) -> Any:
     if isinstance(obj, dict):
         return obj.get(key)
     return getattr(obj, key, None)
+
+
+def _period_end_from_subscription(subscription_obj: Any) -> int | None:
+    """Basil stores current_period_end on items.data[0]; older APIs use the top-level field."""
+    items = _stripe_obj_get(subscription_obj, "items")
+    if isinstance(items, dict):
+        data = items.get("data") or []
+    else:
+        data = getattr(items, "data", None) or []
+
+    if data:
+        item_period_end = _stripe_obj_get(data[0], "current_period_end")
+        if item_period_end is not None:
+            return int(item_period_end)
+
+    top_level = _stripe_obj_get(subscription_obj, "current_period_end")
+    if top_level is None:
+        return None
+    return int(top_level)
 
 
 async def handle_webhook_event(db: AsyncSession, event: stripe.Event) -> None:
@@ -234,7 +253,7 @@ async def _handle_subscription_updated(db: AsyncSession, subscription_obj: Any) 
 
     status = _stripe_obj_get(subscription_obj, "status")
     sub_id = _stripe_obj_get(subscription_obj, "id")
-    period_end = _stripe_obj_get(subscription_obj, "current_period_end")
+    period_end = _period_end_from_subscription(subscription_obj)
 
     await repository.update_subscription(
         db,

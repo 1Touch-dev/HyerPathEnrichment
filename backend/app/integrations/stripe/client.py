@@ -11,12 +11,32 @@ synchronous per the spec's own ``def`` (not ``async def``) signature.
 from __future__ import annotations
 
 import asyncio
-from typing import cast
+from typing import Protocol, cast
 from uuid import UUID
 
 import stripe
 
 from app.core.config import get_settings
+
+
+class StripeClientProtocol(Protocol):
+    """Shared surface for the live Stripe wrapper and the in-process mock."""
+
+    async def create_customer(self, *, user_id: UUID, email: str) -> str: ...
+
+    async def create_checkout_session(
+        self,
+        *,
+        customer_id: str,
+        price_id: str,
+        success_url: str,
+        cancel_url: str,
+        client_reference_id: str,
+    ) -> str: ...
+
+    async def create_billing_portal_session(self, *, customer_id: str, return_url: str) -> str: ...
+
+    def verify_webhook_signature(self, payload: bytes, signature_header: str) -> stripe.Event: ...
 
 
 class StripeClient:
@@ -26,6 +46,9 @@ class StripeClient:
         settings = get_settings()
         self._api_key = api_key or settings.stripe_secret_key.get_secret_value()
         stripe.api_key = self._api_key
+        api_base = settings.stripe_api_base.strip()
+        if api_base:
+            stripe.api_base = api_base
 
     async def create_customer(self, *, user_id: UUID, email: str) -> str:
         """Create a Stripe customer for ``user_id`` and return its Stripe customer ID."""
@@ -79,3 +102,13 @@ class StripeClient:
             payload, signature_header, webhook_secret, api_key=self._api_key
         )
         return cast("stripe.Event", event)
+
+
+def get_stripe_client() -> StripeClientProtocol:
+    """Return the live or in-process mock client based on ``STRIPE_MODE``."""
+    settings = get_settings()
+    if settings.stripe_mode == "mock":
+        from app.integrations.stripe.mock_client import MockStripeClient
+
+        return MockStripeClient()
+    return StripeClient()

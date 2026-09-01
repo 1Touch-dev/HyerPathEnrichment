@@ -15,6 +15,7 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.modules.admin import router as admin_router
 from app.modules.admin.audit import AdminAuditFallbackMiddleware
 from app.modules.application_tracker.router import router as application_tracker_router
+from app.modules.billing.mock_router import router as billing_mock_router
 from app.modules.billing.router import router as billing_router
 from app.modules.billing.webhook_router import router as billing_webhook_router
 from app.modules.brands.assignment_router import router as recruiter_assignments_router
@@ -121,6 +122,11 @@ app.include_router(job_matching_router, dependencies=[Depends(current_verified_u
 app.include_router(demand_intelligence_router, dependencies=[Depends(current_verified_user)])
 app.include_router(billing_router, dependencies=[Depends(current_verified_user)])
 app.include_router(billing_webhook_router)
+# Always include mock checkout/portal pages (no cookie auth). Endpoints 404 unless
+# stripe_mode=mock at request time — get_settings() is lru_cached and the app is
+# built at import, so TestClient monkeypatches after import would miss an
+# import-time gate.
+app.include_router(billing_mock_router)
 app.include_router(application_tracker_router, dependencies=[Depends(current_verified_user)])
 app.include_router(interview_scheduling_router, dependencies=[Depends(current_verified_user)])
 app.include_router(jd_practice_router, dependencies=[Depends(current_verified_user)])

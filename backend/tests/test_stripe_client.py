@@ -16,12 +16,18 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
 import stripe
 
-from app.integrations.stripe.client import StripeClient
+from app.integrations.stripe.client import StripeClient, get_stripe_client
+from app.integrations.stripe.mock_client import (
+    MockStripeClient,
+    clear_mock_sessions,
+    get_mock_checkout_session,
+)
 
 
 @pytest.fixture
@@ -191,3 +197,126 @@ def test_verify_webhook_signature_returns_event_without_using_to_thread(
         b"payload-bytes", "sig-header", "whsec_test", api_key="sk_test_dummy"
     )
     mock_to_thread.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# get_stripe_client factory
+# ---------------------------------------------------------------------------
+
+
+def _secret(value: str) -> SimpleNamespace:
+    return SimpleNamespace(get_secret_value=lambda: value)
+
+
+def test_get_stripe_client_returns_mock_when_mode_is_mock() -> None:
+    fake_settings = SimpleNamespace(stripe_mode="mock")
+
+    with patch("app.integrations.stripe.client.get_settings", return_value=fake_settings):
+        client = get_stripe_client()
+
+    assert isinstance(client, MockStripeClient)
+
+
+def test_get_stripe_client_returns_live_when_mode_is_live() -> None:
+    fake_settings = SimpleNamespace(
+        stripe_mode="live",
+        stripe_secret_key=_secret("sk_test_dummy"),
+        stripe_api_base="",
+    )
+
+    with patch("app.integrations.stripe.client.get_settings", return_value=fake_settings):
+        client = get_stripe_client()
+
+    assert isinstance(client, StripeClient)
+    assert not isinstance(client, MockStripeClient)
+
+
+# ---------------------------------------------------------------------------
+# MockStripeClient
+# ---------------------------------------------------------------------------
+
+
+async def test_mock_create_customer_returns_cus_mock_id() -> None:
+    client = MockStripeClient()
+    customer_id = await client.create_customer(user_id=uuid4(), email="a@example.com")
+    assert customer_id.startswith("cus_mock_")
+
+
+async def test_mock_create_checkout_session_returns_backend_mock_url() -> None:
+    clear_mock_sessions()
+    client = MockStripeClient()
+    url = await client.create_checkout_session(
+        customer_id="cus_123",
+        price_id="price_123",
+        success_url="https://app.example.com/success",
+        cancel_url="https://app.example.com/cancel",
+        client_reference_id="user-123",
+    )
+    assert "/api/billing/mock/checkout" in url
+    assert "session_id=" in url
+    clear_mock_sessions()
+
+
+async def test_mock_create_checkout_session_stores_session_for_lookup() -> None:
+    clear_mock_sessions()
+    client = MockStripeClient()
+    url = await client.create_checkout_session(
+        customer_id="cus_123",
+        price_id="price_123",
+        success_url="https://app.example.com/success",
+        cancel_url="https://app.example.com/cancel",
+        client_reference_id="user-123",
+    )
+    session_id = parse_qs(urlparse(url).query)["session_id"][0]
+    stored = get_mock_checkout_session(session_id)
+    assert stored is not None
+    assert stored["client_reference_id"] == "user-123"
+    assert stored["success_url"] == "https://app.example.com/success"
+    clear_mock_sessions()
+
+
+async def test_mock_create_billing_portal_session_returns_backend_mock_url() -> None:
+    client = MockStripeClient()
+    url = await client.create_billing_portal_session(
+        customer_id="cus_123",
+        return_url="https://app.example.com/account",
+    )
+    assert "/api/billing/mock/portal" in url
+    assert "customer_id=" in url
+
+
+def test_mock_verify_webhook_signature_still_calls_construct_event() -> None:
+    fake_event = MagicMock(spec=stripe.Event)
+    fake_settings = SimpleNamespace(
+        stripe_webhook_secret=_secret("whsec_test"),
+        stripe_secret_key=_secret("sk_test_dummy"),
+    )
+    client = MockStripeClient()
+
+    with (
+        patch("app.integrations.stripe.mock_client.get_settings", return_value=fake_settings),
+        patch("stripe.Webhook.construct_event", return_value=fake_event) as mock_construct,
+    ):
+        result = client.verify_webhook_signature(b"payload-bytes", "sig-header")
+
+    assert result is fake_event
+    mock_construct.assert_called_once_with(
+        b"payload-bytes",
+        "sig-header",
+        "whsec_test",
+        api_key="sk_test_dummy",
+    )
+
+
+def test_live_stripe_client_sets_api_base_when_configured() -> None:
+    previous_api_base = stripe.api_base
+    fake_settings = SimpleNamespace(
+        stripe_secret_key=_secret("sk_test_dummy"),
+        stripe_api_base="http://localhost:12111",
+    )
+    try:
+        with patch("app.integrations.stripe.client.get_settings", return_value=fake_settings):
+            StripeClient()
+        assert stripe.api_base == "http://localhost:12111"
+    finally:
+        stripe.api_base = previous_api_base
