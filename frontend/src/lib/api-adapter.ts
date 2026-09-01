@@ -1,6 +1,9 @@
 import {
   AdminAuditLogEntry,
   AdminAuditLogListResponse,
+  AdminBrand,
+  AdminBrandCreate,
+  AdminBrandUpdate,
   AiAction,
   AiActionListResponse,
   AdminDocument,
@@ -81,6 +84,7 @@ import {
   PracticeAttempt,
   PracticeSession,
   PracticeSessionListResult,
+  PublicBrand,
   PublicPortfolioProfile,
   QueueSnapshot,
   QuestionListResult,
@@ -1383,6 +1387,25 @@ interface RawPublicPortfolioProfileResponse {
   items: RawPortfolioItemResponse[];
 }
 
+/** Unwrapped PublicBrandResponse data (not the { success, data } envelope). */
+interface RawPublicBrandResponse {
+  name: string;
+  slug: string;
+  landing_page_tier_config: Record<string, unknown> | null;
+}
+
+/** Unwrapped BrandResponse data. Extra keys (if present) are dropped by the mapper. */
+interface BackendAdminBrandResponse {
+  id: string;
+  name: string;
+  slug: string;
+  custom_domain: string | null;
+  chatbot_config: Record<string, unknown> | null;
+  landing_page_tier_config: Record<string, unknown> | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 /**
  * Mirrors the backend's real `SwipeableMatchResponse` (backend/app/modules/job_swipe/schemas.py)
  * — that schema has no `score_breakdown` field (unlike Module 1's `JobMatch`, which does have
@@ -1593,6 +1616,74 @@ export function adaptPublicPortfolioProfile(
     summary: raw.bio,
     items: raw.items.map(adaptPortfolioItem),
   };
+}
+
+/** Maps unwrapped public brand `data` — drops id / custom_domain / chatbot_config / is_active. */
+export function adaptPublicBrand(raw: RawPublicBrandResponse): PublicBrand {
+  return {
+    name: raw.name,
+    slug: raw.slug,
+    landingPageTierConfig: raw.landing_page_tier_config ?? null,
+  };
+}
+
+export function mapBackendAdminBrand(raw: BackendAdminBrandResponse): AdminBrand {
+  return {
+    id: raw.id,
+    name: raw.name,
+    slug: raw.slug,
+    customDomain: raw.custom_domain ?? null,
+    chatbotConfig: raw.chatbot_config ?? null,
+    landingPageTierConfig: raw.landing_page_tier_config ?? null,
+    isActive: raw.is_active,
+    createdAt: raw.created_at,
+  };
+}
+
+export function toBackendBrandCreate(input: AdminBrandCreate) {
+  const payload: {
+    name: string;
+    slug: string;
+    custom_domain?: string | null;
+    chatbot_config?: Record<string, unknown> | null;
+    landing_page_tier_config?: Record<string, unknown> | null;
+  } = {
+    name: input.name,
+    slug: input.slug,
+  };
+  if (input.customDomain !== undefined) {
+    payload.custom_domain = input.customDomain;
+  }
+  if (input.chatbotConfig !== undefined) {
+    payload.chatbot_config = input.chatbotConfig;
+  }
+  if (input.landingPageTierConfig !== undefined) {
+    payload.landing_page_tier_config = input.landingPageTierConfig;
+  }
+  return payload;
+}
+
+/**
+ * Partial PATCH mapper. Omit undefined keys. Emit null only when the caller
+ * set that field to null (explicit clear). Never emits is_active.
+ * Do not copy toBackendFeatureFlagRequest (it always sends every field).
+ */
+export function toBackendBrandUpdate(input: AdminBrandUpdate) {
+  const payload: {
+    name?: string;
+    slug?: string;
+    custom_domain?: string | null;
+    chatbot_config?: Record<string, unknown> | null;
+    landing_page_tier_config?: Record<string, unknown> | null;
+  } = {};
+  if (input.name !== undefined) payload.name = input.name;
+  if (input.slug !== undefined) payload.slug = input.slug;
+  if (input.customDomain !== undefined) payload.custom_domain = input.customDomain;
+  if (input.chatbotConfig !== undefined) payload.chatbot_config = input.chatbotConfig;
+  if (input.landingPageTierConfig !== undefined) {
+    payload.landing_page_tier_config = input.landingPageTierConfig;
+  }
+  return payload;
 }
 
 export function adaptSwipeDeck(raw: RawSwipeDeckResponse): SwipeDeck {

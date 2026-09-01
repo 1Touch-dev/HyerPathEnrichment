@@ -54,6 +54,11 @@ test.describe("Admin Module pages (live backend, superuser session)", () => {
     await expect(page.getByRole("heading", { name: "Audit logs", exact: true })).toBeVisible();
   });
 
+  test("/app/admin/brands renders Brands heading", async ({ page }) => {
+    await page.goto("/app/admin/brands");
+    await expect(page.getByRole("heading", { name: "Brands", exact: true })).toBeVisible();
+  });
+
   test("/app/admin/feature-flags renders feature flags panel", async ({ page }) => {
     await page.goto("/app/admin/feature-flags");
     await expect(page.getByRole("heading", { name: "Feature flags", exact: true })).toBeVisible();
