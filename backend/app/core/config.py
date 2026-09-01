@@ -470,7 +470,10 @@ class Settings(BaseSettings):
 
     # Billing (docs/adr/0020-billing-provider.md): Stripe integration. Default disabled --
     # no billing enforcement until an operator explicitly opts in with real Stripe keys.
+    # ENABLE_BILLING=false is not free-tier: everyone is treated as premium.
     enable_billing: bool = Field(default=False, alias="ENABLE_BILLING")
+    stripe_mode: Literal["live", "mock"] = Field(default="live", alias="STRIPE_MODE")
+    stripe_api_base: str = Field(default="", alias="STRIPE_API_BASE")
     stripe_secret_key: SecretStr = Field(default=SecretStr(""), alias="STRIPE_SECRET_KEY")
     stripe_webhook_secret: SecretStr = Field(default=SecretStr(""), alias="STRIPE_WEBHOOK_SECRET")
     stripe_price_id_premium: str = Field(default="", alias="STRIPE_PRICE_ID_PREMIUM")
@@ -547,10 +550,14 @@ def validate_billing_settings(settings: Settings | None = None) -> None:
 
     Raises RuntimeError listing missing env key *names* only (never secret values).
     No-op when ``enable_billing`` is false.
+    ``STRIPE_MODE=mock`` is rejected when ``APP_ENV`` is staging or production.
     """
     cfg = settings if settings is not None else get_settings()
     if not cfg.enable_billing:
         return
+
+    if cfg.stripe_mode == "mock" and cfg.app_env.strip().lower() in _PROD_LIKE_ENVS:
+        raise RuntimeError("STRIPE_MODE=mock is not allowed when APP_ENV is staging or production")
 
     missing: list[str] = []
     if not cfg.stripe_secret_key.get_secret_value().strip():
