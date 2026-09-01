@@ -395,6 +395,7 @@ export function mapBackendJobMatchItem(item: BackendJobMatchResponse): JobMatch 
     overallScore: item.overall_score,
     scoreBreakdown: item.score_breakdown,
     explanation: item.explanation,
+    isBlurred: item.is_blurred ?? false,
     isNew: item.is_new,
     viewedAt: item.viewed_at,
     feedback: item.feedback,
@@ -1326,6 +1327,7 @@ interface RawCvFeedbackReportResponse {
   rewritten_bullets: { original: string; rewritten: string; rationale: string }[];
   accepted_bullet_indices: number[];
   created_at: string;
+  is_blurred?: boolean;
 }
 
 /** Mirrors the backend's `JobStatusResponse` (backend/app/modules/documents/schemas.py). */
@@ -1399,6 +1401,7 @@ interface RawSwipeCardResponse {
   salary_currency: string | null;
   overall_score: number;
   explanation: string | null;
+  is_blurred?: boolean;
   below_similarity_threshold: boolean;
   source_url: string | null;
   applied_at: string | null;
@@ -1457,7 +1460,44 @@ export function adaptCvFeedbackReport(raw: RawCvFeedbackReportResponse): CvFeedb
     rewrittenBullets: raw.rewritten_bullets,
     acceptedBulletIndices: raw.accepted_bullet_indices,
     createdAt: raw.created_at,
+    isBlurred: raw.is_blurred ?? false,
   };
+}
+
+interface RawSubscriptionStatusResponse {
+  plan_tier: string;
+  status: string;
+  current_period_end: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  effective_tier: "free" | "premium";
+}
+
+interface RawCheckoutSessionResponse {
+  url: string;
+}
+
+interface RawPortalSessionResponse {
+  url: string;
+}
+
+export function adaptSubscriptionStatus(raw: RawSubscriptionStatusResponse) {
+  return {
+    planTier: raw.plan_tier,
+    status: raw.status,
+    currentPeriodEnd: raw.current_period_end,
+    stripeCustomerId: raw.stripe_customer_id,
+    stripeSubscriptionId: raw.stripe_subscription_id,
+    effectiveTier: raw.effective_tier,
+  };
+}
+
+export function adaptCheckoutSession(raw: RawCheckoutSessionResponse) {
+  return { url: raw.url };
+}
+
+export function adaptPortalSession(raw: RawPortalSessionResponse) {
+  return { url: raw.url };
 }
 
 export function adaptDocumentJobStatus(raw: RawJobStatusResponse): DocumentJobStatus {
@@ -1569,6 +1609,7 @@ export function adaptSwipeDeck(raw: RawSwipeDeckResponse): SwipeDeck {
       salaryCurrency: c.salary_currency,
       overallScore: c.overall_score,
       explanation: c.explanation,
+      isBlurred: c.is_blurred ?? false,
       belowSimilarityThreshold: c.below_similarity_threshold,
       sourceUrl: c.source_url,
       appliedAt: c.applied_at,

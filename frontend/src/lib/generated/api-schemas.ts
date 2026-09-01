@@ -25,6 +25,7 @@ export type BackendJobPreferencesResponse = Schemas['JobPreferencesResponse'];
 export type BackendJobMatchResponse = Schemas['JobMatchResponse'] & {
   apply_clicked_at?: string | null;
   applied_at?: string | null;
+  is_blurred?: boolean;
 };
 export type BackendJobMatchListResponse = Schemas['JobMatchListResponse'];
 export type BackendScanTriggerResponse = Schemas['ScanTriggerResponse'];

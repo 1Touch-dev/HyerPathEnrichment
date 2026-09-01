@@ -1,5 +1,6 @@
 "use client";
 
+import { UpgradeButton } from "@/features/billing";
 import { JobCard } from "@/components/dossier/JobCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,7 +58,22 @@ export function MatchCard({ match }: MatchCardProps) {
       />
 
       {match.explanation && (
-        <p className="mt-2 text-sm text-muted-foreground">{match.explanation}</p>
+        <div className={match.isBlurred ? "relative mt-2" : "mt-2"}>
+          <p
+            className={
+              match.isBlurred
+                ? "text-sm text-muted-foreground blur-sm select-none"
+                : "text-sm text-muted-foreground"
+            }
+          >
+            {match.explanation}
+          </p>
+          {match.isBlurred ? (
+            <div className="mt-2 flex items-center gap-2">
+              <UpgradeButton />
+            </div>
+          ) : null}
+        </div>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-3">

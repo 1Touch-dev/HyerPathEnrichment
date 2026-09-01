@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion, useMotionValue, useTransform, type PanInfo } from "framer-motion";
+import { UpgradeButton } from "@/features/billing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -127,9 +128,22 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
               Why we matched you
             </button>
             {showExplanation && (
-              <p className="mt-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-                {card.explanation}
-              </p>
+              <div className={card.isBlurred ? "relative mt-2" : "mt-2"}>
+                <p
+                  className={
+                    card.isBlurred
+                      ? "rounded-lg bg-muted p-3 text-sm text-muted-foreground blur-sm select-none"
+                      : "rounded-lg bg-muted p-3 text-sm text-muted-foreground"
+                  }
+                >
+                  {card.explanation}
+                </p>
+                {card.isBlurred ? (
+                  <div className="mt-2">
+                    <UpgradeButton />
+                  </div>
+                ) : null}
+              </div>
             )}
           </div>
         )}

@@ -82,12 +82,14 @@ async def test_create_checkout_session_dispatches_via_to_thread_and_returns_url(
             price_id="price_123",
             success_url="https://app.example.com/success",
             cancel_url="https://app.example.com/cancel",
+            client_reference_id="user-123",
         )
 
     assert result == "https://checkout.stripe.com/session/abc"
     mock_to_thread.assert_awaited_once_with(
         mock_create,
         customer="cus_123",
+        client_reference_id="user-123",
         line_items=[{"price": "price_123", "quantity": 1}],
         mode="subscription",
         success_url="https://app.example.com/success",
@@ -119,6 +121,7 @@ async def test_create_checkout_session_raises_runtime_error_when_no_hosted_url(
                 price_id="price_123",
                 success_url="https://app.example.com/success",
                 cancel_url="https://app.example.com/cancel",
+                client_reference_id="user-123",
             )
 
 
