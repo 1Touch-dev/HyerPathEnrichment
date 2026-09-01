@@ -20,6 +20,7 @@ class SwipeableMatchResponse(BaseModel):
     salary_currency: str | None
     overall_score: float
     explanation: str | None
+    is_blurred: bool = False
     created_at: datetime
     below_similarity_threshold: bool
     source_url: str | None

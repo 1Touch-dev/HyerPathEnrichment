@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
+import { SubscriptionCard } from "@/features/billing";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,6 +80,8 @@ export function SettingsView() {
           </div>
         </CardContent>
       </Card>
+
+      <SubscriptionCard />
 
       {/* General Settings */}
       <Card>

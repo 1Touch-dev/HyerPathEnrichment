@@ -16,6 +16,7 @@ from app.clients.embeddings import get_embeddings_client
 from app.core.file_sniff import claimed_mime_matches_bytes
 from app.domain.candidate import CVData
 from app.domain.cv_completeness import completeness_score, compute_missing_fields
+from app.modules.billing import service as billing_service
 from app.modules.documents.models import (
     DOCUMENT_READY_STATUSES,
     CandidateDocument,
@@ -669,7 +670,9 @@ class DocumentService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="No feedback report yet"
             )
-        return self._feedback_to_response(report)
+        tier = await billing_service.get_effective_tier(self.db, user_id)
+        response = self._feedback_to_response(report)
+        return billing_service.apply_cv_feedback_paywall(response, tier=tier)
 
     async def accept_cv_feedback_bullet(
         self, document_id: str, user_id: UUID, report_id: str, bullet_index: int
@@ -694,7 +697,9 @@ class DocumentService:
             report.accepted_bullet_indices = [*report.accepted_bullet_indices, bullet_index]
             await self.db.commit()
             await self.db.refresh(report)
-        return self._feedback_to_response(report)
+        tier = await billing_service.get_effective_tier(self.db, user_id)
+        response = self._feedback_to_response(report)
+        return billing_service.apply_cv_feedback_paywall(response, tier=tier)
 
     async def _get_owned_document(self, document_id: str, user_id: UUID) -> CandidateDocument:
         result = await self.db.execute(

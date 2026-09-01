@@ -44,11 +44,13 @@ class StripeClient:
         price_id: str,
         success_url: str,
         cancel_url: str,
+        client_reference_id: str,
     ) -> str:
         """Create a Checkout Session and return its hosted URL."""
         session = await asyncio.to_thread(
             stripe.checkout.Session.create,
             customer=customer_id,
+            client_reference_id=client_reference_id,
             line_items=[{"price": price_id, "quantity": 1}],
             mode="subscription",
             success_url=success_url,

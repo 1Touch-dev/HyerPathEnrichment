@@ -142,6 +142,7 @@ class CvFeedbackResponse(BaseModel):
     rewritten_bullets: list[RewrittenBullet]
     accepted_bullet_indices: list[int]
     created_at: datetime
+    is_blurred: bool = False
 
 
 class AcceptBulletRequest(BaseModel):

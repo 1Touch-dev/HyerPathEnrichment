@@ -254,6 +254,7 @@ export type JobMatch = {
   overallScore: number;
   scoreBreakdown: Record<string, number | boolean>;
   explanation: string | null;
+  isBlurred?: boolean;
   isNew: boolean;
   viewedAt: string | null;
   feedback: "up" | "down" | null;
@@ -961,7 +962,25 @@ export interface CvFeedbackReport {
   /** Indices into `rewrittenBullets` the user has already accepted (backend's `accepted_bullet_indices`). */
   acceptedBulletIndices: number[];
   createdAt: string;
+  isBlurred?: boolean;
 }
+
+export type SubscriptionStatus = {
+  planTier: string;
+  status: string;
+  currentPeriodEnd: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  effectiveTier: "free" | "premium";
+};
+
+export type CheckoutSession = {
+  url: string;
+};
+
+export type PortalSession = {
+  url: string;
+};
 
 /** Mirrors the backend's `JobStatusResponse` (backend/app/modules/documents/schemas.py). */
 export interface DocumentJobStatus {
@@ -1031,6 +1050,7 @@ export interface SwipeCard {
   salaryCurrency: string | null;
   overallScore: number;
   explanation: string | null;
+  isBlurred?: boolean;
   belowSimilarityThreshold: boolean;
   sourceUrl: string | null;
   appliedAt: string | null;

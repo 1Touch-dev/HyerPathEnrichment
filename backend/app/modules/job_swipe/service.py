@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.billing import service as billing_service
 from app.modules.job_matching.models import JobMatch
 from app.modules.job_swipe.repository import (
     delete_swipe,
@@ -30,11 +31,16 @@ class JobSwipeService:
         self.db = db
 
     async def get_deck(self, user_id: UUID) -> SwipeDeckResponse:
+        tier = await billing_service.get_effective_tier(self.db, user_id)
         rows = await get_unswiped_matches(self.db, user_id, _DECK_PAGE_SIZE + 1)
         has_more = len(rows) > _DECK_PAGE_SIZE
         rows = rows[:_DECK_PAGE_SIZE]
-        return SwipeDeckResponse(
-            cards=[
+        cards = []
+        for m, p in rows:
+            explanation, is_blurred = billing_service.blur_match_explanation(
+                m.explanation, tier=tier
+            )
+            cards.append(
                 SwipeableMatchResponse(
                     match_id=str(m.id),
                     job_posting_id=str(p.id),
@@ -46,7 +52,8 @@ class JobSwipeService:
                     salary_max=p.salary_max,
                     salary_currency=p.salary_currency,
                     overall_score=m.overall_score,
-                    explanation=m.explanation,
+                    explanation=explanation,
+                    is_blurred=is_blurred,
                     created_at=m.created_at,
                     below_similarity_threshold=bool(
                         m.score_breakdown.get("below_similarity_threshold", False)
@@ -54,10 +61,8 @@ class JobSwipeService:
                     source_url=p.source_url,
                     applied_at=m.applied_at,
                 )
-                for m, p in rows
-            ],
-            has_more=has_more,
-        )
+            )
+        return SwipeDeckResponse(cards=cards, has_more=has_more)
 
     async def swipe(
         self, user_id: UUID, match_id: str, body: SwipeActionRequest
