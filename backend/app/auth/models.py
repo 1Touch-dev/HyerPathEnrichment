@@ -43,7 +43,7 @@ class User(Base):
     role_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("roles.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    mfa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mfa_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     mfa_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
     mfa_enrolled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -186,7 +186,7 @@ class LoggedOutToken(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[UUID] = mapped_column(nullable=False, index=True)
-    token_jti: Mapped[str] = mapped_column(String(64), nullable=False, index=True, unique=True)
+    token_jti: Mapped[str] = mapped_column(String(128), nullable=False, index=True, unique=True)
 
     logged_out_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
