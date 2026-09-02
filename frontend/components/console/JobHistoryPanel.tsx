@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { JobHistoryTable } from "@/components/console/JobHistoryTable";
 import { evictStaleJobDetails } from "@/features/enrich";
-import { jobKeys, useJobListQuery } from "@/features/history";
+import { useJobListQuery } from "@/features/history";
 import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 import { useInterval } from "@/hooks/useInterval";
 
