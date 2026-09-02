@@ -30,6 +30,7 @@ from app.auth.schemas import (
     LoginRequest,
     LoginResponse,
     MessageResponse,
+    PermissionSlug,
     RegisterResponse,
     ResendVerificationRequest,
     UserCreate,
@@ -47,13 +48,40 @@ from app.database.session import get_db_session
 from app.dependencies.rate_limit import enforce_auth_rate_limit, enforce_auth_refresh_rate_limit
 from app.infrastructure.redis import get_redis_client
 from app.modules.admin import service as admin_service
-from app.modules.admin.models import Role
+from app.modules.admin.models import Permission, Role, RolePermission
 from app.modules.staff_invites import repository as staff_invites_repository
 from app.modules.staff_invites.models import StaffInvite
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+async def serialize_user_identity(db: AsyncSession, user: User) -> UserRead:
+    """Serialize one consistent product-door identity for auth responses."""
+    permissions: list[PermissionSlug] = []
+    role_name = user.role.name if user.role_id is not None and user.role is not None else None
+
+    if user.role_id is not None:
+        result = await db.execute(
+            select(Permission.resource, Permission.action)
+            .join(RolePermission, RolePermission.permission_id == Permission.id)
+            .where(RolePermission.role_id == user.role_id)
+            .distinct()
+            .order_by(Permission.resource, Permission.action)
+        )
+        permissions = [
+            PermissionSlug(resource=resource, action=action) for resource, action in result.all()
+        ]
+
+    identity = UserRead.model_validate(user)
+    return identity.model_copy(
+        update={
+            "role_id": user.role_id,
+            "role_name": role_name,
+            "permissions": permissions,
+        }
+    )
 
 
 def get_client_ip(request: Request) -> str:
@@ -333,7 +361,7 @@ async def login(
     await log_auth_event(db, "login", True, ip, user_agent, user.id, user.email)
 
     return LoginResponse(
-        user=UserRead.model_validate(user),
+        user=await serialize_user_identity(db, user),
         message="Login successful",
     )
 
@@ -556,7 +584,7 @@ async def refresh_token(
     )
 
     return LoginResponse(
-        user=UserRead.model_validate(user),
+        user=await serialize_user_identity(db, user),
         message="Token refreshed successfully",
     )
 
@@ -629,9 +657,12 @@ async def delete_account(
 
 
 @router.get("/me", response_model=UserRead)
-async def get_current_user(current_user: CurrentUser) -> UserRead:
+async def get_current_user(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> UserRead:
     """Get current user profile."""
-    return UserRead.model_validate(current_user)
+    return await serialize_user_identity(db, current_user)
 
 
 @router.post(
