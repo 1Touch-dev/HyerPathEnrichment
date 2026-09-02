@@ -2,18 +2,17 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DossierView } from "@/components/console/DossierView";
-import { JobProgress } from "@/components/console/JobProgress";
 import { EmptyState } from "@/components/console/EmptyState";
+import { JobProgress } from "@/components/console/JobProgress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useJobQuery } from "@/features/enrich";
-import { EnrichmentJob } from "@/src/lib/types";
-import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 import { isTerminalStatus } from "@/src/lib/enrich-poll";
+import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 
 function LoadingSkeleton() {
   return (
@@ -50,7 +49,7 @@ function LoadingSkeleton() {
   );
 }
 
-export default function JobDetailPage() {
+export default function OsintJobDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const jobId = params.id;
@@ -59,7 +58,6 @@ export default function JobDetailPage() {
   const lastStatusRef = useRef(job?.status);
   const lastStatusChangeRef = useRef(Date.now());
 
-  // Debug: Log dossier data
   useEffect(() => {
     if (job?.dossier) {
       console.log("[DEBUG] Job dossier data:", {
@@ -75,23 +73,18 @@ export default function JobDetailPage() {
     }
   }, [job]);
 
-  // Track status changes and detect stuck state
   useEffect(() => {
     if (!job) return;
 
-    // Update last status change time when status changes
     if (job.status !== lastStatusRef.current) {
       lastStatusRef.current = job.status;
       lastStatusChangeRef.current = Date.now();
     }
 
-    // Don't check for stuck state if job is in terminal status
     if (isTerminalStatus(job.status)) return;
 
-    // Check for stuck state every 10 seconds
     const checkInterval = setInterval(() => {
       const timeSinceChange = Date.now() - lastStatusChangeRef.current;
-      // If status hasn't changed in 30 seconds, trigger refetch
       if (timeSinceChange > 30000) {
         console.log("Stuck state detected, triggering refetch");
         void refetch();
@@ -101,18 +94,16 @@ export default function JobDetailPage() {
     return () => clearInterval(checkInterval);
   }, [job, refetch]);
 
-  // Show loading skeleton only on initial load with no data
   if ((isLoading || isPending) && !job) {
     return <LoadingSkeleton />;
   }
 
-  // Show error if request failed and we have no job data
   if (error && !job) {
     const isNotFound = error.message?.includes("404") || error.message?.includes("not found");
 
     return (
       <div className="flex flex-col gap-4">
-        <Button variant="ghost" onClick={() => router.push("/app/jobs")} className="w-fit">
+        <Button variant="ghost" onClick={() => router.push("/osint/jobs")} className="w-fit">
           <ArrowLeft className="mr-2 size-4" />
           Back to Jobs
         </Button>
@@ -130,7 +121,7 @@ export default function JobDetailPage() {
   if (!job) {
     return (
       <div className="flex flex-col gap-4">
-        <Button variant="ghost" onClick={() => router.push("/app/jobs")} className="w-fit">
+        <Button variant="ghost" onClick={() => router.push("/osint/jobs")} className="w-fit">
           <ArrowLeft className="mr-2 size-4" />
           Back to Jobs
         </Button>
@@ -143,6 +134,10 @@ export default function JobDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Button variant="ghost" onClick={() => router.push("/osint/jobs")} className="w-fit">
+        <ArrowLeft className="mr-2 size-4" />
+        Back to Jobs
+      </Button>
       <div className="flex items-center gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Job dossier</h1>
