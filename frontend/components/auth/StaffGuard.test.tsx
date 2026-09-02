@@ -10,7 +10,6 @@ const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: replaceMock }),
   usePathname: () => window.location.pathname,
-  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 function mockUseAuth(overrides: Partial<ReturnType<typeof authProvider.useAuth>>) {
@@ -54,7 +53,7 @@ describe("StaffGuard", () => {
     );
 
     const loginUrl = replaceMock.mock.calls[0]?.[0] as string;
-    expect(loginUrl).toBe("/login?redirect=%2Fosint%3Ftiers%3Dtier1%252Ctier3");
+    expect(loginUrl).toBe("/login?redirect=%2Fosint%3Ftiers%3Dtier1%2Ctier3");
     guard.unmount();
 
     const login = vi.fn().mockResolvedValue({
@@ -77,7 +76,7 @@ describe("StaffGuard", () => {
 
     await waitFor(() => expect(pushMock).toHaveBeenCalled());
     const returnedUrl = pushMock.mock.calls[0]?.[0] as string;
-    expect(returnedUrl).toBe("/osint?tiers=tier1%2Ctier3");
+    expect(returnedUrl).toBe("/osint?tiers=tier1,tier3");
     expect(new URL(returnedUrl, "https://hyrepath.local").searchParams.get("tiers")).toBe(
       "tier1,tier3",
     );
