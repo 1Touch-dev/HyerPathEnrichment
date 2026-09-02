@@ -4,30 +4,32 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { Loader2 } from "lucide-react";
+import { getUserHome, hasPermission, type Permission } from "@/src/lib/product-doors";
 
-/**
- * Derives admin access from the already-fetched /auth/me response — no
- * dedicated admin-only auth call, per docs/admin-module-research.md §12.8's
- * useUserRole() pattern (adapted: this repo has one AuthProvider, not a
- * separate frontend-admin app, so this is a guard component, not a second app).
- */
-export function AdminGuard({ children }: { children: React.ReactNode }) {
+type AdminGuardProps = {
+  children: React.ReactNode;
+  permission?: Permission;
+};
+
+export function AdminGuard({ children, permission }: AdminGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useAuth();
-  const isAdmin = !!user && (user.is_superuser || !!user.role_name);
+  const isOwnerOrAdmin =
+    !!user && (user.is_superuser || user.role_name === "admin" || user.role_name === "team_owner");
+  const canAccess = permission ? hasPermission(user, permission) : isOwnerOrAdmin;
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+      router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
       return;
     }
-    if (!loading && user && !isAdmin) {
-      router.push("/app/dashboard");
+    if (!loading && user && !canAccess) {
+      router.replace(getUserHome(user));
     }
-  }, [loading, user, isAdmin, router, pathname]);
+  }, [canAccess, loading, pathname, router, user]);
 
-  if (loading || !user || !isAdmin) {
+  if (loading || !user || !canAccess) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

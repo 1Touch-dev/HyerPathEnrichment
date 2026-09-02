@@ -1,6 +1,4 @@
 import {
-  LayoutDashboard,
-  History,
   Shield,
   Settings,
   Activity,
@@ -30,12 +28,19 @@ import {
   Store,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import {
+  filterByPermissions,
+  type Permission,
+  type Product,
+  type ProductDoorUser,
+} from "@/src/lib/product-doors";
 
 export type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  disabled?: boolean;
+  permission?: Permission;
+  mobilePrimary?: boolean;
 };
 
 export type NavSection = {
@@ -43,54 +48,165 @@ export type NavSection = {
   items: NavItem[];
 };
 
-export const mainNav: NavSection = {
+const candidateMainNav: NavSection = {
   title: "Main",
   items: [
-    { href: "/app/enrich", label: "Look up", icon: Search },
-    { href: "/app/documents", label: "My CV", icon: Sparkles },
+    { href: "/app/documents", label: "My CV", icon: Sparkles, mobilePrimary: true },
     { href: "/app/practice", label: "Interview Prep", icon: GraduationCap },
-    { href: "/app/history", label: "History", icon: History },
-    { href: "/app/signals", label: "Signals", icon: Bell },
-    { href: "/app/matches", label: "Matches", icon: Sparkles },
+    { href: "/app/matches", label: "Matches", icon: Sparkles, mobilePrimary: true },
     { href: "/app/matches/swipe", label: "Swipe jobs", icon: Briefcase },
-    { href: "/app/tracker", label: "Applications", icon: ClipboardList },
+    {
+      href: "/app/tracker",
+      label: "Applications",
+      icon: ClipboardList,
+      mobilePrimary: true,
+    },
     { href: "/app/portfolio", label: "Portfolio", icon: User },
     { href: "/app/outreach", label: "Outreach", icon: Mail },
   ],
 };
 
-export const systemNav: NavSection = {
+const candidateSystemNav: NavSection = {
   title: "System",
   items: [
-    { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/app/privacy", label: "Privacy", icon: Shield },
     { href: "/app/settings", label: "Settings", icon: Settings },
-    { href: "/app/health", label: "Health", icon: Activity },
   ],
 };
 
-export const allNavSections = [mainNav, systemNav];
+const osintNav: NavSection[] = [
+  {
+    title: "OSINT",
+    items: [{ href: "/osint", label: "Look up", icon: Search, mobilePrimary: true }],
+  },
+  {
+    title: "System",
+    items: [{ href: "/osint/settings", label: "Settings", icon: Settings }],
+  },
+];
 
-export const adminNav: NavSection = {
-  title: "Admin",
+const deskNav: NavSection = {
+  title: "Desk",
   items: [
-    { href: "/app/admin/system-health", label: "System health", icon: Activity },
-    { href: "/app/admin/users", label: "Users", icon: Users },
-    { href: "/app/admin/roles", label: "Roles", icon: ShieldCheck },
-    { href: "/app/admin/staff-invites", label: "Staff invites", icon: Mail },
-    { href: "/app/admin/brands", label: "Brands", icon: Store },
-    { href: "/app/admin/audit-logs", label: "Audit logs", icon: ScrollText },
-    { href: "/app/admin/feature-flags", label: "Feature flags", icon: Flag },
-    { href: "/app/admin/queues", label: "Queues", icon: ListTodo },
-    { href: "/app/admin/analytics", label: "Analytics", icon: BarChart3 },
-    { href: "/app/admin/review-queue", label: "Review queue", icon: Inbox },
-    { href: "/app/admin/job-postings", label: "Job postings", icon: Building2 },
-    { href: "/app/admin/documents", label: "Documents", icon: FileSearch },
-    { href: "/app/admin/portfolio", label: "Portfolio", icon: Layers },
-    { href: "/app/admin/outreach", label: "Outreach", icon: MailCheck },
-    { href: "/app/admin/linkedin-tasks", label: "LinkedIn tasks", icon: Send },
-    { href: "/app/admin/ai-actions", label: "AI actions", icon: Bot },
-    { href: "/app/admin/sourcing-leads", label: "Sourcing leads", icon: UserSearch },
-    { href: "/app/admin/demand-intelligence", label: "Demand intelligence", icon: Globe },
+    {
+      href: "/desk/sourcing-leads",
+      label: "Sourcing leads",
+      icon: UserSearch,
+      permission: { resource: "linkedin_sourcing", action: "write" },
+      mobilePrimary: true,
+    },
+    {
+      href: "/desk/brands",
+      label: "Brands",
+      icon: Store,
+      permission: { resource: "brands", action: "read" },
+      mobilePrimary: true,
+    },
+    {
+      href: "/desk/users",
+      label: "Users",
+      icon: Users,
+      permission: { resource: "users", action: "read" },
+      mobilePrimary: true,
+    },
+    {
+      href: "/desk/system-health",
+      label: "System health",
+      icon: Activity,
+      permission: { resource: "system_health", action: "read" },
+    },
+    {
+      href: "/desk/roles",
+      label: "Roles",
+      icon: ShieldCheck,
+      permission: { resource: "roles", action: "read" },
+    },
+    {
+      href: "/desk/staff-invites",
+      label: "Staff invites",
+      icon: Mail,
+      permission: { resource: "users", action: "write" },
+    },
+    {
+      href: "/desk/audit-logs",
+      label: "Audit logs",
+      icon: ScrollText,
+      permission: { resource: "audit_logs", action: "read" },
+    },
+    {
+      href: "/desk/feature-flags",
+      label: "Feature flags",
+      icon: Flag,
+      permission: { resource: "feature_flags", action: "read" },
+    },
+    {
+      href: "/desk/queues",
+      label: "Queues",
+      icon: ListTodo,
+      permission: { resource: "queues", action: "read" },
+    },
+    {
+      href: "/desk/analytics",
+      label: "Analytics",
+      icon: BarChart3,
+      permission: { resource: "analytics", action: "read" },
+    },
+    {
+      href: "/desk/review-queue",
+      label: "Review queue",
+      icon: Inbox,
+      permission: { resource: "content_review", action: "read" },
+    },
+    {
+      href: "/desk/job-postings",
+      label: "Job postings",
+      icon: Building2,
+      permission: { resource: "job_postings", action: "read" },
+    },
+    {
+      href: "/desk/documents",
+      label: "Documents",
+      icon: FileSearch,
+      permission: { resource: "documents", action: "read" },
+    },
+    {
+      href: "/desk/portfolio",
+      label: "Portfolio",
+      icon: Layers,
+      permission: { resource: "portfolio", action: "read" },
+    },
+    {
+      href: "/desk/outreach",
+      label: "Outreach",
+      icon: MailCheck,
+      permission: { resource: "outreach", action: "read" },
+    },
+    {
+      href: "/desk/linkedin-tasks",
+      label: "LinkedIn tasks",
+      icon: Send,
+      permission: { resource: "linkedin_tasks", action: "operate" },
+    },
+    {
+      href: "/desk/ai-actions",
+      label: "AI actions",
+      icon: Bot,
+      permission: { resource: "ai_supervision", action: "read" },
+    },
+    { href: "/desk/demand-intelligence", label: "Demand intelligence", icon: Globe },
+    { href: "/desk/signals", label: "Signals", icon: Bell },
   ],
 };
+
+export function getNavSections(
+  product: Product,
+  user: ProductDoorUser | null | undefined,
+): NavSection[] {
+  if (product === "candidate") {
+    return [candidateMainNav, candidateSystemNav];
+  }
+  if (product === "osint") {
+    return osintNav;
+  }
+  return [{ ...deskNav, items: filterByPermissions(deskNav.items, user) }];
+}

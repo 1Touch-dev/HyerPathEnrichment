@@ -6,20 +6,27 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/src/lib/utils";
+import { PRODUCT_ROOTS, type Product } from "@/src/lib/product-doors";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleSidebar } from "@/store/slices/uiSlice";
-import { adminNav, mainNav, systemNav } from "./nav-config";
+import type { NavSection } from "./nav-config";
 
 type AppSidebarProps = {
+  product: Product;
+  sections: NavSection[];
   matchesUnreadCount?: number;
-  isAdmin?: boolean;
 };
 
-export function AppSidebar({ matchesUnreadCount = 0, isAdmin = false }: AppSidebarProps) {
+const PRODUCT_DESCRIPTION: Record<Product, string> = {
+  candidate: "Candidate workspace",
+  desk: "Staff operations",
+  osint: "Public-only lookup",
+};
+
+export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSidebarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const sidebarOpen = useAppSelector((state) => state.ui.sidebarOpen);
-  const sections = isAdmin ? [mainNav, systemNav, adminNav] : [mainNav, systemNav];
 
   const isActive = (href: string) => {
     return pathname === href || pathname.startsWith(`${href}/`);
@@ -34,12 +41,14 @@ export function AppSidebar({ matchesUnreadCount = 0, isAdmin = false }: AppSideb
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-4">
         {sidebarOpen ? (
-          <Link href="/app/enrich" className="flex flex-col gap-0.5 px-1">
+          <Link href={PRODUCT_ROOTS[product]} className="flex flex-col items-start gap-1 px-1">
             <span className="text-sm font-semibold tracking-tight text-primary">Hyrepath</span>
-            <span className="text-[11px] text-muted-foreground">Lookup console</span>
+            <span className="rounded-md bg-secondary px-2.5 py-1 text-sm font-medium leading-5 text-primary">
+              {product === "osint" ? "OSINT" : `${product[0].toUpperCase()}${product.slice(1)}`}
+            </span>
           </Link>
         ) : (
-          <Link href="/app/enrich" className="mx-auto text-xs font-bold text-primary">
+          <Link href={PRODUCT_ROOTS[product]} className="mx-auto text-xs font-bold text-primary">
             H
           </Link>
         )}
@@ -105,9 +114,7 @@ export function AppSidebar({ matchesUnreadCount = 0, isAdmin = false }: AppSideb
 
       <div className="border-t border-border px-3 py-4">
         {sidebarOpen ? (
-          <p className="text-xs text-subtle-foreground">
-            Public signals only. Respect opt-out before every run.
-          </p>
+          <p className="text-xs text-subtle-foreground">{PRODUCT_DESCRIPTION[product]}</p>
         ) : null}
       </div>
     </aside>
