@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user_from_cookie, require_verified_user
@@ -102,6 +103,52 @@ async def test_login_refresh_and_me_return_identical_stable_role_identity(
     assert {field: login_user[field] for field in IDENTITY_FIELDS} == {
         field: me_user[field] for field in IDENTITY_FIELDS
     }
+
+
+@pytest.mark.asyncio
+async def test_migration_seeded_support_identity_across_all_auth_routes(
+    db: AsyncSession,
+) -> None:
+    result = await db.execute(select(Role).where(Role.name == "support"))
+    support_role = result.scalar_one()
+    user = await _create_user(db, role=support_role)
+
+    if db.get_bind().dialect.name == "sqlite":
+        seeded_role_id = (
+            await db.execute(text("SELECT id FROM roles WHERE name = 'support'"))
+        ).scalar_one()
+        stored_user_role_id = (
+            await db.execute(
+                text("SELECT role_id FROM users WHERE email = :email"),
+                {"email": user.email},
+            )
+        ).scalar_one()
+        assert "-" in seeded_role_id
+        assert "-" not in stored_user_role_id
+
+    login_user, refresh_user, me_user = await _identity_round_trip(user)
+    expected_permissions = [
+        {"resource": "applications", "action": "read"},
+        {"resource": "audit_logs", "action": "read"},
+        {"resource": "content_review", "action": "read"},
+        {"resource": "documents", "action": "read"},
+        {"resource": "interview_schedules", "action": "read"},
+        {"resource": "job_postings", "action": "read"},
+        {"resource": "job_swipe", "action": "read"},
+        {"resource": "manual_job_entries", "action": "read"},
+        {"resource": "outreach", "action": "read"},
+        {"resource": "portfolio", "action": "read"},
+        {"resource": "practice_audio", "action": "read"},
+        {"resource": "questions", "action": "read"},
+        {"resource": "system_health", "action": "read"},
+        {"resource": "users", "action": "read"},
+        {"resource": "users", "action": "suspend"},
+    ]
+    for identity in (login_user, refresh_user, me_user):
+        assert identity["role_id"] == str(support_role.id)
+        assert identity["role_name"] == "support"
+        assert identity["permissions"] == expected_permissions
+        assert identity["is_superuser"] is False
 
 
 @pytest.mark.parametrize("is_superuser", [False, True])

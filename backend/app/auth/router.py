@@ -8,7 +8,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import CurrentUser
@@ -60,18 +60,31 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def serialize_user_identity(db: AsyncSession, user: User) -> UserRead:
     """Serialize one consistent product-door identity for auth responses."""
     permissions: list[PermissionSlug] = []
-    role_name = user.role.name if user.role_id is not None and user.role is not None else None
+    role_name: str | None = None
 
     if user.role_id is not None:
+        role_id_key = user.role_id.hex
+        role_id_column = func.replace(cast(Role.id, String), "-", "")
+        role_permission_role_id = func.replace(cast(RolePermission.role_id, String), "-", "")
+        permission_id_column = func.replace(cast(Permission.id, String), "-", "")
+        role_permission_permission_id = func.replace(
+            cast(RolePermission.permission_id, String), "-", ""
+        )
         result = await db.execute(
-            select(Permission.resource, Permission.action)
-            .join(RolePermission, RolePermission.permission_id == Permission.id)
-            .where(RolePermission.role_id == user.role_id)
+            select(Role.name, Permission.resource, Permission.action)
+            .select_from(Role)
+            .outerjoin(RolePermission, role_permission_role_id == role_id_column)
+            .outerjoin(Permission, permission_id_column == role_permission_permission_id)
+            .where(role_id_column == role_id_key)
             .distinct()
             .order_by(Permission.resource, Permission.action)
         )
+        rows = result.all()
+        role_name = rows[0].name if rows else None
         permissions = [
-            PermissionSlug(resource=resource, action=action) for resource, action in result.all()
+            PermissionSlug(resource=row.resource, action=row.action)
+            for row in rows
+            if row.resource is not None and row.action is not None
         ]
 
     identity = UserRead.model_validate(user)
