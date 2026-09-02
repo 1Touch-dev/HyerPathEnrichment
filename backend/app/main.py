@@ -14,6 +14,9 @@ from app.dependencies.rate_limit import enforce_compliance_rate_limit
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.modules.admin import router as admin_router
 from app.modules.admin.audit import AdminAuditFallbackMiddleware
+from app.modules.admin.impersonation_router import router as impersonation_router
+from app.modules.admin.mfa_router import router as mfa_router
+from app.modules.admin.permissions import require_staff
 from app.modules.application_tracker.router import router as application_tracker_router
 from app.modules.billing.mock_router import router as billing_mock_router
 from app.modules.billing.router import router as billing_router
@@ -108,18 +111,38 @@ app.include_router(opt_out_router, dependencies=[Depends(enforce_compliance_rate
 app.include_router(auth_router)
 
 # Protected routes (require verified user)
-app.include_router(admin_router, dependencies=[Depends(current_verified_user)])
-app.include_router(brand_deactivation_router, dependencies=[Depends(current_verified_user)])
-app.include_router(brands_router, dependencies=[Depends(current_verified_user)])
-app.include_router(recruiter_assignments_router, dependencies=[Depends(current_verified_user)])
+app.include_router(
+    admin_router,
+    dependencies=[Depends(current_verified_user), Depends(require_staff)],
+)
+app.include_router(mfa_router, dependencies=[Depends(current_verified_user)])
+app.include_router(impersonation_router, dependencies=[Depends(current_verified_user)])
+app.include_router(
+    brand_deactivation_router,
+    dependencies=[Depends(current_verified_user), Depends(require_staff)],
+)
+app.include_router(
+    brands_router,
+    dependencies=[Depends(current_verified_user), Depends(require_staff)],
+)
+app.include_router(
+    recruiter_assignments_router,
+    dependencies=[Depends(current_verified_user), Depends(require_staff)],
+)
 app.include_router(documents_router, dependencies=[Depends(current_verified_user)])
-app.include_router(enrich_router, dependencies=[Depends(current_verified_user)])
+app.include_router(
+    enrich_router,
+    dependencies=[Depends(current_verified_user), Depends(require_staff)],
+)
 app.include_router(email_router, dependencies=[Depends(current_verified_user)])
 app.include_router(sessions_router, dependencies=[Depends(current_verified_user)])
 app.include_router(questions_router, dependencies=[Depends(current_verified_user)])
 app.include_router(practice_audio_router, dependencies=[Depends(current_verified_user)])
 app.include_router(job_matching_router, dependencies=[Depends(current_verified_user)])
-app.include_router(demand_intelligence_router, dependencies=[Depends(current_verified_user)])
+app.include_router(
+    demand_intelligence_router,
+    dependencies=[Depends(current_verified_user), Depends(require_staff)],
+)
 app.include_router(billing_router, dependencies=[Depends(current_verified_user)])
 app.include_router(billing_webhook_router)
 # Always include mock checkout/portal pages (no cookie auth). Endpoints 404 unless
@@ -135,8 +158,14 @@ app.include_router(portfolio_public_router)
 app.include_router(brands_public_router)
 app.include_router(job_swipe_router, dependencies=[Depends(current_verified_user)])
 app.include_router(outreach_router, dependencies=[Depends(current_verified_user)])
-app.include_router(linkedin_send_router, dependencies=[Depends(current_verified_user)])
-app.include_router(linkedin_sourcing_router, dependencies=[Depends(current_verified_user)])
+app.include_router(
+    linkedin_send_router,
+    dependencies=[Depends(current_verified_user), Depends(require_staff)],
+)
+app.include_router(
+    linkedin_sourcing_router,
+    dependencies=[Depends(current_verified_user), Depends(require_staff)],
+)
 app.include_router(recruiter_actions_router, dependencies=[Depends(current_verified_user)])
 app.include_router(recruiter_action_mode_router, dependencies=[Depends(current_verified_user)])
 app.include_router(resume_tailoring_router, dependencies=[Depends(current_verified_user)])
@@ -146,6 +175,12 @@ app.include_router(
     dependencies=[Depends(current_verified_user), Depends(enforce_compliance_rate_limit)],
 )
 app.include_router(signals_webhook_router)
-app.include_router(signals_list_router, dependencies=[Depends(current_verified_user)])
-app.include_router(staff_invites_router, dependencies=[Depends(current_verified_user)])
+app.include_router(
+    signals_list_router,
+    dependencies=[Depends(current_verified_user), Depends(require_staff)],
+)
+app.include_router(
+    staff_invites_router,
+    dependencies=[Depends(current_verified_user), Depends(require_staff)],
+)
 app.include_router(staff_invites_public_router)
