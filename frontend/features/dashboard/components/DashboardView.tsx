@@ -105,7 +105,7 @@ export function DashboardView() {
           <Link href="/osint">New enrichment</Link>
         </Button>
         <Button asChild variant="outline">
-          <Link href="/app/health">System health</Link>
+          <Link href="/desk/system-health">System health</Link>
         </Button>
       </div>
     </div>

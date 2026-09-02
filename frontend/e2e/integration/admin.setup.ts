@@ -39,7 +39,7 @@ setup("authenticate as superuser against live backend", async ({ page }) => {
   await pollBackendHealth();
 
   // Same direct-DB-row pattern as auth.setup.ts, but with --is-superuser so
-  // this session can reach every /app/admin/* page without a 403 redirect.
+  // this session can reach every /desk/* page without a 403 redirect.
   execFileSync(
     pythonExecutable(),
     [

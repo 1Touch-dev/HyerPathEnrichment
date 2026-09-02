@@ -6,7 +6,7 @@ import { store } from "@/store";
 import { getNavSections } from "./nav-config";
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/app/enrich",
+  usePathname: () => "/app/matches",
 }));
 
 function renderSidebar(matchesUnreadCount?: number) {
