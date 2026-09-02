@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-const nextConfig = require("../../next.config.js") as {
+// @ts-expect-error next.config.js is the CommonJS runtime configuration.
+import nextConfigModule from "../../next.config.js";
+
+const nextConfig = nextConfigModule as {
   redirects: () => Promise<Array<{ source: string; destination: string; permanent: boolean }>>;
 };
 
