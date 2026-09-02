@@ -9,7 +9,12 @@ const MOCK_USER = {
   last_name: "User",
   is_verified: true,
   is_active: true,
+  is_superuser: false,
+  role_id: null,
+  role_name: null,
+  permissions: [],
   created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
 };
 
 export async function GET(request: NextRequest) {

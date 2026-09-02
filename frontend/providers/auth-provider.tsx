@@ -1,9 +1,10 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import type { Permission } from "@/src/lib/product-doors";
 import { startProactiveRefresh, stopProactiveRefresh } from "@/src/lib/token-refresh";
 
-interface User {
+export interface User {
   id: string;
   email: string;
   first_name: string;
@@ -13,14 +14,16 @@ interface User {
   avatar_url?: string;
   created_at: string;
   is_superuser: boolean;
+  role_id?: string | null;
   role_name?: string | null;
+  permissions?: Permission[];
   mfa_enabled?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   register: (
     email: string,
@@ -94,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const data = await response.json();
     setUser(data.user);
+    return data.user as User;
   };
 
   const logout = async () => {
