@@ -11,7 +11,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
-  usePathname: () => "/app/admin/users",
+  usePathname: () => "/desk/users",
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
