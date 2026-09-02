@@ -61,7 +61,7 @@ export function DashboardView() {
             <CardDescription>Latest enrichment runs from the pipeline.</CardDescription>
           </div>
           <Button asChild variant="outline" size="sm" className="shrink-0 self-start sm:self-auto">
-            <Link href="/app/history">View all</Link>
+            <Link href="/osint/jobs">View all</Link>
           </Button>
         </CardHeader>
         <CardContent>
@@ -79,7 +79,7 @@ export function DashboardView() {
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <Link
-                      href={`/app/jobs/${job.id}`}
+                      href={`/osint/jobs/${job.id}`}
                       className="min-w-0 flex-1 truncate font-mono text-primary hover:underline"
                     >
                       {job.id}
@@ -102,7 +102,7 @@ export function DashboardView() {
 
       <div className="flex flex-wrap gap-2">
         <Button asChild>
-          <Link href="/app/enrich">New enrichment</Link>
+          <Link href="/osint">New enrichment</Link>
         </Button>
         <Button asChild variant="outline">
           <Link href="/app/health">System health</Link>

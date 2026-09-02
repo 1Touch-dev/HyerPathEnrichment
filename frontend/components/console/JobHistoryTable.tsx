@@ -81,7 +81,7 @@ export function JobHistoryTable({
                 <TableCell>
                   <div className="min-w-0">
                     <div className="truncate">
-                      <Link href={`/app/jobs/${job.id}`} className="text-primary hover:underline">
+                      <Link href={`/osint/jobs/${job.id}`} className="text-primary hover:underline">
                         {job.identifierSummary || job.id}
                       </Link>
                     </div>
@@ -100,7 +100,7 @@ export function JobHistoryTable({
                   <>
                     <TableCell>
                       <Link
-                        href={`/app/jobs/${job.id}`}
+                        href={`/osint/jobs/${job.id}`}
                         className="font-mono text-sm text-primary hover:underline"
                       >
                         {job.id}
@@ -119,7 +119,7 @@ export function JobHistoryTable({
                     <TableCell>
                       <div className="flex gap-2">
                         <Button asChild variant="outline" size="sm">
-                          <Link href={`/app/jobs/${job.id}`}>View</Link>
+                          <Link href={`/osint/jobs/${job.id}`}>View</Link>
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => void copyId(job.id)}>
                           {copiedId === job.id ? (
