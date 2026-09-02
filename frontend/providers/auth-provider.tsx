@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { parseEnvelopeError, unwrapEnvelopeData } from "@/src/lib/api-envelope";
 import type { Permission } from "@/src/lib/product-doors";
 import { startProactiveRefresh, stopProactiveRefresh } from "@/src/lib/token-refresh";
 
@@ -19,6 +20,11 @@ export interface User {
   permissions?: Permission[];
   mfa_enabled?: boolean;
 }
+
+type LoginResponse = {
+  user: User;
+  message: string;
+};
 
 interface AuthContextType {
   user: User | null;
@@ -49,8 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setUser(data);
+        const body = await response.json();
+        setUser(unwrapEnvelopeData<User>(body));
       } else {
         setUser(null);
       }
@@ -91,13 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Login failed");
+      const body = await response.json();
+      throw parseEnvelopeError(body, response.status);
     }
 
-    const data = await response.json();
+    const body = await response.json();
+    const data = unwrapEnvelopeData<LoginResponse>(body);
     setUser(data.user);
-    return data.user as User;
+    return data.user;
   };
 
   const logout = async () => {

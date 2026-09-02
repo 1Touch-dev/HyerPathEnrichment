@@ -613,7 +613,7 @@ python scripts/setup_changedetection_watches.py create https://acme.example/care
 python scripts/setup_changedetection_watches.py list
 ```
 
-Flow: changedetection detects a page change → `POST /api/signals/changedetection` → API persists to `signals` table → forwards `{source, watch_id, title, url, timestamp}` to `NOTIFY_WEBHOOK_URL` when configured → frontend displays at `/signals` route.
+Flow: changedetection detects a page change → `POST /api/signals/changedetection` → API persists to `signals` table → forwards `{source, watch_id, title, url, timestamp}` to `NOTIFY_WEBHOOK_URL` when configured → frontend displays at `/desk/signals`.
 
 **Frontend UI:** Staff route at `/desk/signals` displays signals list with pagination, external links, and empty state. Uses `@tanstack/react-query` for data fetching and auto-refresh. Components: `features/signals/components/SignalsTable.tsx`, `features/signals/hooks/useSignalList.ts`.
 

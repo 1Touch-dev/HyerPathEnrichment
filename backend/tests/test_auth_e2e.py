@@ -155,14 +155,14 @@ async def test_complete_auth_e2e_flow(db: AsyncSession):
         # In production, old tokens should be cleaned up on login
         # For now, just verify new login works
 
-        # 14. Access enrichment endpoint (should succeed - verified)
+        # 14. A verified roleless candidate still cannot cross the staff door.
         enrich_response_verified = await client.post(
             "/enrich",
             json={"business": "Test Corp"},
             cookies=verified_cookies,
         )
-        # Should not be 403 anymore
-        assert enrich_response_verified.status_code != 403
+        assert enrich_response_verified.status_code == 403
+        assert enrich_response_verified.json()["error"]["message"] == "Staff access required"
 
         # 15. Access DSAR endpoint (should succeed - verified)
         dsar_response_verified = await client.post(

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { AuthProvider, useAuth, type User } from "./auth-provider";
+import { successEnvelope } from "@/src/lib/api-envelope";
 
 // auth-provider.tsx's register() talks to /api/auth/register via the global
 // `fetch`, not through src/lib/backend-client.ts (that module is server-only
@@ -97,21 +98,24 @@ describe("AuthProvider login()", () => {
         .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 401 }))
         .mockResolvedValueOnce(
           new Response(
-            JSON.stringify({
-              user: {
-                id: "u1",
-                email: "recruiter@example.com",
-                first_name: "Rae",
-                last_name: "Cruiter",
-                is_verified: true,
-                is_active: true,
-                is_superuser: false,
-                role_id: "role-1",
-                role_name: "recruiter",
-                permissions: [],
-                created_at: "2026-01-01T00:00:00Z",
-              } satisfies User,
-            }),
+            JSON.stringify(
+              successEnvelope({
+                user: {
+                  id: "u1",
+                  email: "recruiter@example.com",
+                  first_name: "Rae",
+                  last_name: "Cruiter",
+                  is_verified: true,
+                  is_active: true,
+                  is_superuser: false,
+                  role_id: "role-1",
+                  role_name: "recruiter",
+                  permissions: [],
+                  created_at: "2026-01-01T00:00:00Z",
+                } satisfies User,
+                message: "Login successful",
+              }),
+            ),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
         ),
@@ -129,5 +133,39 @@ describe("AuthProvider login()", () => {
 
     expect(returnedUser?.role_name).toBe("recruiter");
     expect(result.current.user).toEqual(returnedUser);
+  });
+});
+
+describe("AuthProvider current user", () => {
+  it("unwraps the /auth/me success envelope", async () => {
+    const user = {
+      id: "u1",
+      email: "recruiter@example.com",
+      first_name: "Rae",
+      last_name: "Cruiter",
+      is_verified: true,
+      is_active: true,
+      is_superuser: false,
+      role_id: "role-1",
+      role_name: "recruiter",
+      permissions: [],
+      created_at: "2026-01-01T00:00:00Z",
+    } satisfies User;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(successEnvelope(user)), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    const { result } = renderHook(() => useAuth(), {
+      wrapper: ({ children }) => <AuthProvider>{children}</AuthProvider>,
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.user).toEqual(user);
   });
 });

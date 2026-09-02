@@ -43,6 +43,7 @@ from app.auth.verification import (
     send_verification_email,
     verify_email_token,
 )
+from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import get_settings
 from app.database.session import get_db_session
 from app.dependencies.rate_limit import enforce_auth_rate_limit, enforce_auth_refresh_rate_limit
@@ -55,6 +56,11 @@ from app.modules.staff_invites.models import StaffInvite
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+identity_router = APIRouter(
+    prefix="/auth",
+    tags=["Authentication"],
+    route_class=EnvelopeAPIRoute,
+)
 
 
 async def serialize_user_identity(db: AsyncSession, user: User) -> UserRead:
@@ -279,7 +285,7 @@ async def register(
     )
 
 
-@router.post(
+@identity_router.post(
     "/login",
     response_model=LoginResponse,
     dependencies=[Depends(enforce_auth_rate_limit)],
@@ -439,7 +445,7 @@ async def logout(
     return MessageResponse(message="Logged out successfully")
 
 
-@router.post(
+@identity_router.post(
     "/refresh",
     response_model=LoginResponse,
     dependencies=[Depends(enforce_auth_refresh_rate_limit)],
@@ -669,7 +675,7 @@ async def delete_account(
     return MessageResponse(message="Account deleted successfully")
 
 
-@router.get("/me", response_model=UserRead)
+@identity_router.get("/me", response_model=UserRead)
 async def get_current_user(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db_session),

@@ -55,14 +55,35 @@ async def _identity_round_trip(user: User) -> tuple[dict, dict, dict]:
             json={"email": user.email, "password": PASSWORD},
         )
         assert login.status_code == 200
+        assert len(login.headers.get_list("set-cookie")) == 2
 
         refresh = await client.post("/auth/refresh")
         assert refresh.status_code == 200
+        assert len(refresh.headers.get_list("set-cookie")) == 2
 
         me = await client.get("/auth/me")
         assert me.status_code == 200
 
-    return login.json()["user"], refresh.json()["user"], me.json()
+    login_body = login.json()
+    refresh_body = refresh.json()
+    me_body = me.json()
+
+    assert set(login_body) == {"success", "data", "message", "meta"}
+    assert set(login_body["data"]) == {"user", "message"}
+    assert login_body["success"] is True
+    assert login_body["data"]["message"] == "Login successful"
+    assert set(refresh_body) == {"success", "data", "message", "meta"}
+    assert set(refresh_body["data"]) == {"user", "message"}
+    assert refresh_body["success"] is True
+    assert refresh_body["data"]["message"] == "Token refreshed successfully"
+    assert set(me_body) == {"success", "data", "message", "meta"}
+    assert me_body["success"] is True
+
+    return (
+        login_body["data"]["user"],
+        refresh_body["data"]["user"],
+        me_body["data"],
+    )
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@ from fastapi import Depends, FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.dependencies import VerifiedUser
+from app.auth.router import identity_router as auth_identity_router
 from app.auth.router import router as auth_router
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import Settings, get_settings
@@ -109,6 +110,7 @@ app.include_router(opt_out_router, dependencies=[Depends(enforce_compliance_rate
 
 # Auth routes (authentication itself)
 app.include_router(auth_router)
+app.include_router(auth_identity_router)
 
 # Protected routes (require verified user)
 app.include_router(

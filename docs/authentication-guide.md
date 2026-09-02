@@ -377,6 +377,10 @@ See [Google OAuth Setup Guide](./google-oauth-setup.md) for detailed instruction
 4. New tokens set in cookies
 5. User session continues seamlessly
 
+`POST /auth/refresh` returns the same success-envelope nesting as login:
+`data.user` contains the refreshed identity and `data.message` is
+`"Token refreshed successfully"`.
+
 **Security:** Refresh token reuse (already marked `used`) triggers security response (revoke all user tokens).
 
 ---
@@ -431,15 +435,20 @@ Login with email/password.
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "first_name": "John",
-    "last_name": "Doe",
-    "is_verified": true,
-    "role_id": null,
-    "role_name": null,
-    "permissions": []
-  }
+    "user": {
+      "id": "uuid",
+      "email": "user@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "is_verified": true,
+      "role_id": null,
+      "role_name": null,
+      "permissions": []
+    },
+    "message": "Login successful"
+  },
+  "message": null,
+  "meta": null
 }
 ```
 
@@ -498,7 +507,9 @@ Get the current user identity used for product-door routing.
         "action": "read"
       }
     ]
-  }
+  },
+  "message": null,
+  "meta": null
 }
 ```
 
