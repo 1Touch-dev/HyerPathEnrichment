@@ -565,7 +565,7 @@ Copy `backend/.env.example` → `backend/.env`.
 
 `CORS_ALLOWED_ORIGINS` — comma-separated origin allowlist for `CORSMiddleware` (`app/main.py`); falls back to `FRONTEND_URL`, then `http://localhost:3000`, when unset. `allow_methods` and `allow_headers` are an explicit tightened set (`GET, POST, PUT, PATCH, DELETE, OPTIONS`; `Authorization, Content-Type`), not wildcards, since `allow_credentials=True` forbids a wildcard origin/credentials combination anyway. Preflight responses are cached client-side for 600s (`max_age=600`).
 
-The Admin Module UI (`/app/admin/*` routes) is served from this same Next.js frontend, not a separate host/subdomain — so no additional entry in `CORS_ALLOWED_ORIGINS` is needed for admin traffic. If the admin console is ever split out to its own origin, add it to the allowlist alongside the candidate-facing frontend origin.
+The Desk UI (`/desk/*` routes) is served from this same Next.js frontend, not a separate host/subdomain — so no additional entry in `CORS_ALLOWED_ORIGINS` is needed for staff traffic. If Desk is ever split out to its own origin, add it to the allowlist alongside the candidate-facing frontend origin.
 
 ---
 
@@ -615,7 +615,7 @@ python scripts/setup_changedetection_watches.py list
 
 Flow: changedetection detects a page change → `POST /api/signals/changedetection` → API persists to `signals` table → forwards `{source, watch_id, title, url, timestamp}` to `NOTIFY_WEBHOOK_URL` when configured → frontend displays at `/signals` route.
 
-**Frontend UI:** Authenticated route at `/app/signals` displays signals list with pagination, external links, and empty state. Uses `@tanstack/react-query` for data fetching and auto-refresh. Components: `features/signals/components/SignalsTable.tsx`, `features/signals/hooks/useSignalList.ts`.
+**Frontend UI:** Staff route at `/desk/signals` displays signals list with pagination, external links, and empty state. Uses `@tanstack/react-query` for data fetching and auto-refresh. Components: `features/signals/components/SignalsTable.tsx`, `features/signals/hooks/useSignalList.ts`.
 
 ### Structured logging
 
