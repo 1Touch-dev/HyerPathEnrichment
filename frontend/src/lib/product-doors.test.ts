@@ -71,10 +71,17 @@ describe("safeLocalRedirect", () => {
     );
   });
 
+  it("returns a normalized local pathname", () => {
+    expect(safeLocalRedirect("/a/../desk/users")).toBe("/desk/users");
+  });
+
   it.each([
     "https://example.com",
     "//example.com/path",
     "/\\example.com/path",
+    "/..//evil.com",
+    "/%2e%2e//evil.com",
+    "/a/..//evil.com",
     "javascript:alert(1)",
     "desk/users",
   ])("rejects unsafe redirect %s", (redirect) => {

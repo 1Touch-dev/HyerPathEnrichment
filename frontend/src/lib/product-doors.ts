@@ -77,7 +77,7 @@ export function safeLocalRedirect(value: string | null | undefined): string | nu
   try {
     const base = "https://hyrepath.local";
     const target = new URL(value, base);
-    if (target.origin !== base) {
+    if (target.origin !== base || target.pathname.startsWith("//")) {
       return null;
     }
     return `${target.pathname}${target.search}${target.hash}`;
