@@ -38,6 +38,9 @@ export function SystemHealthPanel() {
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="mb-3 text-lg font-semibold">Self-checks</h2>
+        {data.service ? (
+          <p className="mb-3 font-mono text-sm text-muted-foreground">{data.service}</p>
+        ) : null}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
