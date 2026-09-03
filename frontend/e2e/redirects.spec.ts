@@ -18,7 +18,7 @@ test.describe("temporary product door redirects", () => {
       const response = await request.get(source, { maxRedirects: 0 });
 
       expect(response.status()).toBe(307);
-      expect(new URL(response.headers().location).pathname).toBe(target);
+      expect(new URL(response.headers().location, "http://127.0.0.1:3000").pathname).toBe(target);
     });
   }
 
@@ -26,7 +26,7 @@ test.describe("temporary product door redirects", () => {
     const response = await request.get("/app/jobs/dossier-123?tiers=tier2&view=raw", {
       maxRedirects: 0,
     });
-    const location = new URL(response.headers().location);
+    const location = new URL(response.headers().location, "http://127.0.0.1:3000");
 
     expect(response.status()).toBe(307);
     expect(location.pathname).toBe("/osint/jobs/dossier-123");

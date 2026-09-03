@@ -62,7 +62,7 @@ test.describe("Console shell", () => {
   test("health page reports mock backend status", async ({ page }) => {
     await page.goto("/desk/system-health");
     await expect(page.getByRole("heading", { name: "Self-checks" })).toBeVisible();
-    await expect(page.getByText("ok", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("OK", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("hyrepath-enrichment-mock")).toBeVisible();
   });
 
