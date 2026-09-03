@@ -71,7 +71,11 @@ def _create_sync_job(client: TestClient, headers: dict[str, str], email: str) ->
 
 def test_list_jobs_pagination() -> None:
     client = TestClient(app)
-    headers = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+    headers = {
+        "Authorization": "Bearer change-me",
+        "X-Test-User-ID": str(uuid4()),
+        "X-Test-Superuser": "true",
+    }
 
     _create_sync_job(client, headers, "first@example.com")
     _create_sync_job(client, headers, "second@example.com")

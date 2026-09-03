@@ -12,7 +12,11 @@ from app.domain.enrichment import EnrichmentRequest
 from app.domain.enums import RequestedTier
 from app.main import app
 
-AUTH_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+AUTH_HEADERS = {
+    "Authorization": "Bearer change-me",
+    "X-Test-User-ID": str(uuid4()),
+    "X-Test-Superuser": "true",
+}
 
 
 def _validation_message(exc: ValidationError) -> str:

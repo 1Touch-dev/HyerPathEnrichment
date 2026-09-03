@@ -17,7 +17,11 @@ from app.enrichers import MaigretEnricher, SherlockEnricher, SocialAnalyzerEnric
 from app.main import app
 from tests.envelope_helpers import assert_error, assert_success
 
-AUTH_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+AUTH_HEADERS = {
+    "Authorization": "Bearer change-me",
+    "X-Test-User-ID": str(uuid4()),
+    "X-Test-Superuser": "true",
+}
 
 
 def test_health_success_envelope() -> None:

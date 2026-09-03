@@ -31,6 +31,14 @@ def _stub(fragment: dict[str, Any]):
     return _fetch
 
 
+def _staff_headers() -> dict[str, str]:
+    return {
+        "Authorization": "Bearer change-me",
+        "X-Test-User-ID": str(uuid4()),
+        "X-Test-Superuser": "true",
+    }
+
+
 @pytest.fixture(autouse=True)
 def _offline_enrichers(monkeypatch: pytest.MonkeyPatch) -> None:
     # No live external calls in CI: replace every enricher's backend seam
@@ -194,7 +202,7 @@ def test_sync_enrich_shape() -> None:
     client = TestClient(app)
     response = client.post(
         "/enrich/sync",
-        headers={"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())},
+        headers=_staff_headers(),
         json={
             "email": "alex@hyrepath.dev",
             "linkedin_url": "https://linkedin.com/in/alex-hyrepath",
@@ -220,7 +228,7 @@ def test_sync_skips_tier1_photo(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(app)
     response = client.post(
         "/enrich/sync",
-        headers={"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())},
+        headers=_staff_headers(),
         json={
             "linkedin_url": "https://linkedin.com/in/alex-hyrepath",
             "username": "alex-hyrepath",
@@ -236,7 +244,7 @@ def test_sync_skips_tier1_photo(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_opt_out_suppresses_enrichment() -> None:
     client = TestClient(app)
-    headers = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+    headers = _staff_headers()
     identifier = "suppressed-user@example.com"
 
     response = client.post("/api/opt-out", json={"identifier": identifier, "reason": "gdpr"})
@@ -262,7 +270,7 @@ def test_sync_rate_limit_returns_429(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(get_settings(), "max_sync_requests_per_minute", 2)
     client = TestClient(app)
-    headers = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+    headers = _staff_headers()
     body = {"username": "ratelimited", "requested_tiers": ["tier2"]}
 
     assert client.post("/enrich/sync", headers=headers, json=body).status_code == 200
@@ -283,7 +291,7 @@ def test_async_enrich_enqueues_queued_job(monkeypatch: pytest.MonkeyPatch) -> No
     client = TestClient(app)
     response = client.post(
         "/enrich",
-        headers={"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())},
+        headers=_staff_headers(),
         json={"username": "async-user", "requested_tiers": ["tier2"]},
     )
 
@@ -303,7 +311,7 @@ def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) 
     )
 
     client = TestClient(app)
-    headers = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+    headers = _staff_headers()
     identifier = "async-suppressed@example.com"
 
     client.post("/api/opt-out", json={"identifier": identifier, "reason": "gdpr"})

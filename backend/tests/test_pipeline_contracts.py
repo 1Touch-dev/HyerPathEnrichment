@@ -23,7 +23,11 @@ from app.enrichers.pipeline import Pipeline
 from app.main import app
 from app.modules.enrichment import service as enrichment_service
 
-AUTH_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+AUTH_HEADERS = {
+    "Authorization": "Bearer change-me",
+    "X-Test-User-ID": str(uuid4()),
+    "X-Test-Superuser": "true",
+}
 
 
 def _stub(fragment: dict[str, Any]):

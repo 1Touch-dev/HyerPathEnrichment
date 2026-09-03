@@ -8,7 +8,11 @@ from app.main import app
 
 
 def _auth_headers() -> dict[str, str]:
-    return {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+    return {
+        "Authorization": "Bearer change-me",
+        "X-Test-User-ID": str(uuid4()),
+        "X-Test-Superuser": "true",
+    }
 
 
 def test_dsar_access_returns_full_enriched_data() -> None:
