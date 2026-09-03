@@ -53,7 +53,7 @@ export function ImpersonateUserDialog({ user, open, onOpenChange }: ImpersonateU
       });
       // Full page navigation (not client-side routing) so the new
       // impersonation cookie takes effect on the very next request.
-      window.location.assign("/app/dashboard");
+      window.location.assign("/app/matches");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start impersonation.");
     }

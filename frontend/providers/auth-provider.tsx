@@ -13,7 +13,9 @@ interface User {
   avatar_url?: string;
   created_at: string;
   is_superuser: boolean;
+  role_id?: string | null;
   role_name?: string | null;
+  permissions?: Array<string | { resource?: string; action?: string; name?: string }>;
   mfa_enabled?: boolean;
 }
 

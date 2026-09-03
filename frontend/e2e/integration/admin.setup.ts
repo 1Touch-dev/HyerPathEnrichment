@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { test as setup } from "@playwright/test";
 
@@ -11,7 +12,10 @@ const ADMIN_TEST_PASSWORD =
 const AUTH_FILE = path.resolve(__dirname, ".auth/admin-user.json");
 
 function pythonExecutable(): string {
-  return process.platform === "win32" ? "python" : "python3";
+  if (process.platform === "win32") return "python";
+  const venvPython = path.join(BACKEND_ROOT, ".venv", "bin", "python");
+  if (fs.existsSync(venvPython)) return venvPython;
+  return "python3";
 }
 
 const BACKEND_URL = (process.env.BACKEND_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -39,7 +43,7 @@ setup("authenticate as superuser against live backend", async ({ page }) => {
   await pollBackendHealth();
 
   // Same direct-DB-row pattern as auth.setup.ts, but with --is-superuser so
-  // this session can reach every /app/admin/* page without a 403 redirect.
+  // this session can reach every /desk/* page without a 403 redirect.
   execFileSync(
     pythonExecutable(),
     [
@@ -50,7 +54,12 @@ setup("authenticate as superuser against live backend", async ({ page }) => {
       ADMIN_TEST_PASSWORD,
       "--is-superuser",
     ],
-    { cwd: BACKEND_ROOT, stdio: ["ignore", "pipe", "inherit"] },
+    {
+      cwd: BACKEND_ROOT,
+      stdio: ["ignore", "pipe", "inherit"],
+      // Host .env may be production-like; scripts only need DB access.
+      env: { ...process.env, APP_ENV: "development", COOKIE_SECURE: "false" },
+    },
   );
 
   const response = await page.request.post("/api/auth/login", {

@@ -13,6 +13,12 @@ const nextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      { source: "/app/admin", destination: "/desk", permanent: false },
+      { source: "/app/admin/:path*", destination: "/desk/:path*", permanent: false },
+    ];
+  },
 };
 
 module.exports = nextConfig;

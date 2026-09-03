@@ -9,7 +9,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
-  usePathname: () => "/app/admin/job-postings",
+  usePathname: () => "/desk/job-postings",
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
