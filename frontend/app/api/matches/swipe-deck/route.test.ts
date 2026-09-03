@@ -57,6 +57,7 @@ describe("GET /api/matches/swipe-deck", () => {
           salaryCurrency: null,
           overallScore: 90,
           explanation: "Great fit",
+          isBlurred: false,
         },
       ],
       hasMore: false,

@@ -20,11 +20,11 @@ from app.modules.job_matching.repository import get_owned_match  # re-exported f
 from app.modules.manual_jobs.models import ManualJobEntry
 
 __all__ = [
+    "count_by_status",
+    "get_manual_entries",
     "get_owned_match",
     "list_tracked_matches",
-    "get_manual_entries",
     "update_status",
-    "count_by_status",
 ]
 
 _SORT_COLUMNS: dict[str, Any] = {
