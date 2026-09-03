@@ -17,15 +17,16 @@ pre-existing candidate-scoped endpoint that takes an arbitrary
 from __future__ import annotations
 
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.core.config import get_settings
+from app.modules.admin.models import Role
 from app.modules.brands import repository as assignment_repository
 from app.modules.brands.models import RecruiterCandidateAssignment
 from app.modules.job_matching.models import JobMatch, JobPosting
@@ -92,14 +93,45 @@ async def _make_job_match(db: AsyncSession, candidate: User) -> JobMatch:
     return match
 
 
+async def _recruiter_role_id(db: AsyncSession) -> UUID:
+    role = (await db.execute(select(Role).where(Role.name == "recruiter"))).scalar_one()
+    if not USING_POSTGRES:
+        permission_id = (
+            await db.execute(
+                text(
+                    "SELECT id FROM permissions "
+                    "WHERE resource = 'recruiter_actions' AND action = 'write'"
+                )
+            )
+        ).scalar_one()
+        normalized_role_id = role.id.hex
+        existing = await db.execute(
+            text(
+                "SELECT 1 FROM role_permissions "
+                "WHERE role_id = :role_id AND permission_id = :permission_id"
+            ),
+            {"role_id": normalized_role_id, "permission_id": permission_id},
+        )
+        if existing.scalar_one_or_none() is None:
+            await db.execute(
+                text(
+                    "INSERT INTO role_permissions (role_id, permission_id) "
+                    "VALUES (:role_id, :permission_id)"
+                ),
+                {"role_id": normalized_role_id, "permission_id": permission_id},
+            )
+            await db.commit()
+    return role.id
+
+
 @pytest.fixture
 async def recruiter_a(db: AsyncSession) -> User:
-    return await _make_user(db)
+    return await _make_user(db, role_id=await _recruiter_role_id(db))
 
 
 @pytest.fixture
 async def recruiter_b(db: AsyncSession) -> User:
-    return await _make_user(db)
+    return await _make_user(db, role_id=await _recruiter_role_id(db))
 
 
 @pytest.fixture
