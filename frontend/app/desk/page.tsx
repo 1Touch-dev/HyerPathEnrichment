@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function AdminIndexPage() {
-  redirect("/app/admin/system-health");
+  redirect("/desk/system-health");
 }

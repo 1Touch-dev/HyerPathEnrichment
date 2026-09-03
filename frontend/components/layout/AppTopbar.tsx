@@ -9,21 +9,23 @@ import { UserMenu } from "@/components/auth/user-menu";
 
 export function AppTopbar() {
   const pathname = usePathname();
-  const sectionLabel = pathname.startsWith("/app/history")
-    ? "History"
-    : pathname.startsWith("/app/signals")
-      ? "Signals"
-      : pathname.startsWith("/app/dashboard")
-        ? "Dashboard"
-        : pathname.startsWith("/app/health")
-          ? "Health"
-          : pathname.startsWith("/app/settings")
-            ? "Settings"
-            : pathname.startsWith("/app/privacy")
-              ? "Privacy"
-              : pathname.startsWith("/app/jobs")
-                ? "Profile"
-                : "Look up";
+  const sectionLabel = pathname.startsWith("/desk")
+    ? "Desk"
+    : pathname.startsWith("/app/history")
+      ? "History"
+      : pathname.startsWith("/app/signals")
+        ? "Signals"
+        : pathname.startsWith("/app/dashboard")
+          ? "Dashboard"
+          : pathname.startsWith("/app/health")
+            ? "Health"
+            : pathname.startsWith("/app/settings")
+              ? "Settings"
+              : pathname.startsWith("/app/privacy")
+                ? "Privacy"
+                : pathname.startsWith("/app/jobs")
+                  ? "Profile"
+                  : "Look up";
 
   return (
     <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background/95 px-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-6">
