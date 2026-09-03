@@ -267,7 +267,7 @@ class TestDowngrade:
         """§10.3's data-safety note: downgrading after real manual entries exist
         must fail loudly (job_posting_id NOT NULL can't hold), not silently drop
         or corrupt data."""
-        upgrade_head(sqlite_url)
+        command.upgrade(alembic_config(sqlite_url), REV_MANUAL_JOB_ENTRIES)
         engine = sync_engine_for(sqlite_url)
         try:
             with engine.begin() as conn:

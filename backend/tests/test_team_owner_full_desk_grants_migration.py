@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from alembic.script import ScriptDirectory
 from sqlalchemy import inspect
 from sqlalchemy import text as sa_text
 
@@ -117,6 +116,8 @@ def _table_names(url: str) -> set[str]:
 
 
 def test_revision_is_ancestor_of_the_only_migration_head() -> None:
+    from alembic.script import ScriptDirectory
+
     script = ScriptDirectory.from_config(alembic_config("sqlite://"))
     heads = script.get_heads()
     assert len(heads) == 1
