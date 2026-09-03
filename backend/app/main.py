@@ -11,6 +11,7 @@ from app.core.errors import UnauthorizedError
 from app.core.exception_handlers import register_exception_handlers
 from app.core.lifespan import lifespan
 from app.core.logging import RequestContextMiddleware
+from app.core.openapi import install_envelope_openapi
 from app.dependencies.rate_limit import enforce_compliance_rate_limit
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.modules.admin import router as admin_router
@@ -186,3 +187,5 @@ app.include_router(
     dependencies=[Depends(current_verified_user), Depends(require_staff)],
 )
 app.include_router(staff_invites_public_router)
+
+install_envelope_openapi(app)

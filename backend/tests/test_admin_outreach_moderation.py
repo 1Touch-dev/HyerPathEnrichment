@@ -24,13 +24,10 @@ from sqlalchemy import select
 from app.auth.dependencies import get_current_user_from_cookie, require_verified_user
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.exception_handlers import register_exception_handlers
+from app.core.logging import scrub_sensitive_data
 from app.modules.admin.models import AdminAuditLog
 from app.modules.admin.outreach_router import router as outreach_admin_router
 from app.modules.outreach.models import OutreachMessage
-from tests.conftest import (
-    SQLITE_ROLE_UUID_DASH_BUG_REASON,
-    USING_POSTGRES,
-)
 from tests.conftest import (
     test_auth_dependency as _test_auth_dependency,
 )
@@ -155,8 +152,10 @@ async def test_moderate_toggles_admin_blocked_both_ways_with_audit(
     )
     entries = result.scalars().all()
     assert len(entries) == 1
-    assert entries[0].before == {"admin_blocked": False}
-    assert entries[0].after == {"admin_blocked": True, "reason": "suspicious content"}
+    assert entries[0].before == scrub_sensitive_data({"admin_blocked": False})
+    assert entries[0].after == scrub_sensitive_data(
+        {"admin_blocked": True, "reason": "suspicious content"}
+    )
 
     unblock_response = client.post(
         f"/api/admin/outreach/{message.id}/moderate",
@@ -176,8 +175,8 @@ async def test_moderate_toggles_admin_blocked_both_ways_with_audit(
     )
     entries = result.scalars().all()
     assert len(entries) == 2
-    assert entries[1].before == {"admin_blocked": True}
-    assert entries[1].after == {"admin_blocked": False, "reason": None}
+    assert entries[1].before == scrub_sensitive_data({"admin_blocked": True})
+    assert entries[1].after == scrub_sensitive_data({"admin_blocked": False, "reason": None})
 
 
 async def test_moderate_not_found(client, superuser, auth_headers):
@@ -204,9 +203,6 @@ async def test_moderate_requires_outreach_moderate_permission(
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_read_but_not_moderate_outreach(
     client, support_user, regular_user, db_session, auth_headers
 ):

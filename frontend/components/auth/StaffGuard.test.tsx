@@ -33,6 +33,17 @@ beforeEach(() => {
 });
 
 describe("StaffGuard", () => {
+  it("announces account loading as a status", () => {
+    mockUseAuth({ user: null, loading: true });
+    render(
+      <StaffGuard>
+        <div>Staff content</div>
+      </StaffGuard>,
+    );
+
+    expect(screen.getByRole("status", { name: "Loading account" })).toBeInTheDocument();
+  });
+
   it("preserves the local destination for unauthenticated login", () => {
     mockUseAuth({ user: null });
     render(
@@ -41,6 +52,7 @@ describe("StaffGuard", () => {
       </StaffGuard>,
     );
     expect(replaceMock).toHaveBeenCalledWith("/login?redirect=%2Fosint");
+    expect(screen.getByRole("status", { name: "Redirecting to login" })).toBeInTheDocument();
   });
 
   it("round-trips the OSINT tiers query through StaffGuard and login", async () => {

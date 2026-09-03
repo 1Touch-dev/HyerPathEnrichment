@@ -32,3 +32,13 @@ def open_secret(stored: str) -> str:
         return _fernet().decrypt(stored.encode("ascii")).decode("utf-8")
     except (InvalidToken, ValueError, TypeError):
         return stored
+
+
+def open_secret_strict(stored: str) -> str:
+    """Decrypt Fernet ciphertext, raising ``InvalidToken`` on every invalid input."""
+    if not isinstance(stored, str) or not stored:
+        raise InvalidToken
+    try:
+        return _fernet().decrypt(stored.encode("ascii")).decode("utf-8")
+    except (InvalidToken, UnicodeEncodeError, UnicodeDecodeError, ValueError, TypeError) as exc:
+        raise InvalidToken from exc

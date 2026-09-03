@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { isStaffUser } from "@/src/lib/product-doors";
+import { RouteGuardStatus } from "./route-guard-status";
+import { redirectAfterDomContentLoaded } from "./route-guard-utils";
 
 export function StaffGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -19,16 +20,17 @@ export function StaffGuard({ children }: { children: React.ReactNode }) {
       return;
     }
     if (!loading && user && !isStaff) {
-      router.replace("/app/matches");
+      return redirectAfterDomContentLoaded(() => router.replace("/app/matches"));
     }
   }, [isStaff, loading, pathname, router, user]);
 
   if (loading || !user || !isStaff) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    const message = loading
+      ? "Loading account"
+      : !user
+        ? "Redirecting to login"
+        : "Redirecting to an authorized page";
+    return <RouteGuardStatus message={message} />;
   }
 
   return <>{children}</>;

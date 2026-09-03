@@ -18,12 +18,32 @@ In each case below we chose the option that reuses or extends this repo's
 existing primitives — `is_superuser`, the existing JWT/cookie auth path,
 Postgres, Redis — **over** introducing a new, parallel mechanism:
 
-1. **New storage, additive only**: 6 new tables (`roles`, `permissions`,
+1. **New storage, additive only**: the original 6 tables (`roles`, `permissions`,
    `role_permissions`, `admin_audit_logs`, `feature_flags`,
    `impersonation_sessions`) owned by a new
    `app/modules/admin/` module, plus 4 new nullable columns on `users`
    (`role_id`, `mfa_secret`, `mfa_enabled`, `mfa_enrolled_at`). No existing
-   table is dropped, renamed, or has a column removed.
+   table is dropped, renamed, or has a column removed. The 2026-09-03
+   hardening adds `privileged_idempotency_records` and additive audit,
+   impersonation-session, and staff-invite fields through sequential
+   revisions 063–066. Revision 065 requires a stop-the-world API maintenance
+   window: every old API instance must stop serving invite creation, lookup,
+   and redemption before revisions 065–066 are applied. Only digest-first
+   code may start afterward. The migration backfills digests and retains safe
+   active historical plaintext solely for restored-schema recovery by a
+   hardened compatibility artifact; it is never permission to run a
+   pre-hardening binary. Successful redemption, expiry cleanup, or
+   acknowledged post-drain cleanup removes it. Cleanup is deliberately not an
+   automatically applied migration.
+   **Rollback contract:** a pre-hardening/old API binary must never serve
+   staff-invite creation, lookup, or redemption against revision 065 or a
+   restored schema. Rollback first stops and drains API/invite traffic. Traffic
+   may resume only with a prebuilt artifact verified to preserve the current
+   digest-first, recruiter-only, email-bound, revocation-aware implementation
+   on the target schema and to pass invite-security smoke. If that artifact is
+   unavailable, API/invite traffic stays stopped and operators roll forward.
+   Artifact construction, traffic drain, and evidence are mandatory
+   `INT-RELEASE` gates outside this repository.
 2. **`is_superuser` is kept, not replaced.** `Role`-based permissions are
    additive grants checked only when `is_superuser` is false. Rationale:
    collapsing the two into one system on this PR would be a much larger,
@@ -36,33 +56,35 @@ Postgres, Redis — **over** introducing a new, parallel mechanism:
    both violate that table's single, well-defined purpose and risk
    accidentally subjecting admin logs to compliance retention/erasure rules
    meant for candidate data (§5 naming-collision check).
-4. **Best-effort DB-backed fallback audit capture** via
-   `AdminAuditFallbackMiddleware`, in addition to explicit `record_admin_action()`
-   calls in every mutating admin endpoint. Rationale: an audit log that
-   silently misses writes because a developer forgot to call the helper is
-   worse than one with an occasional low-detail `captured_by="fallback"` row.
-   This is best-effort, not exactly-once: it runs after the response is
-   built and can miss requests that crash before then — accepted as the
-   right trade-off for an internal admin trail, not a compliance-grade
-   ledger (Decision 2, `phase2_admin_module.md` §4).
+4. **Transactional explicit audit capture is the release guarantee.** Every
+   successful privileged mutation and its one explicit `admin_audit_logs` row
+   must commit in the same database transaction. New records require
+   `request_id` and `outcome`; impersonated actions also retain the real actor,
+   effective target, and impersonation-session ID. The existing fallback
+   middleware remains anomaly detection only and never satisfies audit
+   coverage. Audit rows default to 1,825-day retention and are append-only to
+   application roles. Actor/session foreign keys restrict physical deletion
+   rather than erasing attribution.
 5. **Feature flags are DB-backed (Postgres), not env-var or LaunchDarkly.**
    Rationale: this repo already treats Postgres as its source of truth for
    mutable state judged worth auditing (Decision 8), and no external
    flag-vendor dependency exists today; adding one for this PR would violate
-   "keep the change as small as the task allows."
-6. **Impersonation is JWT-claim-based (`imp` claim), not a separate session
-   table read on every request.** The existing cookie-JWT auth path
-   (`get_current_user_from_cookie`) decodes the optional `imp` claim once per
-   request into `request.state.impersonated_by`; `impersonation_sessions` is
-   the audit/expiry record, not the request-time lookup. Rationale: this
-   avoids adding a DB round-trip to every authenticated request just to
-   support a feature only support staff use.
-7. **MFA (TOTP, `pyotp`) gates impersonation-start only when the *admin's own*
-   MFA is enabled — it is not force-enabled for all admins in this PR.**
-   Rationale: forcing MFA repo-wide is a policy decision this PR does not
-   have the authority to make; the module instead makes MFA available
-   self-service to any verified user and enforces it conditionally where the
-   blast radius (viewing as another user) is highest.
+   "keep the change as small as the task allows." There is currently no
+   business consumer, so flag mutations remain disabled until a real
+   evaluation path and rollback owner exist.
+6. **Impersonation uses a JWT claim plus a database session validated on every
+   impersonated request.** The token retains `sub`, `jti`, and `imp`, but an
+   impersonated request is accepted only while the matching
+   `impersonation_sessions` row is active, unexpired, and unrevoked, the real
+   actor remains active and still has `impersonation:start`, and the target is
+   a roleless, non-superuser candidate. Scope is always `view_only`; mutations
+   are denied except ending the session. Ending or revoking the session
+   invalidates its JTI immediately. Normal sessions do not pay this extra
+   lookup.
+7. **MFA is required for every impersonation start.** An actor without an
+   enrolled and verified TOTP cannot start impersonation. This records the
+   behavior already enforced by `app/modules/admin/impersonation.py` and
+   supersedes the earlier conditional-MFA wording.
 8. **No new Docker service, container, or queue.** Admin endpoints run inside
    the existing `api` container; queue introspection is read-only against
    the existing Redis/RQ queues defined in `app/workers/queue.py`. Rationale:
@@ -103,19 +125,16 @@ Postgres, Redis — **over** introducing a new, parallel mechanism:
   with `compliance.AuditLog` **instead of** reusing it, **traded for**
   keeping the compliance log's legally-retained candidate-consent/erasure
   purpose uncontaminated by unrelated admin-write events.
-- Best-effort fallback audit capture (Decision 4) accepts occasional
-  low-detail `captured_by="fallback"` rows and a small gap on
-  requests that crash before the response is built, **traded for** not
-  requiring every admin endpoint author to remember an explicit
-  `record_admin_action()` call.
+- Transactional explicit audit capture (Decision 4) requires mutation services
+  to share a transaction with the audit writer, **traded for** fail-closed,
+  attributable evidence. Fallback rows remain useful anomaly signals but are
+  not successful-operation evidence.
 - DB-backed feature flags (Decision 5) mean flag reads cost a cached Redis
   round-trip **instead of** a free in-process env-var read, **traded for**
   runtime toggling without a redeploy and an audit trail on every flip.
-- JWT-claim-based impersonation (Decision 6) means the access-token JWT
-  shape is no longer strictly single-identity **instead of** adding a
-  session-table lookup on every authenticated request, **traded for**
-  avoiding a DB round-trip on the hot path for a feature only support staff
-  use.
+- Session-validated impersonation (Decision 6) adds one database lookup to each
+  impersonated request, **traded for** immediate expiry, revocation, and
+  permission-change enforcement without slowing ordinary sessions.
 - A coarse staff door adds one authorization layer before endpoint RBAC,
   **traded for** keeping roleless candidates out of operational products
   without weakening any permission-specific denial.
@@ -136,13 +155,12 @@ Postgres, Redis — **over** introducing a new, parallel mechanism:
   names and deliberately different purposes — flagged here and in
   `phase2_admin_module.md` §5 specifically so a future agent does not merge
   them without reading this ADR first.
-- `AdminAuditFallbackMiddleware` adds a small amount of per-request overhead
-  (a path-prefix check) to every request through the `api` container, not
-  just admin routes — accepted as negligible (§8.7 notes the exact check).
-- Impersonation JWTs carry a second identity claim; any future JWT-parsing
-  code elsewhere in the codebase that assumes exactly one identity per token
-  must be updated to handle `imp` — flagged, not fixed pre-emptively, since no
-  such code exists today (verified during this plan's research pass).
+- `AdminAuditFallbackMiddleware` is retained only as an anomaly detector.
+  Release evidence counts exactly one transactional explicit row for each
+  successful privileged mutation.
+- Impersonation JWTs carry a second identity claim and require a live session
+  lookup. Candidate-only, view-only scope prevents privilege acquisition from
+  the target identity.
 - Product-level staff checks do not authorize an operation by themselves:
   non-superuser staff must still hold each endpoint's explicit permission.
   Roleless candidates retain verified-user flows such as MFA but cannot enter
@@ -163,10 +181,9 @@ Postgres, Redis — **over** introducing a new, parallel mechanism:
 - **LaunchDarkly / external flag vendor**: rejected — new external
   dependency with no existing precedent in this repo, for a feature Postgres
   already handles adequately at this scale.
-- **Session-table-backed impersonation, read every request**: rejected —
-  unnecessary DB round-trip on the hot path for a rarely-used feature; the
-  JWT claim already carries the needed identity, and the session table exists
-  for audit/expiry, not per-request lookup.
+- **Trust the impersonation JWT without a session lookup**: rejected — it
+  cannot enforce immediate revocation, real-actor deactivation, or permission
+  changes. Only impersonated requests incur the lookup.
 - **Force MFA on all admin accounts**: rejected — out of this PR's authority;
   left as a natural policy follow-up once self-service MFA has shipped and
   been used for a while.

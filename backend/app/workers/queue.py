@@ -5,6 +5,7 @@ from redis import Redis
 from rq import Queue
 
 from app.core.config import get_settings
+from app.core.logging import get_request_id, scrub_identifier
 from app.domain.enums import RequestedTier
 
 # Phase 1 queues (existing)
@@ -119,6 +120,11 @@ def get_worker_queue() -> Queue:
     return Queue(queue_name, connection=get_redis_connection())
 
 
+def _request_context_meta() -> dict[str, str]:
+    request_id = get_request_id()
+    return {"request_id": scrub_identifier(request_id)} if request_id else {}
+
+
 def enqueue_enrichment(
     job_id: str,
     requested_tiers: list[RequestedTier] | None = None,
@@ -142,12 +148,18 @@ def enqueue_enrichment(
     settings = get_settings()
     connection = get_redis_connection()
     timeout_seconds = settings.rq_job_timeout_seconds
+    request_meta = _request_context_meta()
 
     try:
         if settings.worker_queue_mode == "single":
             # Single queue mode: all tiers go to one queue
             queue = Queue("enrichment", connection=connection)
-            queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+            queue.enqueue(
+                run_enrichment_job,
+                job_id,
+                job_timeout=timeout_seconds,
+                meta=request_meta,
+            )
             logger.info(f"Enqueued job {job_id} to queue: enrichment")
         else:
             # Per-tier mode
@@ -155,7 +167,12 @@ def enqueue_enrichment(
                 # Child job: enqueue to its assigned tier queue
                 queue_name = get_queue_name_for_tiers(tiers)
                 queue = Queue(queue_name, connection=connection)
-                queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+                queue.enqueue(
+                    run_enrichment_job,
+                    job_id,
+                    job_timeout=timeout_seconds,
+                    meta=request_meta,
+                )
                 logger.info(f"Enqueued child job {job_id} to queue: {queue_name}")
             else:
                 # Parent job or simple job
@@ -165,7 +182,12 @@ def enqueue_enrichment(
                     # Simple job with single tier group - enqueue normally
                     queue_name = get_queue_name_for_tiers(tiers)
                     queue = Queue(queue_name, connection=connection)
-                    queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+                    queue.enqueue(
+                        run_enrichment_job,
+                        job_id,
+                        job_timeout=timeout_seconds,
+                        meta=request_meta,
+                    )
                     logger.info(f"Enqueued job {job_id} to queue: {queue_name}")
     except Exception as e:
         logger.error(

@@ -108,6 +108,8 @@ async def test_start_writes_impersonation_session_and_audit_entry(
         )
     ).scalar_one()
     assert audit_entry.actor_user_id == superuser_with_mfa.id
+    assert audit_entry.impersonated_by is None
+    assert audit_entry.impersonation_session_id == session.id
 
 
 async def test_cannot_impersonate_self(db_session, superuser_with_mfa):
@@ -265,7 +267,9 @@ async def test_end_impersonation_marks_session_ended_and_revokes_jti(
             )
         )
     ).scalar_one()
-    assert audit_entry.actor_user_id == superuser_with_mfa.id
+    assert audit_entry.actor_user_id == regular_user.id
+    assert audit_entry.impersonated_by == superuser_with_mfa.id
+    assert audit_entry.impersonation_session_id == session.id
     assert audit_entry.target_id == str(regular_user.id)
 
 

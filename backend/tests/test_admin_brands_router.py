@@ -21,11 +21,9 @@ Permission-gating "has the permission" cases use the `superuser` fixture
 app/modules/admin/permissions.py's `user_has_permission`), matching the
 existing convention in test_admin_roles_crud.py's
 `test_create_role_router_succeeds_for_superuser`. "Lacks the permission" cases
-use `regular_user` (no role at all), which also never touches the buggy
-role-permission join (see conftest.py's `SQLITE_ROLE_UUID_DASH_BUG_REASON`:
-`user.role_id is None` short-circuits `user_has_permission` to `False` before
-any query runs). One additional test below exercises the real, non-superuser
-RolePermission grant path end to end for `brands:read`.
+use `regular_user` (no role at all), which short-circuits
+`user_has_permission` to `False` before any query runs. Additional tests below
+exercise real, non-superuser RolePermission grants end to end.
 
 RELEASE-BLOCKING BUG FOUND WHILE WRITING THESE TESTS (now fixed):
 `app/modules/brands/repository.py`'s `create_brand`/`update_brand` only called
@@ -52,12 +50,10 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
 from sqlalchemy import select
 
 from app.auth.models import User
 from app.modules.brands.models import Brand
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
 
 # NOTE: no module-level `pytestmark = pytest.mark.asyncio` here -- see the
@@ -85,10 +81,7 @@ async def _create_brand(db_session, **overrides) -> Brand:
 
 async def _user_with_brand_permission(db_session, *, action: str) -> User:
     """Persisted non-superuser User assigned a freshly-created Role that grants
-    the migration-056-seeded ("brands", action) permission. Everything here
-    (Role, RolePermission, User.role_id) is written through the ORM in this
-    same test run, unlike the migration-raw-SQL-seeded rows
-    `SQLITE_ROLE_UUID_DASH_BUG_REASON` describes -- exercises the real
+    the migration-056-seeded ("brands", action) permission. Exercises the real
     `require_permission()` -> `user_has_permission()` -> RolePermission join,
     not the `is_superuser` bypass.
     """
@@ -151,22 +144,10 @@ async def test_list_brands_403_without_brands_read_permission(client, regular_us
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_list_brands_succeeds_with_real_brands_read_grant(client, db_session, auth_headers):
     """Same endpoint as above, but the granted user is a genuine non-superuser
     RBAC grant (see `_user_with_brand_permission`) rather than the
-    `is_superuser` bypass. Empirically returns 403 on SQLite even though the
-    grant is set up correctly -- confirmed by running this test in isolation
-    (see the module's `SQLITE_ROLE_UUID_DASH_BUG_REASON` import). This is the
-    same class of pre-existing, documented SQLite-only dashed/undashed UUID
-    mismatch `test_admin_rbac.py`'s `support_user` tests hit, here triggered
-    via `056_seed_brands_permissions.py`'s raw-SQL-seeded ("brands", "read")
-    Permission row instead of migration 038's raw-SQL-seeded Role row -- not
-    a bug in `app/modules/brands/`. xfail is conditional on `not
-    USING_POSTGRES` so this would run for real (not silently skip) if this
-    suite is ever run against Postgres."""
+    `is_superuser` bypass."""
     brand = await _create_brand(db_session)
     reader = await _user_with_brand_permission(db_session, action="read")
 
@@ -341,14 +322,9 @@ async def test_update_brand_409_when_slug_belongs_to_another_brand(
     assert_error(response, 409)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_update_brand_succeeds_with_real_brands_write_grant(client, db_session, auth_headers):
     """Same endpoint as `test_update_brand_updates_allowed_fields`, but exercises
-    the real, non-superuser RBAC grant path (see `_user_with_brand_permission`).
-    Same pre-existing SQLite-only dashed/undashed UUID join bug as
-    `test_list_brands_succeeds_with_real_brands_read_grant` above."""
+    the real, non-superuser RBAC grant path (see `_user_with_brand_permission`)."""
     brand = await _create_brand(db_session)
     writer = await _user_with_brand_permission(db_session, action="write")
 

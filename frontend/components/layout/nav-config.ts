@@ -39,6 +39,7 @@ export type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
+  ownerOnly?: boolean;
   permission?: Permission;
   mobilePrimary?: boolean;
 };
@@ -119,7 +120,7 @@ const deskNav: NavSection = {
       href: "/desk/roles",
       label: "Roles",
       icon: ShieldCheck,
-      permission: { resource: "roles", action: "read" },
+      ownerOnly: true,
     },
     {
       href: "/desk/staff-invites",
@@ -137,13 +138,13 @@ const deskNav: NavSection = {
       href: "/desk/feature-flags",
       label: "Feature flags",
       icon: Flag,
-      permission: { resource: "feature_flags", action: "read" },
+      ownerOnly: true,
     },
     {
       href: "/desk/queues",
       label: "Queues",
       icon: ListTodo,
-      permission: { resource: "queues", action: "read" },
+      ownerOnly: true,
     },
     {
       href: "/desk/analytics",

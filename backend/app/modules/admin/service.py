@@ -10,9 +10,9 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
+from app.core.errors import AppError
 from app.modules.admin import repository
 from app.modules.admin.audit import record_admin_action
-from app.modules.admin.models import FeatureFlag
 from app.modules.admin.schemas import (
     AdminUserResponse,
     UpsertFeatureFlagRequest,
@@ -93,6 +93,26 @@ async def assign_role(
     role_id: UUID | None,
     ip_address: str | None,
 ) -> AdminUserResponse:
+    user = await stage_role_assignment(
+        db,
+        actor_id=actor_id,
+        target_user_id=target_user_id,
+        role_id=role_id,
+        ip_address=ip_address,
+    )
+    await db.commit()
+    return _user_to_response(user)
+
+
+async def stage_role_assignment(
+    db: AsyncSession,
+    *,
+    actor_id: UUID,
+    target_user_id: UUID,
+    role_id: UUID | None,
+    ip_address: str | None,
+) -> User:
+    """Stage a role change and its audit row without committing the caller's transaction."""
     user = await repository.get_user_by_id(db, target_user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
@@ -113,8 +133,7 @@ async def assign_role(
         after=after,
         ip_address=ip_address,
     )
-    await db.commit()
-    return _user_to_response(user)
+    return user
 
 
 async def upsert_feature_flag(
@@ -124,36 +143,14 @@ async def upsert_feature_flag(
     key: str,
     payload: UpsertFeatureFlagRequest,
     ip_address: str | None,
-) -> FeatureFlag:
-    flag = await repository.get_feature_flag(db, key)
-    before = None
-    if flag is None:
-        flag = FeatureFlag(
-            key=key,
-            enabled=payload.enabled,
-            value=payload.value,
-            description=payload.description,
-            updated_by=actor_id,
-        )
-        db.add(flag)
-    else:
-        before = {"enabled": flag.enabled, "value": flag.value}
-        flag.enabled = payload.enabled
-        flag.value = payload.value
-        flag.description = payload.description
-        flag.updated_by = actor_id
-    await db.flush()
-    after = {"enabled": flag.enabled, "value": flag.value}
+) -> None:
+    del db, actor_id, key, payload, ip_address
+    await reject_feature_flag_mutation()
 
-    await record_admin_action(
-        db,
-        actor_user_id=actor_id,
-        action="feature_flag.flipped",
-        target_type="feature_flag",
-        target_id=key,
-        before=before,
-        after=after,
-        ip_address=ip_address,
+
+async def reject_feature_flag_mutation() -> None:
+    raise AppError(
+        code="FEATURE_FLAGS_READ_ONLY",
+        message="Feature flag mutation is disabled until an application consumer exists.",
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
     )
-    await db.commit()
-    return flag

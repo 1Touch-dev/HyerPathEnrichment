@@ -48,8 +48,8 @@ from app.core.config import get_settings
 from app.database.session import get_db_session
 from app.dependencies.rate_limit import enforce_auth_rate_limit, enforce_auth_refresh_rate_limit
 from app.infrastructure.redis import get_redis_client
-from app.modules.admin import service as admin_service
 from app.modules.admin.models import Permission, Role, RolePermission
+from app.modules.staff_invites import redemption as staff_invites_redemption
 from app.modules.staff_invites import repository as staff_invites_repository
 from app.modules.staff_invites.models import StaffInvite
 
@@ -189,15 +189,42 @@ async def register(
     # hard-fail signup -- the user still gets a normal candidate account, and the
     # response carries a warning instead (see chunk 05's "Ambiguities resolved").
     invite: StaffInvite | None = None
+    invite_role: Role | None = None
     invite_warning: str | None = None
     if user_data.invite_token:
-        invite = await staff_invites_repository.get_invite_by_token(db, user_data.invite_token)
+        invite = await staff_invites_repository.get_invite_by_token(
+            db,
+            user_data.invite_token,
+            lock_for_update=True,
+        )
         invite_expired = invite is not None and _ensure_aware(invite.expires_at) < datetime.now(UTC)
-        if invite is None or invite.accepted_at is not None or invite_expired:
+        if invite is not None and invite.role_id is not None:
+            role_result = await db.execute(select(Role).where(Role.name == "recruiter"))
+            candidate_role = role_result.scalar_one_or_none()
+            if candidate_role is not None and candidate_role.id == invite.role_id:
+                invite_role = candidate_role
+        invite_invalid = (
+            invite is None
+            or invite.accepted_at is not None
+            or invite.revoked_at is not None
+            or invite_expired
+            or invite.role_name != "recruiter"
+            or invite_role is None
+            or invite.invited_by is None
+            or invite.email.casefold() != user_data.email.casefold()
+        )
+        if invite_invalid:
             invite = None
+            invite_role = None
             invite_warning = (
                 "Your invite link is invalid or has expired; "
                 "your account was created without staff access."
+            )
+        concurrent_user = await db.scalar(select(User).where(User.email == user_data.email))
+        if concurrent_user is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
             )
 
     # Create user
@@ -209,38 +236,13 @@ async def register(
         is_verified=False,
         is_active=True,
     )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-
-    # Accept a valid staff invite: assign the requested role and mark it used.
-    # Unlike the superseded org-invite design, this sets nothing else on `User`
-    # -- there is no org/brand membership concept in this schema.
-    if invite is not None:
-        role_result = await db.execute(select(Role).where(Role.name == invite.role_name))
-        role = role_result.scalar_one_or_none()
-        if role is not None and invite.invited_by is not None:
-            await admin_service.assign_role(
-                db,
-                actor_id=invite.invited_by,
-                target_user_id=user.id,
-                role_id=role.id,
-                ip_address=get_client_ip(request),
-            )
-        else:
-            # Defensive fallback only -- RBAC roles (team_owner/recruiter) are
-            # fully merged, so this should not trigger in normal operation
-            # (it can still happen if the inviter's account was later deleted,
-            # since invited_by is SET NULL on delete).
-            logger.warning(
-                "Staff invite %s could not be resolved to a role assignment "
-                "(role=%r, invited_by=%r); skipping role assignment.",
-                invite.id,
-                invite.role_name,
-                invite.invited_by,
-            )
-        invite.accepted_at = datetime.now(UTC)
-        await db.commit()
+    user = await staff_invites_redemption.persist_registration(
+        db,
+        user=user,
+        invite=invite,
+        invite_role=invite_role,
+        ip_address=get_client_ip(request),
+    )
 
     # Generate verification token
     verification_token = await generate_verification_token(db, user.id)

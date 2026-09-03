@@ -9,10 +9,9 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
 from sqlalchemy import select
 
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
+from app.core.logging import scrub_sensitive_data
 from tests.envelope_helpers import assert_error, assert_success
 
 
@@ -124,9 +123,11 @@ async def test_moderate_manual_job_entry_happy_path(
     log_entry = result.scalar_one()
     assert log_entry.actor_user_id == superuser.id
     assert log_entry.target_type == "manual_job_entry"
-    assert log_entry.before["deleted_at"] is None
-    assert log_entry.after["deleted_at"] is not None
-    assert log_entry.after["reason"] == "Duplicate entry reported"
+    deleted_at_key = next(iter(scrub_sensitive_data({"deleted_at": None})))
+    reason_key = next(iter(scrub_sensitive_data({"reason": None})))
+    assert log_entry.before[deleted_at_key] is None
+    assert log_entry.after[deleted_at_key] is not None
+    assert log_entry.after[reason_key] == "Duplicate entry reported"
 
 
 async def test_moderate_manual_job_entry_restore(
@@ -169,9 +170,6 @@ async def test_moderate_manual_job_entry_requires_moderate_permission_for_regula
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_read_but_not_moderate(
     client, support_user, auth_headers, db_session, regular_user
 ):

@@ -98,8 +98,7 @@ def upgrade() -> None:
     if missing:
         slugs = ", ".join(f"{resource}:{action}" for resource, action in missing)
         raise RuntimeError(
-            "061_team_owner_full_desk_grants is missing expected permission rows: "
-            f"{slugs}"
+            f"061_team_owner_full_desk_grants is missing expected permission rows: {slugs}"
         )
 
     uuid_type = _uuid_type()
@@ -159,9 +158,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     tracked = bind.execute(
-        sa.text(
-            f"SELECT role_id, permission_id FROM {GRANT_TRACKING_TABLE}"
-        )
+        sa.text(f"SELECT role_id, permission_id FROM {GRANT_TRACKING_TABLE}")
     ).fetchall()
     for role_id, permission_id in tracked:
         bind.execute(

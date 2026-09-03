@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { JobHistoryTable } from "@/components/console/JobHistoryTable";
 import { JobStatusBadge } from "@/components/console/JobStatusBadge";
+import { useAppShellAccess } from "@/components/layout/app-shell-access";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,6 +14,7 @@ import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 
 export function DashboardView() {
   const queryClient = useQueryClient();
+  const { candidateMutationsAllowed } = useAppShellAccess();
   const { data, isLoading, error } = useJobMetricsQuery();
 
   useEffect(() => {
@@ -61,7 +62,7 @@ export function DashboardView() {
             <CardDescription>Latest enrichment runs from the pipeline.</CardDescription>
           </div>
           <Button asChild variant="outline" size="sm" className="shrink-0 self-start sm:self-auto">
-            <Link href="/osint/jobs">View all</Link>
+            <Link href="/app/jobs">View all</Link>
           </Button>
         </CardHeader>
         <CardContent>
@@ -79,7 +80,7 @@ export function DashboardView() {
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <Link
-                      href={`/osint/jobs/${job.id}`}
+                      href={`/app/jobs/${job.id}`}
                       className="min-w-0 flex-1 truncate font-mono text-primary hover:underline"
                     >
                       {job.id}
@@ -100,14 +101,16 @@ export function DashboardView() {
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap gap-2">
-        <Button asChild>
-          <Link href="/osint">New enrichment</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/desk/system-health">System health</Link>
-        </Button>
-      </div>
+      {candidateMutationsAllowed ? (
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href="/osint">New enrichment</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/desk/system-health">System health</Link>
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

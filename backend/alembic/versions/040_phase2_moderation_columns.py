@@ -43,9 +43,15 @@ def upgrade() -> None:
                 )
             )
             batch_op.add_column(sa.Column("moderated_by", uuid_type, nullable=True))
-            batch_op.add_column(sa.Column("moderated_at", sa.DateTime(timezone=True), nullable=True))
+            batch_op.add_column(
+                sa.Column("moderated_at", sa.DateTime(timezone=True), nullable=True)
+            )
             batch_op.create_foreign_key(
-                "fk_job_postings_moderated_by", "users", ["moderated_by"], ["id"], ondelete="SET NULL"
+                "fk_job_postings_moderated_by",
+                "users",
+                ["moderated_by"],
+                ["id"],
+                ondelete="SET NULL",
             )
     else:
         op.add_column(

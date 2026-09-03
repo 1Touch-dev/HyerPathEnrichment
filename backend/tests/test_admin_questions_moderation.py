@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
+from app.core.logging import scrub_sensitive_data
 from app.models import InterviewQuestion
 from app.modules.admin.models import AdminAuditLog
 from tests.envelope_helpers import assert_error, assert_success
@@ -116,9 +117,10 @@ async def test_moderate_question_happy_path(client, superuser, auth_headers, db_
     entry = result.scalar_one()
     assert entry.actor_user_id == superuser.id
     assert entry.target_type == "interview_question"
-    assert entry.before["moderation_status"] == "active"
-    assert entry.after["moderation_status"] == "hidden"
-    assert entry.after["reason"] == "Low quality"
+    assert entry.before == scrub_sensitive_data({"moderation_status": "active"})
+    assert entry.after == scrub_sensitive_data(
+        {"moderation_status": "hidden", "reason": "Low quality"}
+    )
 
 
 async def test_moderate_question_404(client, superuser, auth_headers):

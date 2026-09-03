@@ -11,17 +11,31 @@ from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
 from app.dependencies.rate_limit import enforce_admin_mfa_verify_rate_limit
 from app.modules.admin import mfa
-from app.modules.admin.schemas import MfaEnrollResponse, MfaStatusResponse, MfaVerifyRequest
+from app.modules.admin.schemas import (
+    MfaEnrollRequest,
+    MfaEnrollResponse,
+    MfaStatusResponse,
+    MfaVerifyRequest,
+)
 
 router = APIRouter(prefix="/api/admin/mfa", tags=["admin"], route_class=EnvelopeAPIRoute)
 
 
-@router.post("/enroll", response_model=MfaEnrollResponse)
+@router.post(
+    "/enroll",
+    response_model=MfaEnrollResponse,
+    dependencies=[Depends(enforce_admin_mfa_verify_rate_limit)],
+)
 async def enroll_mfa(
     current_user: VerifiedUser,
+    payload: MfaEnrollRequest | None = None,
     db: AsyncSession = Depends(get_db_session),
 ) -> MfaEnrollResponse:
-    return await mfa.enroll_mfa(db, current_user)
+    return await mfa.enroll_mfa(
+        db,
+        current_user,
+        current_code=payload.current_code if payload else None,
+    )
 
 
 @router.post(
@@ -38,12 +52,18 @@ async def confirm_mfa_enrollment(
     await mfa.confirm_enrollment(db, current_user, payload.code)
 
 
-@router.post("/disable", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+@router.post(
+    "/disable",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    dependencies=[Depends(enforce_admin_mfa_verify_rate_limit)],
+)
 async def disable_mfa(
+    payload: MfaVerifyRequest,
     current_user: VerifiedUser,
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    await mfa.disable_mfa(db, current_user)
+    await mfa.disable_mfa(db, current_user, payload.code)
 
 
 @router.get("/status", response_model=MfaStatusResponse)

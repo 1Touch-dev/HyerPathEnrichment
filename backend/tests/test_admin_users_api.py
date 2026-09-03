@@ -13,9 +13,15 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
+from app.core.logging import scrub_sensitive_data
 from app.modules.admin.models import AdminAuditLog
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
+from tests.conftest import USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
+
+SQLITE_ASSIGN_ROLE_LOOKUP_BUG_REASON = (
+    "SQLite stores the migration-seeded role UUID with dashes while the role "
+    "assignment response resolves it through a separate strict UUID lookup"
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -38,9 +44,6 @@ async def test_list_users_regular_user_forbidden(client, regular_user, auth_head
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_list_users(client, support_user, auth_headers):
     """support role grants users:read (migration 038) — RBAC path, not the
     is_superuser bypass."""
@@ -66,9 +69,8 @@ async def test_suspend_user_writes_audit_log(
         )
     )
     entry = result.scalar_one()
-    assert entry.before["is_active"] is True
-    assert entry.after["is_active"] is False
-    assert entry.after["reason"] == "ToS violation"
+    assert entry.before == scrub_sensitive_data({"is_active": True})
+    assert entry.after == scrub_sensitive_data({"is_active": False, "reason": "ToS violation"})
 
 
 async def test_suspend_user_requires_users_suspend_permission(
@@ -111,7 +113,7 @@ async def test_assign_role_requires_strict_superuser_not_rbac_permission(
 
 
 @pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
+    condition=not USING_POSTGRES, reason=SQLITE_ASSIGN_ROLE_LOOKUP_BUG_REASON, strict=True
 )
 async def test_assign_role_succeeds_for_superuser(
     client, superuser, regular_user, db_session, auth_headers

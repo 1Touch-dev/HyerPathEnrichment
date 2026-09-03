@@ -7,19 +7,17 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def _auth_headers() -> dict[str, str]:
-    return {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
-
-
-def test_dsar_access_returns_full_enriched_data() -> None:
+def test_dsar_access_returns_full_enriched_data(
+    staff_auth_headers: dict[str, str], regular_user, auth_headers
+) -> None:
     """Test that DSAR access returns complete enriched data."""
     client = TestClient(app)
-    enrich_headers = _auth_headers()
+    candidate_headers = auth_headers(regular_user.id)
     identifier = f"dsar-access-{uuid4().hex}@example.com"
 
     enrich_response = client.post(
         "/enrich/sync",
-        headers=enrich_headers,
+        headers=staff_auth_headers,
         json={"email": identifier, "username": "dsar-user", "requested_tiers": ["tier2"]},
     )
     assert enrich_response.status_code == 200
@@ -27,7 +25,7 @@ def test_dsar_access_returns_full_enriched_data() -> None:
 
     response = client.post(
         "/api/dsar",
-        headers=enrich_headers,
+        headers=candidate_headers,
         json={"identifier": identifier, "request_type": "access"},
     )
     assert response.status_code == 201
@@ -42,19 +40,21 @@ def test_dsar_access_returns_full_enriched_data() -> None:
     assert summary["first_job_at"] is not None
     assert summary["last_job_at"] is not None
 
-    fetched = client.get(f"/api/dsar/{payload['id']}", headers=enrich_headers)
+    fetched = client.get(f"/api/dsar/{payload['id']}", headers=candidate_headers)
     assert fetched.status_code == 200
     assert fetched.json()["data"]["id"] == payload["id"]
 
 
-def test_dsar_deletion_suppresses_and_purges() -> None:
+def test_dsar_deletion_suppresses_and_purges(
+    staff_auth_headers: dict[str, str], regular_user, auth_headers
+) -> None:
     client = TestClient(app)
-    enrich_headers = _auth_headers()
+    candidate_headers = auth_headers(regular_user.id)
     identifier = f"dsar-delete-{uuid4().hex}@example.com"
 
     enrich = client.post(
         "/enrich/sync",
-        headers=enrich_headers,
+        headers=staff_auth_headers,
         json={"email": identifier, "username": "dsar-user", "requested_tiers": ["tier2"]},
     )
     assert enrich.status_code == 200
@@ -62,7 +62,7 @@ def test_dsar_deletion_suppresses_and_purges() -> None:
 
     response = client.post(
         "/api/dsar",
-        headers=enrich_headers,
+        headers=candidate_headers,
         json={"identifier": identifier, "request_type": "deletion"},
     )
     assert response.status_code == 201
@@ -71,41 +71,43 @@ def test_dsar_deletion_suppresses_and_purges() -> None:
     assert payload["summary"]["suppressed"] is True
     assert payload["summary"]["jobs_cleared"] >= 1
 
-    job = client.get(f"/enrich/{job_id}", headers=enrich_headers)
+    job = client.get(f"/enrich/{job_id}", headers=staff_auth_headers)
     job_data = job.json()["data"]
     assert job_data["dossier"] == {} or job_data["status"] == "purged"
 
     blocked = client.post(
         "/enrich/sync",
-        headers=enrich_headers,
+        headers=staff_auth_headers,
         json={"email": identifier, "username": "dsar-user", "requested_tiers": ["tier2"]},
     )
     assert blocked.json()["data"]["status"] == "suppressed"
 
 
-def test_dsar_access_merges_multiple_jobs() -> None:
+def test_dsar_access_merges_multiple_jobs(
+    staff_auth_headers: dict[str, str], regular_user, auth_headers
+) -> None:
     """Test that DSAR access merges data from multiple enrichment jobs."""
     client = TestClient(app)
-    enrich_headers = _auth_headers()
+    candidate_headers = auth_headers(regular_user.id)
     identifier = f"dsar-merge-{uuid4().hex}@example.com"
 
     enrich1 = client.post(
         "/enrich/sync",
-        headers=enrich_headers,
+        headers=staff_auth_headers,
         json={"email": identifier, "username": "user1", "requested_tiers": ["tier2"]},
     )
     assert enrich1.status_code == 200
 
     enrich2 = client.post(
         "/enrich/sync",
-        headers=enrich_headers,
+        headers=staff_auth_headers,
         json={"email": identifier, "username": "user2", "requested_tiers": ["tier2"]},
     )
     assert enrich2.status_code == 200
 
     response = client.post(
         "/api/dsar",
-        headers=enrich_headers,
+        headers=candidate_headers,
         json={"identifier": identifier, "request_type": "access"},
     )
     assert response.status_code == 201
@@ -117,14 +119,14 @@ def test_dsar_access_merges_multiple_jobs() -> None:
     assert "enriched_data" in summary
 
 
-def test_dsar_access_with_no_jobs() -> None:
+def test_dsar_access_with_no_jobs(regular_user, auth_headers) -> None:
     """Test DSAR access for identifier with no enrichment history."""
     client = TestClient(app)
     identifier = f"dsar-nojobs-{uuid4().hex}@example.com"
 
     response = client.post(
         "/api/dsar",
-        headers=_auth_headers(),
+        headers=auth_headers(regular_user.id),
         json={"identifier": identifier, "request_type": "access"},
     )
     assert response.status_code == 201

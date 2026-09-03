@@ -13,7 +13,15 @@ import { useInterval } from "@/hooks/useInterval";
 const PAGE_SIZE = 50;
 const POLL_INTERVAL_MS = 5000;
 
-export function JobHistoryPanel() {
+type JobHistoryPanelProps = {
+  jobsBasePath?: string;
+  queryString?: string;
+};
+
+export function JobHistoryPanel({
+  jobsBasePath = "/osint/jobs",
+  queryString = "",
+}: JobHistoryPanelProps = {}) {
   const queryClient = useQueryClient();
   const { data, isLoading, error, isFetching, fetchNextPage, hasNextPage, refetch } =
     useJobListQuery();
@@ -63,6 +71,8 @@ export function JobHistoryPanel() {
         total={total}
         limit={PAGE_SIZE}
         offset={offset}
+        jobsBasePath={jobsBasePath}
+        queryString={queryString}
         loading={isLoading || isFetching}
         onLoadMore={hasNextPage ? () => void fetchNextPage() : undefined}
       />

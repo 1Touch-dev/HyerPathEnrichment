@@ -10,7 +10,6 @@ from uuid import uuid4
 
 import pytest
 
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
 
 # NOTE: no module-level `pytestmark = pytest.mark.asyncio` here — this file
@@ -109,9 +108,6 @@ async def test_list_regular_user_forbidden(client, regular_user, auth_headers):
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_list(client, support_user, auth_headers):
     """migration 041 grants `job_swipe:read` (a READ_ONLY_ACTIONS entry) to the
     seeded 'support' role — RBAC path, not the is_superuser bypass."""

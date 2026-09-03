@@ -26,13 +26,12 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
 from sqlalchemy import select
 
+from app.core.logging import scrub_sensitive_data
 from app.modules.admin.models import AdminAuditLog, Role
 from app.modules.brands.models import Brand
 from app.modules.documents.models import CandidateDocument
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 
 # NOTE: no module-level `pytestmark = pytest.mark.asyncio` — matches the
 # convention in test_admin_rbac.py / test_admin_audit.py. pyproject.toml's
@@ -99,8 +98,10 @@ class TestDeactivateFlipsIsActiveAndAudits:
             audit_rows = audit_result.scalars().all()
             assert len(audit_rows) == 1
             assert audit_rows[0].actor_user_id == superuser_id
-            assert audit_rows[0].before == {"is_active": True}
-            assert audit_rows[0].after == {"is_active": False, "reason": "no longer operating"}
+            assert audit_rows[0].before == scrub_sensitive_data({"is_active": True})
+            assert audit_rows[0].after == scrub_sensitive_data(
+                {"is_active": False, "reason": "no longer operating"}
+            )
 
     async def test_reactivate_flips_is_active_true_and_writes_own_audit_row(
         self, client, superuser, auth_headers, db_session
@@ -133,8 +134,8 @@ class TestDeactivateFlipsIsActiveAndAudits:
             )
             audit_rows = audit_result.scalars().all()
             assert len(audit_rows) == 1
-            assert audit_rows[0].before == {"is_active": False}
-            assert audit_rows[0].after == {"is_active": True}
+            assert audit_rows[0].before == scrub_sensitive_data({"is_active": False})
+            assert audit_rows[0].after == scrub_sensitive_data({"is_active": True})
 
     async def test_deactivate_then_reactivate_writes_two_distinct_audit_rows(
         self, client, superuser, auth_headers, db_session
@@ -216,16 +217,8 @@ class TestPermissionGating:
     but no `brands:delete` — see 056_seed_brands_permissions.py). These tests
     exercise the real HTTP-level `require_permission("brands", "delete")`
     dependency chain end-to-end, not just the migration's row-level grant.
-
-    xfail'd (strict) on SQLite per SQLITE_ROLE_UUID_DASH_BUG_REASON — role-based
-    (non-superuser) permission checks are known-broken there because
-    migration-seeded role UUIDs are dashed while ORM-written `users.role_id`
-    values are undashed on SQLite; verified to pass for real on Postgres.
     """
 
-    @pytest.mark.xfail(
-        condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-    )
     async def test_team_owner_can_deactivate_brand(self, client, auth_headers, db_session):
         brand = await _make_brand(db_session)
         team_owner_user = await _make_user_with_role(db_session, "team_owner")
@@ -238,9 +231,6 @@ class TestPermissionGating:
         assert response.status_code == 200
         assert response.json()["data"]["is_active"] is False
 
-    @pytest.mark.xfail(
-        condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-    )
     async def test_team_owner_can_reactivate_brand(self, client, auth_headers, db_session):
         brand = await _make_brand(db_session, is_active=False)
         team_owner_user = await _make_user_with_role(db_session, "team_owner")
@@ -256,12 +246,7 @@ class TestPermissionGating:
         self, client, auth_headers, db_session
     ):
         """`recruiter` has `brands:read` (056_seed_brands_permissions.py) but
-        not `brands:delete` — must be denied. Unlike the team_owner tests
-        above, this is a straightforward deny-path check: `user_has_permission`
-        returning False for a real (non-None) `role_id` doesn't depend on the
-        role-based lookup actually finding a matching row, so it is not subject
-        to the SQLite dashed/undashed UUID join bug the same way an allow-path
-        assertion would be. It's exercised here as a plain (non-xfail) test.
+        not `brands:delete` — must be denied.
         """
         brand = await _make_brand(db_session)
         recruiter_user = await _make_user_with_role(db_session, "recruiter")
@@ -286,8 +271,7 @@ class TestPermissionGating:
         assert response.status_code == 403
 
     async def test_user_with_no_role_gets_403(self, client, auth_headers, regular_user):
-        """`regular_user` has `role_id is None` — `user_has_permission` denies
-        without a DB lookup, so this path is unaffected by the SQLite bug."""
+        """`regular_user` has `role_id is None`, so permission lookup denies."""
         response = client.post(
             f"/api/admin/brands/{uuid4()}/deactivate",
             json={},

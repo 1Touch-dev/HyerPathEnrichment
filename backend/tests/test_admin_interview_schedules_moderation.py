@@ -11,7 +11,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
+from app.core.logging import scrub_sensitive_data
 from tests.envelope_helpers import assert_error, assert_success
 
 
@@ -161,9 +161,11 @@ async def test_moderate_interview_schedule_cancel_happy_path(
     entry = result.scalar_one()
     assert entry.actor_user_id == superuser.id
     assert entry.target_type == "interview_schedule"
-    assert entry.before["admin_cancelled_at"] is None
-    assert entry.after["admin_cancelled_at"] is not None
-    assert entry.after["reason"] == "Candidate reported no-show by employer"
+    cancelled_at_key = next(iter(scrub_sensitive_data({"admin_cancelled_at": None})))
+    reason_key = next(iter(scrub_sensitive_data({"reason": None})))
+    assert entry.before[cancelled_at_key] is None
+    assert entry.after[cancelled_at_key] is not None
+    assert entry.after[reason_key] == "Candidate reported no-show by employer"
 
 
 async def test_moderate_interview_schedule_restore(
@@ -211,9 +213,6 @@ async def test_moderate_interview_schedule_requires_moderate_permission_for_regu
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_read_but_not_moderate(
     client, support_user, auth_headers, db_session, regular_user
 ):

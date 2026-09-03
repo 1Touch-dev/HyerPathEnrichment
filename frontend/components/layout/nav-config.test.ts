@@ -36,6 +36,9 @@ describe("product navigation", () => {
         { resource: "linkedin_sourcing", action: "write" },
         { resource: "brands", action: "read" },
         { resource: "users", action: "read" },
+        { resource: "roles", action: "read" },
+        { resource: "feature_flags", action: "read" },
+        { resource: "queues", action: "read" },
       ],
     };
 
@@ -62,4 +65,19 @@ describe("product navigation", () => {
       expect.arrayContaining(["Roles", "Feature flags", "Queues", "Signals"]),
     );
   });
+
+  it.each(["admin", "team_owner"])(
+    "shows owner-only items to %s without read permissions",
+    (role) => {
+      const owner: ProductDoorUser = {
+        is_superuser: false,
+        role_id: "role-owner",
+        role_name: role,
+        permissions: [],
+      };
+      expect(labels("desk", owner)).toEqual(
+        expect.arrayContaining(["Roles", "Feature flags", "Queues"]),
+      );
+    },
+  );
 });

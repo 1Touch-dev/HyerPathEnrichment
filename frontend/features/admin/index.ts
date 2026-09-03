@@ -1,7 +1,7 @@
 export { useAdminUsers, useUpdateUserStatus, useAssignUserRole } from "./hooks/useAdminUsers";
 export { useAuditLogs } from "./hooks/useAuditLogs";
 export { useAiActions, useAiAction } from "./hooks/useAiActions";
-export { useFeatureFlags, useUpsertFeatureFlag } from "./hooks/useFeatureFlags";
+export { useFeatureFlags } from "./hooks/useFeatureFlags";
 export { useQueuesOverview, useFailedJobs, useRetryFailedJob } from "./hooks/useQueues";
 export { useSystemHealth } from "./hooks/useSystemHealth";
 export { useJobMatchAnalytics } from "./hooks/useAnalytics";

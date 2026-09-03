@@ -1,36 +1,46 @@
 import { expect, test } from "@playwright/test";
 
 const redirectCases = [
-  ["/app/enrich", "/osint"],
-  ["/app/history", "/osint/jobs"],
-  ["/app/jobs", "/osint/jobs"],
-  ["/app/jobs/dossier-123", "/osint/jobs/dossier-123"],
-  ["/app/signals", "/desk/signals"],
-  ["/app/dashboard", "/osint"],
-  ["/app/health", "/desk/system-health"],
+  ["/app/enrich?tiers=tier1", "/osint?tiers=tier1"],
+  ["/app/signals?source=webhook", "/desk/signals?source=webhook"],
   ["/app/admin", "/desk"],
-  ["/app/admin/system-health", "/desk/system-health"],
+  ["/app/admin/system-health?probe=redis", "/desk/system-health?probe=redis"],
+] as const;
+
+const directCandidateCases = [
+  "/app/jobs?state=queued",
+  "/app/history?cursor=next",
+  "/app/jobs/dossier-123?tiers=tier2&view=raw",
+  "/app/dashboard?range=7d",
+  "/app/health?probe=bff",
 ] as const;
 
 test.describe("temporary product door redirects", () => {
   for (const [source, target] of redirectCases) {
     test(`${source} redirects to ${target} with 307`, async ({ request }) => {
       const response = await request.get(source, { maxRedirects: 0 });
+      const location = new URL(response.headers().location, "http://127.0.0.1:3000");
+      const expected = new URL(target, "http://127.0.0.1:3000");
 
       expect(response.status()).toBe(307);
-      expect(new URL(response.headers().location, "http://127.0.0.1:3000").pathname).toBe(target);
+      expect(location.pathname).toBe(expected.pathname);
+      expect(location.search).toBe(expected.search);
     });
   }
 
-  test("dynamic IDs and query strings survive", async ({ request }) => {
-    const response = await request.get("/app/jobs/dossier-123?tiers=tier2&view=raw", {
-      maxRedirects: 0,
-    });
-    const location = new URL(response.headers().location, "http://127.0.0.1:3000");
+  test("Candidate routes remain direct pages and preserve deep links and queries", async ({
+    request,
+  }) => {
+    test.setTimeout(90_000);
 
-    expect(response.status()).toBe(307);
-    expect(location.pathname).toBe("/osint/jobs/dossier-123");
-    expect(location.searchParams.get("tiers")).toBe("tier2");
-    expect(location.searchParams.get("view")).toBe("raw");
+    for (const source of directCandidateCases) {
+      const response = await request.get(source, { maxRedirects: 0 });
+      const current = new URL(response.url());
+      const expected = new URL(source, "http://127.0.0.1:3000");
+
+      expect(response.status()).toBe(200);
+      expect(current.pathname).toBe(expected.pathname);
+      expect(current.search).toBe(expected.search);
+    }
   });
 });

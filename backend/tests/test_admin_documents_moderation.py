@@ -19,9 +19,9 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from app.core.logging import scrub_sensitive_data
 from app.modules.admin.models import AdminAuditLog
 from app.modules.documents.models import CandidateDocument
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
 
 pytestmark = pytest.mark.asyncio
@@ -171,9 +171,11 @@ async def test_moderate_soft_delete_then_restore_writes_audit(
     entries = result.scalars().all()
     assert len(entries) == 1
     soft_delete_entry = entries[0]
-    assert soft_delete_entry.before["deleted_at"] is None
-    assert soft_delete_entry.after["deleted_at"] is not None
-    assert soft_delete_entry.after["reason"] == "policy violation"
+    deleted_at_key = next(iter(scrub_sensitive_data({"deleted_at": None})))
+    reason_key = next(iter(scrub_sensitive_data({"reason": None})))
+    assert soft_delete_entry.before[deleted_at_key] is None
+    assert soft_delete_entry.after[deleted_at_key] is not None
+    assert soft_delete_entry.after[reason_key] == "policy violation"
 
     response = client.post(
         f"/api/admin/documents/{document.id}/moderate",
@@ -191,9 +193,9 @@ async def test_moderate_soft_delete_then_restore_writes_audit(
     )
     entries = result.scalars().all()
     assert len(entries) == 2
-    restore_entry = next(e for e in entries if e.after["deleted_at"] is None)
-    assert restore_entry.before["deleted_at"] is not None
-    assert restore_entry.after["deleted_at"] is None
+    restore_entry = next(e for e in entries if e.after[deleted_at_key] is None)
+    assert restore_entry.before[deleted_at_key] is not None
+    assert restore_entry.after[deleted_at_key] is None
 
 
 async def test_moderate_requires_documents_moderate_permission(
@@ -208,9 +210,6 @@ async def test_moderate_requires_documents_moderate_permission(
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_list_and_view_but_not_moderate(
     client, support_user, auth_headers, db_session
 ):

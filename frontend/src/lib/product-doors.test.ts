@@ -3,6 +3,7 @@ import {
   filterByPermissions,
   getDefaultProduct,
   getUserHome,
+  isOwnerUser,
   isStaffUser,
   safeLocalRedirect,
   type ProductDoorUser,
@@ -41,13 +42,23 @@ describe("product door resolution", () => {
     expect(isStaffUser(user({ role_name: "recruiter" }))).toBe(false);
     expect(isStaffUser(user({ role_id: "role-1" }))).toBe(true);
   });
+
+  it.each([
+    ["superuser", user({ is_superuser: true }), true],
+    ["admin", user({ role_name: "admin" }), true],
+    ["team owner", user({ role_name: "team_owner" }), true],
+    ["recruiter", user({ role_name: "recruiter" }), false],
+    ["candidate", user(), false],
+  ] as const)("classifies %s owner access", (_name, identity, expected) => {
+    expect(isOwnerUser(identity)).toBe(expected);
+  });
 });
 
 describe("permission filtering", () => {
   const items = [
     { label: "Open" },
     { label: "Users", permission: { resource: "users", action: "read" } },
-    { label: "Queues", permission: { resource: "queues", action: "read" } },
+    { label: "Queues", ownerOnly: true },
   ];
 
   it("keeps public items and matching permission pairs", () => {
@@ -61,6 +72,23 @@ describe("permission filtering", () => {
 
   it("lets superusers cross every permission gate", () => {
     expect(filterByPermissions(items, user({ is_superuser: true }))).toEqual(items);
+  });
+
+  it("keeps owner-only access independent of granular permissions", () => {
+    expect(
+      filterByPermissions(
+        items,
+        user({
+          role_name: "recruiter",
+          permissions: [{ resource: "queues", action: "read" }],
+        }),
+      ).map((item) => item.label),
+    ).toEqual(["Open"]);
+    expect(
+      filterByPermissions(items, user({ role_name: "team_owner", permissions: [] })).map(
+        (item) => item.label,
+      ),
+    ).toEqual(["Open", "Queues"]);
   });
 });
 

@@ -266,18 +266,6 @@ export async function fetchFeatureFlags(): Promise<FeatureFlag[]> {
   return unwrap(res, "Failed to fetch feature flags");
 }
 
-export async function upsertFeatureFlag(
-  key: string,
-  payload: Partial<FeatureFlag>,
-): Promise<FeatureFlag> {
-  const res = await fetch(`/api/admin/feature-flags/${key}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return unwrap(res, "Failed to update feature flag");
-}
-
 export async function fetchQueuesOverview(): Promise<QueueSnapshot[]> {
   const res = await fetch("/api/admin/queues");
   return unwrap(res, "Failed to fetch queues");

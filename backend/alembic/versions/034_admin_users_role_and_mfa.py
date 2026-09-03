@@ -52,9 +52,12 @@ def upgrade() -> None:
         op.add_column("users", sa.Column("role_id", role_id_type, nullable=True))
         op.add_column("users", sa.Column("mfa_secret", sa.String(64), nullable=True))
         op.add_column(
-            "users", sa.Column("mfa_enabled", sa.Boolean(), nullable=False, server_default=sa.false())
+            "users",
+            sa.Column("mfa_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
         )
-        op.add_column("users", sa.Column("mfa_enrolled_at", sa.DateTime(timezone=True), nullable=True))
+        op.add_column(
+            "users", sa.Column("mfa_enrolled_at", sa.DateTime(timezone=True), nullable=True)
+        )
         op.create_foreign_key(
             "fk_users_role_id", "users", "roles", ["role_id"], ["id"], ondelete="SET NULL"
         )

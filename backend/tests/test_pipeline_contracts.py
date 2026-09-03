@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -22,8 +21,6 @@ from app.enrichers.base import Enricher
 from app.enrichers.pipeline import Pipeline
 from app.main import app
 from app.modules.enrichment import service as enrichment_service
-
-AUTH_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
 
 
 def _stub(fragment: dict[str, Any]):
@@ -137,11 +134,13 @@ async def test_partial_failure_one_enricher_raises() -> None:
         assert "Linkedin" in platforms
 
 
-def test_multi_tier_dispatch_respects_selection() -> None:
+def test_multi_tier_dispatch_respects_selection(
+    staff_auth_headers: dict[str, str],
+) -> None:
     client = TestClient(app)
     response = client.post(
         "/enrich/sync",
-        headers=AUTH_HEADERS,
+        headers=staff_auth_headers,
         json={
             "username": "candidate",
             "job_search": "Staff Backend Engineer",
@@ -157,14 +156,16 @@ def test_multi_tier_dispatch_respects_selection() -> None:
     assert payload["dossier"]["coworkers"] == []
 
 
-def test_tier1_skipped_on_sync_path(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_tier1_skipped_on_sync_path(
+    monkeypatch: pytest.MonkeyPatch, staff_auth_headers: dict[str, str]
+) -> None:
     from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "enable_tier1", True)
     client = TestClient(app)
     response = client.post(
         "/enrich/sync",
-        headers=AUTH_HEADERS,
+        headers=staff_auth_headers,
         json={
             "linkedin_url": "https://linkedin.com/in/candidate",
             "username": "candidate",
@@ -178,11 +179,13 @@ def test_tier1_skipped_on_sync_path(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.xfail(not _tier_validation_enabled(), reason="requires task 51", strict=False)
-def test_invalid_tier1_without_linkedin_422() -> None:
+def test_invalid_tier1_without_linkedin_422(
+    staff_auth_headers: dict[str, str],
+) -> None:
     client = TestClient(app)
     response = client.post(
         "/enrich/sync",
-        headers=AUTH_HEADERS,
+        headers=staff_auth_headers,
         json={"username": "candidate", "requested_tiers": ["tier1"]},
     )
     assert response.status_code == 422
@@ -210,7 +213,7 @@ def test_tier_validation_rules(payload: dict[str, Any], expected_message: str) -
     assert expected_message in str(exc_info.value.errors()[0]["msg"])
 
 
-def test_suppressed_async_and_sync() -> None:
+def test_suppressed_async_and_sync(staff_auth_headers: dict[str, str]) -> None:
     client = TestClient(app)
     identifier = "contracts-suppressed@example.com"
 
@@ -218,7 +221,7 @@ def test_suppressed_async_and_sync() -> None:
 
     async_resp = client.post(
         "/enrich",
-        headers=AUTH_HEADERS,
+        headers=staff_auth_headers,
         json={"email": identifier, "username": "ignored", "requested_tiers": ["tier2"]},
     )
     assert async_resp.status_code == 202
@@ -226,14 +229,16 @@ def test_suppressed_async_and_sync() -> None:
 
     sync_resp = client.post(
         "/enrich/sync",
-        headers=AUTH_HEADERS,
+        headers=staff_auth_headers,
         json={"email": identifier, "username": "ignored", "requested_tiers": ["tier2"]},
     )
     assert sync_resp.status_code == 200
     assert sync_resp.json()["data"]["status"] == "suppressed"
 
 
-def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_async_enrich_suppressed_skips_enqueue(
+    monkeypatch: pytest.MonkeyPatch, staff_auth_headers: dict[str, str]
+) -> None:
     enqueued: list[str] = []
     monkeypatch.setattr(
         enrichment_service,
@@ -247,7 +252,7 @@ def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) 
 
     response = client.post(
         "/enrich",
-        headers=AUTH_HEADERS,
+        headers=staff_auth_headers,
         json={"email": identifier, "username": "ignored", "requested_tiers": ["tier2"]},
     )
     assert response.status_code == 202

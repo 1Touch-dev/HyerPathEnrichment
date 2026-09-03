@@ -19,12 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.errors import NotFoundError, RateLimitError, ValidationAppError
-from app.modules.job_matching import repository as job_matching_repository
 from app.modules.jd_practice.schemas import (
     JdPracticeQuestionItem,
     JdPracticeRequest,
     JdPracticeResponse,
 )
+from app.modules.job_matching import repository as job_matching_repository
 from app.modules.questions.service import _load_candidate_context
 from app.modules.sessions.models import PracticeSession
 from app.observability.cost_tracking import track_llm_cost

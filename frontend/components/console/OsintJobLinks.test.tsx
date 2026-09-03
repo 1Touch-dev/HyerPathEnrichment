@@ -36,6 +36,15 @@ describe("OSINT job links", () => {
     expect(jobLink).toHaveAttribute("href", "/osint/jobs/job-123");
   });
 
+  it("keeps Candidate queue links and query state in the Candidate product", () => {
+    render(<JobQueuePanel jobsBasePath="/app/jobs" queryString="state=queued&cursor=next" />);
+
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/app/jobs/job-123?state=queued&cursor=next",
+    );
+  });
+
   it("uses canonical dossier links throughout expanded history", () => {
     render(
       <JobHistoryTable
@@ -64,6 +73,33 @@ describe("OSINT job links", () => {
     for (const link of screen.getAllByRole("link")) {
       expect(link).toHaveAttribute("href", "/osint/jobs/job-123");
     }
+  });
+
+  it("keeps Candidate history links and query state in the Candidate product", () => {
+    render(
+      <JobHistoryTable
+        jobs={[
+          {
+            id: "job-123",
+            status: "completed",
+            createdAt: "2026-09-02T10:00:00Z",
+            updatedAt: "2026-09-02T10:01:00Z",
+            identifierSummary: "supplied identifier",
+            requestedTiers: ["tier1"],
+          },
+        ]}
+        total={1}
+        limit={50}
+        offset={0}
+        jobsBasePath="/app/jobs"
+        queryString="state=done"
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "supplied identifier" })).toHaveAttribute(
+      "href",
+      "/app/jobs/job-123?state=done",
+    );
   });
 
   it("points timed-out progress to the canonical dossier", () => {

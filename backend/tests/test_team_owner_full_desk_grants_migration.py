@@ -5,14 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from sqlalchemy import inspect, text as sa_text
+from alembic.script import ScriptDirectory
+from sqlalchemy import inspect
+from sqlalchemy import text as sa_text
 
 from alembic import command
-from alembic.script import ScriptDirectory
 from tests.migration_helpers import alembic_config, sqlite_file_url, sync_engine_for
 
 REV_BEFORE = "060_merge_security_p1_and_billing_heads"
 REV_THIS = "061_team_owner_full_desk_grants"
+APPROVED_HEAD = "066_privileged_idempotency_records"
 TRACKING_TABLE = "migration_061_team_owner_grants"
 
 EXPECTED_DESK_PERMISSIONS = {
@@ -115,9 +117,9 @@ def _table_names(url: str) -> set[str]:
         engine.dispose()
 
 
-def test_revision_is_the_only_migration_head() -> None:
+def test_approved_revision_is_the_only_migration_head() -> None:
     script = ScriptDirectory.from_config(alembic_config("sqlite://"))
-    assert script.get_heads() == [REV_THIS]
+    assert script.get_heads() == [APPROVED_HEAD]
 
 
 def test_upgrade_downgrade_upgrade_preserves_existing_rows(sqlite_url: str) -> None:

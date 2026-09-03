@@ -80,9 +80,9 @@ def test_unhandled_exception_captures_once(monkeypatch: pytest.MonkeyPatch) -> N
         ]
 
 
-def test_app_error_does_not_capture(monkeypatch: pytest.MonkeyPatch) -> None:
-    from uuid import uuid4
-
+def test_app_error_does_not_capture(
+    monkeypatch: pytest.MonkeyPatch, staff_auth_headers: dict[str, str]
+) -> None:
     monkeypatch.setattr(get_settings(), "sentry_dsn", "http://example@test.local/1")
     capture = MagicMock()
     monkeypatch.setattr("app.core.exception_handlers.capture_exception", capture)
@@ -91,7 +91,7 @@ def test_app_error_does_not_capture(monkeypatch: pytest.MonkeyPatch) -> None:
     assert_error(
         client.get(
             "/enrich/missing-job-id",
-            headers={"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())},
+            headers=staff_auth_headers,
         ),
         404,
         "NOT_FOUND",

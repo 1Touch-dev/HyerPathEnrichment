@@ -15,7 +15,6 @@ import pytest
 import sqlalchemy as sa
 
 from app.modules.admin.models import AdminReviewQueueItem
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 
 pytestmark = pytest.mark.asyncio
 
@@ -248,9 +247,6 @@ async def test_detail_missing_resource_resolves_to_none(
     assert body["resolved_resource"] is None
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_decide_requires_content_review_read_for_list(client, support_user, auth_headers):
     response = client.get("/api/admin/review-queue", headers=auth_headers(support_user.id))
     assert response.status_code == 200

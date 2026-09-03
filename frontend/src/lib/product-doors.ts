@@ -22,11 +22,17 @@ export function isStaffUser(user: ProductDoorUser | null | undefined): boolean {
   return !!user && (user.is_superuser || user.role_id != null);
 }
 
+export function isOwnerUser(user: ProductDoorUser | null | undefined): boolean {
+  return (
+    !!user && (user.is_superuser || user.role_name === "admin" || user.role_name === "team_owner")
+  );
+}
+
 export function getUserHome(user: ProductDoorUser): string {
   if (!isStaffUser(user)) {
     return "/app/matches";
   }
-  if (user.is_superuser || user.role_name === "admin" || user.role_name === "team_owner") {
+  if (isOwnerUser(user)) {
     return "/desk";
   }
   if (user.role_name === "recruiter") {
@@ -62,11 +68,16 @@ export function hasPermission(
   );
 }
 
-export function filterByPermissions<T extends { permission?: Permission }>(
+export function filterByPermissions<T extends { ownerOnly?: boolean; permission?: Permission }>(
   items: readonly T[],
   user: ProductDoorUser | null | undefined,
 ): T[] {
-  return items.filter((item) => !item.permission || hasPermission(user, item.permission));
+  return items.filter((item) => {
+    if (item.ownerOnly) {
+      return isOwnerUser(user);
+    }
+    return !item.permission || hasPermission(user, item.permission);
+  });
 }
 
 export function safeLocalRedirect(value: string | null | undefined): string | null {

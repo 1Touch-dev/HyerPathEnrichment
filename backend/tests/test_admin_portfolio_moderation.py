@@ -11,11 +11,11 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from app.core.logging import scrub_sensitive_data
 from app.modules.admin.models import AdminAuditLog
 from app.modules.portfolio.models import PortfolioProfile
 from app.modules.portfolio.schemas import PortfolioProfileRequest
 from app.modules.portfolio.service import PortfolioService
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
 
 pytestmark = pytest.mark.asyncio
@@ -182,9 +182,10 @@ async def test_moderate_hides_profile_and_writes_audit(
         )
     )
     entry = result.scalar_one()
-    assert entry.before["admin_hidden"] is False
-    assert entry.after["admin_hidden"] is True
-    assert entry.after["reason"] == "Inappropriate content"
+    assert entry.before == scrub_sensitive_data({"admin_hidden": False})
+    assert entry.after == scrub_sensitive_data(
+        {"admin_hidden": True, "reason": "Inappropriate content"}
+    )
 
 
 async def test_moderate_unhides_profile_toggles_both_ways(
@@ -207,8 +208,8 @@ async def test_moderate_unhides_profile_toggles_both_ways(
         )
     )
     entry = result.scalar_one()
-    assert entry.before["admin_hidden"] is True
-    assert entry.after["admin_hidden"] is False
+    assert entry.before == scrub_sensitive_data({"admin_hidden": True})
+    assert entry.after == scrub_sensitive_data({"admin_hidden": False, "reason": "False positive"})
 
 
 async def test_moderate_404_for_unknown_profile(client, superuser, auth_headers):
@@ -220,9 +221,6 @@ async def test_moderate_404_for_unknown_profile(client, superuser, auth_headers)
     assert_error(response, 404)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_read_but_not_moderate(
     client, support_user, auth_headers, profile_factory
 ):

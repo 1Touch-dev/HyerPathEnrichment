@@ -6,13 +6,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.main import app
 from app.modules.demand_intelligence.models import CountryDemandSnapshot
 from tests.envelope_helpers import assert_error, assert_success
@@ -22,14 +20,6 @@ from tests.envelope_helpers import assert_error, assert_success
 def client() -> TestClient:
     with TestClient(app) as test_client:
         yield test_client
-
-
-def _auth_headers(user_id: str | None = None) -> dict[str, str]:
-    settings = get_settings()
-    return {
-        "Authorization": f"Bearer {settings.api_token}",
-        "X-Test-User-ID": user_id or str(uuid4()),
-    }
 
 
 async def _seed_snapshot(db: AsyncSession, **overrides: object) -> CountryDemandSnapshot:
@@ -50,7 +40,9 @@ async def _seed_snapshot(db: AsyncSession, **overrides: object) -> CountryDemand
     return snapshot
 
 
-async def test_top_countries_happy_path(client: TestClient, db: AsyncSession) -> None:
+async def test_top_countries_happy_path(
+    client: TestClient, db: AsyncSession, staff_auth_headers: dict[str, str]
+) -> None:
     role = f"integration role {uuid.uuid4().hex[:8]}"
     snap_date = date(2026, 8, 25)
     await _seed_snapshot(
@@ -63,7 +55,7 @@ async def test_top_countries_happy_path(client: TestClient, db: AsyncSession) ->
     response = client.get(
         "/api/demand-intelligence/top-countries",
         params={"role": role},
-        headers=_auth_headers(),
+        headers=staff_auth_headers,
     )
     data = assert_success(response)
 
@@ -78,17 +70,21 @@ async def test_top_countries_happy_path(client: TestClient, db: AsyncSession) ->
     assert data["results"][1]["tier"] == "tier_1"
 
 
-async def test_top_countries_no_match_returns_empty_results(client: TestClient) -> None:
+async def test_top_countries_no_match_returns_empty_results(
+    client: TestClient, staff_auth_headers: dict[str, str]
+) -> None:
     response = client.get(
         "/api/demand-intelligence/top-countries",
         params={"role": f"no-such-role-{uuid.uuid4().hex}"},
-        headers=_auth_headers(),
+        headers=staff_auth_headers,
     )
     data = assert_success(response)
     assert data["results"] == []
 
 
-async def test_top_countries_respects_limit_param(client: TestClient, db: AsyncSession) -> None:
+async def test_top_countries_respects_limit_param(
+    client: TestClient, db: AsyncSession, staff_auth_headers: dict[str, str]
+) -> None:
     role = f"limit role {uuid.uuid4().hex[:8]}"
     snap_date = date(2026, 8, 25)
     for i, country in enumerate(["us", "gb", "in", "ae", "sg"]):
@@ -99,7 +95,7 @@ async def test_top_countries_respects_limit_param(client: TestClient, db: AsyncS
     response = client.get(
         "/api/demand-intelligence/top-countries",
         params={"role": role, "limit": 2},
-        headers=_auth_headers(),
+        headers=staff_auth_headers,
     )
     data = assert_success(response)
     assert len(data["results"]) == 2
@@ -110,6 +106,8 @@ def test_top_countries_requires_auth(client: TestClient) -> None:
     assert response.status_code in (401, 403)
 
 
-def test_top_countries_missing_role_param_returns_422(client: TestClient) -> None:
-    response = client.get("/api/demand-intelligence/top-countries", headers=_auth_headers())
+def test_top_countries_missing_role_param_returns_422(
+    client: TestClient, staff_auth_headers: dict[str, str]
+) -> None:
+    response = client.get("/api/demand-intelligence/top-countries", headers=staff_auth_headers)
     assert_error(response, 422, "VALIDATION_ERROR")

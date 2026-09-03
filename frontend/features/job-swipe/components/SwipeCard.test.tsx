@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PanInfo } from "framer-motion";
 import { SwipeCard } from "./SwipeCard";
+import { AppShellAccessProvider } from "@/components/layout/app-shell-access";
 import * as jobMatchingClient from "@/features/job-matching/api/client";
 import type { SwipeCard as SwipeCardData } from "@/src/lib/types";
 import type { ReactNode } from "react";
@@ -35,6 +36,9 @@ vi.mock("framer-motion", async () => {
         dragElastic?: number;
         [key: string]: unknown;
       }) => {
+        void style;
+        void dragSnapToOrigin;
+        void dragElastic;
         if (onDragEnd) {
           capturedOnDragEnd = onDragEnd;
           capturedDragProps.push(drag);
@@ -49,7 +53,20 @@ vi.mock("framer-motion", async () => {
 
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <AppShellAccessProvider candidateMutationAccess="allowed">
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </AppShellAccessProvider>
+  );
+}
+
+function restrictedWrapper({ children }: { children: ReactNode }) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return (
+    <AppShellAccessProvider candidateMutationAccess="impersonating">
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </AppShellAccessProvider>
+  );
 }
 
 const baseCard: SwipeCardData = {
@@ -205,6 +222,16 @@ describe("SwipeCard", () => {
     expect(applyLink).toHaveAttribute("href", "/api/matches/m1/apply-redirect");
     expect(applyLink).toHaveAttribute("target", "_blank");
     expect(applyLink).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("does not expose an Apply destination during restricted Candidate access", () => {
+    render(<SwipeCard card={baseCard} onSwiped={() => {}} onDraftOutreach={() => {}} isTop />, {
+      wrapper: restrictedWrapper,
+    });
+
+    const applyLink = screen.getByRole("link", { name: "Apply" });
+    expect(applyLink).toHaveAttribute("aria-disabled", "true");
+    expect(applyLink).not.toHaveAttribute("href");
   });
 
   it("does not render the Apply button/Mark-as-applied toggle when isTop is false", () => {

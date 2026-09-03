@@ -7,7 +7,7 @@ const replaceMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: replaceMock }),
-  usePathname: () => "/desk/roles",
+  usePathname: () => window.location.pathname,
 }));
 
 function mockUseAuth(overrides: Partial<ReturnType<typeof authProvider.useAuth>> = {}) {
@@ -26,6 +26,7 @@ function mockUseAuth(overrides: Partial<ReturnType<typeof authProvider.useAuth>>
 beforeEach(() => {
   vi.restoreAllMocks();
   replaceMock.mockReset();
+  window.history.replaceState({}, "", "/desk/roles");
 });
 
 describe("AdminGuard", () => {
@@ -37,6 +38,7 @@ describe("AdminGuard", () => {
       </AdminGuard>,
     );
     expect(container.querySelector(".animate-spin")).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading account" })).toBeInTheDocument();
     expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
   });
 
@@ -48,6 +50,19 @@ describe("AdminGuard", () => {
       </AdminGuard>,
     );
     expect(replaceMock).toHaveBeenCalledWith("/login?redirect=%2Fdesk%2Froles");
+  });
+
+  it("preserves the query string when redirecting to login", () => {
+    window.history.replaceState({}, "", "/desk/roles?tab=permissions&role=owner");
+    mockUseAuth({ loading: false, user: null });
+    render(
+      <AdminGuard>
+        <div>Admin content</div>
+      </AdminGuard>,
+    );
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/login?redirect=%2Fdesk%2Froles%3Ftab%3Dpermissions%26role%3Downer",
+    );
   });
 
   it("redirects candidates to their Candidate home", () => {
@@ -73,6 +88,9 @@ describe("AdminGuard", () => {
       </AdminGuard>,
     );
     expect(replaceMock).toHaveBeenCalledWith("/app/matches");
+    expect(
+      screen.getByRole("status", { name: "Redirecting to an authorized page" }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
   });
 
@@ -128,7 +146,59 @@ describe("AdminGuard", () => {
     expect(replaceMock).toHaveBeenCalledWith("/desk/sourcing-leads");
   });
 
-  it("renders children for a user with the requested permission", () => {
+  it("does not grant owner-only access from a granular read permission", () => {
+    mockUseAuth({
+      loading: false,
+      user: {
+        id: "u1",
+        email: "recruiter@example.com",
+        first_name: "Recruiter",
+        last_name: "User",
+        is_verified: true,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        is_superuser: false,
+        role_id: "role-1",
+        role_name: "recruiter",
+        permissions: [{ resource: "roles", action: "read" }],
+      },
+    });
+    render(
+      <AdminGuard>
+        <div>Admin content</div>
+      </AdminGuard>,
+    );
+    expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
+    expect(replaceMock).toHaveBeenCalledWith("/desk/sourcing-leads");
+  });
+
+  it("still grants permission-gated access from an exact permission pair", () => {
+    mockUseAuth({
+      loading: false,
+      user: {
+        id: "u1",
+        email: "recruiter@example.com",
+        first_name: "Recruiter",
+        last_name: "User",
+        is_verified: true,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        is_superuser: false,
+        role_id: "role-1",
+        role_name: "recruiter",
+        permissions: [{ resource: "users", action: "read" }],
+      },
+    });
+    render(
+      <AdminGuard permission={{ resource: "users", action: "read" }}>
+        <div>Admin content</div>
+      </AdminGuard>,
+    );
+    expect(screen.getByText("Admin content")).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("renders owner-only children for a team owner without read permissions", () => {
     mockUseAuth({
       loading: false,
       user: {
@@ -142,11 +212,11 @@ describe("AdminGuard", () => {
         is_superuser: false,
         role_id: "role-2",
         role_name: "team_owner",
-        permissions: [{ resource: "roles", action: "read" }],
+        permissions: [],
       },
     });
     render(
-      <AdminGuard permission={{ resource: "roles", action: "read" }}>
+      <AdminGuard>
         <div>Admin content</div>
       </AdminGuard>,
     );

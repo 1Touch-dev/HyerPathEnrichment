@@ -12,14 +12,15 @@ from app.main import app
 from app.modules.enrichment.models import JobRecord
 
 
-def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:
+def test_opt_out_registers_suppression_audit_and_purges_jobs(
+    staff_auth_headers: dict[str, str],
+) -> None:
     client = TestClient(app)
-    enrich_headers = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
     identifier = f"purge-me-{uuid4().hex}@example.com"
 
     enrich = client.post(
         "/enrich/sync",
-        headers=enrich_headers,
+        headers=staff_auth_headers,
         json={"email": identifier, "username": "optout-user", "requested_tiers": ["tier2"]},
     )
     assert enrich.status_code == 200
@@ -51,7 +52,7 @@ def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:
 
     blocked = client.post(
         "/enrich/sync",
-        headers=enrich_headers,
+        headers=staff_auth_headers,
         json={"email": identifier, "username": "optout-user", "requested_tiers": ["tier2"]},
     )
     assert blocked.json()["data"]["status"] == "suppressed"

@@ -9,33 +9,8 @@ const nextConfig = {
         permanent: false,
       },
       {
-        source: "/app/history",
-        destination: "/osint/jobs",
-        permanent: false,
-      },
-      {
-        source: "/app/jobs",
-        destination: "/osint/jobs",
-        permanent: false,
-      },
-      {
-        source: "/app/jobs/:id",
-        destination: "/osint/jobs/:id",
-        permanent: false,
-      },
-      {
         source: "/app/signals",
         destination: "/desk/signals",
-        permanent: false,
-      },
-      {
-        source: "/app/dashboard",
-        destination: "/osint",
-        permanent: false,
-      },
-      {
-        source: "/app/health",
-        destination: "/desk/system-health",
         permanent: false,
       },
       {

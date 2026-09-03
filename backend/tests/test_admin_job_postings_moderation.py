@@ -15,10 +15,10 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from app.core.logging import scrub_sensitive_data
 from app.modules.admin.job_postings_router import router as job_postings_router
 from app.modules.admin.models import AdminAuditLog
 from app.modules.job_matching.models import JobPosting
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
 
 # NOTE: no module-level `pytestmark = pytest.mark.asyncio` — see
@@ -180,9 +180,10 @@ async def test_moderate_job_posting_happy_path(client, superuser, auth_headers, 
     entry = result.scalar_one()
     assert entry.actor_user_id == superuser.id
     assert entry.target_type == "job_posting"
-    assert entry.before["moderation_status"] == "active"
-    assert entry.after["moderation_status"] == "hidden"
-    assert entry.after["reason"] == "Spam report"
+    assert entry.before == scrub_sensitive_data({"moderation_status": "active"})
+    assert entry.after == scrub_sensitive_data(
+        {"moderation_status": "hidden", "reason": "Spam report"}
+    )
 
 
 async def test_moderate_job_posting_404(client, superuser, auth_headers):
@@ -206,9 +207,6 @@ async def test_moderate_job_posting_requires_moderate_permission_for_regular_use
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_read_but_not_moderate(
     client, support_user, auth_headers, db_session
 ):
