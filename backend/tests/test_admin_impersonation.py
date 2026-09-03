@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from http.cookies import SimpleCookie
+
 import pyotp
 import pytest
 from starlette.responses import Response
@@ -265,3 +267,57 @@ async def test_end_impersonation_marks_session_ended_and_revokes_jti(
     ).scalar_one()
     assert audit_entry.actor_user_id == superuser_with_mfa.id
     assert audit_entry.target_id == str(regular_user.id)
+
+
+async def test_end_impersonation_restores_normal_admin_access_cookie(
+    db_session, superuser_with_mfa, regular_user, mock_redis, monkeypatch
+):
+    from sqlalchemy import select
+
+    from app.auth.jwt_tokens import decode_access_token
+    from app.core.config import get_settings
+    from app.modules.admin.impersonation import end_impersonation, start_impersonation
+    from app.modules.admin.models import ImpersonationSession
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "COOKIE_SECURE", False)
+
+    await start_impersonation(
+        db_session,
+        admin=superuser_with_mfa,
+        target_user_id=regular_user.id,
+        reason="debugging a support ticket",
+        mfa_code=_mfa_code(superuser_with_mfa),
+        response=Response(),
+        ip_address="127.0.0.1",
+    )
+    session = (
+        await db_session.execute(
+            select(ImpersonationSession).where(
+                ImpersonationSession.target_user_id == regular_user.id
+            )
+        )
+    ).scalar_one()
+
+    response = Response()
+    await end_impersonation(
+        db_session,
+        admin_user_id=superuser_with_mfa.id,
+        jti=session.token_jti,
+        response=response,
+        ip_address="127.0.0.1",
+    )
+
+    cookies = SimpleCookie()
+    cookies.load(response.headers["set-cookie"])
+    restored = cookies["access_token"]
+    payload = decode_access_token(restored.value, settings.SECRET_KEY)
+
+    assert payload["sub"] == str(superuser_with_mfa.id)
+    assert payload["email"] == superuser_with_mfa.email
+    assert "imp" not in payload
+    assert restored["httponly"] is True
+    assert restored["secure"] == ""
+    assert restored["samesite"] == "lax"
+    assert restored["path"] == "/"
+    assert restored["max-age"] == str(settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)

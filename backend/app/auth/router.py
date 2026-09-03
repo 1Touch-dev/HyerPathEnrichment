@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import CurrentUser
-from app.auth.jwt_tokens import PyJWTError, decode_access_token, encode_access_token
+from app.auth.jwt_tokens import PyJWTError, create_user_access_token, decode_access_token
 from app.auth.logged_out_tokens import LoggedOutTokenService
 from app.auth.models import AuthAuditLog, User
 from app.auth.password import hash_password, verify_password
@@ -122,30 +122,14 @@ def get_client_ip(request: Request) -> str:
 
 
 def create_access_token(user_id: str, email: str) -> tuple[str, str]:
-    """
-    Create JWT access token.
-
-    Args:
-        user_id: User UUID as string
-        email: User email
-
-    Returns:
-        Tuple of (token, jti)
-    """
+    """Create a normal user JWT access token."""
     settings = get_settings()
-    jti = f"{user_id}:{uuid4().hex}"
-    expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-
-    payload = {
-        "sub": user_id,
-        "email": email,
-        "jti": jti,
-        "exp": datetime.now(UTC) + expires_delta,
-        "iat": datetime.now(UTC),
-    }
-
-    token = encode_access_token(payload, settings.SECRET_KEY)
-    return token, jti
+    return create_user_access_token(
+        user_id,
+        email,
+        secret_key=settings.SECRET_KEY,
+        expires_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+    )
 
 
 async def log_auth_event(

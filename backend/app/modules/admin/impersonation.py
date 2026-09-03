@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 from fastapi import HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.jwt_tokens import encode_access_token
+from app.auth.jwt_tokens import create_user_access_token, encode_access_token
 from app.auth.models import User
 from app.core.config import get_settings
 from app.modules.admin import repository
@@ -107,6 +107,10 @@ async def end_impersonation(
     if session is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Impersonation session not found")
 
+    admin = await repository.get_user_by_id(db, admin_user_id)
+    if admin is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Admin user not found")
+
     session.ended_at = datetime.now(UTC)
 
     from app.auth.logged_out_tokens import LoggedOutTokenService
@@ -140,4 +144,21 @@ async def end_impersonation(
         ip_address=ip_address,
     )
     await db.commit()
-    response.delete_cookie("access_token")
+
+    settings = get_settings()
+    access_token, _ = create_user_access_token(
+        str(admin.id),
+        admin.email,
+        secret_key=settings.SECRET_KEY,
+        expires_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+    )
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        domain=settings.COOKIE_DOMAIN,
+        path="/",
+    )
