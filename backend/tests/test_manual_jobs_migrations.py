@@ -10,11 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from alembic import command
 from sqlalchemy import inspect
 from sqlalchemy import text as sa_text
 from sqlalchemy.exc import IntegrityError
 
+from alembic import command
 from tests.migration_helpers import (
     alembic_config,
     sqlite_file_url,
@@ -26,7 +26,6 @@ from tests.migration_helpers import (
 REV_INTERVIEW_SCHEDULES = "042_interview_schedules"
 REV_MANUAL_JOB_ENTRIES = "043_manual_job_entries"
 REV_MERGE_ADMIN_AND_MODULE4_HEADS = "044_merge_admin_and_module4_heads"
-REV_CURRENT_SINGLE_HEAD = "060_merge_security_p1_and_billing_heads"
 
 
 @pytest.fixture
@@ -304,7 +303,7 @@ class TestDowngrade:
         finally:
             engine.dispose()
 
-        with pytest.raises(Exception):
+        with pytest.raises(IntegrityError):
             _downgrade_to(sqlite_url, REV_INTERVIEW_SCHEDULES)
 
     def test_full_downgrade_then_reupgrade_is_clean(self, sqlite_url: str):
@@ -322,17 +321,13 @@ class TestDowngrade:
 
 
 def test_043_is_in_the_migration_chain_and_is_the_single_head(sqlite_url: str) -> None:
-    """Named after 043 (this module's own migration). The Alembic single head
-    advances with later revisions (currently ``REV_CURRENT_SINGLE_HEAD``);
-    this test confirms 043/042 remain ancestors of that head.
-    """
+    """Confirm 043/042 remain ancestors as the single Alembic head advances."""
     from alembic.script import ScriptDirectory
 
     upgrade_head(sqlite_url)
     script_dir = ScriptDirectory.from_config(alembic_config(sqlite_url))
     heads = script_dir.get_heads()
     assert len(heads) == 1
-    assert heads[0] == REV_CURRENT_SINGLE_HEAD
 
     ancestor_revisions = {
         rev.revision for rev in script_dir.walk_revisions(base="base", head=heads)
