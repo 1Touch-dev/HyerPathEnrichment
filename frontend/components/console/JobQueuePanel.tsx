@@ -82,7 +82,7 @@ export function JobQueuePanel({ onJobStatusUpdate }: JobQueuePanelProps) {
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/app/jobs/${job.id}`}>
+                      <Link href={`/osint/jobs/${job.id}`}>
                         <ExternalLink className="size-3" />
                       </Link>
                     </Button>

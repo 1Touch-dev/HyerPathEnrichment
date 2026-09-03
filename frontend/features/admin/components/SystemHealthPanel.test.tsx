@@ -13,6 +13,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 const baseSnapshot: SystemHealthSnapshot = {
+  service: "hyrepath-enrichment-mock",
   databaseOk: true,
   databaseLatencyMs: 5,
   redisOk: true,
@@ -44,6 +45,7 @@ describe("SystemHealthPanel", () => {
   it("renders the self-checks section with database and redis latency", () => {
     render(<SystemHealthPanel />, { wrapper });
     expect(screen.getByText("Self-checks")).toBeInTheDocument();
+    expect(screen.getByText("hyrepath-enrichment-mock")).toBeInTheDocument();
     expect(screen.getByText("Database")).toBeInTheDocument();
     expect(screen.getByText("5 ms")).toBeInTheDocument();
     expect(screen.getByText("Redis")).toBeInTheDocument();

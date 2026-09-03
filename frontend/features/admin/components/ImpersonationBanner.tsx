@@ -21,7 +21,7 @@ export function ImpersonationBanner() {
     setError(null);
     try {
       await endImpersonation.mutateAsync();
-      window.location.assign("/app/admin/users");
+      window.location.assign("/desk/users");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to exit impersonation.");
     }

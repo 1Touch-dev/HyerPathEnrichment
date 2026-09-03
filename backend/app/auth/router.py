@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import CurrentUser
-from app.auth.jwt_tokens import PyJWTError, decode_access_token, encode_access_token
+from app.auth.jwt_tokens import PyJWTError, create_user_access_token, decode_access_token
 from app.auth.logged_out_tokens import LoggedOutTokenService
 from app.auth.models import AuthAuditLog, User
 from app.auth.password import hash_password, verify_password
@@ -30,6 +30,7 @@ from app.auth.schemas import (
     LoginRequest,
     LoginResponse,
     MessageResponse,
+    PermissionSlug,
     RegisterResponse,
     ResendVerificationRequest,
     UserCreate,
@@ -42,18 +43,64 @@ from app.auth.verification import (
     send_verification_email,
     verify_email_token,
 )
+from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import get_settings
 from app.database.session import get_db_session
 from app.dependencies.rate_limit import enforce_auth_rate_limit, enforce_auth_refresh_rate_limit
 from app.infrastructure.redis import get_redis_client
 from app.modules.admin import service as admin_service
-from app.modules.admin.models import Role
+from app.modules.admin.models import Permission, Role, RolePermission
 from app.modules.staff_invites import repository as staff_invites_repository
 from app.modules.staff_invites.models import StaffInvite
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+identity_router = APIRouter(
+    prefix="/auth",
+    tags=["Authentication"],
+    route_class=EnvelopeAPIRoute,
+)
+
+
+async def serialize_user_identity(db: AsyncSession, user: User) -> UserRead:
+    """Serialize one consistent product-door identity for auth responses."""
+    permissions: list[PermissionSlug] = []
+    role_name: str | None = None
+
+    if user.role_id is not None:
+        role_id_key = user.role_id.hex
+        role_id_column = func.replace(cast(Role.id, String), "-", "")
+        role_permission_role_id = func.replace(cast(RolePermission.role_id, String), "-", "")
+        permission_id_column = func.replace(cast(Permission.id, String), "-", "")
+        role_permission_permission_id = func.replace(
+            cast(RolePermission.permission_id, String), "-", ""
+        )
+        result = await db.execute(
+            select(Role.name, Permission.resource, Permission.action)
+            .select_from(Role)
+            .outerjoin(RolePermission, role_permission_role_id == role_id_column)
+            .outerjoin(Permission, permission_id_column == role_permission_permission_id)
+            .where(role_id_column == role_id_key)
+            .distinct()
+            .order_by(Permission.resource, Permission.action)
+        )
+        rows = result.all()
+        role_name = rows[0].name if rows else None
+        permissions = [
+            PermissionSlug(resource=row.resource, action=row.action)
+            for row in rows
+            if row.resource is not None and row.action is not None
+        ]
+
+    identity = UserRead.model_validate(user)
+    return identity.model_copy(
+        update={
+            "role_id": user.role_id,
+            "role_name": role_name,
+            "permissions": permissions,
+        }
+    )
 
 
 def get_client_ip(request: Request) -> str:
@@ -75,30 +122,14 @@ def get_client_ip(request: Request) -> str:
 
 
 def create_access_token(user_id: str, email: str) -> tuple[str, str]:
-    """
-    Create JWT access token.
-
-    Args:
-        user_id: User UUID as string
-        email: User email
-
-    Returns:
-        Tuple of (token, jti)
-    """
+    """Create a normal user JWT access token."""
     settings = get_settings()
-    jti = f"{user_id}:{uuid4().hex}"
-    expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-
-    payload = {
-        "sub": user_id,
-        "email": email,
-        "jti": jti,
-        "exp": datetime.now(UTC) + expires_delta,
-        "iat": datetime.now(UTC),
-    }
-
-    token = encode_access_token(payload, settings.SECRET_KEY)
-    return token, jti
+    return create_user_access_token(
+        user_id,
+        email,
+        secret_key=settings.SECRET_KEY,
+        expires_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+    )
 
 
 async def log_auth_event(
@@ -238,7 +269,7 @@ async def register(
     )
 
 
-@router.post(
+@identity_router.post(
     "/login",
     response_model=LoginResponse,
     dependencies=[Depends(enforce_auth_rate_limit)],
@@ -333,7 +364,7 @@ async def login(
     await log_auth_event(db, "login", True, ip, user_agent, user.id, user.email)
 
     return LoginResponse(
-        user=UserRead.model_validate(user),
+        user=await serialize_user_identity(db, user),
         message="Login successful",
     )
 
@@ -398,7 +429,7 @@ async def logout(
     return MessageResponse(message="Logged out successfully")
 
 
-@router.post(
+@identity_router.post(
     "/refresh",
     response_model=LoginResponse,
     dependencies=[Depends(enforce_auth_refresh_rate_limit)],
@@ -556,7 +587,7 @@ async def refresh_token(
     )
 
     return LoginResponse(
-        user=UserRead.model_validate(user),
+        user=await serialize_user_identity(db, user),
         message="Token refreshed successfully",
     )
 
@@ -628,10 +659,13 @@ async def delete_account(
     return MessageResponse(message="Account deleted successfully")
 
 
-@router.get("/me", response_model=UserRead)
-async def get_current_user(current_user: CurrentUser) -> UserRead:
+@identity_router.get("/me", response_model=UserRead)
+async def get_current_user(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> UserRead:
     """Get current user profile."""
-    return UserRead.model_validate(current_user)
+    return await serialize_user_identity(db, current_user)
 
 
 @router.post(

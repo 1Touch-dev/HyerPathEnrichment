@@ -91,7 +91,11 @@ def test_app_error_does_not_capture(monkeypatch: pytest.MonkeyPatch) -> None:
     assert_error(
         client.get(
             "/enrich/missing-job-id",
-            headers={"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())},
+            headers={
+                "Authorization": "Bearer change-me",
+                "X-Test-User-ID": str(uuid4()),
+                "X-Test-Superuser": "true",
+            },
         ),
         404,
         "NOT_FOUND",

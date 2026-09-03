@@ -29,6 +29,7 @@ def _auth_headers(user_id: str | None = None) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {settings.api_token}",
         "X-Test-User-ID": user_id or str(uuid4()),
+        "X-Test-Superuser": "true",
     }
 
 

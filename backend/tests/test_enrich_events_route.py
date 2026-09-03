@@ -13,7 +13,11 @@ from app.enrichers.pipeline import Pipeline
 from app.main import app
 
 _TEST_USER_ID = uuid4()
-_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(_TEST_USER_ID)}
+_HEADERS = {
+    "Authorization": "Bearer change-me",
+    "X-Test-User-ID": str(_TEST_USER_ID),
+    "X-Test-Superuser": "true",
+}
 
 
 async def _create_completed_job(user_id: UUID | None = _TEST_USER_ID) -> str:

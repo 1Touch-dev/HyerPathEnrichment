@@ -83,14 +83,14 @@ describe("ImpersonationBanner", () => {
     expect(screen.getByText("Exit impersonation")).toBeInTheDocument();
   });
 
-  it("ends impersonation and navigates to /app/admin/users on success", async () => {
+  it("ends impersonation and navigates to /desk/users on success", async () => {
     mockUseImpersonationStatus({ data: impersonating });
     render(<ImpersonationBanner />, { wrapper });
 
     fireEvent.click(screen.getByText("Exit impersonation"));
 
     await waitFor(() => expect(endMutateAsync).toHaveBeenCalledTimes(1));
-    expect(assignMock).toHaveBeenCalledWith("/app/admin/users");
+    expect(assignMock).toHaveBeenCalledWith("/desk/users");
   });
 
   it("shows an inline error and does not navigate when ending impersonation fails", async () => {

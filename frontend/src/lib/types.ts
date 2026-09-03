@@ -383,6 +383,7 @@ export type FailedJob = {
 };
 
 export type SystemHealthSnapshot = {
+  service?: string;
   databaseOk: boolean;
   databaseLatencyMs: number;
   redisOk: boolean;

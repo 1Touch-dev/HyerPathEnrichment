@@ -28,7 +28,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
               <Link href="/opt-out">Opt-out</Link>
             </Button>
             <Button asChild size="sm" className="shadow-sm">
-              <Link href="/app/enrich">Open console</Link>
+              <Link href="/osint">Open console</Link>
             </Button>
           </div>
         </div>
@@ -41,7 +41,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
             <Link href="/opt-out" className="hover:text-primary">
               Opt-out
             </Link>
-            <Link href="/app/enrich" className="hover:text-primary">
+            <Link href="/osint" className="hover:text-primary">
               Console
             </Link>
           </div>

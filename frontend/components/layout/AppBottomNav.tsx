@@ -5,34 +5,34 @@ import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { adminNav, mainNav, systemNav } from "./nav-config";
+import type { NavSection } from "./nav-config";
 
 type AppBottomNavProps = {
+  sections: NavSection[];
   pathname: string;
   matchesUnreadCount?: number;
-  isAdmin?: boolean;
 };
 
 function isPathActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppBottomNav({
-  pathname,
-  matchesUnreadCount = 0,
-  isAdmin = false,
-}: AppBottomNavProps) {
+export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: AppBottomNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
-  const moreSections = isAdmin ? [systemNav, adminNav] : [systemNav];
-  const moreActive = moreSections
-    .flatMap((section) => section.items)
-    .some((item) => isPathActive(pathname, item.href));
+  const items = sections.flatMap((section) => section.items);
+  const primaryItems = items.filter((item) => item.mobilePrimary).slice(0, 3);
+  const primaryHrefs = new Set(primaryItems.map((item) => item.href));
+  const moreItems = items.filter((item) => !primaryHrefs.has(item.href));
+  const moreActive = moreItems.some((item) => isPathActive(pathname, item.href));
 
   return (
     <>
       <nav className="border-t border-border bg-card px-2 py-2 md:hidden">
-        <ul className="grid grid-cols-4 gap-1">
-          {mainNav.items.map((item) => {
+        <ul
+          className="grid gap-1"
+          style={{ gridTemplateColumns: `repeat(${primaryItems.length + 1}, minmax(0, 1fr))` }}
+        >
+          {primaryItems.map((item) => {
             const Icon = item.icon;
             const active = isPathActive(pathname, item.href);
             const showUnreadBadge = item.href === "/app/matches" && matchesUnreadCount > 0;
@@ -80,29 +80,27 @@ export function AppBottomNav({
             <SheetTitle>More</SheetTitle>
           </SheetHeader>
           <ul className="mt-4 space-y-1">
-            {moreSections
-              .flatMap((section) => section.items)
-              .map((item) => {
-                const Icon = item.icon;
-                const active = isPathActive(pathname, item.href);
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      onClick={() => setMoreOpen(false)}
-                      className={cn(
-                        "flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors",
-                        active
-                          ? "bg-secondary text-primary"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      )}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </li>
-                );
-              })}
+            {moreItems.map((item) => {
+              const Icon = item.icon;
+              const active = isPathActive(pathname, item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={() => setMoreOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors",
+                      active
+                        ? "bg-secondary text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </SheetContent>
       </Sheet>

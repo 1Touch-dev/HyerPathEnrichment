@@ -24,7 +24,7 @@ export default function AdminUserDetailPage() {
   const targetUser = data?.items.find((item) => item.id === userId);
 
   function goBack() {
-    router.push("/app/admin/users");
+    router.push("/desk/users");
   }
 
   if (isLoading && !data) {

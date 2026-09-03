@@ -1,6 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 const BACKEND_URL = (process.env.BACKEND_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const AUTHENTICATED_SHELL_TIMEOUT = 30_000;
+
+async function expectDeskShell(page: Page): Promise<void> {
+  await expect(page.locator("header").getByText("Desk", { exact: true }).first()).toBeVisible({
+    timeout: AUTHENTICATED_SHELL_TIMEOUT,
+  });
+}
 
 async function pollBackendHealth(maxAttempts = 60, intervalMs = 2000): Promise<void> {
   let lastError = "unknown";
@@ -39,16 +46,22 @@ test.describe("Live backend integration", () => {
   });
 
   test("health page reports live backend (not mock)", async ({ page }) => {
-    await page.goto("/app/health");
-    await expect(page.getByRole("heading", { name: "System health" })).toBeVisible();
-    await expect(page.getByText("ok", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await page.goto("/desk/system-health");
+    await expectDeskShell(page);
+    await expect(page.getByRole("heading", { name: "Self-checks" })).toBeVisible();
+    const databaseCheck = page
+      .getByRole("heading", { name: "Database", exact: true })
+      .locator("..");
+    const redisCheck = page.getByRole("heading", { name: "Redis", exact: true }).locator("..");
+    await expect(databaseCheck.getByText("OK", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(redisCheck.getByText("OK", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("hyrepath-enrichment-mock")).toHaveCount(0);
   });
 
   test("sync enrich completes dossier", async ({ page }) => {
     const username = `e2e-${Date.now()}`;
 
-    await page.goto("/app/enrich");
+    await page.goto("/osint");
     await expect(page.getByRole("heading", { name: "Look someone up" })).toBeVisible();
 
     await page.getByLabel("Quick (sync)").click();
@@ -63,11 +76,11 @@ test.describe("Live backend integration", () => {
     await expect(page.getByRole("button", { name: "Look up" })).toBeEnabled({ timeout: 15_000 });
     await page.getByRole("button", { name: "Look up" }).click();
 
-    await expect(page).toHaveURL(/\/app\/jobs\/.+/, { timeout: 120_000 });
+    await expect(page).toHaveURL(/\/osint\/jobs\/.+/, { timeout: 120_000 });
     await expect(page.getByRole("heading", { name: "Job dossier" })).toBeVisible();
     await expect(page.getByText("completed", { exact: true })).toBeVisible({ timeout: 60_000 });
 
-    const match = page.url().match(/\/app\/jobs\/([^/?#]+)/);
+    const match = page.url().match(/\/osint\/jobs\/([^/?#]+)/);
     expect(match?.[1]).toBeTruthy();
     jobId = match![1];
   });
@@ -75,25 +88,25 @@ test.describe("Live backend integration", () => {
   test("job detail page loads", async ({ page }) => {
     test.skip(!jobId, "requires job from sync enrich test");
 
-    await page.goto(`/app/jobs/${jobId}`);
+    await page.goto(`/osint/jobs/${jobId}`);
     await expect(page.getByRole("heading", { name: "Job dossier" })).toBeVisible();
     await expect(page.locator("code").filter({ hasText: jobId })).toBeVisible();
   });
 
-  test("history list shows at least one job", async ({ page }) => {
+  test("jobs page shows at least one historical job", async ({ page }) => {
     test.skip(!jobId, "requires job from sync enrich test");
 
-    await page.goto("/app/history");
-    await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+    await page.goto("/osint/jobs");
+    await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();
     await expect(page.locator("table tbody tr").first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(jobId)).toBeVisible();
   });
 
-  test("dashboard shows total jobs without error", async ({ page }) => {
-    await page.goto("/app/dashboard");
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-    await expect(page.getByText("Total jobs")).toBeVisible();
-    await expect(page.locator("p.text-destructive")).toHaveCount(0);
+  test("Desk owner landing reports system health without error", async ({ page }) => {
+    await page.goto("/desk");
+    await expectDeskShell(page);
+    await expect(page.getByRole("heading", { name: "Self-checks" })).toBeVisible();
+    await expect(page.getByText("System health unavailable")).toHaveCount(0);
   });
 
   test("opt-out submission succeeds", async ({ page }) => {

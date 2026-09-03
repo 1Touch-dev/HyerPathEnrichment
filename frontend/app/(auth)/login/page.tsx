@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
+import { getUserHome, safeLocalRedirect } from "@/src/lib/product-doors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,10 +25,13 @@ export default function LoginPage() {
     setError("");
 
     try {
-      await login(email, password);
-      router.push("/app");
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+      const user = await login(email, password);
+      const redirect = safeLocalRedirect(
+        new URLSearchParams(window.location.search).get("redirect"),
+      );
+      router.push(redirect ?? getUserHome(user));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }

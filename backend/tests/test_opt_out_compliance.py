@@ -14,7 +14,11 @@ from app.modules.enrichment.models import JobRecord
 
 def test_opt_out_registers_suppression_audit_and_purges_jobs() -> None:
     client = TestClient(app)
-    enrich_headers = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
+    enrich_headers = {
+        "Authorization": "Bearer change-me",
+        "X-Test-User-ID": str(uuid4()),
+        "X-Test-Superuser": "true",
+    }
     identifier = f"purge-me-{uuid4().hex}@example.com"
 
     enrich = client.post(

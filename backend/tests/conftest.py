@@ -30,6 +30,8 @@ else:
     print(f"[TEST CONFIG] Using real PostgreSQL: {_EXISTING_DB_URL[:50]}...")
 
 os.environ["API_TOKEN"] = "change-me"
+os.environ["OUTREACH_ENABLED"] = "true"
+os.environ["OUTREACH_PHYSICAL_ADDRESS"] = "123 Test Street, Test City, TS 00000"
 
 import asyncio
 
@@ -45,6 +47,16 @@ from app.database.session import get_db_session
 from app.modules.enrichment import job_events
 from app.storage import photo_cache
 from tests.migration_helpers import upgrade_head
+
+
+@pytest.fixture(autouse=True)
+def deterministic_outreach_settings(monkeypatch: pytest.MonkeyPatch):
+    """Keep outreach-enabled tests isolated from tests that mutate the settings cache."""
+    monkeypatch.setenv("OUTREACH_ENABLED", "true")
+    monkeypatch.setenv("OUTREACH_PHYSICAL_ADDRESS", "123 Test Street, Test City, TS 00000")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture(scope="session")
@@ -409,6 +421,7 @@ async def db():
 async def test_auth_dependency(
     authorization: str | None = Header(None),
     x_test_user_id: str | None = Header(None, alias="X-Test-User-ID"),
+    x_test_superuser: str | None = Header(None, alias="X-Test-Superuser"),
     db: AsyncSession = Depends(get_db_session),
 ) -> User:
     """Test authentication dependency that supports X-Test-User-ID header.
@@ -457,6 +470,7 @@ async def test_auth_dependency(
             last_name="User",
             is_active=True,
             is_verified=True,
+            is_superuser=x_test_superuser == "true",
         )
         db.add(user)
         await db.commit()

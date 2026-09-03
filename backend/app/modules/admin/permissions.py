@@ -16,6 +16,21 @@ from app.database.session import get_db_session
 from app.modules.admin.models import Permission, RolePermission
 
 
+def user_is_staff(user: User) -> bool:
+    """Return whether the user may cross the shared staff product door."""
+    return user.is_superuser or user.role_id is not None
+
+
+def require_staff(user: VerifiedUser) -> User:
+    """Require a verified user assigned to staff or marked as a superuser."""
+    if not user_is_staff(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Staff access required",
+        )
+    return user
+
+
 async def user_has_permission(db: AsyncSession, user: User, resource: str, action: str) -> bool:
     """`is_superuser` short-circuits to True with no DB lookup (Decision 1).
     Otherwise checks user.role_id -> RolePermission -> Permission(resource, action)."""

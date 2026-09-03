@@ -70,6 +70,27 @@ Postgres, Redis — **over** introducing a new, parallel mechanism:
    Postgres connection-pool sizing is already a known gap (`phase2_module1.md`
    §4, §12); an admin dashboard is exactly the kind of feature that should
    not add a new failure mode to either.
+9. **Staff access is a coarse product door, followed by endpoint RBAC.**
+   A user is staff when `is_superuser` is true or `role_id` is non-null.
+   Staff-only route groups reject roleless candidates before their existing
+   permission dependencies run; narrower `resource:action` checks remain in
+   place and still fail closed. MFA remains available to verified candidates,
+   and impersonation status/end remain outside the staff aggregator so an
+   impersonated candidate can end the session; impersonation start retains
+   its existing `impersonation:start` permission. Rationale: product access
+   and operation authorization answer different questions and should remain
+   composable rather than replacing one another.
+10. **`team_owner` receives every existing Desk permission explicitly, not a
+    wildcard or superuser equivalence.** The Product Doors migration lists all
+    45 permission pairs present at its verified parent revision, requires
+    those rows and the role to exist, and inserts only missing associations.
+    It creates no new permission slug and does not change strict-superuser
+    role assignment or costs policy. Migration bookkeeping records only the
+    associations actually inserted, allowing downgrade to remove exactly
+    those grants while preserving roles, permission rows, legacy owner
+    grants, and any association that predated the migration. Rationale:
+    explicit grants keep the owner role auditable as the Desk permission
+    universe evolves without silently broadening RBAC into `is_superuser`.
 
 ## Tradeoffs
 
@@ -95,6 +116,15 @@ Postgres, Redis — **over** introducing a new, parallel mechanism:
   session-table lookup on every authenticated request, **traded for**
   avoiding a DB round-trip on the hot path for a feature only support staff
   use.
+- A coarse staff door adds one authorization layer before endpoint RBAC,
+  **traded for** keeping roleless candidates out of operational products
+  without weakening any permission-specific denial.
+- Explicitly enumerating 45 owner grants requires a migration whenever the
+  intended Desk permission universe grows, **traded for** reviewable least
+  privilege and no wildcard semantics. The revision-specific bookkeeping
+  table adds one small internal schema object while the revision is applied,
+  **traded for** a downgrade that can distinguish newly inserted grants from
+  pre-existing associations.
 
 ## Consequences
 
@@ -113,6 +143,15 @@ Postgres, Redis — **over** introducing a new, parallel mechanism:
   code elsewhere in the codebase that assumes exactly one identity per token
   must be updated to handle `imp` — flagged, not fixed pre-emptively, since no
   such code exists today (verified during this plan's research pass).
+- Product-level staff checks do not authorize an operation by themselves:
+  non-superuser staff must still hold each endpoint's explicit permission.
+  Roleless candidates retain verified-user flows such as MFA but cannot enter
+  the Desk or OSINT operational surfaces.
+- `team_owner` has the complete existing Desk permission inventory, including
+  moderation, applications/interviews/manual jobs, AI supervision, LinkedIn
+  sourcing/tasks, recruiter actions, brands, recruiter assignments, and the
+  existing documents/portfolio/outreach/job-posting owner grants. Costs and
+  strict-superuser role assignment remain superuser-only.
 
 ## Alternatives considered
 

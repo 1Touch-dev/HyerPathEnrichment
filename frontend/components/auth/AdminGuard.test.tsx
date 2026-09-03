@@ -3,11 +3,11 @@ import { render, screen } from "@testing-library/react";
 import { AdminGuard } from "./admin-guard";
 import * as authProvider from "@/providers/auth-provider";
 
-const pushMock = vi.fn();
+const replaceMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
-  usePathname: () => "/app/admin/users",
+  useRouter: () => ({ replace: replaceMock }),
+  usePathname: () => "/desk/roles",
 }));
 
 function mockUseAuth(overrides: Partial<ReturnType<typeof authProvider.useAuth>> = {}) {
@@ -25,7 +25,7 @@ function mockUseAuth(overrides: Partial<ReturnType<typeof authProvider.useAuth>>
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  pushMock.mockReset();
+  replaceMock.mockReset();
 });
 
 describe("AdminGuard", () => {
@@ -47,10 +47,10 @@ describe("AdminGuard", () => {
         <div>Admin content</div>
       </AdminGuard>,
     );
-    expect(pushMock).toHaveBeenCalledWith("/login?redirect=%2Fapp%2Fadmin%2Fusers");
+    expect(replaceMock).toHaveBeenCalledWith("/login?redirect=%2Fdesk%2Froles");
   });
 
-  it("redirects non-admin users to the dashboard", () => {
+  it("redirects candidates to their Candidate home", () => {
     mockUseAuth({
       loading: false,
       user: {
@@ -62,7 +62,9 @@ describe("AdminGuard", () => {
         is_active: true,
         created_at: "2026-01-01T00:00:00Z",
         is_superuser: false,
+        role_id: null,
         role_name: null,
+        permissions: [],
       },
     });
     render(
@@ -70,7 +72,7 @@ describe("AdminGuard", () => {
         <div>Admin content</div>
       </AdminGuard>,
     );
-    expect(pushMock).toHaveBeenCalledWith("/app/dashboard");
+    expect(replaceMock).toHaveBeenCalledWith("/app/matches");
     expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
   });
 
@@ -86,7 +88,9 @@ describe("AdminGuard", () => {
         is_active: true,
         created_at: "2026-01-01T00:00:00Z",
         is_superuser: true,
+        role_id: null,
         role_name: null,
+        permissions: [],
       },
     });
     render(
@@ -95,22 +99,24 @@ describe("AdminGuard", () => {
       </AdminGuard>,
     );
     expect(screen.getByText("Admin content")).toBeInTheDocument();
-    expect(pushMock).not.toHaveBeenCalled();
+    expect(replaceMock).not.toHaveBeenCalled();
   });
 
-  it("renders children for a user with a role_name even without is_superuser", () => {
+  it("redirects a recruiter to the recruiter Desk home", () => {
     mockUseAuth({
       loading: false,
       user: {
         id: "u1",
-        email: "support@example.com",
-        first_name: "Support",
+        email: "recruiter@example.com",
+        first_name: "Recruiter",
         last_name: "User",
         is_verified: true,
         is_active: true,
         created_at: "2026-01-01T00:00:00Z",
         is_superuser: false,
-        role_name: "support",
+        role_id: "role-1",
+        role_name: "recruiter",
+        permissions: [],
       },
     });
     render(
@@ -118,7 +124,33 @@ describe("AdminGuard", () => {
         <div>Admin content</div>
       </AdminGuard>,
     );
+    expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
+    expect(replaceMock).toHaveBeenCalledWith("/desk/sourcing-leads");
+  });
+
+  it("renders children for a user with the requested permission", () => {
+    mockUseAuth({
+      loading: false,
+      user: {
+        id: "u1",
+        email: "owner@example.com",
+        first_name: "Team",
+        last_name: "Owner",
+        is_verified: true,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        is_superuser: false,
+        role_id: "role-2",
+        role_name: "team_owner",
+        permissions: [{ resource: "roles", action: "read" }],
+      },
+    });
+    render(
+      <AdminGuard permission={{ resource: "roles", action: "read" }}>
+        <div>Admin content</div>
+      </AdminGuard>,
+    );
     expect(screen.getByText("Admin content")).toBeInTheDocument();
-    expect(pushMock).not.toHaveBeenCalled();
+    expect(replaceMock).not.toHaveBeenCalled();
   });
 });

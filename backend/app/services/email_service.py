@@ -227,7 +227,7 @@ class EmailService:
             </table>
 
             <p>
-                <a href="{_safe_href(f"https://yourdomain.com/app/jobs/{job_id}")}"
+                <a href="{_safe_href(f"https://yourdomain.com/osint/jobs/{job_id}")}"
                    style="background: #4CAF50; color: white; padding: 12px 24px;
                           text-decoration: none; border-radius: 4px; display: inline-block;">
                     View Results
@@ -250,7 +250,7 @@ class EmailService:
         Job ID: {job_id}
         Fields Enriched: {len(enriched_fields)}
 
-        View results: https://yourdomain.com/app/jobs/{job_id}
+        View results: https://yourdomain.com/osint/jobs/{job_id}
 
         ---
         Hyrepath Enrichment | support@hyrepath.com

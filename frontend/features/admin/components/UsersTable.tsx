@@ -132,7 +132,7 @@ export function UsersTable() {
                 <TableRow key={targetUser.id}>
                   <TableCell>
                     <Link
-                      href={`/app/admin/users/${targetUser.id}`}
+                      href={`/desk/users/${targetUser.id}`}
                       className="text-primary hover:underline"
                     >
                       {targetUser.email}

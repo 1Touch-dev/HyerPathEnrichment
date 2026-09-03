@@ -2,22 +2,27 @@
 
 import Link from "next/link";
 import { cn } from "@/src/lib/utils";
-import { adminNav, allNavSections } from "./nav-config";
+import { PRODUCT_ROOTS, type Product } from "@/src/lib/product-doors";
+import type { NavSection } from "./nav-config";
 
 type AppNavRailProps = {
+  product: Product;
+  sections: NavSection[];
   pathname: string;
   matchesUnreadCount?: number;
-  isAdmin?: boolean;
 };
 
-export function AppNavRail({ pathname, matchesUnreadCount = 0, isAdmin = false }: AppNavRailProps) {
-  const sections = isAdmin ? [...allNavSections, adminNav] : allNavSections;
-
+export function AppNavRail({
+  product,
+  sections,
+  pathname,
+  matchesUnreadCount = 0,
+}: AppNavRailProps) {
   return (
     <aside className="hidden h-full w-[72px] flex-col items-center justify-between border-r border-border bg-card py-4 md:flex lg:hidden">
       <div className="flex w-full flex-col items-center gap-4">
         <Link
-          href="/app/enrich"
+          href={PRODUCT_ROOTS[product]}
           className="flex size-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-primary"
         >
           H
@@ -49,7 +54,7 @@ export function AppNavRail({ pathname, matchesUnreadCount = 0, isAdmin = false }
         </nav>
       </div>
       <p className="px-2 text-center text-[11px] leading-4 text-subtle-foreground">
-        Public-only lookup
+        {product === "osint" ? "OSINT" : `${product[0].toUpperCase()}${product.slice(1)}`}
       </p>
     </aside>
   );
