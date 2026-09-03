@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def _auth_headers() -> dict[str, str]:
+def _staff_auth_headers() -> dict[str, str]:
     return {
         "Authorization": "Bearer change-me",
         "X-Test-User-ID": str(uuid4()),
@@ -15,10 +15,17 @@ def _auth_headers() -> dict[str, str]:
     }
 
 
+def _candidate_auth_headers() -> dict[str, str]:
+    return {
+        "Authorization": "Bearer change-me",
+        "X-Test-User-ID": str(uuid4()),
+    }
+
+
 def test_dsar_access_returns_full_enriched_data() -> None:
     """Test that DSAR access returns complete enriched data."""
     client = TestClient(app)
-    enrich_headers = _auth_headers()
+    enrich_headers = _staff_auth_headers()
     identifier = f"dsar-access-{uuid4().hex}@example.com"
 
     enrich_response = client.post(
@@ -53,7 +60,7 @@ def test_dsar_access_returns_full_enriched_data() -> None:
 
 def test_dsar_deletion_suppresses_and_purges() -> None:
     client = TestClient(app)
-    enrich_headers = _auth_headers()
+    enrich_headers = _staff_auth_headers()
     identifier = f"dsar-delete-{uuid4().hex}@example.com"
 
     enrich = client.post(
@@ -90,7 +97,7 @@ def test_dsar_deletion_suppresses_and_purges() -> None:
 def test_dsar_access_merges_multiple_jobs() -> None:
     """Test that DSAR access merges data from multiple enrichment jobs."""
     client = TestClient(app)
-    enrich_headers = _auth_headers()
+    enrich_headers = _staff_auth_headers()
     identifier = f"dsar-merge-{uuid4().hex}@example.com"
 
     enrich1 = client.post(
@@ -121,14 +128,14 @@ def test_dsar_access_merges_multiple_jobs() -> None:
     assert "enriched_data" in summary
 
 
-def test_dsar_access_with_no_jobs() -> None:
+def test_roleless_candidate_dsar_access_with_no_jobs() -> None:
     """Test DSAR access for identifier with no enrichment history."""
     client = TestClient(app)
     identifier = f"dsar-nojobs-{uuid4().hex}@example.com"
 
     response = client.post(
         "/api/dsar",
-        headers=_auth_headers(),
+        headers=_candidate_auth_headers(),
         json={"identifier": identifier, "request_type": "access"},
     )
     assert response.status_code == 201
