@@ -36,7 +36,7 @@ describe("GET /api/admin/system-health", () => {
         service: "hyrepath-enrichment-mock",
         databaseOk: true,
         databaseLatencyMs: 4.2,
-        redisOk: false,
+        redisOk: true,
         redisLatencyMs: 1.8,
         prometheusConfigured: true,
         signals: {

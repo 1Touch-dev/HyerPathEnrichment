@@ -9,7 +9,7 @@ export async function GET() {
       service: "hyrepath-enrichment-mock",
       databaseOk: true,
       databaseLatencyMs: 4.2,
-      redisOk: false,
+      redisOk: true,
       redisLatencyMs: 1.8,
       prometheusConfigured: true,
       signals: {
