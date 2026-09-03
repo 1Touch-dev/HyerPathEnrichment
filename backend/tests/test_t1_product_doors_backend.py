@@ -12,8 +12,10 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user_from_cookie, require_verified_user
+from app.auth.jwt_tokens import decode_access_token
 from app.auth.models import User
 from app.auth.password import hash_password
+from app.core.config import get_settings
 from app.main import app
 
 PASSWORD = "SecurePass123!"
@@ -175,4 +177,22 @@ async def test_impersonation_start_status_end_http_lifecycle(db: AsyncSession) -
         end = await client.post("/api/admin/impersonation/end")
         assert end.status_code == 204
         assert end.content == b""
-        assert _response_cookies(end)["access_token"].value == ""
+
+        restored_access = _response_cookies(end)["access_token"].value
+        assert restored_access
+        restored_claims = decode_access_token(restored_access, get_settings().SECRET_KEY)
+        assert restored_claims["sub"] == str(admin.id)
+        assert restored_claims["email"] == admin.email
+        assert restored_claims["jti"]
+        assert restored_claims["exp"] > restored_claims["iat"]
+        assert "imp" not in restored_claims
+
+        ended_status = await client.get("/api/admin/impersonation/status")
+        assert ended_status.status_code == 200
+        assert ended_status.json()["data"] == {
+            "is_impersonating": False,
+            "admin_user_id": None,
+            "admin_email": None,
+            "target_user_id": None,
+            "expires_at": None,
+        }
