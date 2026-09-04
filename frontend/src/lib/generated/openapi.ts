@@ -3970,10 +3970,7 @@ export interface components {
              * @default audio/webm
              */
             audio_format: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Practice Session Id
@@ -3985,7 +3982,6 @@ export interface components {
         Body_upload_document_api_documents_upload_post: {
             /**
              * File
-             * Format: binary
              * @description Document file (PDF, DOCX)
              */
             file: string;
@@ -6824,6 +6820,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -7663,7 +7663,9 @@ export interface operations {
     create_brand_api_admin_brands_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: {
                 access_token?: string | null;
@@ -7891,7 +7893,9 @@ export interface operations {
     update_brand_api_admin_brands__brand_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 brand_id: string;
             };
@@ -8008,7 +8012,9 @@ export interface operations {
     deactivate_brand_route_api_admin_brands__brand_id__deactivate_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 brand_id: string;
             };
@@ -8125,7 +8131,9 @@ export interface operations {
     reactivate_brand_route_api_admin_brands__brand_id__reactivate_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 brand_id: string;
             };
@@ -9029,6 +9037,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {
@@ -10586,6 +10595,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {
@@ -11162,6 +11172,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {
@@ -11952,6 +11963,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {
@@ -14577,7 +14589,9 @@ export interface operations {
     update_user_status_api_admin_users__user_id__status_patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 user_id: string;
             };
