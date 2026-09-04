@@ -53,8 +53,10 @@ for Wave 2 execution, but several technical and live-environment blockers remain
   queue retry, and feature-flag mutations.
 - The catalog and all reviewed Wave 2 `P1` routes are now implemented with focused
   follow-up idempotency enforcement.
-- Frontend and BFF `Idempotency-Key` propagation gaps identified by review were fixed
-  in a follow-up pass.
+- Frontend and BFF `Idempotency-Key` propagation gaps identified by the first review
+  were fixed in a follow-up pass.
+- A second re-review found one remaining ADR21-related UI exposure: reachable
+  `user.role.assign` despite ADR21 unavailability. This second follow-up removes that path.
 - Remaining closure item: fresh independent re-review sign-off.
 
 ### `BLK-PROD-002`
@@ -63,6 +65,9 @@ for Wave 2 execution, but several technical and live-environment blockers remain
 - Core FE helper logic now follows that model.
 - Follow-up changes completed the remaining reviewed desk-route and backend staff-surface
   permission hardening.
+- A second re-review found one stale D-002 artifact: `frontend/e2e/desk-personas.spec.ts`
+  still encoded owner-only access. This second follow-up updates it to the approved
+  permission-centric matrix.
 - Remaining closure item: fresh independent re-review sign-off.
 
 ## ORCH-ROOT conclusion

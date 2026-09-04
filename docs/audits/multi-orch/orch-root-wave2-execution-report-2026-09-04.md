@@ -92,15 +92,46 @@ Focused follow-up regressions:
   `npm run test:unit -- --run components/auth/StaffGuard.test.tsx features/admin/components/QueueMonitor.test.tsx features/admin/components/UsersTable.test.tsx app/desk/roles/page.test.tsx features/admin/api/client.test.ts app/api/admin/brands/route.test.ts app/api/admin/brands/[brandId]/route.test.ts app/api/admin/brands/[brandId]/deactivate/route.test.ts`
   -> `45 passed`
 
-Follow-up implementation status: blocker fixes are implemented and regression-backed.
-Wave 2 is ready to return for independent re-review, but `G2` remains blocked
-until that independent re-review succeeds.
+Follow-up implementation status: most blocker fixes were implemented and regression-backed,
+but that follow-up over-claimed full closure.
+
+## Second re-review outcome
+
+Independent re-review result: `FAIL`
+
+Residual blockers called out by re-review:
+
+1. `user.role.assign` remained reachable through `frontend/features/admin/components/UserDetailDrawer.tsx`
+   and the deep-linkable `/desk/users/[userId]` path even though ADR21 marks it unavailable.
+2. `frontend/e2e/desk-personas.spec.ts` still encoded the rejected owner-only access model
+   instead of the approved D-002 permission-centric matrix.
+
+## Second follow-up blocker fix pass
+
+- Removed the remaining reachable Wave 2 `user.role.assign` UI path by making
+  `UserDetailDrawer` role display read-only, which also closes the deep-linkable
+  `/desk/users/[userId]` path because it renders that same drawer.
+- Updated `frontend/e2e/desk-personas.spec.ts` to assert the approved D-002 matrix:
+  non-owner plus exact permission passes, owner naming alone fails, and superuser still passes.
+
+Focused second follow-up regressions:
+
+- Frontend unit follow-up:
+  `npm run test:unit -- --run features/admin/components/UserDetailDrawer.test.tsx`
+  -> `1 passed`
+- Frontend E2E follow-up:
+  `npx playwright test e2e/desk-personas.spec.ts`
+  -> `4 passed`
+
+Wave 2 is ready to return for one more independent re-review, but `G2` remains blocked
+until that re-review succeeds.
 
 ## Gate outcome
 
 - `G1`: satisfied for Wave 2 execution in this run
 - `G2`: `BLOCKED`
 
-`G2` stays blocked only on independent re-review closure. The originally reported
-implementation gaps from the failed review have now been addressed and passed focused regressions,
-but ORCH-ROOT still cannot honestly mark `G2` passed until a fresh independent review confirms them.
+`G2` stays blocked on independent re-review closure. The first follow-up resolved
+the original blocker set but missed two reachable/contract-level issues, and this
+second follow-up addresses those. ORCH-ROOT still cannot honestly mark `G2` passed
+until a fresh independent review confirms the current state.

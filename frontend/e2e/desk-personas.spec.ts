@@ -31,7 +31,11 @@ type Identity = {
   updated_at: string;
 };
 
-function identity(roleName: string | null, isSuperuser = false): Identity {
+function identity(
+  roleName: string | null,
+  isSuperuser = false,
+  permissions: { resource: string; action: string }[] = [],
+): Identity {
   return {
     id: `qa-e2e-${roleName ?? "candidate"}`,
     email: `${roleName ?? "candidate"}@example.test`,
@@ -42,7 +46,7 @@ function identity(roleName: string | null, isSuperuser = false): Identity {
     is_superuser: isSuperuser,
     role_id: roleName ? `role-${roleName}` : null,
     role_name: roleName,
-    permissions: [],
+    permissions,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
   };
@@ -50,8 +54,45 @@ function identity(roleName: string | null, isSuperuser = false): Identity {
 
 async function mockIdentity(page: Page, user: Identity): Promise<void> {
   await page.unrouteAll({ behavior: "wait" });
+  await page.route("**/api/admin/users**", (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        data: {
+          items: [
+            {
+              ...user,
+              mfaEnabled: false,
+              firstName: user.first_name,
+              lastName: user.last_name,
+              isActive: user.is_active,
+              isVerified: user.is_verified,
+              isSuperuser: user.is_superuser,
+              roleId: user.role_id,
+              roleName: user.role_name,
+              createdAt: user.created_at,
+              deletedAt: null,
+            },
+          ],
+          nextCursor: null,
+          hasMore: false,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/admin/roles**", (route) =>
+    route.fulfill({ json: { success: true, data: [] } }),
+  );
+  await page.route("**/api/admin/feature-flags**", (route) =>
+    route.fulfill({ json: { success: true, data: [] } }),
+  );
+  await page.route("**/api/admin/queues**", (route) =>
+    route.fulfill({ json: { success: true, data: [] } }),
+  );
   await page.route("**/api/**", (route) => route.fulfill({ json: { success: true, data: {} } }));
-  await page.route("**/api/auth/me", (route) => route.fulfill({ json: user }));
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ json: { success: true, data: user } }),
+  );
   await page.route("**/api/admin/impersonation/status", (route) =>
     route.fulfill({
       json: {
@@ -70,10 +111,27 @@ async function mockIdentity(page: Page, user: Identity): Promise<void> {
 async function mockLogin(page: Page, user: Identity): Promise<void> {
   let authenticated = false;
   await page.unrouteAll({ behavior: "wait" });
+  await page.route("**/api/admin/users**", (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        data: { items: [], nextCursor: null, hasMore: false },
+      },
+    }),
+  );
+  await page.route("**/api/admin/roles**", (route) =>
+    route.fulfill({ json: { success: true, data: [] } }),
+  );
+  await page.route("**/api/admin/feature-flags**", (route) =>
+    route.fulfill({ json: { success: true, data: [] } }),
+  );
+  await page.route("**/api/admin/queues**", (route) =>
+    route.fulfill({ json: { success: true, data: [] } }),
+  );
   await page.route("**/api/**", (route) => route.fulfill({ json: { success: true, data: {} } }));
   await page.route("**/api/auth/me", (route) =>
     authenticated
-      ? route.fulfill({ json: user })
+      ? route.fulfill({ json: { success: true, data: user } })
       : route.fulfill({ status: 401, json: { detail: "Unauthorized" } }),
   );
   await page.route("**/api/auth/login", async (route) => {
@@ -88,10 +146,14 @@ test.describe("frozen product-door persona contract", () => {
   test("each persona lands at its approved home after login", async ({ browser }) => {
     const cases = [
       [identity(null), "/app/matches"],
-      [identity("recruiter"), "/desk/sourcing-leads"],
-      [identity("support"), "/desk/users"],
-      [identity("admin"), "/desk"],
-      [identity("team_owner"), "/desk"],
+      [
+        identity("recruiter", false, [{ resource: "linkedin_sourcing", action: "write" }]),
+        "/desk/sourcing-leads",
+      ],
+      [identity("support", false, [{ resource: "users", action: "read" }]), "/desk/users"],
+      [identity("admin", false, [{ resource: "system_health", action: "read" }]), "/desk"],
+      [identity("team_owner"), "/osint"],
+      [identity("recruiter", false, [{ resource: "system_health", action: "read" }]), "/desk"],
       [identity(null, true), "/desk"],
     ] as const;
     test.setTimeout(LOGIN_PERSONA_MATRIX_ASSERTION_BUDGET_MS);
@@ -116,9 +178,23 @@ test.describe("frozen product-door persona contract", () => {
     }
   });
 
-  test("Roles, Feature flags, and Queues allow only named owner personas", async ({ browser }) => {
+  test("Roles, Feature flags, and Queues allow non-owners with the exact permission", async ({
+    browser,
+  }) => {
     const protectedRoutes = ["/desk/roles", "/desk/feature-flags", "/desk/queues"] as const;
-    const allowed = [identity("admin"), identity("team_owner"), identity(null, true)] as const;
+    const allowed = [
+      identity("recruiter", false, [
+        { resource: "roles", action: "read" },
+        { resource: "feature_flags", action: "read" },
+        { resource: "queues", action: "read" },
+      ]),
+      identity("support", false, [
+        { resource: "roles", action: "read" },
+        { resource: "feature_flags", action: "read" },
+        { resource: "queues", action: "read" },
+      ]),
+      identity(null, true),
+    ] as const;
     test.setTimeout(OWNER_ROUTE_MATRIX_ASSERTION_BUDGET_MS);
 
     for (const user of allowed) {
@@ -137,30 +213,25 @@ test.describe("frozen product-door persona contract", () => {
     }
   });
 
-  test("permissions cannot elevate a non-owner into owner-only Desk routes", async ({
+  test("named owners without permission cannot enter permission-gated Desk routes", async ({
     browser,
   }) => {
-    const forgedPermissionUser: Identity = {
-      ...identity("recruiter"),
-      permissions: [
-        { resource: "roles", action: "read" },
-        { resource: "feature_flags", action: "read" },
-        { resource: "queues", action: "read" },
-      ],
-    };
+    const ownerOnlyUsers = [identity("admin"), identity("team_owner")] as const;
     const protectedRoutes = ["/desk/roles", "/desk/feature-flags", "/desk/queues"] as const;
     test.setTimeout(DENIED_ROUTE_MATRIX_ASSERTION_BUDGET_MS);
 
-    for (const protectedRoute of protectedRoutes) {
-      const context = await browser.newContext();
-      try {
-        const page = await context.newPage();
-        await mockIdentity(page, forgedPermissionUser);
-        await page.goto(protectedRoute, { waitUntil: "domcontentloaded" });
-        await expect(page).toHaveURL(/\/desk\/sourcing-leads$/, { timeout: 15_000 });
-      } finally {
-        test.info().setTimeout(test.info().timeout + CONTEXT_CLEANUP_ALLOWANCE_MS);
-        await context.close();
+    for (const user of ownerOnlyUsers) {
+      for (const protectedRoute of protectedRoutes) {
+        const context = await browser.newContext();
+        try {
+          const page = await context.newPage();
+          await mockIdentity(page, user);
+          await page.goto(protectedRoute, { waitUntil: "domcontentloaded" });
+          await expect(page).toHaveURL(/\/osint$/, { timeout: 15_000 });
+        } finally {
+          test.info().setTimeout(test.info().timeout + CONTEXT_CLEANUP_ALLOWANCE_MS);
+          await context.close();
+        }
       }
     }
   });
