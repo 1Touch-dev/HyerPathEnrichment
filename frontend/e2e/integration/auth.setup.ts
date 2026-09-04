@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { test as setup } from "@playwright/test";
 
@@ -9,7 +10,10 @@ const TEST_PASSWORD = process.env.INTEGRATION_TEST_PASSWORD ?? "IntegrationTest1
 const AUTH_FILE = path.resolve(__dirname, ".auth/user.json");
 
 function pythonExecutable(): string {
-  return process.platform === "win32" ? "python" : "python3";
+  if (process.platform === "win32") return "python";
+  const venvPython = path.join(BACKEND_ROOT, ".venv", "bin", "python");
+  if (fs.existsSync(venvPython)) return venvPython;
+  return "python3";
 }
 
 const BACKEND_URL = (process.env.BACKEND_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -51,7 +55,16 @@ setup("authenticate against live backend", async ({ page }) => {
       TEST_PASSWORD,
       "--is-superuser",
     ],
-    { cwd: BACKEND_ROOT, stdio: ["ignore", "pipe", "inherit"] },
+    {
+      cwd: BACKEND_ROOT,
+      stdio: ["ignore", "pipe", "inherit"],
+      // Host .env may be production-like; scripts only need DB access.
+      env: {
+        ...process.env,
+        APP_ENV: "development",
+        COOKIE_SECURE: "false",
+      },
+    },
   );
 
   const response = await page.request.post("/api/auth/login", {
