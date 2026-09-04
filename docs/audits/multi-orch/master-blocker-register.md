@@ -11,27 +11,34 @@
 
 ## Overall status
 
-Wave 1 packet preparation is complete and the required Wave 2 owner decisions were
-approved in-session for this run. The program is no longer blocked on decision intake
-for Wave 2 execution, but several technical and live-environment blockers remain open.
+Wave 1 packet preparation is complete, Wave 2 is treated as independently accepted
+for this run, and Wave 4 now includes the explicit local-only pilot waiver:
+`LOCAL_ONLY_PILOT_EVIDENCE: yes`. The five original blockers are therefore
+closed for certification purposes within the accepted plan scope.
+
+The two post-certification ORCH-CERT defects have since been remediated on
+`origin/product-doors/baseline` at `37e90081c7bd5d6d1a463f791b6bb668bddc0e35`.
+The remaining note is external release-signal completion, not another code defect.
 
 ## Blocker register
 
 | Blocker ID | Current status | Exact owner(s) | Backing evidence / packet | Pending decision(s) | What this blocker is holding | What it unlocks once resolved |
 |---|---|---|---|---|---|---|
-| `BLK-PG-001` | `BLOCKED` | `ORCH-INFRA`; Infra human owner for disposable PG credentials and compose password gate | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md` | Infra credential authorization for `POSTGRES_PASSWORD`, `DATABASE_URL`, `TEST_DATABASE_URL` | PostgreSQL migration rehearsal and concurrency evidence remain unstartable | `PG-REHEARSAL-001`, `PG-CONCURRENCY-001`, later `FINAL-REG-013` |
-| `BLK-PILOT-001` | `BLOCKED` | `ORCH-INFRA`; Product human + Infra human decision owners | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; `docs/audits/multi-orch-product-wave1-dec-d002-precedence-2026-09-04.md`; `docs/audits/multi-orch/evidence/pilot/PILOT-DEPLOY-001-2026-09-04.md`; `docs/audits/multi-orch/evidence/pilot/ROLLBACK-LIVE-001-2026-09-04.md`; `docs/audits/multi-orch/evidence/pilot/PILOT-DEPLOY-001-local-only-2026-09-04.md`; `docs/audits/multi-orch/evidence/pilot/ROLLBACK-LIVE-001-local-only-2026-09-04.md` | Either a true remote environment, or at minimum a runnable local-only current-RC stack plus a runnable previous-version anchor | Wave 3 now has both a failed real staging attempt and a failed local-only compose rehearsal; the remote path lacked host credentials, while the local path was blocked by Docker `no space left on device` before the RC stack could start | Complete a runnable pilot deploy + rollback rehearsal, then unblock `G3` |
-| `BLK-T4-001` | `READY FOR QA RE-REVIEW` | `ORCH-INFRA` + `ORCH-QA`; decision owners Infra human + QA human; Security reviewer | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; `docs/audits/multi-orch/orch-qa-wave1-packet-2026-09-04.md`; `docs/audits/multi-orch/evidence/AUTH-SETUP-001-2026-09-04.md`; `docs/audits/multi-orch/evidence/T4-LIVE-001-2026-09-04.md` | Independent QA re-review of the corrected evidence package pinned to executed revision `b75883cbdce230b59abc8b59fae587d51db07a96` | Scoped non-production auth setup evidence plus mixed live/hybrid T4 evidence are now captured honestly; closure still depends on fresh independent QA review and this package does not claim standalone live D002 or ADR21 completion | `AUTH-SETUP-001`, scoped `T4-LIVE-001`, later `FINAL-REG-006` through `FINAL-REG-009` |
-| `BLK-SEC-001` | `PARTIAL` | `ORCH-SECURITY`; Security human + Product human decision owners | `docs/audits/multi-orch-adr21-wave1-decision-packet-2026-09-04.md` | Remaining privileged-route enforcement, BFF propagation, and independent review sign-off | Catalog + partial route hardening landed, but reviewer-confirmed ADR21 gaps still prevent closure | `ADR21-IMPL-001`, `ADR21-TEST-001` through `ADR21-TEST-008`, later ADR21 live and regression coverage |
-| `BLK-PROD-002` | `PARTIAL` | `ORCH-PRODUCT`; Product human decision owner; Security human reviewer | `docs/audits/multi-orch-product-wave1-dec-d002-precedence-2026-09-04.md` | Remaining desk-page/backend permission-boundary alignment | Core FE permission helpers were corrected, but reviewer-confirmed shell/page/API drift still prevents closure | `D002-IMPL-001`, `D002-TEST-001` through `D002-TEST-005`, later D002 live and regression coverage |
+| `BLK-PG-001` | `RESOLVED FOR THIS RUN` | `ORCH-INFRA`; Infra human owner for disposable PG credentials and compose password gate | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; accepted local Postgres rehearsal/concurrency state supplied to ORCH-CERT for this run | None for this run | It no longer blocks `G3`; ORCH-CERT was instructed not to invent new PG evidence paths in Wave 4 | `G3`, `FINAL-AUDIT-001` |
+| `BLK-PILOT-001` | `RESOLVED UNDER LOCAL-ONLY SCOPE WAIVER` | `ORCH-INFRA`; Product human + Infra human decision owners | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; `docs/audits/multi-orch-product-wave1-dec-d002-precedence-2026-09-04.md`; `docs/audits/multi-orch/evidence/pilot/PILOT-DEPLOY-001-2026-09-04.md`; `docs/audits/multi-orch/evidence/pilot/ROLLBACK-LIVE-001-2026-09-04.md`; `docs/audits/multi-orch/evidence/pilot/PILOT-DEPLOY-001-local-only-2026-09-04.md`; `docs/audits/multi-orch/evidence/pilot/ROLLBACK-LIVE-001-local-only-2026-09-04.md` | None after explicit Wave 4 decision `LOCAL_ONLY_PILOT_EVIDENCE: yes` | It no longer blocks `G3` for this plan. The accepted evidence remains explicitly local-only and is **not** remote staging proof. | `G3`, `FINAL-AUDIT-001` |
+| `BLK-T4-001` | `RESOLVED FOR THIS RUN` | `ORCH-INFRA` + `ORCH-QA`; decision owners Infra human + QA human; Security reviewer | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; `docs/audits/multi-orch/orch-qa-wave1-packet-2026-09-04.md`; `docs/audits/multi-orch/evidence/AUTH-SETUP-001-2026-09-04.md`; `docs/audits/multi-orch/evidence/T4-LIVE-001-2026-09-04.md`; accepted T4 state supplied to ORCH-CERT for this run | None for this run | It no longer blocks `G3`; the evidence package is accepted as scoped, mixed live/hybrid proof for this run | `G3`, `FINAL-AUDIT-001` |
+| `BLK-SEC-001` | `RESOLVED FOR THIS RUN` | `ORCH-SECURITY`; Security human + Product human decision owners | `docs/audits/multi-orch-adr21-wave1-decision-packet-2026-09-04.md`; `docs/audits/multi-orch/orch-root-wave2-execution-report-2026-09-04.md`; accepted independent re-review state supplied to ORCH-CERT for this run | None for this run | It no longer blocks `G3`; ADR21 remediation is treated as accepted for this certification run | `G3`, `FINAL-AUDIT-001` |
+| `BLK-PROD-002` | `RESOLVED FOR THIS RUN` | `ORCH-PRODUCT`; Product human decision owner; Security human reviewer | `docs/audits/multi-orch-product-wave1-dec-d002-precedence-2026-09-04.md`; `docs/audits/multi-orch/orch-root-wave2-execution-report-2026-09-04.md`; accepted independent re-review state supplied to ORCH-CERT for this run | None for this run | It no longer blocks `G3`; D-002 remediation is treated as accepted for this certification run | `G3`, `FINAL-AUDIT-001` |
 
 ## Readiness notes by blocker
 
 ### `BLK-PG-001`
 
-- Infra has defined exact deferred commands and evidence folders.
-- Infra has not yet supplied or approved disposable PostgreSQL credentials.
-- This blocker affects Wave 3 evidence, not Wave 2 policy implementation directly.
+- ORCH-CERT was instructed to treat local Postgres rehearsal/concurrency evidence
+  as already accepted for this run.
+- No new Postgres artifact paths are fabricated here. The blocker closes on the
+  authoritative accepted state supplied to Wave 4.
+- Missing repo-side evidence packaging remains a traceability gap only.
 
 ### `BLK-PILOT-001`
 
@@ -46,18 +53,28 @@ for Wave 2 execution, but several technical and live-environment blockers remain
   required staging deploy secrets were not available to the run.
 - No live base URL, `/ready`, smoke, or rollback rehearsal evidence could be
   produced honestly from this attempt.
-- A second, explicitly local-only rehearsal was then attempted using
-  `docker-compose.yml` + `docker-compose.staging.yml` + local image overrides
-  under compose project `wave3pilotlocal`.
-- The local env file validated, and `6da855b` was accepted as a plausible
-  previous-version rollback anchor because no `backend/alembic/` changes exist
-  between that revision and the RC.
-- The local-only rehearsal still failed before the RC stack could start because
-  Docker hit `no space left on device` during image export/extraction and again
-  during `docker compose up`.
-- Therefore this blocker remains open on two honest grounds: there is still no
-  true remote environment, and the current machine could not complete the
-  fallback local-only RC rehearsal either.
+- A second, explicitly local-only rehearsal was attempted under compose project
+  `wave3pilotlocal` using `docker-compose.yml`,
+  `docker-compose.staging.yml`, and the documented
+  `docker-compose.tier-workers.yml` overlay plus generated local-only image and
+  port overrides.
+- Docker cleanup reclaimed approximately `20.10GB` and moved root free space
+  from roughly `741M` to roughly `20G`, allowing the fallback local rehearsal
+  to proceed.
+- The local env file validated, `6da855b` remained an acceptable rollback
+  anchor, and both current (`85fa8f5`) and rollback (`6da855b`) image sets were
+  built locally.
+- The local-only rehearsal then succeeded end to end: current RC `/health` and
+  `/ready` passed, `alembic current` stayed at
+  `066_privileged_idempotency_records (head)`, verified staff sync and async
+  enrich both completed, rollback to `6da855b` completed with the same checks,
+  and re-deploy back to `85fa8f5` completed with the same checks.
+- Local-only evidence is therefore no longer blocked by machine capacity.
+- This blocker is now closed **for this plan** because the explicit Wave 4 user
+  decision accepts the local-only pilot/rollback rehearsal as the terminal
+  substitute for the missing remote non-production target.
+- Remote host provenance is still absent. That remains a release-certification
+  concern and is not silently rewritten into "remote staging passed."
 - Monitoring-backed expansion evidence remains unavailable unless Infra provides it later.
 
 ### `BLK-T4-001`
@@ -69,7 +86,8 @@ for Wave 2 execution, but several technical and live-environment blockers remain
 - The evidence package is pinned to executed revision `b75883cbdce230b59abc8b59fae587d51db07a96`.
 - Hybrid `/api/auth/me` and `/api/auth/login` cases are now called out explicitly as regression-only support rather than full live-actor proof.
 - D002 / ADR21 bookkeeping rows were restored for traceability and are not over-claimed as separately executed live cases.
-- The blocker is ready for independent QA re-review; it is not fully closed until that review happens.
+- The Wave 4 authoritative state treats the T4 evidence package as accepted for
+  this run, so the blocker is no longer open in the blocker register.
 
 ### `BLK-SEC-001`
 
@@ -82,7 +100,8 @@ for Wave 2 execution, but several technical and live-environment blockers remain
   were fixed in a follow-up pass.
 - A second re-review found one remaining ADR21-related UI exposure: reachable
   `user.role.assign` despite ADR21 unavailability. This second follow-up removes that path.
-- Remaining closure item: fresh independent re-review sign-off.
+- The Wave 4 authoritative state treats the independent re-review as accepted for
+  this run, so the blocker is no longer open in the blocker register.
 
 ### `BLK-PROD-002`
 
@@ -93,10 +112,31 @@ for Wave 2 execution, but several technical and live-environment blockers remain
 - A second re-review found one stale D-002 artifact: `frontend/e2e/desk-personas.spec.ts`
   still encoded owner-only access. This second follow-up updates it to the approved
   permission-centric matrix.
-- Remaining closure item: fresh independent re-review sign-off.
+- The Wave 4 authoritative state treats the independent re-review as accepted for
+  this run, so the blocker is no longer open in the blocker register.
+
+## Post-certification refresh notes
+
+The prior two ORCH-CERT release blockers are now closed on the release branch target:
+
+1. `37e9008` commits the compose env passthrough required by the accepted
+   local-only pilot topology into `backend/docker/docker-compose.yml`.
+2. `37e9008` removes the duplicate `async redirects()` definition from
+   `frontend/next.config.js`, restoring `/app/enrich -> /osint` and
+   `/app/signals -> /desk/signals`.
+
+Remaining notes after the refresh:
+
+- local checked-out `HEAD` is still `7106dcce0b1c06cbd963ea8478c7fa5b86764d48`,
+  which is behind `origin/product-doors/baseline` by 5 commits
+- independent re-review [Re-review final blockers](e960981c-a4aa-46c0-9dca-ce3a5b876011)
+  returned `PASS-WITH-NOTES` and confirms both prior release blockers are closed
+- GitHub commit metadata for `37e9008` still showed combined status `pending`
+  and no completed check runs/status contexts at refresh time
 
 ## ORCH-ROOT conclusion
 
-Wave 1 packet prep is complete and the required Wave 2 approvals are now on record for
-this run. The blocker picture has shifted from decision intake to implementation
-completion and live-environment evidence.
+The original blocker picture remains closed for this plan, including the explicit
+local-only pilot waiver. The post-certification code defects are also closed on
+the release branch target. The only remaining release note is the external
+GitHub completion signal for `37e9008`.
