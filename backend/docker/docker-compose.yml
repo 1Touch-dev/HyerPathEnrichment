@@ -93,7 +93,8 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      # Readiness (Postgres + Redis + Alembic head) — matches docs/deployment.md /ready probe
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/ready"]
       interval: 10s
       timeout: 5s
       retries: 12

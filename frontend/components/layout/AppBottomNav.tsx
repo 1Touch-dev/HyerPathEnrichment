@@ -7,6 +7,9 @@ import { cn } from "@/src/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import type { NavSection } from "./nav-config";
 
+const NAV_FOCUS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 type AppBottomNavProps = {
   sections: NavSection[];
   pathname: string;
@@ -41,13 +44,15 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative flex flex-col items-center gap-1 rounded-md px-2 py-2 text-xs",
+                    NAV_FOCUS,
                     active ? "bg-secondary text-primary" : "text-muted-foreground",
                   )}
                 >
                   <span className="relative">
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4" aria-hidden="true" />
                     {showUnreadBadge ? (
                       <span className="absolute -right-1.5 -top-1.5 size-2 rounded-full bg-destructive" />
                     ) : null}
@@ -64,11 +69,12 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
                 type="button"
                 className={cn(
                   "flex w-full flex-col items-center gap-1 rounded-md px-2 py-2 text-xs",
+                  NAV_FOCUS,
                   moreActive ? "bg-secondary text-primary" : "text-muted-foreground",
                 )}
                 aria-expanded={moreOpen}
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                 <span>More</span>
               </button>
             </SheetTrigger>
@@ -96,14 +102,16 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
                 <Link
                   href={item.href}
                   onClick={() => setMoreOpen(false)}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors",
+                    NAV_FOCUS,
                     active
                       ? "bg-secondary text-primary"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <span>{item.label}</span>
                 </Link>
               </li>

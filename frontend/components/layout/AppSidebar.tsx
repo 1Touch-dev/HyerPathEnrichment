@@ -23,6 +23,9 @@ const PRODUCT_DESCRIPTION: Record<Product, string> = {
   osint: "Public-only lookup",
 };
 
+const NAV_FOCUS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSidebarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
@@ -41,14 +44,22 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-4">
         {sidebarOpen ? (
-          <Link href={PRODUCT_ROOTS[product]} className="flex flex-col items-start gap-1 px-1">
+          <Link
+            href={PRODUCT_ROOTS[product]}
+            aria-label="Hyrepath home"
+            className={cn("flex flex-col items-start gap-1 rounded-md px-1", NAV_FOCUS)}
+          >
             <span className="text-sm font-semibold tracking-tight text-primary">Hyrepath</span>
             <span className="rounded-md bg-secondary px-2.5 py-1 text-sm font-medium leading-5 text-primary">
               {product === "osint" ? "OSINT" : `${product[0].toUpperCase()}${product.slice(1)}`}
             </span>
           </Link>
         ) : (
-          <Link href={PRODUCT_ROOTS[product]} className="mx-auto text-xs font-bold text-primary">
+          <Link
+            href={PRODUCT_ROOTS[product]}
+            aria-label="Hyrepath home"
+            className={cn("mx-auto rounded-md text-xs font-bold text-primary", NAV_FOCUS)}
+          >
             H
           </Link>
         )}
@@ -82,8 +93,11 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      aria-label={item.label}
+                      aria-current={active ? "page" : undefined}
                       className={cn(
                         "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
+                        NAV_FOCUS,
                         active
                           ? "bg-secondary text-primary"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -92,7 +106,7 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
                       title={!sidebarOpen ? item.label : undefined}
                     >
                       <span className="relative shrink-0">
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-4 w-4" aria-hidden="true" />
                         {showUnreadBadge && !sidebarOpen ? (
                           <span className="absolute -right-1 -top-1 size-2 rounded-full bg-destructive" />
                         ) : null}

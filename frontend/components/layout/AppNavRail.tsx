@@ -5,6 +5,9 @@ import { cn } from "@/src/lib/utils";
 import { PRODUCT_ROOTS, type Product } from "@/src/lib/product-doors";
 import type { NavSection } from "./nav-config";
 
+const NAV_FOCUS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 type AppNavRailProps = {
   product: Product;
   sections: NavSection[];
@@ -23,7 +26,11 @@ export function AppNavRail({
       <div className="flex w-full flex-col items-center gap-4">
         <Link
           href={PRODUCT_ROOTS[product]}
-          className="flex size-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-primary"
+          aria-label="Hyrepath home"
+          className={cn(
+            "flex size-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-primary",
+            NAV_FOCUS,
+          )}
         >
           H
         </Link>
@@ -39,12 +46,15 @@ export function AppNavRail({
                   key={item.href}
                   href={item.href}
                   title={item.label}
+                  aria-label={item.label}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative flex h-11 items-center justify-center rounded-md text-muted-foreground transition-colors",
+                    NAV_FOCUS,
                     active ? "bg-secondary text-primary" : "hover:bg-muted hover:text-foreground",
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4" aria-hidden="true" />
                   {showUnreadBadge ? (
                     <span className="absolute right-3 top-2 size-2 rounded-full bg-destructive" />
                   ) : null}
