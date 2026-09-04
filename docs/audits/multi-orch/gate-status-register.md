@@ -12,7 +12,7 @@
 | `G1` Decisions and environments ready | `PASS FOR WAVE 2 EXECUTION` | Required Wave 2 decisions were approved in-session for this run, and implementation/test work proceeded under that authority | Wave 3 still needs explicit non-production environment handoffs for PG/T4/pilot evidence |
 | `GATE-COMMIT-AUTH` | `PASS` | Commit execution was explicitly authorized for this run | Preserve scope discipline; do not push without a separate request |
 | `G2` Implementation ready for validation | `BLOCKED` | A second independent re-review found two remaining Wave 2 gaps: reachable `user.role.assign` UI and a stale owner-only E2E matrix. This follow-up addresses those, but fresh independent re-review has not completed yet | Re-run the narrow regressions, obtain one more independent G2 re-review on the latest follow-up commit, and pin the RC commit only if that review passes |
-| `G3` Blocker evidence approved | `BLOCKED` | No live PG, T4, pilot, or rollback evidence exists yet | Complete Wave 3 live evidence and secure Product/Security/Infra/QA sign-off |
+| `G3` Blocker evidence approved | `BLOCKED` | Scoped T4 live evidence now exists, but PG and pilot/rollback evidence are still incomplete and the corrected T4 package still needs fresh independent QA review | Complete the remaining Wave 3 evidence and secure Product/Security/Infra/QA sign-off |
 | `G4` Final release decision | `BLOCKED` | ORCH-CERT has not started and cannot start before `G3` | Full independent final audit and human release decision |
 
 ## `G1` criterion breakdown
@@ -41,7 +41,7 @@ still independent closure:
 - `D002-IMPL-001`: follow-up pass completed the remaining desk/page/API permission-boundary hardening
 - `ADR21-IMPL-001`: second follow-up removed the remaining reachable `user.role.assign` UI path
 - `D002-IMPL-001`: second follow-up corrected the persona E2E matrix to require exact permissions
-- `AUTH-SETUP-001`: hardening landed, but no live non-production T4 execution evidence exists yet
+- `AUTH-SETUP-001` / `T4-LIVE-001`: committed evidence now exists and is pinned to executed revision `b75883cbdce230b59abc8b59fae587d51db07a96`, but the T4 package is still awaiting fresh independent QA re-review and does not over-claim hybrid cases as fully live actor proof
 
 Conclusion: Wave 2 execution did begin legitimately for this run, but `G2` cannot pass
 until the latest follow-up implementation is independently re-validated.
