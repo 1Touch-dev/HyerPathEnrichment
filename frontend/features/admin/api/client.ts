@@ -319,8 +319,12 @@ export async function confirmMfaEnrollment(code: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to confirm MFA: ${res.status}`);
 }
 
-export async function disableMfa(): Promise<void> {
-  const res = await fetch("/api/admin/mfa/disable", { method: "POST" });
+export async function disableMfa(code: string): Promise<void> {
+  const res = await fetch("/api/admin/mfa/disable", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
   if (!res.ok) throw new Error(`Failed to disable MFA: ${res.status}`);
 }
 

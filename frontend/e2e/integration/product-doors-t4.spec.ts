@@ -259,7 +259,14 @@ test("MFA and impersonation complete a full start/status/end lifecycle", async (
   impersonation = unwrap<{ isImpersonating: boolean; targetUserId: string }>(endedStatusBody);
   expect(impersonation.isImpersonating).toBe(false);
 
-  const disableResponse = await page.request.post("/api/admin/mfa/disable");
+  const disableCode = execFileSync(
+    "python3",
+    ["-c", "import pyotp,sys; print(pyotp.TOTP(sys.argv[1]).now())", enrollment.secret],
+    { encoding: "utf8" },
+  ).trim();
+  const disableResponse = await page.request.post("/api/admin/mfa/disable", {
+    data: { code: disableCode },
+  });
   expect(disableResponse.status()).toBe(200);
   status = unwrap<{ mfaEnabled: boolean }>(
     await (await page.request.get("/api/admin/mfa/status")).json(),

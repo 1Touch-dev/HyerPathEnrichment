@@ -59,9 +59,17 @@ export function MfaSetupCard() {
   }
 
   async function handleDisable() {
+    setError(null);
     const confirmed = window.confirm("Disable two-factor authentication for your account?");
     if (!confirmed) return;
-    await disableMfa.mutateAsync();
+    const disableCode = window.prompt("Enter your current 6-digit MFA code to disable 2FA:", "");
+    if (!disableCode?.trim()) return;
+
+    try {
+      await disableMfa.mutateAsync(disableCode.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to disable MFA.");
+    }
   }
 
   if (isLoading) {
@@ -94,13 +102,16 @@ export function MfaSetupCard() {
                 Enrolled {status.mfaEnrolledAt ? formatDate(status.mfaEnrolledAt) : ""}
               </p>
             </div>
-            <Button
-              variant="destructive"
-              onClick={() => void handleDisable()}
-              disabled={disableMfa.isPending}
-            >
-              {disableMfa.isPending ? "Disabling…" : "Disable 2FA"}
-            </Button>
+            <div className="flex flex-col items-end gap-2">
+              <Button
+                variant="destructive"
+                onClick={() => void handleDisable()}
+                disabled={disableMfa.isPending}
+              >
+                {disableMfa.isPending ? "Disabling…" : "Disable 2FA"}
+              </Button>
+              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            </div>
           </div>
         ) : enroll.data ? (
           <form onSubmit={handleConfirm} className="space-y-4">

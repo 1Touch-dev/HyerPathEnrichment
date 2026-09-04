@@ -21,7 +21,7 @@ for Wave 2 execution, but several technical and live-environment blockers remain
 |---|---|---|---|---|---|---|
 | `BLK-PG-001` | `BLOCKED` | `ORCH-INFRA`; Infra human owner for disposable PG credentials and compose password gate | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md` | Infra credential authorization for `POSTGRES_PASSWORD`, `DATABASE_URL`, `TEST_DATABASE_URL` | PostgreSQL migration rehearsal and concurrency evidence remain unstartable | `PG-REHEARSAL-001`, `PG-CONCURRENCY-001`, later `FINAL-REG-013` |
 | `BLK-PILOT-001` | `OPEN` | `ORCH-INFRA`; Product human + Infra human decision owners | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; Product pilot prerequisites in `docs/audits/multi-orch-product-wave1-dec-d002-precedence-2026-09-04.md` | Live host + deploy execution + rollback rehearsal | No honest live pilot or rollback evidence can be produced yet | `PILOT-DEPLOY-001`, `ROLLBACK-LIVE-001`, later `G3` pilot evidence |
-| `BLK-T4-001` | `PARTIAL` | `ORCH-INFRA` + `ORCH-QA`; decision owners Infra human + QA human; Security reviewer | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; `docs/audits/multi-orch/orch-qa-wave1-packet-2026-09-04.md` | Running non-production backend handoff and live `product-doors-t4` execution | Auth setup hardening is implemented, but live auth setup and full T4 evidence remain outstanding | `AUTH-SETUP-001`, `T4-LIVE-001`, live D002 and ADR21 T4 cases, later `FINAL-REG-006` through `FINAL-REG-009` |
+| `BLK-T4-001` | `READY FOR QA RE-REVIEW` | `ORCH-INFRA` + `ORCH-QA`; decision owners Infra human + QA human; Security reviewer | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; `docs/audits/multi-orch/orch-qa-wave1-packet-2026-09-04.md`; `docs/audits/multi-orch/evidence/T4-LIVE-001-2026-09-04.md` | Independent QA re-review of the captured live evidence | Live non-production auth setup and the full `product-doors-t4` rerun now pass; closure still depends on fresh independent review | `AUTH-SETUP-001`, `T4-LIVE-001`, live D002 and ADR21 T4 cases, later `FINAL-REG-006` through `FINAL-REG-009` |
 | `BLK-SEC-001` | `PARTIAL` | `ORCH-SECURITY`; Security human + Product human decision owners | `docs/audits/multi-orch-adr21-wave1-decision-packet-2026-09-04.md` | Remaining privileged-route enforcement, BFF propagation, and independent review sign-off | Catalog + partial route hardening landed, but reviewer-confirmed ADR21 gaps still prevent closure | `ADR21-IMPL-001`, `ADR21-TEST-001` through `ADR21-TEST-008`, later ADR21 live and regression coverage |
 | `BLK-PROD-002` | `PARTIAL` | `ORCH-PRODUCT`; Product human decision owner; Security human reviewer | `docs/audits/multi-orch-product-wave1-dec-d002-precedence-2026-09-04.md` | Remaining desk-page/backend permission-boundary alignment | Core FE permission helpers were corrected, but reviewer-confirmed shell/page/API drift still prevents closure | `D002-IMPL-001`, `D002-TEST-001` through `D002-TEST-005`, later D002 live and regression coverage |
 
@@ -44,7 +44,8 @@ for Wave 2 execution, but several technical and live-environment blockers remain
 - QA has a full execution matrix and evidence handling rules.
 - Infra has a concrete environment packet.
 - The non-production-only setup path has been hardened in code.
-- The remaining gap is actual non-production backend handoff plus live T4 execution evidence.
+- Live non-production backend handoff and `T4-LIVE-001` execution evidence are now captured in `docs/audits/multi-orch/evidence/T4-LIVE-001-2026-09-04.md`.
+- The blocker is ready for independent QA re-review; it is not fully closed until that review happens.
 
 ### `BLK-SEC-001`
 
