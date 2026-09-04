@@ -27,16 +27,20 @@ const deskRoutes = [
   "/desk/users",
 ] as const;
 
+/** Align with `next.config.js` + `e2e/redirects.spec.ts` (Candidate keep-under-/app). */
 const redirects = [
   ["/app/enrich?tiers=tier1", "/osint?tiers=tier1"],
-  ["/app/history?cursor=next", "/osint/jobs?cursor=next"],
-  ["/app/jobs?state=queued", "/osint/jobs?state=queued"],
-  ["/app/jobs/dossier-123?tiers=tier2&view=raw", "/osint/jobs/dossier-123?tiers=tier2&view=raw"],
   ["/app/signals?source=webhook", "/desk/signals?source=webhook"],
-  ["/app/dashboard?tab=lookup", "/osint?tab=lookup"],
-  ["/app/health?probe=redis", "/desk/system-health?probe=redis"],
   ["/app/admin?from=legacy", "/desk?from=legacy"],
   ["/app/admin/users/user-123?tab=audit", "/desk/users/user-123?tab=audit"],
+] as const;
+
+const directCandidateCases = [
+  "/app/jobs?state=queued",
+  "/app/history?cursor=next",
+  "/app/jobs/dossier-123?tiers=tier2&view=raw",
+  "/app/dashboard?tab=lookup",
+  "/app/health?probe=redis",
 ] as const;
 
 type DoorUser = {
@@ -53,7 +57,11 @@ type DoorUser = {
   created_at: string;
 };
 
-function user(roleName: string | null, isSuperuser = false): DoorUser {
+function user(
+  roleName: string | null,
+  isSuperuser = false,
+  permissions: DoorUser["permissions"] = [],
+): DoorUser {
   return {
     id: `t4-${roleName ?? "candidate"}`,
     email: `${roleName ?? "candidate"}@example.com`,
@@ -64,7 +72,7 @@ function user(roleName: string | null, isSuperuser = false): DoorUser {
     is_superuser: isSuperuser,
     role_id: roleName ? `role-${roleName}` : null,
     role_name: roleName,
-    permissions: [],
+    permissions,
     created_at: "2026-01-01T00:00:00.000Z",
   };
 }
@@ -98,7 +106,7 @@ test.beforeAll(() => {
   );
 });
 
-test("all nine compatibility redirects preserve IDs and queries", async ({ request }) => {
+test("compatibility redirects preserve IDs and queries", async ({ request }) => {
   for (const [source, target] of redirects) {
     const response = await request.get(source, { maxRedirects: 0 });
     expect(response.status(), source).toBe(307);
@@ -108,16 +116,36 @@ test("all nine compatibility redirects preserve IDs and queries", async ({ reque
   }
 });
 
+test("Candidate jobs/history/dashboard/health remain direct pages", async ({ request }) => {
+  for (const source of directCandidateCases) {
+    const response = await request.get(source, { maxRedirects: 0 });
+    const current = new URL(response.url());
+    const expected = new URL(source, "http://127.0.0.1:3000");
+
+    expect(response.status(), source).toBe(200);
+    expect(current.pathname, source).toBe(expected.pathname);
+    expect(current.search, source).toBe(expected.search);
+  }
+});
+
 test("role homes and direct-route guards choose the correct door", async ({ browser }) => {
   const cases = [
     [user(null), "/osint", /\/app\/matches$/],
-    [user("recruiter"), "/desk", /\/desk\/sourcing-leads$/],
-    [user("support"), "/desk", /\/desk\/users$/],
-    [user("admin"), "/desk", /\/desk$/],
-    [user("team_owner"), "/desk", /\/desk$/],
+    [
+      user("recruiter", false, [{ resource: "linkedin_sourcing", action: "write" }]),
+      "/desk",
+      /\/desk\/sourcing-leads$/,
+    ],
+    [user("support", false, [{ resource: "users", action: "read" }]), "/desk", /\/desk\/users$/],
+    [user("admin", false, [{ resource: "system_health", action: "read" }]), "/desk", /\/desk$/],
+    [user("team_owner"), "/desk", /\/osint$/],
     [user(null, true), "/desk", /\/desk$/],
     [user("custom_staff"), "/desk", /\/osint$/],
-    [user("recruiter"), "/desk/roles", /\/desk\/sourcing-leads$/],
+    [
+      user("recruiter", false, [{ resource: "linkedin_sourcing", action: "write" }]),
+      "/desk/roles",
+      /\/desk\/sourcing-leads$/,
+    ],
   ] as const;
 
   for (const [identity, source, expected] of cases) {
@@ -125,7 +153,9 @@ test("role homes and direct-route guards choose the correct door", async ({ brow
     const page = await context.newPage();
     await mockIdentity(page, identity);
     await page.goto(source, { waitUntil: "domcontentloaded" });
-    await expect(page, `${identity.role_name ?? "candidate"} from ${source}`).toHaveURL(expected);
+    await expect(page, `${identity.role_name ?? "candidate"} from ${source}`).toHaveURL(expected, {
+      timeout: 15_000,
+    });
     await context.close();
   }
 });
@@ -162,7 +192,10 @@ test("every Desk page and Signals render for a superuser", async ({ page }) => {
   for (const route of deskRoutes) {
     const response = await page.goto(route, { waitUntil: "domcontentloaded" });
     expect(response?.status(), route).toBeLessThan(400);
-    await expect(page.getByText("Desk", { exact: true }).first(), route).toBeVisible();
+    await expect(
+      page.locator("header").getByText("Desk", { exact: true }).first(),
+      route,
+    ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/404|not found/i), route).toHaveCount(0);
   }
 

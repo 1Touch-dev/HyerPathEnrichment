@@ -18,7 +18,7 @@ beforeEach(() => {
     is_superuser: false,
     role_id: "role-1",
     role_name: "recruiter",
-    permissions: [],
+    permissions: [{ resource: "linkedin_sourcing", action: "write" }],
   });
   window.history.replaceState({}, "", "/login");
 });

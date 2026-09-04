@@ -49,6 +49,7 @@ const owner: Identity = {
   last_name: "Owner",
   role_id: "role-team-owner",
   role_name: "team_owner",
+  permissions: [{ resource: "feature_flags", action: "read" }],
 };
 
 async function mockIdentity(page: Page, user: Identity = candidate): Promise<void> {

@@ -10246,6 +10246,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {
@@ -12312,6 +12313,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {
@@ -12660,6 +12662,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {
@@ -13009,6 +13012,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {
@@ -13690,6 +13694,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {

@@ -49,6 +49,23 @@ describe("product navigation", () => {
       "Roles",
       "Feature flags",
       "Queues",
+    ]);
+  });
+
+  it("unlocks shared analytics and system-health links from their exact permission pairs", () => {
+    const staffUser: ProductDoorUser = {
+      is_superuser: false,
+      role_id: "role-2",
+      role_name: "recruiter",
+      permissions: [
+        { resource: "analytics", action: "read" },
+        { resource: "system_health", action: "read" },
+      ],
+    };
+
+    expect(labels("desk", staffUser)).toEqual([
+      "System health",
+      "Analytics",
       "Demand intelligence",
       "Signals",
     ]);
