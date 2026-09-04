@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { JobStatusBadge } from "@/components/console/JobStatusBadge";
-import { useAppShellAccess } from "@/components/layout/app-shell-access";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,7 +13,6 @@ import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 
 export function DashboardView() {
   const queryClient = useQueryClient();
-  const { candidateMutationsAllowed } = useAppShellAccess();
   const { data, isLoading, error } = useJobMetricsQuery();
 
   useEffect(() => {
@@ -100,17 +98,6 @@ export function DashboardView() {
           )}
         </CardContent>
       </Card>
-
-      {candidateMutationsAllowed ? (
-        <div className="flex flex-wrap gap-2">
-          <Button asChild>
-            <Link href="/osint">New enrichment</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/desk/system-health">System health</Link>
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }

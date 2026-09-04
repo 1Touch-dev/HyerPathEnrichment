@@ -1,6 +1,9 @@
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
+const BACKEND_ROOT = path.resolve(__dirname, "../../../backend");
 const CANDIDATE_EMAIL = "e2e-t4-candidate@example.com";
 const CANDIDATE_PASSWORD = "IntegrationCandidate123";
 
@@ -57,6 +60,13 @@ type DoorUser = {
   created_at: string;
 };
 
+function pythonExecutable(): string {
+  if (process.platform === "win32") return "python";
+  const venvPython = path.join(BACKEND_ROOT, ".venv", "bin", "python");
+  if (fs.existsSync(venvPython)) return venvPython;
+  return "python3";
+}
+
 function user(
   roleName: string | null,
   isSuperuser = false,
@@ -90,7 +100,7 @@ test.setTimeout(180_000);
 
 test.beforeAll(() => {
   execFileSync(
-    "python3",
+    pythonExecutable(),
     [
       "scripts/create_test_user.py",
       "--email",
@@ -102,7 +112,15 @@ test.beforeAll(() => {
       "--last-name",
       "Candidate",
     ],
-    { cwd: "../backend", stdio: ["ignore", "pipe", "inherit"] },
+    {
+      cwd: BACKEND_ROOT,
+      stdio: ["ignore", "pipe", "inherit"],
+      env: {
+        ...process.env,
+        APP_ENV: "development",
+        COOKIE_SECURE: "false",
+      },
+    },
   );
 });
 

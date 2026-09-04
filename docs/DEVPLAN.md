@@ -75,7 +75,7 @@ Close partial integrations called out in the guide audit and Architecture “ope
 - [x] **Dependency vulnerability scanning (gap 4)** — Dependabot (pip, npm, GitHub Actions), CI `dependency-audit` job, `make audit` (pip-audit + npm audit via audit-ci). Evidence: [`DEPENDENCY_AUDIT_VERIFICATION.md`](DEPENDENCY_AUDIT_VERIFICATION.md).
 - [ ] **Compose healthchecks completeness (gap 68)** — Ensure redis and remaining infra services that the API/worker depend on are gated; keep free-default vs profiled paid services clear.
 - [x] **Central error tracking (Sentry-style)** — Self-hosted GlitchTip under `--profile observability` + `sentry-sdk` in API/worker; opt-in via `SENTRY_DSN`. Evidence: `backend/scripts/e2e_error_tracking.sh`, `backend/tests/test_error_tracking.py`.
-- [x] **Change signals product flow (gap 71)** — Today `POST /api/signals/changedetection` accepts/logs. Still open: watch → detect → notify product flow beyond webhook logging (storage, alerting, or customer-visible signal surface). **COMPLETE (2026-07-28):** Full product flow implemented - webhook persistence, outbound notify, frontend UI at `/app/signals` with pagination and real-time updates. **Do not mark 71 done for logging-only.**
+- [x] **Change signals product flow (gap 71)** — Today `POST /api/signals/changedetection` accepts/logs. Still open: watch → detect → notify product flow beyond webhook logging (storage, alerting, or customer-visible signal surface). **COMPLETE (2026-07-28):** Full product flow implemented - webhook persistence, outbound notify, staff UI at `/desk/signals` with pagination and real-time updates. **Do not mark 71 done for logging-only.**
 
 **Exit:** Stack readiness is measurable; change signals are a product path, not only an ingest log line.
 

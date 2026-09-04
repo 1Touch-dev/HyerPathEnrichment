@@ -40,14 +40,15 @@ describe("Candidate shell impersonation access", () => {
     },
   );
 
-  it("keeps standard Candidate actions outside impersonation", () => {
+  it("does not expose cross-product or privileged actions in normal Candidate state", () => {
     render(
       <AppShellAccessProvider candidateMutationAccess="allowed">
         <DashboardView />
       </AppShellAccessProvider>,
     );
 
-    expect(screen.getByRole("link", { name: "New enrichment" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "System health" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "New enrichment" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "System health" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View all" })).toHaveAttribute("href", "/app/jobs");
   });
 });

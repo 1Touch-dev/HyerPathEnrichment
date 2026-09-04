@@ -49,4 +49,14 @@ describe("AppSidebar unread match badge", () => {
     const cvLink = screen.getByRole("link", { name: /my cv/i });
     expect(within(cvLink).queryByText(/^\d+$/)).not.toBeInTheDocument();
   });
+
+  it("shows staff-only lookup copy for the osint product door", () => {
+    render(
+      <Provider store={store}>
+        <AppSidebar product="osint" sections={getNavSections("osint", null)} />
+      </Provider>,
+    );
+
+    expect(screen.getByText("Staff-only lookup")).toBeInTheDocument();
+  });
 });

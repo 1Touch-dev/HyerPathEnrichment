@@ -20,7 +20,7 @@ type AppSidebarProps = {
 const PRODUCT_DESCRIPTION: Record<Product, string> = {
   candidate: "Candidate workspace",
   desk: "Staff operations",
-  osint: "Public-only lookup",
+  osint: "Staff-only lookup",
 };
 
 const NAV_FOCUS =
