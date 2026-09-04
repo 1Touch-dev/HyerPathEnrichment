@@ -20,7 +20,7 @@ for Wave 2 execution, but several technical and live-environment blockers remain
 | Blocker ID | Current status | Exact owner(s) | Backing evidence / packet | Pending decision(s) | What this blocker is holding | What it unlocks once resolved |
 |---|---|---|---|---|---|---|
 | `BLK-PG-001` | `BLOCKED` | `ORCH-INFRA`; Infra human owner for disposable PG credentials and compose password gate | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md` | Infra credential authorization for `POSTGRES_PASSWORD`, `DATABASE_URL`, `TEST_DATABASE_URL` | PostgreSQL migration rehearsal and concurrency evidence remain unstartable | `PG-REHEARSAL-001`, `PG-CONCURRENCY-001`, later `FINAL-REG-013` |
-| `BLK-PILOT-001` | `OPEN` | `ORCH-INFRA`; Product human + Infra human decision owners | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; Product pilot prerequisites in `docs/audits/multi-orch-product-wave1-dec-d002-precedence-2026-09-04.md` | Live host + deploy execution + rollback rehearsal | No honest live pilot or rollback evidence can be produced yet | `PILOT-DEPLOY-001`, `ROLLBACK-LIVE-001`, later `G3` pilot evidence |
+| `BLK-PILOT-001` | `BLOCKED` | `ORCH-INFRA`; Product human + Infra human decision owners | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; `docs/audits/multi-orch-product-wave1-dec-d002-precedence-2026-09-04.md`; `docs/audits/multi-orch/evidence/pilot/PILOT-DEPLOY-001-2026-09-04.md`; `docs/audits/multi-orch/evidence/pilot/ROLLBACK-LIVE-001-2026-09-04.md` | Live staging host credentials/provenance and a successful pilot deploy before rollback rehearsal | Wave 3 attempted the real staging path, but the GitHub `staging` environment did not provide a deploy host and the SSH handoff failed before any live target could be reached | Re-run `PILOT-DEPLOY-001`, then `ROLLBACK-LIVE-001`, then unblock `G3` |
 | `BLK-T4-001` | `READY FOR QA RE-REVIEW` | `ORCH-INFRA` + `ORCH-QA`; decision owners Infra human + QA human; Security reviewer | `docs/audits/multi-orch/orch-infra-wave1-g1-packet-2026-09-04.md`; `docs/audits/multi-orch/orch-qa-wave1-packet-2026-09-04.md`; `docs/audits/multi-orch/evidence/AUTH-SETUP-001-2026-09-04.md`; `docs/audits/multi-orch/evidence/T4-LIVE-001-2026-09-04.md` | Independent QA re-review of the corrected evidence package pinned to executed revision `b75883cbdce230b59abc8b59fae587d51db07a96` | Scoped non-production auth setup evidence plus mixed live/hybrid T4 evidence are now captured honestly; closure still depends on fresh independent QA review and this package does not claim standalone live D002 or ADR21 completion | `AUTH-SETUP-001`, scoped `T4-LIVE-001`, later `FINAL-REG-006` through `FINAL-REG-009` |
 | `BLK-SEC-001` | `PARTIAL` | `ORCH-SECURITY`; Security human + Product human decision owners | `docs/audits/multi-orch-adr21-wave1-decision-packet-2026-09-04.md` | Remaining privileged-route enforcement, BFF propagation, and independent review sign-off | Catalog + partial route hardening landed, but reviewer-confirmed ADR21 gaps still prevent closure | `ADR21-IMPL-001`, `ADR21-TEST-001` through `ADR21-TEST-008`, later ADR21 live and regression coverage |
 | `BLK-PROD-002` | `PARTIAL` | `ORCH-PRODUCT`; Product human decision owner; Security human reviewer | `docs/audits/multi-orch-product-wave1-dec-d002-precedence-2026-09-04.md` | Remaining desk-page/backend permission-boundary alignment | Core FE permission helpers were corrected, but reviewer-confirmed shell/page/API drift still prevents closure | `D002-IMPL-001`, `D002-TEST-001` through `D002-TEST-005`, later D002 live and regression coverage |
@@ -36,7 +36,16 @@ for Wave 2 execution, but several technical and live-environment blockers remain
 ### `BLK-PILOT-001`
 
 - Product and Infra decisions are approved for later use.
-- No live host, deploy run, rollback rehearsal, or sign-off evidence exists yet.
+- The RC is now pinned and pushed at `85fa8f5654ef6393a90c65dfb1905c1c5859dde1`
+  on `origin/product-doors/baseline`.
+- Wave 3 attempted the repo's real staging deploy workflow:
+  <https://github.com/1Touch-dev/HyerPathEnrichment/actions/runs/33858619483>
+- `await-ci` and `build-and-push` succeeded; `deploy-staging` failed before host
+  contact with `error: missing server host`.
+- The failed job env dump also showed blank `GHCR_USER` and `GHCR_TOKEN`, so the
+  required staging deploy secrets were not available to the run.
+- No live base URL, `/ready`, smoke, or rollback rehearsal evidence could be
+  produced honestly from this attempt.
 - Monitoring-backed expansion evidence remains unavailable unless Infra provides it later.
 
 ### `BLK-T4-001`
