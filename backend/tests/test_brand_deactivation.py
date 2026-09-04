@@ -38,6 +38,10 @@ from app.modules.documents.models import CandidateDocument
 # asyncio_mode = "auto" already runs `async def` tests without the marker.
 
 
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
+
+
 async def _make_brand(db_session, **overrides) -> Brand:
     defaults = {
         "id": uuid4(),
@@ -77,7 +81,9 @@ class TestDeactivateFlipsIsActiveAndAudits:
         response = client.post(
             f"/api/admin/brands/{brand_id}/deactivate",
             json={"reason": "no longer operating"},
-            headers=auth_headers(superuser_id),
+            headers=_idempotency_headers(
+                auth_headers, superuser_id, f"brand-deactivate-{brand_id}"
+            ),
         )
         assert response.status_code == 200
         body = response.json()
@@ -114,7 +120,9 @@ class TestDeactivateFlipsIsActiveAndAudits:
 
         response = client.post(
             f"/api/admin/brands/{brand_id}/reactivate",
-            headers=auth_headers(superuser_id),
+            headers=_idempotency_headers(
+                auth_headers, superuser_id, f"brand-reactivate-{brand_id}"
+            ),
         )
         assert response.status_code == 200
         body = response.json()
@@ -151,13 +159,17 @@ class TestDeactivateFlipsIsActiveAndAudits:
         deactivate_response = client.post(
             f"/api/admin/brands/{brand_id}/deactivate",
             json={},
-            headers=auth_headers(superuser_id),
+            headers=_idempotency_headers(
+                auth_headers, superuser_id, f"brand-deactivate-sequence-{brand_id}"
+            ),
         )
         assert deactivate_response.status_code == 200
 
         reactivate_response = client.post(
             f"/api/admin/brands/{brand_id}/reactivate",
-            headers=auth_headers(superuser_id),
+            headers=_idempotency_headers(
+                auth_headers, superuser_id, f"brand-reactivate-sequence-{brand_id}"
+            ),
         )
         assert reactivate_response.status_code == 200
 
@@ -174,18 +186,29 @@ class TestDeactivateFlipsIsActiveAndAudits:
 
 
 class TestNotFound:
+    async def test_deactivate_requires_idempotency_key(
+        self, client, superuser, auth_headers, db_session
+    ):
+        brand = await _make_brand(db_session)
+        response = client.post(
+            f"/api/admin/brands/{brand.id}/deactivate",
+            json={},
+            headers=auth_headers(superuser.id),
+        )
+        assert response.status_code == 400
+
     async def test_deactivate_unknown_brand_id_returns_404(self, client, superuser, auth_headers):
         response = client.post(
             f"/api/admin/brands/{uuid4()}/deactivate",
             json={},
-            headers=auth_headers(superuser.id),
+            headers=_idempotency_headers(auth_headers, superuser.id, "brand-deactivate-missing"),
         )
         assert response.status_code == 404
 
     async def test_reactivate_unknown_brand_id_returns_404(self, client, superuser, auth_headers):
         response = client.post(
             f"/api/admin/brands/{uuid4()}/reactivate",
-            headers=auth_headers(superuser.id),
+            headers=_idempotency_headers(auth_headers, superuser.id, "brand-reactivate-missing"),
         )
         assert response.status_code == 404
 
@@ -200,7 +223,7 @@ class TestNotFound:
         response = client.post(
             f"/api/admin/brands/{unknown_id}/deactivate",
             json={},
-            headers=auth_headers(superuser.id),
+            headers=_idempotency_headers(auth_headers, superuser.id, "brand-deactivate-404-audit"),
         )
         assert response.status_code == 404
 
@@ -226,7 +249,9 @@ class TestPermissionGating:
         response = client.post(
             f"/api/admin/brands/{brand.id}/deactivate",
             json={},
-            headers=auth_headers(team_owner_user.id),
+            headers=_idempotency_headers(
+                auth_headers, team_owner_user.id, f"brand-deactivate-team-owner-{brand.id}"
+            ),
         )
         assert response.status_code == 200
         assert response.json()["data"]["is_active"] is False
@@ -237,7 +262,9 @@ class TestPermissionGating:
 
         response = client.post(
             f"/api/admin/brands/{brand.id}/reactivate",
-            headers=auth_headers(team_owner_user.id),
+            headers=_idempotency_headers(
+                auth_headers, team_owner_user.id, f"brand-reactivate-team-owner-{brand.id}"
+            ),
         )
         assert response.status_code == 200
         assert response.json()["data"]["is_active"] is True
@@ -254,7 +281,9 @@ class TestPermissionGating:
         response = client.post(
             f"/api/admin/brands/{brand.id}/deactivate",
             json={},
-            headers=auth_headers(recruiter_user.id),
+            headers=_idempotency_headers(
+                auth_headers, recruiter_user.id, f"brand-deactivate-recruiter-{brand.id}"
+            ),
         )
         assert response.status_code == 403
 
@@ -266,7 +295,9 @@ class TestPermissionGating:
 
         response = client.post(
             f"/api/admin/brands/{brand.id}/reactivate",
-            headers=auth_headers(recruiter_user.id),
+            headers=_idempotency_headers(
+                auth_headers, recruiter_user.id, f"brand-reactivate-recruiter-{brand.id}"
+            ),
         )
         assert response.status_code == 403
 
@@ -275,7 +306,7 @@ class TestPermissionGating:
         response = client.post(
             f"/api/admin/brands/{uuid4()}/deactivate",
             json={},
-            headers=auth_headers(regular_user.id),
+            headers=_idempotency_headers(auth_headers, regular_user.id, "brand-deactivate-no-role"),
         )
         assert response.status_code == 403  # permission check runs before the 404 lookup
 
@@ -370,7 +401,9 @@ class TestDeactivationHasZeroCascadingEffect:
         response = client.post(
             f"/api/admin/brands/{brand_id}/deactivate",
             json={"reason": "cascade check"},
-            headers=auth_headers(superuser_id),
+            headers=_idempotency_headers(
+                auth_headers, superuser_id, f"brand-deactivate-cascade-{brand_id}"
+            ),
         )
         assert response.status_code == 200
         assert response.json()["data"]["is_active"] is False

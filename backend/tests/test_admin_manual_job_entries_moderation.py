@@ -15,6 +15,10 @@ from app.core.logging import scrub_sensitive_data
 from tests.envelope_helpers import assert_error, assert_success
 
 
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
+
+
 async def _make_manual_job_entry(db_session, user_id, /, **overrides):
     from app.modules.manual_jobs.models import ManualJobEntry
 
@@ -106,7 +110,7 @@ async def test_moderate_manual_job_entry_happy_path(
     response = client.post(
         f"/api/admin/manual-job-entries/{entry.id}/moderate",
         json={"action": "soft_delete", "reason": "Duplicate entry reported"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"manual-job-delete-{entry.id}"),
     )
     body = assert_success(response)
     assert body["deleted_at"] is not None
@@ -140,7 +144,7 @@ async def test_moderate_manual_job_entry_restore(
     response = client.post(
         f"/api/admin/manual-job-entries/{entry.id}/moderate",
         json={"action": "restore", "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"manual-job-restore-{entry.id}"),
     )
     body = assert_success(response)
     assert body["deleted_at"] is None
@@ -153,7 +157,7 @@ async def test_moderate_manual_job_entry_404(client, superuser, auth_headers):
     response = client.post(
         f"/api/admin/manual-job-entries/{uuid4()}/moderate",
         json={"action": "soft_delete", "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "manual-job-missing"),
     )
     assert_error(response, 404)
 
@@ -165,7 +169,7 @@ async def test_moderate_manual_job_entry_requires_moderate_permission_for_regula
     response = client.post(
         f"/api/admin/manual-job-entries/{entry.id}/moderate",
         json={"action": "soft_delete", "reason": None},
-        headers=auth_headers(regular_user.id),
+        headers=_idempotency_headers(auth_headers, regular_user.id, "manual-job-forbidden"),
     )
     assert_error(response, 403)
 
@@ -190,6 +194,18 @@ async def test_support_role_can_read_but_not_moderate(
     moderate_response = client.post(
         f"/api/admin/manual-job-entries/{entry.id}/moderate",
         json={"action": "soft_delete", "reason": None},
-        headers=auth_headers(support_user.id),
+        headers=_idempotency_headers(auth_headers, support_user.id, "manual-job-support-forbidden"),
     )
     assert_error(moderate_response, 403)
+
+
+async def test_moderate_manual_job_entry_requires_idempotency_key(
+    client, superuser, auth_headers, db_session, regular_user
+):
+    entry = await _make_manual_job_entry(db_session, regular_user.id)
+    response = client.post(
+        f"/api/admin/manual-job-entries/{entry.id}/moderate",
+        json={"action": "soft_delete", "reason": "Duplicate entry reported"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)

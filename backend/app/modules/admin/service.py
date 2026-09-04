@@ -54,6 +54,27 @@ async def update_user_status(
     reason: str | None,
     ip_address: str | None,
 ) -> AdminUserResponse:
+    user = await stage_user_status_update(
+        db,
+        actor_id=actor_id,
+        target_user_id=target_user_id,
+        is_active=is_active,
+        reason=reason,
+        ip_address=ip_address,
+    )
+    await db.commit()
+    return _user_to_response(user)
+
+
+async def stage_user_status_update(
+    db: AsyncSession,
+    *,
+    actor_id: UUID,
+    target_user_id: UUID,
+    is_active: bool,
+    reason: str | None,
+    ip_address: str | None,
+) -> User:
     user = await repository.get_user_by_id(db, target_user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
@@ -81,8 +102,7 @@ async def update_user_status(
         after=after,
         ip_address=ip_address,
     )
-    await db.commit()
-    return _user_to_response(user)
+    return user
 
 
 async def assign_role(

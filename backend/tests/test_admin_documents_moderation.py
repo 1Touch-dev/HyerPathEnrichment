@@ -27,6 +27,10 @@ from tests.envelope_helpers import assert_error, assert_success
 pytestmark = pytest.mark.asyncio
 
 
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
+
+
 @pytest.fixture
 def client():
     """Local override of conftest's `client` fixture: mounts the not-yet-wired
@@ -157,7 +161,9 @@ async def test_moderate_soft_delete_then_restore_writes_audit(
     response = client.post(
         f"/api/admin/documents/{document.id}/moderate",
         json={"action": "soft_delete", "reason": "policy violation"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(
+            auth_headers, superuser.id, f"document-soft-delete-{document.id}"
+        ),
     )
     body = assert_success(response)
     assert body["deleted_at"] is not None
@@ -180,7 +186,7 @@ async def test_moderate_soft_delete_then_restore_writes_audit(
     response = client.post(
         f"/api/admin/documents/{document.id}/moderate",
         json={"action": "restore", "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"document-restore-{document.id}"),
     )
     body = assert_success(response)
     assert body["deleted_at"] is None
@@ -205,7 +211,7 @@ async def test_moderate_requires_documents_moderate_permission(
     response = client.post(
         f"/api/admin/documents/{document.id}/moderate",
         json={"action": "soft_delete", "reason": None},
-        headers=auth_headers(regular_user.id),
+        headers=_idempotency_headers(auth_headers, regular_user.id, "document-forbidden"),
     )
     assert_error(response, 403)
 
@@ -228,6 +234,25 @@ async def test_support_role_can_list_and_view_but_not_moderate(
     moderate_response = client.post(
         f"/api/admin/documents/{document.id}/moderate",
         json={"action": "soft_delete", "reason": None},
-        headers=auth_headers(support_user.id),
+        headers=_idempotency_headers(auth_headers, support_user.id, "document-support-forbidden"),
     )
     assert_error(moderate_response, 403)
+
+
+async def test_moderate_requires_idempotency_key(client, superuser, auth_headers, db_session):
+    document = await _make_document(db_session)
+    response = client.post(
+        f"/api/admin/documents/{document.id}/moderate",
+        json={"action": "soft_delete", "reason": "policy violation"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)
+
+
+async def test_moderate_not_found_with_idempotency_key(client, superuser, auth_headers):
+    response = client.post(
+        f"/api/admin/documents/{uuid4()}/moderate",
+        json={"action": "soft_delete", "reason": None},
+        headers=_idempotency_headers(auth_headers, superuser.id, "document-404"),
+    )
+    assert_error(response, 404)

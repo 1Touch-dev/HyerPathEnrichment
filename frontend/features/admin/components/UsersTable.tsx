@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/providers/auth-provider";
+import { hasPermission } from "@/src/lib/product-doors";
 import type { AdminUser } from "@/src/lib/types";
 import { fetchRoles } from "../api/client";
 import { adminKeys } from "../api/keys";
@@ -46,10 +47,10 @@ function toIsActive(filter: StatusFilter): boolean | null {
 export function UsersTable() {
   const { user: currentUser } = useAuth();
   const isCurrentUserSuperuser = !!currentUser?.is_superuser;
-  // impersonation:start is granted to the "admin" role and to superusers
-  // (Decision 1's ROLE_PERMISSIONS seed) — the frontend has no per-user
-  // permission list, only isSuperuser/roleName, so this mirrors that seed.
-  const canImpersonate = isCurrentUserSuperuser || currentUser?.role_name === "admin";
+  const canImpersonate = hasPermission(currentUser, {
+    resource: "impersonation",
+    action: "start",
+  });
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);

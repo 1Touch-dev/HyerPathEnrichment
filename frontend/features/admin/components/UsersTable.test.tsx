@@ -74,6 +74,7 @@ function mockUseAuth(overrides: Partial<ReturnType<typeof authProvider.useAuth>>
       created_at: "2026-01-01T00:00:00Z",
       is_superuser: true,
       role_name: null,
+      permissions: [],
     },
     loading: false,
     login: vi.fn(),
@@ -146,12 +147,12 @@ describe("UsersTable", () => {
     expect(screen.queryByText("Assign role")).not.toBeInTheDocument();
   });
 
-  it("shows the Log in as action for admins and superusers, gated on impersonation:start", () => {
+  it("shows the Log in as action for a superuser", () => {
     render(<UsersTable />, { wrapper });
     expect(screen.getByText("Log in as")).toBeInTheDocument();
   });
 
-  it("hides the Log in as action for support-role users", () => {
+  it("shows the Log in as action for a non-superuser with impersonation:start", () => {
     mockUseAuth({
       user: {
         id: "admin2",
@@ -163,6 +164,26 @@ describe("UsersTable", () => {
         created_at: "2026-01-01T00:00:00Z",
         is_superuser: false,
         role_name: "support",
+        permissions: [{ resource: "impersonation", action: "start" }],
+      },
+    });
+    render(<UsersTable />, { wrapper });
+    expect(screen.getByText("Log in as")).toBeInTheDocument();
+  });
+
+  it("hides the Log in as action without impersonation:start permission", () => {
+    mockUseAuth({
+      user: {
+        id: "admin2",
+        email: "support@example.com",
+        first_name: "Support",
+        last_name: "User",
+        is_verified: true,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        is_superuser: false,
+        role_name: "support",
+        permissions: [],
       },
     });
     render(<UsersTable />, { wrapper });

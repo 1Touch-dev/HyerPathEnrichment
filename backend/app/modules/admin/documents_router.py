@@ -8,10 +8,10 @@ inline here (matching `app/modules/admin/router.py`'s pattern) rather than in
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,12 @@ from app.dependencies.rate_limit import enforce_admin_moderation_rate_limit
 from app.modules.admin.audit import record_admin_action
 from app.modules.admin.pagination import decode_cursor, encode_cursor
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import (
+    begin_idempotent_operation,
+    canonical_payload_hash,
+    complete_idempotent_operation,
+    require_idempotency_key,
+)
 from app.modules.documents.models import CandidateDocument
 
 router = APIRouter(prefix="/api/admin/documents", tags=["admin"], route_class=EnvelopeAPIRoute)
@@ -137,9 +143,23 @@ async def moderate_document(
     document_id: UUID,
     payload: ModerateDocumentRequest,
     request: Request,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     current_user: User = Depends(require_permission("documents", "moderate")),
     db: AsyncSession = Depends(get_db_session),
 ) -> AdminDocumentResponse:
+    normalized_key = require_idempotency_key("documents.moderate", idempotency_key)
+    state, replay = await begin_idempotent_operation(
+        db,
+        caller_user_id=current_user.id,
+        operation_id="documents.moderate",
+        idempotency_key=normalized_key,
+        request_hash=canonical_payload_hash(
+            {"document_id": document_id, "action": payload.action, "reason": payload.reason}
+        ),
+    )
+    if replay is not None:
+        return AdminDocumentResponse.model_validate(replay.response_body["document"])
+
     document = await _get_document_or_404(db, document_id)
 
     before = {"deleted_at": document.deleted_at.isoformat() if document.deleted_at else None}
@@ -163,5 +183,13 @@ async def moderate_document(
         after=after,
         ip_address=get_client_ip(request),
     )
+    response = _document_to_response(document)
+    if state is not None:
+        await complete_idempotent_operation(
+            db,
+            state,
+            response_status=200,
+            response_body={"document": response.model_dump(mode="json")},
+        )
     await db.commit()
-    return _document_to_response(document)
+    return response

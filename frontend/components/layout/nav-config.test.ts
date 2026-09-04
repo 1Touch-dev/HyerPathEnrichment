@@ -46,12 +46,12 @@ describe("product navigation", () => {
       "Sourcing leads",
       "Brands",
       "Users",
+      "Roles",
+      "Feature flags",
+      "Queues",
       "Demand intelligence",
       "Signals",
     ]);
-    expect(labels("desk", recruiter)).not.toEqual(
-      expect.arrayContaining(["Roles", "Feature flags", "Queues"]),
-    );
   });
 
   it("shows every Desk item to a superuser", () => {
@@ -67,15 +67,15 @@ describe("product navigation", () => {
   });
 
   it.each(["admin", "team_owner"])(
-    "shows owner-only items to %s without read permissions",
+    "does not show privileged items to %s without read permissions",
     (role) => {
-      const owner: ProductDoorUser = {
+      const ownerLikeUser: ProductDoorUser = {
         is_superuser: false,
         role_id: "role-owner",
         role_name: role,
         permissions: [],
       };
-      expect(labels("desk", owner)).toEqual(
+      expect(labels("desk", ownerLikeUser)).not.toEqual(
         expect.arrayContaining(["Roles", "Feature flags", "Queues"]),
       );
     },

@@ -2,23 +2,28 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { RouteGuardStatus } from "@/components/auth/route-guard-status";
 import { SystemHealthPanel } from "@/features/admin";
 import { useAuth } from "@/providers/auth-provider";
-import { getUserHome, isOwnerUser } from "@/src/lib/product-doors";
+import { canAccessDeskHome, getUserHome } from "@/src/lib/product-doors";
 
 export default function DeskIndexPage() {
   const router = useRouter();
-  const { user } = useAuth();
-  const isOwner = isOwnerUser(user);
+  const { user, loading } = useAuth();
+  const canAccess = canAccessDeskHome(user);
 
   useEffect(() => {
-    if (user && !isOwner) {
+    if (!loading && user && !canAccess) {
       router.replace(getUserHome(user));
     }
-  }, [isOwner, router, user]);
+  }, [canAccess, loading, router, user]);
 
-  if (!isOwner) {
-    return null;
+  if (loading) {
+    return <RouteGuardStatus message="Loading account" />;
+  }
+
+  if (!user || !canAccess) {
+    return <RouteGuardStatus message="You don't have access to this page" />;
   }
 
   return <SystemHealthPanel />;

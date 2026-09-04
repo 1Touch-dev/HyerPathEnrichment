@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAccessDeskHome,
   filterByPermissions,
   getDefaultProduct,
   getUserHome,
-  isOwnerUser,
   isStaffUser,
   safeLocalRedirect,
   type ProductDoorUser,
@@ -24,13 +24,34 @@ describe("product door resolution", () => {
     ["candidate", user(), "/app/matches", "candidate"],
     [
       "recruiter",
-      user({ role_id: "role-1", role_name: "recruiter" }),
+      user({
+        role_id: "role-1",
+        role_name: "recruiter",
+        permissions: [{ resource: "linkedin_sourcing", action: "write" }],
+      }),
       "/desk/sourcing-leads",
       "desk",
     ],
-    ["support", user({ role_id: "role-2", role_name: "support" }), "/desk/users", "desk"],
-    ["admin", user({ role_id: "role-3", role_name: "admin" }), "/desk", "desk"],
-    ["team owner", user({ role_id: "role-4", role_name: "team_owner" }), "/desk", "desk"],
+    [
+      "support",
+      user({
+        role_id: "role-2",
+        role_name: "support",
+        permissions: [{ resource: "users", action: "read" }],
+      }),
+      "/desk/users",
+      "desk",
+    ],
+    [
+      "system health reader",
+      user({
+        role_id: "role-3",
+        role_name: "admin",
+        permissions: [{ resource: "system_health", action: "read" }],
+      }),
+      "/desk",
+      "desk",
+    ],
     ["superuser", user({ is_superuser: true }), "/desk", "desk"],
     ["unknown staff", user({ role_id: "role-5", role_name: "analyst" }), "/osint", "osint"],
   ] as const)("resolves the %s home", (_name, identity, home, product) => {
@@ -45,12 +66,18 @@ describe("product door resolution", () => {
 
   it.each([
     ["superuser", user({ is_superuser: true }), true],
-    ["admin", user({ role_name: "admin" }), true],
-    ["team owner", user({ role_name: "team_owner" }), true],
-    ["recruiter", user({ role_name: "recruiter" }), false],
+    [
+      "staff with system health permission",
+      user({
+        role_id: "role-1",
+        permissions: [{ resource: "system_health", action: "read" }],
+      }),
+      true,
+    ],
+    ["role-only staff", user({ role_id: "role-2", role_name: "team_owner" }), false],
     ["candidate", user(), false],
-  ] as const)("classifies %s owner access", (_name, identity, expected) => {
-    expect(isOwnerUser(identity)).toBe(expected);
+  ] as const)("classifies %s desk-home access", (_name, identity, expected) => {
+    expect(canAccessDeskHome(identity)).toBe(expected);
   });
 });
 
@@ -58,7 +85,7 @@ describe("permission filtering", () => {
   const items = [
     { label: "Open" },
     { label: "Users", permission: { resource: "users", action: "read" } },
-    { label: "Queues", ownerOnly: true },
+    { label: "Queues", permission: { resource: "queues", action: "read" } },
   ];
 
   it("keeps public items and matching permission pairs", () => {
@@ -74,7 +101,7 @@ describe("permission filtering", () => {
     expect(filterByPermissions(items, user({ is_superuser: true }))).toEqual(items);
   });
 
-  it("keeps owner-only access independent of granular permissions", () => {
+  it("requires the exact permission pair for filtered items", () => {
     expect(
       filterByPermissions(
         items,
@@ -83,12 +110,12 @@ describe("permission filtering", () => {
           permissions: [{ resource: "queues", action: "read" }],
         }),
       ).map((item) => item.label),
-    ).toEqual(["Open"]);
+    ).toEqual(["Open", "Queues"]);
     expect(
       filterByPermissions(items, user({ role_name: "team_owner", permissions: [] })).map(
         (item) => item.label,
       ),
-    ).toEqual(["Open", "Queues"]);
+    ).toEqual(["Open"]);
   });
 });
 

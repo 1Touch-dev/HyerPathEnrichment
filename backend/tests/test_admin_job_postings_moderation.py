@@ -26,6 +26,10 @@ from tests.envelope_helpers import assert_error, assert_success
 # asyncio_mode = "auto" already, and every test here is `async def`.
 
 
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
+
+
 @pytest.fixture(autouse=True)
 def _mount_job_postings_router():
     """`job_postings_router` is now wired permanently into
@@ -159,7 +163,7 @@ async def test_moderate_job_posting_happy_path(client, superuser, auth_headers, 
     response = client.post(
         f"/api/admin/job-postings/{posting.id}/moderate",
         json={"moderation_status": "hidden", "reason": "Spam report"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"job-posting-hide-{posting.id}"),
     )
     body = assert_success(response)
     assert body["moderation_status"] == "hidden"
@@ -190,7 +194,7 @@ async def test_moderate_job_posting_404(client, superuser, auth_headers):
     response = client.post(
         f"/api/admin/job-postings/{uuid4()}/moderate",
         json={"moderation_status": "hidden", "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "job-posting-missing"),
     )
     assert_error(response, 404)
 
@@ -202,7 +206,7 @@ async def test_moderate_job_posting_requires_moderate_permission_for_regular_use
     response = client.post(
         f"/api/admin/job-postings/{posting.id}/moderate",
         json={"moderation_status": "hidden", "reason": None},
-        headers=auth_headers(regular_user.id),
+        headers=_idempotency_headers(auth_headers, regular_user.id, "job-posting-forbidden"),
     )
     assert_error(response, 403)
 
@@ -225,6 +229,20 @@ async def test_support_role_can_read_but_not_moderate(
     moderate_response = client.post(
         f"/api/admin/job-postings/{posting.id}/moderate",
         json={"moderation_status": "hidden", "reason": None},
-        headers=auth_headers(support_user.id),
+        headers=_idempotency_headers(
+            auth_headers, support_user.id, "job-posting-support-forbidden"
+        ),
     )
     assert_error(moderate_response, 403)
+
+
+async def test_moderate_job_posting_requires_idempotency_key(
+    client, superuser, auth_headers, db_session
+):
+    posting = await _make_job_posting(db_session)
+    response = client.post(
+        f"/api/admin/job-postings/{posting.id}/moderate",
+        json={"moderation_status": "hidden", "reason": "Spam report"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)

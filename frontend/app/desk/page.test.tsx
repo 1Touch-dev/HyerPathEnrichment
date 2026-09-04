@@ -50,12 +50,19 @@ beforeEach(() => {
 });
 
 describe("DeskIndexPage", () => {
-  it.each([
-    ["admin", false],
-    ["team_owner", false],
-    [null, true],
-  ])("renders owner content for %s", (roleName, isSuperuser) => {
-    mockUser(staffUser(roleName, isSuperuser));
+  it("renders desk-home content for a superuser", () => {
+    mockUser(staffUser(null, true));
+    render(<DeskIndexPage />);
+
+    expect(screen.getByText("Owner system health")).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("renders desk-home content for a non-superuser with system_health:read", () => {
+    mockUser({
+      ...staffUser("admin"),
+      permissions: [{ resource: "system_health", action: "read" }],
+    });
     render(<DeskIndexPage />);
 
     expect(screen.getByText("Owner system health")).toBeInTheDocument();
@@ -63,14 +70,29 @@ describe("DeskIndexPage", () => {
   });
 
   it.each([
-    ["recruiter", "/desk/sourcing-leads"],
-    ["support", "/desk/users"],
-    ["content_moderator", "/osint"],
-  ])("redirects %s staff to their role home", (roleName, destination) => {
-    mockUser(staffUser(roleName));
+    [
+      "recruiter",
+      { role_id: "role-1", permissions: [{ resource: "linkedin_sourcing", action: "write" }] },
+      "/desk/sourcing-leads",
+    ],
+    [
+      "support",
+      { role_id: "role-1", permissions: [{ resource: "users", action: "read" }] },
+      "/desk/users",
+    ],
+    ["team_owner without permissions", { role_id: "role-1", permissions: [] }, "/osint"],
+    ["content_moderator", { role_id: "role-1", permissions: [] }, "/osint"],
+  ])("redirects %s staff to their allowed home", (roleName, overrides, destination) => {
+    mockUser({
+      ...staffUser(roleName),
+      ...overrides,
+    });
     render(<DeskIndexPage />);
 
     expect(screen.queryByText("Owner system health")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "You don't have access to this page" }),
+    ).toBeInTheDocument();
     expect(replaceMock).toHaveBeenCalledWith(destination);
   });
 });

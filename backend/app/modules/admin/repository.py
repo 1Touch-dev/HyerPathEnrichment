@@ -54,8 +54,7 @@ async def list_roles(db: AsyncSession) -> list[Role]:
 async def create_role(db: AsyncSession, *, name: str, description: str | None) -> Role:
     role = Role(id=uuid4(), name=name, description=description, is_system=False)
     db.add(role)
-    await db.commit()
-    await db.refresh(role)
+    await db.flush()
     return role
 
 
@@ -64,14 +63,13 @@ async def create_permission(
 ) -> Permission:
     permission = Permission(id=uuid4(), resource=resource, action=action, description=description)
     db.add(permission)
-    await db.commit()
-    await db.refresh(permission)
+    await db.flush()
     return permission
 
 
 async def attach_permission(db: AsyncSession, *, role_id: UUID, permission_id: UUID) -> None:
     db.add(RolePermission(role_id=role_id, permission_id=permission_id))
-    await db.commit()
+    await db.flush()
 
 
 async def detach_permission(db: AsyncSession, *, role_id: UUID, permission_id: UUID) -> None:
@@ -80,7 +78,7 @@ async def detach_permission(db: AsyncSession, *, role_id: UUID, permission_id: U
             RolePermission.role_id == role_id, RolePermission.permission_id == permission_id
         )
     )
-    await db.commit()
+    await db.flush()
 
 
 async def get_role_by_id(db: AsyncSession, role_id: UUID) -> Role | None:

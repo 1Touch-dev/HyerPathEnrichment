@@ -3,7 +3,12 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
-import { getUserHome, hasPermission, isOwnerUser, type Permission } from "@/src/lib/product-doors";
+import {
+  canAccessDeskHome,
+  getUserHome,
+  hasPermission,
+  type Permission,
+} from "@/src/lib/product-doors";
 import { RouteGuardStatus } from "./route-guard-status";
 import { redirectAfterDomContentLoaded } from "./route-guard-utils";
 
@@ -16,7 +21,7 @@ export function AdminGuard({ children, permission }: AdminGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useAuth();
-  const canAccess = permission ? hasPermission(user, permission) : isOwnerUser(user);
+  const canAccess = permission ? hasPermission(user, permission) : canAccessDeskHome(user);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -34,7 +39,7 @@ export function AdminGuard({ children, permission }: AdminGuardProps) {
       ? "Loading account"
       : !user
         ? "Redirecting to login"
-        : "Redirecting to an authorized page";
+        : "You don't have access to this page";
     return <RouteGuardStatus message={message} />;
   }
 

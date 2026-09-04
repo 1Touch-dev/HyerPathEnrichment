@@ -12,6 +12,7 @@ from app.core.responses import ErrorResponse
 from app.database.session import get_db_session
 from app.modules.admin import queues_service
 from app.modules.admin.permissions import require_permission, user_has_permission
+from app.modules.admin.privileged_operations import assert_operation_available
 from app.modules.admin.schemas import FailedJobResponse, QueuesOverviewResponse
 from app.observability.security_metrics import record_authorization
 
@@ -67,4 +68,5 @@ async def retry_failed_job(
     job_id: str,
     _user: User = Depends(_require_queue_retry_permission),
 ) -> None:
+    assert_operation_available("queues.retry_failed_job")
     queues_service.deny_retry(name, job_id)

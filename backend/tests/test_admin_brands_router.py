@@ -60,6 +60,10 @@ from tests.envelope_helpers import assert_error, assert_success
 # module docstring above; this file mixes one sync test with async ones.
 
 
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
+
+
 async def _create_brand(db_session, **overrides) -> Brand:
     suffix = uuid4().hex[:10]
     defaults = {
@@ -173,7 +177,11 @@ async def test_create_brand_succeeds_for_user_with_brands_write_permission(
         "landing_page_tier_config": {"tiers": ["senior", "mid"]},
     }
 
-    response = client.post("/api/admin/brands", json=payload, headers=auth_headers(superuser.id))
+    response = client.post(
+        "/api/admin/brands",
+        json=payload,
+        headers=_idempotency_headers(auth_headers, superuser.id, f"brand-create-{suffix}"),
+    )
     body = assert_success(response, status=201)
 
     assert body["name"] == payload["name"]
@@ -204,6 +212,15 @@ async def test_create_brand_403_without_brands_write_permission(client, regular_
     assert_error(response, 403)
 
 
+async def test_create_brand_requires_idempotency_key(client, superuser, auth_headers):
+    response = client.post(
+        "/api/admin/brands",
+        json={"name": "Missing Key", "slug": f"missing-key-{uuid4().hex[:8]}"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)
+
+
 async def test_create_brand_409_on_duplicate_slug(client, superuser, auth_headers, db_session):
     existing = await _create_brand(db_session)
     payload = {
@@ -211,7 +228,11 @@ async def test_create_brand_409_on_duplicate_slug(client, superuser, auth_header
         "slug": existing.slug,
     }
 
-    response = client.post("/api/admin/brands", json=payload, headers=auth_headers(superuser.id))
+    response = client.post(
+        "/api/admin/brands",
+        json=payload,
+        headers=_idempotency_headers(auth_headers, superuser.id, "brand-create-duplicate"),
+    )
     assert_error(response, 409)
 
 
@@ -267,7 +288,9 @@ async def test_update_brand_updates_allowed_fields(client, superuser, auth_heade
     }
 
     response = client.patch(
-        f"/api/admin/brands/{brand.id}", json=payload, headers=auth_headers(superuser.id)
+        f"/api/admin/brands/{brand.id}",
+        json=payload,
+        headers=_idempotency_headers(auth_headers, superuser.id, f"brand-update-{brand.id}"),
     )
     body = assert_success(response, status=200)
 
@@ -290,7 +313,7 @@ async def test_update_brand_404_for_unknown_id(client, superuser, auth_headers):
     response = client.patch(
         f"/api/admin/brands/{uuid4()}",
         json={"name": "does not matter"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "brand-update-missing"),
     )
     assert_error(response, 404)
 
@@ -303,7 +326,7 @@ async def test_update_brand_403_without_brands_write_permission(
     response = client.patch(
         f"/api/admin/brands/{brand.id}",
         json={"name": "attempted update"},
-        headers=auth_headers(regular_user.id),
+        headers=_idempotency_headers(auth_headers, regular_user.id, "brand-update-forbidden"),
     )
     assert_error(response, 403)
 
@@ -317,7 +340,7 @@ async def test_update_brand_409_when_slug_belongs_to_another_brand(
     response = client.patch(
         f"/api/admin/brands/{other.id}",
         json={"slug": owner.slug},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "brand-update-duplicate-slug"),
     )
     assert_error(response, 409)
 
@@ -331,7 +354,7 @@ async def test_update_brand_succeeds_with_real_brands_write_grant(client, db_ses
     response = client.patch(
         f"/api/admin/brands/{brand.id}",
         json={"name": "Updated By RBAC Writer"},
-        headers=auth_headers(writer.id),
+        headers=_idempotency_headers(auth_headers, writer.id, "brand-update-rbac"),
     )
     body = assert_success(response, status=200)
     assert body["name"] == "Updated By RBAC Writer"
@@ -365,7 +388,7 @@ async def test_update_brand_ignores_is_active_in_request_body(
     response = client.patch(
         f"/api/admin/brands/{brand.id}",
         json={"is_active": False, "name": "Still Active After Patch"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "brand-update-ignore-is-active"),
     )
     body = assert_success(response, status=200)
 
@@ -387,7 +410,9 @@ async def test_deactivated_brand_stays_deactivated_across_unrelated_patch(
     response = client.patch(
         f"/api/admin/brands/{brand.id}",
         json={"is_active": True, "custom_domain": "still-inactive.example"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(
+            auth_headers, superuser.id, "brand-update-deactivated-unrelated-patch"
+        ),
     )
     body = assert_success(response, status=200)
 

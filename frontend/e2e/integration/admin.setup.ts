@@ -50,7 +50,14 @@ setup("authenticate as superuser against live backend", async ({ page }) => {
       ADMIN_TEST_PASSWORD,
       "--is-superuser",
     ],
-    { cwd: BACKEND_ROOT, stdio: ["ignore", "pipe", "inherit"] },
+    {
+      cwd: BACKEND_ROOT,
+      stdio: ["ignore", "pipe", "inherit"],
+      env: {
+        ...process.env,
+        ALLOW_E2E_SUPERUSER_BOOTSTRAP: "1",
+      },
+    },
   );
 
   const response = await page.request.post("/api/auth/login", {

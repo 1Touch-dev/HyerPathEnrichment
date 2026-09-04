@@ -11,6 +11,7 @@ from app.database.session import get_db_session
 from app.modules.admin import repository, service
 from app.modules.admin.models import FeatureFlag
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import assert_operation_available
 from app.modules.admin.schemas import FeatureFlagResponse
 
 router = APIRouter(prefix="/api/admin/feature-flags", tags=["admin"], route_class=EnvelopeAPIRoute)
@@ -49,6 +50,7 @@ async def upsert_feature_flag(
     _user: User = Depends(require_permission("feature_flags", "write")),
 ) -> None:
     del key
+    assert_operation_available("feature_flags.mutate")
     await service.reject_feature_flag_mutation()
 
 
@@ -63,6 +65,7 @@ async def upsert_feature_flag(
 async def create_feature_flag(
     _user: User = Depends(require_permission("feature_flags", "write")),
 ) -> None:
+    assert_operation_available("feature_flags.mutate")
     await service.reject_feature_flag_mutation()
 
 
@@ -79,6 +82,7 @@ async def toggle_feature_flag(
     _user: User = Depends(require_permission("feature_flags", "write")),
 ) -> None:
     del key
+    assert_operation_available("feature_flags.mutate")
     await service.reject_feature_flag_mutation()
 
 
@@ -95,4 +99,5 @@ async def delete_feature_flag(
     _user: User = Depends(require_permission("feature_flags", "write")),
 ) -> None:
     del key
+    assert_operation_available("feature_flags.mutate")
     await service.reject_feature_flag_mutation()

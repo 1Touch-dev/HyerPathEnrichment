@@ -89,7 +89,7 @@ describe("AdminGuard", () => {
     );
     expect(replaceMock).toHaveBeenCalledWith("/app/matches");
     expect(
-      screen.getByRole("status", { name: "Redirecting to an authorized page" }),
+      screen.getByRole("status", { name: "You don't have access to this page" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
   });
@@ -134,7 +134,7 @@ describe("AdminGuard", () => {
         is_superuser: false,
         role_id: "role-1",
         role_name: "recruiter",
-        permissions: [],
+        permissions: [{ resource: "linkedin_sourcing", action: "write" }],
       },
     });
     render(
@@ -144,9 +144,12 @@ describe("AdminGuard", () => {
     );
     expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
     expect(replaceMock).toHaveBeenCalledWith("/desk/sourcing-leads");
+    expect(
+      screen.getByRole("status", { name: "You don't have access to this page" }),
+    ).toBeInTheDocument();
   });
 
-  it("does not grant owner-only access from a granular read permission", () => {
+  it("does not grant desk-home access from an unrelated granular permission", () => {
     mockUseAuth({
       loading: false,
       user: {
@@ -169,10 +172,13 @@ describe("AdminGuard", () => {
       </AdminGuard>,
     );
     expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
-    expect(replaceMock).toHaveBeenCalledWith("/desk/sourcing-leads");
+    expect(replaceMock).toHaveBeenCalledWith("/desk/roles");
+    expect(
+      screen.getByRole("status", { name: "You don't have access to this page" }),
+    ).toBeInTheDocument();
   });
 
-  it("still grants permission-gated access from an exact permission pair", () => {
+  it("grants permission-gated access from an exact permission pair", () => {
     mockUseAuth({
       loading: false,
       user: {
@@ -198,7 +204,33 @@ describe("AdminGuard", () => {
     expect(replaceMock).not.toHaveBeenCalled();
   });
 
-  it("renders owner-only children for a team owner without read permissions", () => {
+  it("renders desk-home children for a system health reader", () => {
+    mockUseAuth({
+      loading: false,
+      user: {
+        id: "u1",
+        email: "ops@example.com",
+        first_name: "Ops",
+        last_name: "Reader",
+        is_verified: true,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        is_superuser: false,
+        role_id: "role-2",
+        role_name: "admin",
+        permissions: [{ resource: "system_health", action: "read" }],
+      },
+    });
+    render(
+      <AdminGuard>
+        <div>Admin content</div>
+      </AdminGuard>,
+    );
+    expect(screen.getByText("Admin content")).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("denies role-only staff without the desk-home permission", () => {
     mockUseAuth({
       loading: false,
       user: {
@@ -220,7 +252,7 @@ describe("AdminGuard", () => {
         <div>Admin content</div>
       </AdminGuard>,
     );
-    expect(screen.getByText("Admin content")).toBeInTheDocument();
-    expect(replaceMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
+    expect(replaceMock).toHaveBeenCalledWith("/osint");
   });
 });

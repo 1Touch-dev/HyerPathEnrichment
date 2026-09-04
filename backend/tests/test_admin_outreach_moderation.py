@@ -38,6 +38,10 @@ from tests.envelope_helpers import assert_error, assert_success
 # asyncio_mode = "auto" already runs async def tests without the marker.
 
 
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
+
+
 @pytest.fixture
 def client():
     """Local TestClient mounting only outreach_admin_router — see module
@@ -137,7 +141,7 @@ async def test_moderate_toggles_admin_blocked_both_ways_with_audit(
     block_response = client.post(
         f"/api/admin/outreach/{message.id}/moderate",
         json={"admin_blocked": True, "reason": "suspicious content"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"outreach-block-{message.id}"),
     )
     body = assert_success(block_response)
     assert body["admin_blocked"] is True
@@ -160,7 +164,7 @@ async def test_moderate_toggles_admin_blocked_both_ways_with_audit(
     unblock_response = client.post(
         f"/api/admin/outreach/{message.id}/moderate",
         json={"admin_blocked": False, "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"outreach-unblock-{message.id}"),
     )
     body = assert_success(unblock_response)
     assert body["admin_blocked"] is False
@@ -183,7 +187,7 @@ async def test_moderate_not_found(client, superuser, auth_headers):
     response = client.post(
         f"/api/admin/outreach/{uuid4()}/moderate",
         json={"admin_blocked": True, "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "outreach-missing"),
     )
     assert_error(response, 404)
 
@@ -198,7 +202,7 @@ async def test_moderate_requires_outreach_moderate_permission(
     response = client.post(
         f"/api/admin/outreach/{message.id}/moderate",
         json={"admin_blocked": True, "reason": None},
-        headers=auth_headers(regular_user.id),
+        headers=_idempotency_headers(auth_headers, regular_user.id, "outreach-forbidden"),
     )
     assert_error(response, 403)
 
@@ -217,6 +221,18 @@ async def test_support_role_can_read_but_not_moderate_outreach(
     moderate_response = client.post(
         f"/api/admin/outreach/{message.id}/moderate",
         json={"admin_blocked": True, "reason": "test"},
-        headers=auth_headers(support_user.id),
+        headers=_idempotency_headers(auth_headers, support_user.id, "outreach-support-forbidden"),
     )
     assert_error(moderate_response, 403)
+
+
+async def test_moderate_requires_idempotency_key(
+    client, superuser, regular_user, db_session, auth_headers
+):
+    message = await _make_message(db_session, user_id=regular_user.id)
+    response = client.post(
+        f"/api/admin/outreach/{message.id}/moderate",
+        json={"admin_blocked": True, "reason": "suspicious content"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)
