@@ -1,47 +1,48 @@
 # ORCH-CERT Release Sign-Off
 
 - Date: 2026-09-04
-- Plan: `/home/axiz/.cursor/plans/multi-orch_blocker_resolution_e17125d7.plan.md`
-- Baseline: `R2-BASELINE-2026-09-04`
-- `G3`: `PASS UNDER LOCAL-ONLY SCOPE WAIVER`
-- `G4`: `PASS (DECISION RECORDED)`
-- Final verdict: `CANNOT CERTIFY — INSUFFICIENT ACCESS OR EVIDENCE`
-- Release decision: `CANNOT DETERMINE`
+- Plan: `/home/axiz/.cursor/plans/product-doors-remediation_4aba4d21.plan.md`
+- Branch: `product-doors/remediation-shared-lane`
+- Worktree: `/home/axiz/HyerPathEnrichment/.worktrees/product-doors-remediation-shared-lane`
+- Executed revision pin: `f39941a011b3df4f7b3ed37aee9ba817eb4637b4`
+- `G3`: `PASS FOR LOCAL SIGN-OFF`
+- `G4`: `PASS (DECISION REFRESHED ON PINNED TIP)`
+- Final verdict: `LOCAL VALIDATION PASS`
+- Release decision: `READY FOR MERGE; RELEASE APPROVAL STILL DEPENDS ON EXTERNAL GATES`
 
 ## Release target evaluated
 
-- Accepted T4 evidence pin: `b75883cbdce230b59abc8b59fae587d51db07a96`
-- Accepted Wave 3 RC pin: `85fa8f5654ef6393a90c65dfb1905c1c5859dde1`
-- Current local `HEAD`: `7106dcce0b1c06cbd963ea8478c7fa5b86764d48`
-- Current `origin/product-doors/baseline`: `37e90081c7bd5d6d1a463f791b6bb668bddc0e35`
-- Independent re-review: [Re-review final blockers](e960981c-a4aa-46c0-9dca-ce3a5b876011) -> `PASS-WITH-NOTES`
+- Local branch tip evaluated: `f39941a011b3df4f7b3ed37aee9ba817eb4637b4`
+- Focus of this sign-off: final local validation of the accepted remediation on the shared lane, not a remote branch/status audit
+- Local environment used:
+  - dedicated backend `http://127.0.0.1:8010`
+  - redirect browser port `4330`
+  - auth setup port `4335`
+  - final T4 integration port `4336`
 
 ## Sign-off decision
 
-The plan-level blocker gate is closed, including the explicit acceptance of the
-local-only pilot/rollback rehearsal as a substitute for a remote non-production
-target.
+The shared-lane sign-off work completed successfully on the pinned commit:
 
-Release sign-off is no longer blocked by the two code-remediation issues:
+1. targeted frontend unit coverage passed for `AppShellCandidateAccess`, `AppSidebar`, and redirect inventory
+2. frontend typecheck, lint, and production build passed
+3. backend auth/bootstrap guard verification passed, including the explicit production-like deny check
+4. live `auth.setup.ts` and the full `product-doors-t4.spec.ts` suite passed against the dedicated backend after clean DB preparation
 
-1. `37e9008` commits the compose env passthrough needed by the accepted local-only pilot topology.
-2. `37e9008` removes the duplicate `frontend/next.config.js` redirect definition and restores the compatibility redirects.
+No further code changes were required after the commit was pinned. The release-
+surface files remained untouched during this sign-off pass because validation
+showed they were already correct.
 
-Release sign-off still cannot be upgraded to `APPROVED FOR RELEASE` because the
-external GitHub completion signal for `37e9008` is not finished yet:
+## Required next step before full release approval
 
-- combined status: `pending`
-- status contexts: none completed/visible yet
-- check runs: none completed/visible yet
-
-## Required next step before release approval
-
-1. Wait for the remote GitHub statuses/checks on `37e9008` to complete successfully.
-2. Refresh sign-off once those remote completion signals are present if a positive release approval is still needed.
+1. Treat this as local merge readiness, not a substitute for any external CI,
+   deployment, or production verification your release process still requires.
+2. If a formal release approval artifact needs those external signals, refresh
+   sign-off again once they are available.
 
 ## Plan-closure ruling
 
-All plan todos can close because Wave 4 certification and release sign-off have
-been executed, and the last remediation todo can be completed. The only
-remaining hold is the external remote-status completion signal, not unfinished
-remediation work.
+All plan todos can close from the perspective of this remediation plan. The
+remaining distinction is procedural rather than code-related: local sign-off is
+complete, while any external release gates remain outside the evidence gathered
+here.

@@ -2,142 +2,109 @@
 
 - Date: 2026-09-04
 - Auditor: ORCH-CERT
-- Plan: `/home/axiz/.cursor/plans/multi-orch_blocker_resolution_e17125d7.plan.md`
-- Baseline: `R2-BASELINE-2026-09-04`
-- Final verdict: `CANNOT CERTIFY — INSUFFICIENT ACCESS OR EVIDENCE`
-- Release decision: `CANNOT DETERMINE`
+- Plan: `/home/axiz/.cursor/plans/product-doors-remediation_4aba4d21.plan.md`
+- Branch: `product-doors/remediation-shared-lane`
+- Worktree: `/home/axiz/HyerPathEnrichment/.worktrees/product-doors-remediation-shared-lane`
+- Executed revision pin: `f39941a011b3df4f7b3ed37aee9ba817eb4637b4`
+- Final verdict: `LOCAL CERTIFICATION PASS`
+- Release decision: `READY FOR MERGE; EXTERNAL RELEASE GATES NOT VERIFIED HERE`
 - Completion:
-  - Original blocker-resolution plan: `100% complete`
-  - Current releasable branch state: `~99% complete`
+  - Product-doors remediation plan: `100% complete`
+  - Shared-lane validation/sign-off todo: `100% complete`
 - Gate rulings:
-  - `G3`: `PASS UNDER LOCAL-ONLY SCOPE WAIVER`
-  - `G4`: `PASS (DECISION RECORDED)`
+  - `G3`: `PASS FOR LOCAL SIGN-OFF`
+  - `G4`: `PASS (REFRESHED ON PINNED SHARED-LANE TIP)`
 
 ## Scope and authoritative inputs
 
-This Wave 4 audit used the following authoritative state supplied at run start:
+This final audit used only the authoritative local state supplied for the shared
+lane:
 
-1. Wave 0 completed.
-2. Wave 1 completed.
-3. Wave 2 completed after independent re-review.
-4. Wave 3 completed with accepted local Postgres evidence, accepted T4 evidence,
-   and accepted local-only pilot/rollback evidence.
-5. The explicit owner decision `LOCAL_ONLY_PILOT_EVIDENCE: yes` authorizes the
-   local-only pilot/rollback rehearsal as sufficient **for this plan only**.
+1. The shared worktree already contained the accepted dashboard, copy/docs, and
+   auth/bootstrap functional fixes.
+2. Release-surface files were expected to already be correct and were not edited
+   in this sign-off pass.
+3. The sign-off objective for this todo was to prepare the shared worktree,
+   execute the required local validation on a pinned branch tip, and refresh the
+   evidence/sign-off artifacts accordingly.
 
-That waiver is recorded here exactly as a local-only scope decision. It does
-**not** convert the evidence into remote staging or production proof.
+This document intentionally reports local verification only. It does not claim
+remote CI, deployment, or production evidence that was not exercised in this
+run.
 
 ## Evidence basis reviewed
 
-- `docs/audits/multi-orch/gate-status-register.md`
-- `docs/audits/multi-orch/master-blocker-register.md`
-- `docs/audits/multi-orch/master-decision-register.md`
-- `docs/audits/multi-orch/orch-root-wave2-execution-report-2026-09-04.md`
 - `docs/audits/multi-orch/evidence/AUTH-SETUP-001-2026-09-04.md`
 - `docs/audits/multi-orch/evidence/T4-LIVE-001-2026-09-04.md`
-- `docs/audits/multi-orch/evidence/pilot/PILOT-DEPLOY-001-2026-09-04.md`
-- `docs/audits/multi-orch/evidence/pilot/ROLLBACK-LIVE-001-2026-09-04.md`
-- `docs/audits/multi-orch/evidence/pilot/PILOT-DEPLOY-001-local-only-2026-09-04.md`
-- `docs/audits/multi-orch/evidence/pilot/ROLLBACK-LIVE-001-local-only-2026-09-04.md`
+- `docs/audits/multi-orch/orch-cert-release-signoff-2026-09-04.md`
+- `docs/audits/multi-orch/orch-cert-final-manifest-2026-09-04.yaml`
 
-Branch/revision state inspected during this refresh:
+## Validation performed
 
-- Accepted T4 evidence pin: `b75883cbdce230b59abc8b59fae587d51db07a96`
-- Accepted Wave 3 RC pin: `85fa8f5654ef6393a90c65dfb1905c1c5859dde1`
-- Current local `HEAD`: `7106dcce0b1c06cbd963ea8478c7fa5b86764d48`
-- Current `origin/product-doors/baseline`: `37e90081c7bd5d6d1a463f791b6bb668bddc0e35`
-- Independent re-review: [Re-review final blockers](e960981c-a4aa-46c0-9dca-ce3a5b876011) -> `PASS-WITH-NOTES`
+### Frontend regression and build checks
 
-## Gate outcome
+- `cd frontend && npm run test:unit -- components/layout/AppShellCandidateAccess.test.tsx components/layout/AppSidebar.test.tsx src/lib/redirects.test.ts` -> `13 passed`
+- `cd frontend && npm run typecheck` -> `PASS`
+- `cd frontend && npm run lint` -> `PASS with pre-existing warnings outside this lane`
+- `cd frontend && npm run build` -> `PASS with the same pre-existing warnings`
 
-### `G3`
+### Backend auth/bootstrap guard verification
 
-`G3` is satisfied for the blocker-resolution plan because all five original
-blockers are accepted as closed for this run, and the only previously missing
-pilot criterion is now explicitly waived under a local-only scope.
+- `cd backend && .venv/bin/python -m pytest tests/test_create_test_user.py tests/test_unverified_access.py -q` -> `21 passed`
+- `cd backend && APP_ENV=staging ALLOW_E2E_SUPERUSER_BOOTSTRAP=1 .venv/bin/python scripts/create_test_user.py --is-superuser` -> `expected RuntimeError` proving the production-like deny guard
 
-This ruling is intentionally narrow:
+### Browser and live integration validation
 
-- it closes the plan's blocker gate
-- it preserves the distinction between local-only and remote provenance
-- it does **not** certify the later release branch tip by implication
-
-### `G4`
-
-`G4` is also complete because ORCH-CERT has now refreshed both the final audit
-and the release sign-off decision against the new release target. `G4`
-completion does not imply a positive release outcome; it only means the
-decision has been made and recorded.
+- `PLAYWRIGHT_PORT=4330 FRONTEND_USE_MOCKS=true PLAYWRIGHT_REUSE_SERVER=false npx playwright test e2e/redirects.spec.ts --project chromium` -> `5 passed`
+- Dedicated backend started on `http://127.0.0.1:8010` after `alembic upgrade head` against `/tmp/product-doors-signoff.db`; `/health` returned `200`
+- `... PLAYWRIGHT_PORT=4335 ... npx playwright test e2e/integration/auth.setup.ts --project integration-setup` -> `1 passed`
+- `... PLAYWRIGHT_PORT=4336 ... npx playwright test e2e/integration/product-doors-t4.spec.ts --project integration` -> `8 passed`
 
 ## Findings and notes
 
-### `CERT-001` Closed — compose passthrough mismatch is fixed on the release branch
+### `CERT-001` Closed — Candidate and staff product-door regressions passed on the pinned tip
 
-The prior certification blocker about local-only pilot evidence depending on
-uncommitted compose changes is now closed on the release branch target.
-`37e9008` commits the required passthrough into
-`backend/docker/docker-compose.yml`.
+The targeted unit tests, redirect browser spec, and full T4 integration suite
+all passed on `f39941a`. This covers the Candidate CTA leak, sidebar copy,
+legacy redirects, auth bootstrap flow, Desk rendering, MFA lifecycle, and
+impersonation lifecycle on the shared-lane branch tip.
 
-This directly resolves the earlier mismatch between the accepted local-only
-pilot topology and the git-tracked release branch state.
+### `CERT-002` Closed — auth bootstrap guard surface is internally consistent
 
-### `CERT-002` Closed — redirect regression is fixed on the release branch
+The backend guard tests passed, the focused auth setup succeeded against the
+live backend, and the staging-only deny check still hard-fails as intended.
+This supports the accepted auth/bootstrap remediation without requiring any new
+code edits in the sign-off phase.
 
-The prior certification blocker about `frontend/next.config.js` having duplicate
-`async redirects()` definitions is also closed on the release branch target.
-`37e9008` removes the shadowing duplicate and restores the compatibility
-redirect inventory, including `/app/enrich -> /osint` and
-`/app/signals -> /desk/signals`.
+### `NOTE-001` Non-blocking — local environment prep mattered for reproducibility
 
-### `NOTE-001` Non-blocking — local checked-out ref is still behind the release target
+The shared worktree needed explicit preparation before sign-off:
 
-The checked-out local branch ref is still
-`7106dcce0b1c06cbd963ea8478c7fa5b86764d48`, which is 5 commits behind
-`origin/product-doors/baseline`. This does not reopen the two closed blockers on
-the release branch target, but it means local committed `HEAD` is not itself the
-certified release ref.
+- copied `backend/.env` from the root worktree
+- linked `backend/.venv` to the already-provisioned root virtualenv
+- completed `frontend/npm ci`
+- migrated a clean disposable DB before rerunning live auth/T4 flows
 
-### `NOTE-002` Blocking for approval only — remote GitHub statuses are still pending
+Those steps were required for a reproducible shared-lane certification run, but
+they did not change release-tracked runtime code.
 
-At refresh time, GitHub commit metadata for
-`37e90081c7bd5d6d1a463f791b6bb668bddc0e35` showed:
+### `NOTE-002` Scope limit — this audit did not verify external release signals
 
-- combined status: `pending`
-- status contexts: none completed/attached yet
-- check runs: none completed/visible yet
-
-The independent re-review says the code blockers are closed, and direct
-inspection of `37e9008` confirms the two-file remediation. What remains missing
-is the external completion signal needed for a positive release approval.
-
-## Original blocker closure status
-
-The original blocker set remains closed as follows:
-
-| Blocker | Final status in this audit | Basis |
-|---|---|---|
-| `BLK-PG-001` | `RESOLVED FOR THIS RUN` | Accepted local Postgres rehearsal/concurrency evidence supplied as authoritative state |
-| `BLK-PILOT-001` | `RESOLVED UNDER LOCAL-ONLY SCOPE WAIVER` | Accepted local-only pilot + rollback evidence plus explicit owner waiver |
-| `BLK-T4-001` | `RESOLVED FOR THIS RUN` | Accepted T4 evidence package |
-| `BLK-SEC-001` | `RESOLVED FOR THIS RUN` | Accepted Wave 2 independent re-review state |
-| `BLK-PROD-002` | `RESOLVED FOR THIS RUN` | Accepted Wave 2 independent re-review state |
+No remote CI status, deployed environment, or production telemetry was checked
+in this pass. The verdict below is therefore intentionally limited to local
+merge/sign-off readiness.
 
 ## Final ruling
 
-The blocker-resolution plan has reached its intended end state:
+The `test-and-signoff` todo reached its intended end state:
 
-1. all five original blockers remain dispositioned
-2. the two post-certification release blockers are now closed on
-   `origin/product-doors/baseline` at `37e9008`
-3. the final remediation work is complete
+1. the shared worktree was prepared so the required validation could run
+2. the accepted remediation changes were pinned at `f39941a011b3df4f7b3ed37aee9ba817eb4637b4`
+3. all required local validation in scope passed on that pinned tip
+4. the evidence and sign-off artifacts were refreshed in place to match the
+   actual run
 
-However, ORCH-CERT still cannot elevate this to a positive release approval,
-because GitHub's remote status metadata for the actual release commit is still
-pending and does not yet show completed passing checks.
+Accordingly:
 
-That means the remaining gap is not code remediation. It is missing external
-release evidence. Accordingly:
-
-- final verdict: `CANNOT CERTIFY — INSUFFICIENT ACCESS OR EVIDENCE`
-- release decision: `CANNOT DETERMINE`
+- final verdict: `LOCAL CERTIFICATION PASS`
+- release decision: `READY FOR MERGE; EXTERNAL RELEASE GATES NOT VERIFIED HERE`
