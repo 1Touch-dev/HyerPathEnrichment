@@ -44,6 +44,33 @@ const DESK_HOME_FALLBACKS: ReadonlyArray<{ href: string; permission: Permission 
   { href: "/desk/linkedin-tasks", permission: { resource: "linkedin_tasks", action: "operate" } },
   { href: "/desk/analytics", permission: { resource: "analytics", action: "read" } },
   { href: "/desk/ai-actions", permission: { resource: "ai_supervision", action: "read" } },
+  { href: "/desk/demand-intelligence", permission: { resource: "analytics", action: "read" } },
+  { href: "/desk/signals", permission: { resource: "system_health", action: "read" } },
+];
+
+const DESK_ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; permission: Permission }> = [
+  {
+    prefix: "/desk/sourcing-leads",
+    permission: { resource: "linkedin_sourcing", action: "write" },
+  },
+  { prefix: "/desk/brands", permission: { resource: "brands", action: "read" } },
+  { prefix: "/desk/users", permission: { resource: "users", action: "read" } },
+  { prefix: "/desk/system-health", permission: { resource: "system_health", action: "read" } },
+  { prefix: "/desk/roles", permission: { resource: "roles", action: "read" } },
+  { prefix: "/desk/staff-invites", permission: { resource: "users", action: "write" } },
+  { prefix: "/desk/audit-logs", permission: { resource: "audit_logs", action: "read" } },
+  { prefix: "/desk/feature-flags", permission: { resource: "feature_flags", action: "read" } },
+  { prefix: "/desk/queues", permission: { resource: "queues", action: "read" } },
+  { prefix: "/desk/analytics", permission: { resource: "analytics", action: "read" } },
+  { prefix: "/desk/review-queue", permission: { resource: "content_review", action: "read" } },
+  { prefix: "/desk/job-postings", permission: { resource: "job_postings", action: "read" } },
+  { prefix: "/desk/documents", permission: { resource: "documents", action: "read" } },
+  { prefix: "/desk/portfolio", permission: { resource: "portfolio", action: "read" } },
+  { prefix: "/desk/outreach", permission: { resource: "outreach", action: "read" } },
+  { prefix: "/desk/linkedin-tasks", permission: { resource: "linkedin_tasks", action: "operate" } },
+  { prefix: "/desk/ai-actions", permission: { resource: "ai_supervision", action: "read" } },
+  { prefix: "/desk/demand-intelligence", permission: { resource: "analytics", action: "read" } },
+  { prefix: "/desk/signals", permission: { resource: "system_health", action: "read" } },
 ];
 
 export function getUserHome(user: ProductDoorUser): string {
@@ -84,6 +111,20 @@ export function hasPermission(
 
 export function canAccessDeskHome(user: ProductDoorUser | null | undefined): boolean {
   return hasPermission(user, DESK_HOME_PERMISSION);
+}
+
+export function getRequiredDeskPermission(pathname: string): Permission | null {
+  let bestMatch: Permission | null = null;
+  let bestLength = -1;
+  for (const route of DESK_ROUTE_PERMISSIONS) {
+    if (pathname === route.prefix || pathname.startsWith(`${route.prefix}/`)) {
+      if (route.prefix.length > bestLength) {
+        bestLength = route.prefix.length;
+        bestMatch = route.permission;
+      }
+    }
+  }
+  return bestMatch;
 }
 
 export function filterByPermissions<T extends { permission?: Permission }>(

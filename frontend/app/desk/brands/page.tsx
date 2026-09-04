@@ -26,6 +26,7 @@ import {
   type BrandLandingCopy,
   type ParsedBrandLandingConfig,
 } from "@/src/lib/brand-landing-config";
+import { withIdempotencyHeaders } from "@/src/lib/idempotency";
 import { hasPermission } from "@/src/lib/product-doors";
 import type { AdminBrand, AdminBrandCreate, AdminBrandUpdate } from "@/src/lib/types";
 
@@ -156,7 +157,9 @@ export default function AdminBrandsPage() {
     mutationFn: async (payload: AdminBrandCreate) => {
       const res = await fetch("/api/admin/brands", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withIdempotencyHeaders("admin-brand-create", {
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify(payload),
       });
       return readBrandResponse(res);
@@ -171,7 +174,9 @@ export default function AdminBrandsPage() {
     mutationFn: async ({ brandId, payload }: { brandId: string; payload: AdminBrandUpdate }) => {
       const res = await fetch(`/api/admin/brands/${brandId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: withIdempotencyHeaders("admin-brand-update", {
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify(payload),
       });
       return readBrandResponse(res);
@@ -186,7 +191,9 @@ export default function AdminBrandsPage() {
     mutationFn: async ({ brandId, reason }: { brandId: string; reason?: string }) => {
       const res = await fetch(`/api/admin/brands/${brandId}/deactivate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withIdempotencyHeaders("admin-brand-deactivate", {
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify(reason ? { reason } : {}),
       });
       return readBrandResponse(res);
@@ -201,6 +208,7 @@ export default function AdminBrandsPage() {
     mutationFn: async (brandId: string) => {
       const res = await fetch(`/api/admin/brands/${brandId}/reactivate`, {
         method: "POST",
+        headers: withIdempotencyHeaders("admin-brand-reactivate"),
       });
       return readBrandResponse(res);
     },

@@ -22,6 +22,10 @@ def _mock_interview_reminder_queue(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.workers.queue.cancel_interview_reminder", MagicMock())
 
 
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
+
+
 async def _make_job_match(db_session, user_id, /, **overrides):
     from app.modules.job_matching.models import JobMatch, JobPosting
 
@@ -141,7 +145,7 @@ async def test_moderate_interview_schedule_cancel_happy_path(
     response = client.post(
         f"/api/admin/interview-schedules/{schedule.id}/moderate",
         json={"action": "cancel", "reason": "Candidate reported no-show by employer"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"schedule-cancel-{schedule.id}"),
     )
     body = assert_success(response)
     assert body["admin_cancelled_at"] is not None
@@ -181,7 +185,7 @@ async def test_moderate_interview_schedule_restore(
     response = client.post(
         f"/api/admin/interview-schedules/{schedule.id}/moderate",
         json={"action": "restore", "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"schedule-restore-{schedule.id}"),
     )
     body = assert_success(response)
     assert body["admin_cancelled_at"] is None
@@ -196,7 +200,7 @@ async def test_moderate_interview_schedule_404(client, superuser, auth_headers):
     response = client.post(
         f"/api/admin/interview-schedules/{uuid4()}/moderate",
         json={"action": "cancel", "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "schedule-missing"),
     )
     assert_error(response, 404)
 
@@ -208,7 +212,7 @@ async def test_moderate_interview_schedule_requires_moderate_permission_for_regu
     response = client.post(
         f"/api/admin/interview-schedules/{schedule.id}/moderate",
         json={"action": "cancel", "reason": None},
-        headers=auth_headers(regular_user.id),
+        headers=_idempotency_headers(auth_headers, regular_user.id, "schedule-forbidden"),
     )
     assert_error(response, 403)
 
@@ -233,6 +237,18 @@ async def test_support_role_can_read_but_not_moderate(
     moderate_response = client.post(
         f"/api/admin/interview-schedules/{schedule.id}/moderate",
         json={"action": "cancel", "reason": None},
-        headers=auth_headers(support_user.id),
+        headers=_idempotency_headers(auth_headers, support_user.id, "schedule-support-forbidden"),
     )
     assert_error(moderate_response, 403)
+
+
+async def test_moderate_interview_schedule_requires_idempotency_key(
+    client, superuser, auth_headers, db_session, regular_user
+):
+    schedule = await _make_interview_schedule(db_session, regular_user.id)
+    response = client.post(
+        f"/api/admin/interview-schedules/{schedule.id}/moderate",
+        json={"action": "cancel", "reason": "Candidate reported no-show by employer"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)

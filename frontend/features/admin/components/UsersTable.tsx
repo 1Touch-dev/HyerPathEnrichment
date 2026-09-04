@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { LogIn, ShieldCheck } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { EmptyState } from "@/components/console/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,9 +24,7 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { hasPermission } from "@/src/lib/product-doors";
 import type { AdminUser } from "@/src/lib/types";
-import { fetchRoles } from "../api/client";
-import { adminKeys } from "../api/keys";
-import { useAdminUsers, useAssignUserRole, useUpdateUserStatus } from "../hooks/useAdminUsers";
+import { useAdminUsers, useUpdateUserStatus } from "../hooks/useAdminUsers";
 import { ImpersonateUserDialog } from "./ImpersonateUserDialog";
 import { RoleBadge } from "./RoleBadge";
 
@@ -46,7 +43,6 @@ function toIsActive(filter: StatusFilter): boolean | null {
  */
 export function UsersTable() {
   const { user: currentUser } = useAuth();
-  const isCurrentUserSuperuser = !!currentUser?.is_superuser;
   const canImpersonate = hasPermission(currentUser, {
     resource: "impersonation",
     action: "start",
@@ -54,18 +50,13 @@ export function UsersTable() {
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
-  const [editingRoleUserId, setEditingRoleUserId] = useState<string | null>(null);
   const [impersonateTarget, setImpersonateTarget] = useState<AdminUser | null>(null);
 
   const cursor = cursorStack[cursorStack.length - 1];
   const isActive = toIsActive(statusFilter);
 
   const { data, isLoading } = useAdminUsers(cursor, isActive);
-  const rolesQuery = useQuery({ queryKey: adminKeys.roles(), queryFn: fetchRoles });
   const updateStatus = useUpdateUserStatus();
-  const assignRole = useAssignUserRole();
-
-  const roleOptions = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
 
   function handleFilterChange(value: string) {
     setStatusFilter(value as StatusFilter);
@@ -89,11 +80,6 @@ export function UsersTable() {
     );
     if (!confirmed) return;
     updateStatus.mutate({ userId: targetUser.id, isActive: nextIsActive });
-  }
-
-  function handleAssignRole(targetUser: AdminUser, roleId: string) {
-    assignRole.mutate({ userId: targetUser.id, roleId: roleId === "none" ? null : roleId });
-    setEditingRoleUserId(null);
   }
 
   const items = data?.items ?? [];
@@ -148,29 +134,10 @@ export function UsersTable() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {editingRoleUserId === targetUser.id ? (
-                      <Select
-                        defaultValue={targetUser.roleId ?? "none"}
-                        onValueChange={(value) => handleAssignRole(targetUser, value)}
-                      >
-                        <SelectTrigger className="w-[140px]" aria-label="Select role">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No role</SelectItem>
-                          {roleOptions.map((role) => (
-                            <SelectItem key={role.id} value={role.id}>
-                              {role.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <RoleBadge
-                        isSuperuser={targetUser.isSuperuser}
-                        roleName={targetUser.roleName}
-                      />
-                    )}
+                    <RoleBadge
+                      isSuperuser={targetUser.isSuperuser}
+                      roleName={targetUser.roleName}
+                    />
                   </TableCell>
                   <TableCell>
                     <Badge variant={targetUser.mfaEnabled ? "success" : "outline"}>
@@ -187,20 +154,6 @@ export function UsersTable() {
                       >
                         {targetUser.isActive ? "Suspend" : "Reactivate"}
                       </Button>
-                      {isCurrentUserSuperuser ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setEditingRoleUserId((current) =>
-                              current === targetUser.id ? null : targetUser.id,
-                            )
-                          }
-                        >
-                          <ShieldCheck className="mr-1 size-3" />
-                          Assign role
-                        </Button>
-                      ) : null}
                       {canImpersonate ? (
                         <Button
                           variant="ghost"

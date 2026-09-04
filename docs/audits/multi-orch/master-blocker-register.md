@@ -51,16 +51,19 @@ for Wave 2 execution, but several technical and live-environment blockers remain
 - Security packet recommended a full code-grounded privileged-operation catalog with
   fail-closed treatment for unmapped operations and continued unavailability for `P4`,
   queue retry, and feature-flag mutations.
-- The catalog and several P1 routes are now implemented.
-- Independent review still found missing ADR21 enforcement on additional `P1` routes and
-  missing frontend/BFF `Idempotency-Key` propagation.
+- The catalog and all reviewed Wave 2 `P1` routes are now implemented with focused
+  follow-up idempotency enforcement.
+- Frontend and BFF `Idempotency-Key` propagation gaps identified by review were fixed
+  in a follow-up pass.
+- Remaining closure item: fresh independent re-review sign-off.
 
 ### `BLK-PROD-002`
 
 - Product packet recommends a permission-centric precedence model.
 - Core FE helper logic now follows that model.
-- Independent review still found desk pages and some backend staff surfaces that remain
-  coarse staff-gated instead of fully permission-gated.
+- Follow-up changes completed the remaining reviewed desk-route and backend staff-surface
+  permission hardening.
+- Remaining closure item: fresh independent re-review sign-off.
 
 ## ORCH-ROOT conclusion
 

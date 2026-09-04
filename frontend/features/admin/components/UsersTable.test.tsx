@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { UsersTable } from "./UsersTable";
 import * as useAdminUsersHooks from "../hooks/useAdminUsers";
-import * as client from "../api/client";
 import * as authProvider from "@/providers/auth-provider";
 import type { AdminUser, AdminUserListResponse } from "@/src/lib/types";
 import type { UseQueryResult } from "@tanstack/react-query";
@@ -49,17 +48,11 @@ function mockUseAdminUsers(overrides: Partial<UseQueryResult<AdminUserListRespon
 }
 
 const updateStatusMutate = vi.fn();
-const assignRoleMutate = vi.fn();
-
 function mockMutations() {
   vi.spyOn(useAdminUsersHooks, "useUpdateUserStatus").mockReturnValue({
     mutate: updateStatusMutate,
     isPending: false,
   } as unknown as ReturnType<typeof useAdminUsersHooks.useUpdateUserStatus>);
-  vi.spyOn(useAdminUsersHooks, "useAssignUserRole").mockReturnValue({
-    mutate: assignRoleMutate,
-    isPending: false,
-  } as unknown as ReturnType<typeof useAdminUsersHooks.useAssignUserRole>);
 }
 
 function mockUseAuth(overrides: Partial<ReturnType<typeof authProvider.useAuth>> = {}) {
@@ -89,8 +82,6 @@ function mockUseAuth(overrides: Partial<ReturnType<typeof authProvider.useAuth>>
 beforeEach(() => {
   vi.restoreAllMocks();
   updateStatusMutate.mockReset();
-  assignRoleMutate.mockReset();
-  vi.spyOn(client, "fetchRoles").mockResolvedValue([]);
   mockUseAdminUsers();
   mockMutations();
   mockUseAuth();
@@ -124,25 +115,7 @@ describe("UsersTable", () => {
     expect(updateStatusMutate).not.toHaveBeenCalled();
   });
 
-  it("shows the Assign role action only for superusers", () => {
-    render(<UsersTable />, { wrapper });
-    expect(screen.getByText("Assign role")).toBeInTheDocument();
-  });
-
-  it("hides the Assign role action for non-superusers", () => {
-    mockUseAuth({
-      user: {
-        id: "admin2",
-        email: "support@example.com",
-        first_name: "Support",
-        last_name: "User",
-        is_verified: true,
-        is_active: true,
-        created_at: "2026-01-01T00:00:00Z",
-        is_superuser: false,
-        role_name: "support",
-      },
-    });
+  it("does not show the Assign role action while role mutation is unavailable", () => {
     render(<UsersTable />, { wrapper });
     expect(screen.queryByText("Assign role")).not.toBeInTheDocument();
   });

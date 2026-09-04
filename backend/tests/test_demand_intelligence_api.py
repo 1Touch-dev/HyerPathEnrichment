@@ -41,7 +41,7 @@ async def _seed_snapshot(db: AsyncSession, **overrides: object) -> CountryDemand
 
 
 async def test_top_countries_happy_path(
-    client: TestClient, db: AsyncSession, staff_auth_headers: dict[str, str]
+    client: TestClient, db: AsyncSession, superuser, auth_headers
 ) -> None:
     role = f"integration role {uuid.uuid4().hex[:8]}"
     snap_date = date(2026, 8, 25)
@@ -55,7 +55,7 @@ async def test_top_countries_happy_path(
     response = client.get(
         "/api/demand-intelligence/top-countries",
         params={"role": role},
-        headers=staff_auth_headers,
+        headers=auth_headers(superuser.id),
     )
     data = assert_success(response)
 
@@ -71,19 +71,19 @@ async def test_top_countries_happy_path(
 
 
 async def test_top_countries_no_match_returns_empty_results(
-    client: TestClient, staff_auth_headers: dict[str, str]
+    client: TestClient, superuser, auth_headers
 ) -> None:
     response = client.get(
         "/api/demand-intelligence/top-countries",
         params={"role": f"no-such-role-{uuid.uuid4().hex}"},
-        headers=staff_auth_headers,
+        headers=auth_headers(superuser.id),
     )
     data = assert_success(response)
     assert data["results"] == []
 
 
 async def test_top_countries_respects_limit_param(
-    client: TestClient, db: AsyncSession, staff_auth_headers: dict[str, str]
+    client: TestClient, db: AsyncSession, superuser, auth_headers
 ) -> None:
     role = f"limit role {uuid.uuid4().hex[:8]}"
     snap_date = date(2026, 8, 25)
@@ -95,7 +95,7 @@ async def test_top_countries_respects_limit_param(
     response = client.get(
         "/api/demand-intelligence/top-countries",
         params={"role": role, "limit": 2},
-        headers=staff_auth_headers,
+        headers=auth_headers(superuser.id),
     )
     data = assert_success(response)
     assert len(data["results"]) == 2
@@ -107,7 +107,10 @@ def test_top_countries_requires_auth(client: TestClient) -> None:
 
 
 def test_top_countries_missing_role_param_returns_422(
-    client: TestClient, staff_auth_headers: dict[str, str]
+    client: TestClient, superuser, auth_headers
 ) -> None:
-    response = client.get("/api/demand-intelligence/top-countries", headers=staff_auth_headers)
+    response = client.get(
+        "/api/demand-intelligence/top-countries",
+        headers=auth_headers(superuser.id),
+    )
     assert_error(response, 422, "VALIDATION_ERROR")

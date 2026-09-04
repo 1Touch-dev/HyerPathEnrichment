@@ -70,10 +70,37 @@ Primary blockers called out by review:
 3. Desk/page/API permission boundaries are still incomplete on some staff surfaces.
 4. Some unavailable privileged actions are still exposed in the UI.
 
+## Follow-up blocker fix pass
+
+- Completed the missing ADR21 `P1` idempotency enforcement for:
+  `portfolio.moderate`, `questions.moderate`, `practice_audio.moderate`,
+  `interview_schedules.moderate`, and `review_queue.decide`.
+- Added shared frontend/BFF idempotency propagation and wired it through the
+  newly hardened admin mutations, including the Brands Desk page and proxy routes.
+- Tightened remaining coarse staff surfaces by permission-gating `/desk/*`
+  routes by pathname and requiring explicit backend permission checks for
+  `signals` and `demand-intelligence`.
+- Removed Wave 2 UI exposure for intentionally unavailable role/permission and
+  queue-retry mutations.
+
+Focused follow-up regressions:
+
+- Backend follow-up suite:
+  `OUTREACH_ENABLED=0 uv run --project backend pytest backend/tests/test_admin_portfolio_moderation.py backend/tests/test_admin_questions_moderation.py backend/tests/test_admin_practice_audio_moderation.py backend/tests/test_admin_interview_schedules_moderation.py backend/tests/test_admin_review_queue.py backend/tests/test_signals_list.py backend/tests/test_demand_intelligence_api.py`
+  -> `70 passed`
+- Frontend follow-up suite:
+  `npm run test:unit -- --run components/auth/StaffGuard.test.tsx features/admin/components/QueueMonitor.test.tsx features/admin/components/UsersTable.test.tsx app/desk/roles/page.test.tsx features/admin/api/client.test.ts app/api/admin/brands/route.test.ts app/api/admin/brands/[brandId]/route.test.ts app/api/admin/brands/[brandId]/deactivate/route.test.ts`
+  -> `45 passed`
+
+Follow-up implementation status: blocker fixes are implemented and regression-backed.
+Wave 2 is ready to return for independent re-review, but `G2` remains blocked
+until that independent re-review succeeds.
+
 ## Gate outcome
 
 - `G1`: satisfied for Wave 2 execution in this run
 - `G2`: `BLOCKED`
 
-`G2` stays blocked because the independent review found real remaining ADR21 and D002 enforcement gaps,
-so the current state is not yet implementation-complete enough for honest Wave 2 closure.
+`G2` stays blocked only on independent re-review closure. The originally reported
+implementation gaps from the failed review have now been addressed and passed focused regressions,
+but ORCH-ROOT still cannot honestly mark `G2` passed until a fresh independent review confirms them.

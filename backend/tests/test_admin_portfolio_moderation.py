@@ -21,6 +21,10 @@ from tests.envelope_helpers import assert_error, assert_success
 pytestmark = pytest.mark.asyncio
 
 
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
+
+
 def _ensure_portfolio_admin_router_mounted() -> None:
     """The admin portfolio router is intentionally NOT wired into
     app/modules/admin/__init__.py yet (held back for central wiring once all
@@ -170,7 +174,7 @@ async def test_moderate_hides_profile_and_writes_audit(
     response = client.post(
         f"/api/admin/portfolio/{profile.id}/moderate",
         json={"admin_hidden": True, "reason": "Inappropriate content"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"portfolio-hide-{profile.id}"),
     )
     body = assert_success(response)
     assert body["admin_hidden"] is True
@@ -196,7 +200,7 @@ async def test_moderate_unhides_profile_toggles_both_ways(
     response = client.post(
         f"/api/admin/portfolio/{profile.id}/moderate",
         json={"admin_hidden": False, "reason": "False positive"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"portfolio-unhide-{profile.id}"),
     )
     body = assert_success(response)
     assert body["admin_hidden"] is False
@@ -216,7 +220,7 @@ async def test_moderate_404_for_unknown_profile(client, superuser, auth_headers)
     response = client.post(
         f"/api/admin/portfolio/{uuid4()}/moderate",
         json={"admin_hidden": True, "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "portfolio-missing"),
     )
     assert_error(response, 404)
 
@@ -232,9 +236,19 @@ async def test_support_role_can_read_but_not_moderate(
     moderate_response = client.post(
         f"/api/admin/portfolio/{profile.id}/moderate",
         json={"admin_hidden": True, "reason": "test"},
-        headers=auth_headers(support_user.id),
+        headers=_idempotency_headers(auth_headers, support_user.id, "portfolio-support-forbidden"),
     )
     assert_error(moderate_response, 403)
+
+
+async def test_moderate_requires_idempotency_key(client, superuser, auth_headers, profile_factory):
+    profile = await profile_factory(slug="portfolio-missing-key")
+    response = client.post(
+        f"/api/admin/portfolio/{profile.id}/moderate",
+        json={"admin_hidden": True, "reason": "Inappropriate content"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)
 
 
 async def test_admin_hidden_profile_indistinguishable_from_nonexistent_via_public_route(
@@ -250,7 +264,7 @@ async def test_admin_hidden_profile_indistinguishable_from_nonexistent_via_publi
     moderate_response = client.post(
         f"/api/admin/portfolio/{profile.id}/moderate",
         json={"admin_hidden": True, "reason": "policy violation"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "portfolio-publicly-hidden"),
     )
     assert_success(moderate_response)
 
