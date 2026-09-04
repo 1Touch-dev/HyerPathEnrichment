@@ -87,34 +87,19 @@ def test_get_queues_overview_reports_oldest_queued_age():
                     assert by_name[first_queue_name].oldest_queued_age_seconds >= 30
 
 
-def test_retry_failed_job_calls_registry_requeue():
-    from app.modules.admin.queues_service import retry_failed_job
+def test_retry_failed_job_is_unavailable_without_redis_access():
+    from app.core.errors import AppError
+    from app.modules.admin.queues_service import deny_retry
 
-    with patch("app.modules.admin.queues_service.get_redis_connection"):
-        with patch("app.modules.admin.queues_service.Queue"):
-            with patch("app.modules.admin.queues_service.FailedJobRegistry") as mock_registry_cls:
-                mock_registry = MagicMock()
-                mock_registry.get_job_ids.return_value = ["job-1"]
-                mock_registry_cls.return_value = mock_registry
-
-                result = retry_failed_job("email", "job-1")
-                assert result is True
-                mock_registry.requeue.assert_called_once_with("job-1")
-
-
-def test_retry_failed_job_returns_false_when_job_not_in_registry():
-    from app.modules.admin.queues_service import retry_failed_job
-
-    with patch("app.modules.admin.queues_service.get_redis_connection"):
-        with patch("app.modules.admin.queues_service.Queue"):
-            with patch("app.modules.admin.queues_service.FailedJobRegistry") as mock_registry_cls:
-                mock_registry = MagicMock()
-                mock_registry.get_job_ids.return_value = []
-                mock_registry_cls.return_value = mock_registry
-
-                result = retry_failed_job("email", "missing-job")
-                assert result is False
-                mock_registry.requeue.assert_not_called()
+    with patch("app.modules.admin.queues_service.get_redis_connection") as connection:
+        try:
+            deny_retry("email", "job-1")
+        except AppError as exc:
+            assert exc.code == "QUEUE_ADMIN_READ_ONLY"
+            assert exc.status_code == 405
+        else:
+            raise AssertionError("queue retry must fail closed")
+    connection.assert_not_called()
 
 
 def test_list_failed_jobs_maps_job_fields():
@@ -142,4 +127,4 @@ def test_list_failed_jobs_maps_job_fields():
                 assert len(results) == 1
                 assert results[0].job_id == "job-1"
                 assert results[0].queue_name == "email"
-                assert results[0].exc_info == "Traceback (most recent call last): boom"
+                assert results[0].exc_info == "Failure details redacted"

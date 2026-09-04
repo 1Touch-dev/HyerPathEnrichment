@@ -19,8 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import User
 from app.auth.password import hash_password
 from app.modules.application_tracker import repository
-from app.modules.job_matching.models import JobMatch, JobPosting
 from app.modules.job_matching import repository as job_matching_repository
+from app.modules.job_matching.models import JobMatch, JobPosting
 from app.modules.manual_jobs.models import ManualJobEntry
 
 

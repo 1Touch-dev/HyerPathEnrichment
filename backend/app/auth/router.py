@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import CurrentUser
-from app.auth.jwt_tokens import PyJWTError, decode_access_token, encode_access_token
+from app.auth.jwt_tokens import PyJWTError, create_user_access_token, decode_access_token
 from app.auth.logged_out_tokens import LoggedOutTokenService
 from app.auth.models import AuthAuditLog, User
 from app.auth.password import hash_password, verify_password
@@ -30,6 +30,7 @@ from app.auth.schemas import (
     LoginRequest,
     LoginResponse,
     MessageResponse,
+    PermissionSlug,
     RegisterResponse,
     ResendVerificationRequest,
     UserCreate,
@@ -42,18 +43,64 @@ from app.auth.verification import (
     send_verification_email,
     verify_email_token,
 )
+from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import get_settings
 from app.database.session import get_db_session
 from app.dependencies.rate_limit import enforce_auth_rate_limit, enforce_auth_refresh_rate_limit
 from app.infrastructure.redis import get_redis_client
-from app.modules.admin import service as admin_service
-from app.modules.admin.models import Role
+from app.modules.admin.models import Permission, Role, RolePermission
+from app.modules.staff_invites import redemption as staff_invites_redemption
 from app.modules.staff_invites import repository as staff_invites_repository
 from app.modules.staff_invites.models import StaffInvite
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+identity_router = APIRouter(
+    prefix="/auth",
+    tags=["Authentication"],
+    route_class=EnvelopeAPIRoute,
+)
+
+
+async def serialize_user_identity(db: AsyncSession, user: User) -> UserRead:
+    """Serialize one consistent product-door identity for auth responses."""
+    permissions: list[PermissionSlug] = []
+    role_name: str | None = None
+
+    if user.role_id is not None:
+        role_id_key = user.role_id.hex
+        role_id_column = func.replace(cast(Role.id, String), "-", "")
+        role_permission_role_id = func.replace(cast(RolePermission.role_id, String), "-", "")
+        permission_id_column = func.replace(cast(Permission.id, String), "-", "")
+        role_permission_permission_id = func.replace(
+            cast(RolePermission.permission_id, String), "-", ""
+        )
+        result = await db.execute(
+            select(Role.name, Permission.resource, Permission.action)
+            .select_from(Role)
+            .outerjoin(RolePermission, role_permission_role_id == role_id_column)
+            .outerjoin(Permission, permission_id_column == role_permission_permission_id)
+            .where(role_id_column == role_id_key)
+            .distinct()
+            .order_by(Permission.resource, Permission.action)
+        )
+        rows = result.all()
+        role_name = rows[0].name if rows else None
+        permissions = [
+            PermissionSlug(resource=row.resource, action=row.action)
+            for row in rows
+            if row.resource is not None and row.action is not None
+        ]
+
+    identity = UserRead.model_validate(user)
+    return identity.model_copy(
+        update={
+            "role_id": user.role_id,
+            "role_name": role_name,
+            "permissions": permissions,
+        }
+    )
 
 
 def get_client_ip(request: Request) -> str:
@@ -75,30 +122,14 @@ def get_client_ip(request: Request) -> str:
 
 
 def create_access_token(user_id: str, email: str) -> tuple[str, str]:
-    """
-    Create JWT access token.
-
-    Args:
-        user_id: User UUID as string
-        email: User email
-
-    Returns:
-        Tuple of (token, jti)
-    """
+    """Create a normal user JWT access token."""
     settings = get_settings()
-    jti = f"{user_id}:{uuid4().hex}"
-    expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-
-    payload = {
-        "sub": user_id,
-        "email": email,
-        "jti": jti,
-        "exp": datetime.now(UTC) + expires_delta,
-        "iat": datetime.now(UTC),
-    }
-
-    token = encode_access_token(payload, settings.SECRET_KEY)
-    return token, jti
+    return create_user_access_token(
+        user_id,
+        email,
+        secret_key=settings.SECRET_KEY,
+        expires_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+    )
 
 
 async def log_auth_event(
@@ -158,15 +189,42 @@ async def register(
     # hard-fail signup -- the user still gets a normal candidate account, and the
     # response carries a warning instead (see chunk 05's "Ambiguities resolved").
     invite: StaffInvite | None = None
+    invite_role: Role | None = None
     invite_warning: str | None = None
     if user_data.invite_token:
-        invite = await staff_invites_repository.get_invite_by_token(db, user_data.invite_token)
+        invite = await staff_invites_repository.get_invite_by_token(
+            db,
+            user_data.invite_token,
+            lock_for_update=True,
+        )
         invite_expired = invite is not None and _ensure_aware(invite.expires_at) < datetime.now(UTC)
-        if invite is None or invite.accepted_at is not None or invite_expired:
+        if invite is not None and invite.role_id is not None:
+            role_result = await db.execute(select(Role).where(Role.name == "recruiter"))
+            candidate_role = role_result.scalar_one_or_none()
+            if candidate_role is not None and candidate_role.id == invite.role_id:
+                invite_role = candidate_role
+        invite_invalid = (
+            invite is None
+            or invite.accepted_at is not None
+            or invite.revoked_at is not None
+            or invite_expired
+            or invite.role_name != "recruiter"
+            or invite_role is None
+            or invite.invited_by is None
+            or invite.email.casefold() != user_data.email.casefold()
+        )
+        if invite_invalid:
             invite = None
+            invite_role = None
             invite_warning = (
                 "Your invite link is invalid or has expired; "
                 "your account was created without staff access."
+            )
+        concurrent_user = await db.scalar(select(User).where(User.email == user_data.email))
+        if concurrent_user is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
             )
 
     # Create user
@@ -178,38 +236,13 @@ async def register(
         is_verified=False,
         is_active=True,
     )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-
-    # Accept a valid staff invite: assign the requested role and mark it used.
-    # Unlike the superseded org-invite design, this sets nothing else on `User`
-    # -- there is no org/brand membership concept in this schema.
-    if invite is not None:
-        role_result = await db.execute(select(Role).where(Role.name == invite.role_name))
-        role = role_result.scalar_one_or_none()
-        if role is not None and invite.invited_by is not None:
-            await admin_service.assign_role(
-                db,
-                actor_id=invite.invited_by,
-                target_user_id=user.id,
-                role_id=role.id,
-                ip_address=get_client_ip(request),
-            )
-        else:
-            # Defensive fallback only -- RBAC roles (team_owner/recruiter) are
-            # fully merged, so this should not trigger in normal operation
-            # (it can still happen if the inviter's account was later deleted,
-            # since invited_by is SET NULL on delete).
-            logger.warning(
-                "Staff invite %s could not be resolved to a role assignment "
-                "(role=%r, invited_by=%r); skipping role assignment.",
-                invite.id,
-                invite.role_name,
-                invite.invited_by,
-            )
-        invite.accepted_at = datetime.now(UTC)
-        await db.commit()
+    user = await staff_invites_redemption.persist_registration(
+        db,
+        user=user,
+        invite=invite,
+        invite_role=invite_role,
+        ip_address=get_client_ip(request),
+    )
 
     # Generate verification token
     verification_token = await generate_verification_token(db, user.id)
@@ -238,7 +271,7 @@ async def register(
     )
 
 
-@router.post(
+@identity_router.post(
     "/login",
     response_model=LoginResponse,
     dependencies=[Depends(enforce_auth_rate_limit)],
@@ -333,7 +366,7 @@ async def login(
     await log_auth_event(db, "login", True, ip, user_agent, user.id, user.email)
 
     return LoginResponse(
-        user=UserRead.model_validate(user),
+        user=await serialize_user_identity(db, user),
         message="Login successful",
     )
 
@@ -398,7 +431,7 @@ async def logout(
     return MessageResponse(message="Logged out successfully")
 
 
-@router.post(
+@identity_router.post(
     "/refresh",
     response_model=LoginResponse,
     dependencies=[Depends(enforce_auth_refresh_rate_limit)],
@@ -556,7 +589,7 @@ async def refresh_token(
     )
 
     return LoginResponse(
-        user=UserRead.model_validate(user),
+        user=await serialize_user_identity(db, user),
         message="Token refreshed successfully",
     )
 
@@ -628,10 +661,13 @@ async def delete_account(
     return MessageResponse(message="Account deleted successfully")
 
 
-@router.get("/me", response_model=UserRead)
-async def get_current_user(current_user: CurrentUser) -> UserRead:
+@identity_router.get("/me", response_model=UserRead)
+async def get_current_user(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> UserRead:
     """Get current user profile."""
-    return UserRead.model_validate(current_user)
+    return await serialize_user_identity(db, current_user)
 
 
 @router.post(

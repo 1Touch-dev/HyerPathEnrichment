@@ -10,7 +10,6 @@ from uuid import uuid4
 
 import pytest
 
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
 
 
@@ -80,9 +79,6 @@ async def test_list_applications_regular_user_forbidden(client, regular_user, au
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_list(client, support_user, auth_headers):
     """migration 046 grants `applications:read` to the seeded 'support' role."""
     response = client.get("/api/admin/applications", headers=auth_headers(support_user.id))

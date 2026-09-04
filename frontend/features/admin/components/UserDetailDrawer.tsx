@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   Sheet,
   SheetContent,
@@ -10,16 +8,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { fetchRoles } from "../api/client";
-import { adminKeys } from "../api/keys";
-import { useAssignUserRole } from "../hooks/useAdminUsers";
 import { AuditLogTable } from "./AuditLogTable";
 import { RoleBadge } from "./RoleBadge";
 import type { AdminUser } from "@/src/lib/types";
@@ -33,10 +21,6 @@ type UserDetailDrawerProps = {
 /** Sheet-based full profile view, with role assignment and a mini audit-log
  * scoped to this user (reuses AuditLogTable filtered by targetId, §12.4). */
 export function UserDetailDrawer({ user, open, onOpenChange }: UserDetailDrawerProps) {
-  const rolesQuery = useQuery({ queryKey: adminKeys.roles(), queryFn: fetchRoles });
-  const assignRole = useAssignUserRole();
-  const [editingRole, setEditingRole] = useState(false);
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -75,32 +59,11 @@ export function UserDetailDrawer({ user, open, onOpenChange }: UserDetailDrawerP
           <div className="col-span-2">
             <dt className="text-muted-foreground">Role</dt>
             <dd className="mt-1">
-              {editingRole ? (
-                <Select
-                  defaultValue={user.roleId ?? "none"}
-                  onValueChange={(value) => {
-                    assignRole.mutate({ userId: user.id, roleId: value === "none" ? null : value });
-                    setEditingRole(false);
-                  }}
-                >
-                  <SelectTrigger className="w-[180px]" aria-label="Select role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No role</SelectItem>
-                    {(rolesQuery.data ?? []).map((role) => (
-                      <SelectItem key={role.id} value={role.id}>
-                        {role.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <button type="button" onClick={() => setEditingRole(true)} className="inline-block">
-                  <RoleBadge isSuperuser={user.isSuperuser} roleName={user.roleName} />
-                </button>
-              )}
+              <RoleBadge isSuperuser={user.isSuperuser} roleName={user.roleName} />
             </dd>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Role assignment is unavailable in Wave 2 until ADR21 `P3` controls are implemented.
+            </p>
           </div>
         </dl>
 

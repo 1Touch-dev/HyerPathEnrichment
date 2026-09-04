@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { successEnvelope } from "@/src/lib/api-envelope";
 import { isMockMode } from "@/src/lib/mocks/enabled";
 
 const MOCK_USER = {
@@ -9,12 +10,17 @@ const MOCK_USER = {
   last_name: "User",
   is_verified: true,
   is_active: true,
+  is_superuser: false,
+  role_id: null,
+  role_name: null,
+  permissions: [],
   created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
 };
 
 export async function GET(request: NextRequest) {
   if (isMockMode()) {
-    return NextResponse.json(MOCK_USER);
+    return NextResponse.json(successEnvelope(MOCK_USER));
   }
 
   const cookieStore = await cookies();

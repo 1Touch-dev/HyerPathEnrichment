@@ -42,8 +42,6 @@ const sampleFailedJobs: FailedJob[] = [
   },
 ];
 
-const retryMutate = vi.fn();
-
 function mockUseQueuesOverview(overrides: Partial<UseQueryResult<QueueSnapshot[]>> = {}) {
   vi.spyOn(useQueuesHooks, "useQueuesOverview").mockReturnValue({
     data: sampleQueues,
@@ -62,13 +60,8 @@ function mockUseFailedJobs(overrides: Partial<UseQueryResult<FailedJob[]>> = {})
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  retryMutate.mockReset();
   mockUseQueuesOverview();
   mockUseFailedJobs();
-  vi.spyOn(useQueuesHooks, "useRetryFailedJob").mockReturnValue({
-    mutate: retryMutate,
-    isPending: false,
-  } as unknown as ReturnType<typeof useQueuesHooks.useRetryFailedJob>);
 });
 
 describe("QueueMonitor", () => {
@@ -112,15 +105,15 @@ describe("QueueMonitor", () => {
     expect(within(notificationsRow!).getByRole("button")).toBeDisabled();
   });
 
-  it("calls useRetryFailedJob when Retry is clicked on a failed job", async () => {
+  it("marks retry as unavailable for failed jobs", async () => {
     render(<QueueMonitor />, { wrapper });
     const defaultRow = screen
       .getAllByRole("row")
       .find((row) => row.textContent?.includes("default"));
     expect(defaultRow).toBeDefined();
     fireEvent.click(within(defaultRow!).getByRole("button"));
-    await waitFor(() => expect(screen.getByText("Retry")).toBeInTheDocument());
-    fireEvent.click(screen.getByText("Retry"));
-    expect(retryMutate).toHaveBeenCalledWith("job1");
+    await waitFor(() =>
+      expect(screen.getByText("Retry unavailable in Wave 2")).toBeInTheDocument(),
+    );
   });
 });

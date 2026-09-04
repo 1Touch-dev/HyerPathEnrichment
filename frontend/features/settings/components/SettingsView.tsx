@@ -20,7 +20,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export function SettingsView() {
+type SettingsViewProps = {
+  securityHref?: string;
+};
+
+export function SettingsView({ securityHref = "/app/settings/security" }: SettingsViewProps) {
   const router = useRouter();
   const { user, logout, deleteAccount } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -114,7 +118,7 @@ export function SettingsView() {
         </CardHeader>
         <CardContent>
           <Button asChild variant="outline" className="w-fit">
-            <Link href="/app/settings/security">
+            <Link href={securityHref}>
               <ShieldCheck className="mr-2 h-4 w-4" />
               Manage two-factor authentication
             </Link>

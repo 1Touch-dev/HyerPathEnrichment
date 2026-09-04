@@ -61,9 +61,7 @@ def upgrade() -> None:
         sa.Column("summary", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
-    op.create_index(
-        "ix_ai_action_audit_log_action_type", "ai_action_audit_log", ["action_type"]
-    )
+    op.create_index("ix_ai_action_audit_log_action_type", "ai_action_audit_log", ["action_type"])
     op.create_index(
         "ix_ai_action_audit_log_candidate_user_id", "ai_action_audit_log", ["candidate_user_id"]
     )
@@ -72,9 +70,7 @@ def upgrade() -> None:
         "ai_action_audit_log",
         ["triggered_by_user_id"],
     )
-    op.create_index(
-        "ix_ai_action_audit_log_created_at", "ai_action_audit_log", ["created_at"]
-    )
+    op.create_index("ix_ai_action_audit_log_created_at", "ai_action_audit_log", ["created_at"])
 
     permissions_table = sa.table(
         "permissions",
@@ -132,11 +128,7 @@ def downgrade() -> None:
         )
 
     op.drop_index("ix_ai_action_audit_log_created_at", table_name="ai_action_audit_log")
-    op.drop_index(
-        "ix_ai_action_audit_log_triggered_by_user_id", table_name="ai_action_audit_log"
-    )
-    op.drop_index(
-        "ix_ai_action_audit_log_candidate_user_id", table_name="ai_action_audit_log"
-    )
+    op.drop_index("ix_ai_action_audit_log_triggered_by_user_id", table_name="ai_action_audit_log")
+    op.drop_index("ix_ai_action_audit_log_candidate_user_id", table_name="ai_action_audit_log")
     op.drop_index("ix_ai_action_audit_log_action_type", table_name="ai_action_audit_log")
     op.drop_table("ai_action_audit_log")

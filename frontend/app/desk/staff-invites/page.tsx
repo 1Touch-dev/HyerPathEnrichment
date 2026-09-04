@@ -78,8 +78,8 @@ export default function AdminStaffInvitesPage() {
       </div>
       {!invites.length ? (
         <EmptyState
-          title="No invites sent yet"
-          description="Invites you create this session appear here."
+          title="No invites in this session"
+          description="This list is session-only and is not loaded from the server. Invites sent earlier or in another tab will not appear here."
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

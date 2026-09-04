@@ -6,7 +6,7 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 export default function ConsoleLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
-      <AppShell>{children}</AppShell>
+      <AppShell product="candidate">{children}</AppShell>
     </AuthGuard>
   );
 }

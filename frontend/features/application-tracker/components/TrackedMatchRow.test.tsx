@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { TrackedMatchRow } from "./TrackedMatchRow";
+import { AppShellAccessProvider } from "@/components/layout/app-shell-access";
 import * as trackerClient from "../api/client";
 import * as matchingClient from "@/features/job-matching/api/client";
 import * as useInterviewScheduleHooks from "@/features/interview-scheduling/hooks/useInterviewSchedule";
@@ -10,7 +11,20 @@ import type { TrackedMatch } from "@/src/lib/types";
 
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <AppShellAccessProvider candidateMutationAccess="allowed">
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </AppShellAccessProvider>
+  );
+}
+
+function restrictedWrapper({ children }: { children: ReactNode }) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return (
+    <AppShellAccessProvider candidateMutationAccess="impersonating">
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </AppShellAccessProvider>
+  );
 }
 
 const baseMatch: TrackedMatch = {
@@ -77,6 +91,14 @@ describe("TrackedMatchRow", () => {
     render(<TrackedMatchRow match={baseMatch} />, { wrapper });
     const applyLink = screen.getByRole("link", { name: "Apply" });
     expect(applyLink).toHaveAttribute("href", "/api/matches/m1/apply-redirect");
+  });
+
+  it("does not expose the tracked Apply destination during restricted Candidate access", () => {
+    render(<TrackedMatchRow match={baseMatch} />, { wrapper: restrictedWrapper });
+
+    const applyLink = screen.getByRole("link", { name: "Apply" });
+    expect(applyLink).toHaveAttribute("aria-disabled", "true");
+    expect(applyLink).not.toHaveAttribute("href");
   });
 
   describe("manual-entry Apply affordance degradation (Module F, §10.7-8)", () => {

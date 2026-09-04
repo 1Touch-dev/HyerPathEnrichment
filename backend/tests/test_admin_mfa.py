@@ -49,7 +49,7 @@ async def test_disable_mfa_clears_secret_and_flag(db_session, regular_user):
     await confirm_enrollment(db_session, regular_user, code)
     assert regular_user.mfa_enabled is True
 
-    await disable_mfa(db_session, regular_user)
+    await disable_mfa(db_session, regular_user, pyotp.TOTP(enrolled.secret).now())
     assert regular_user.mfa_enabled is False
     assert regular_user.mfa_secret is None
     assert regular_user.mfa_enrolled_at is None

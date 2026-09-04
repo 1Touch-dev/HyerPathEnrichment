@@ -5,9 +5,16 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from rq import get_current_job
+
 # Import ORM registry FIRST to register all models with SQLAlchemy
 import app.database.orm_registry  # noqa: F401
-from app.core.logging import set_job_id
+from app.core.logging import (
+    is_valid_request_id,
+    scrub_identifier,
+    set_job_id,
+    set_request_id,
+)
 from app.database.session import SessionLocal, engine
 from app.domain.enums import JobStatus
 from app.enrichers.pipeline import Pipeline
@@ -25,7 +32,16 @@ def run_enrichment_job(job_id: str) -> None:
     RQ workers are synchronous, so each job gets its own event loop via
     asyncio.run and its own DB session. Never reuse a global loop here.
     """
-    asyncio.run(_run_enrichment_job(job_id))
+    job = get_current_job()
+    queued_request_id = job.meta.get("request_id") if job is not None else None
+    request_id = (
+        scrub_identifier(queued_request_id) if is_valid_request_id(queued_request_id) else None
+    )
+    set_request_id(request_id)
+    try:
+        asyncio.run(_run_enrichment_job(job_id))
+    finally:
+        set_request_id(None)
 
 
 async def _run_enrichment_job(job_id: str) -> None:

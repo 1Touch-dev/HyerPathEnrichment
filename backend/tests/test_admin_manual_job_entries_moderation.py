@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
 from sqlalchemy import select
 
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
+from app.core.logging import scrub_sensitive_data
 from tests.envelope_helpers import assert_error, assert_success
+
+
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
 
 
 async def _make_manual_job_entry(db_session, user_id, /, **overrides):
@@ -107,7 +110,7 @@ async def test_moderate_manual_job_entry_happy_path(
     response = client.post(
         f"/api/admin/manual-job-entries/{entry.id}/moderate",
         json={"action": "soft_delete", "reason": "Duplicate entry reported"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"manual-job-delete-{entry.id}"),
     )
     body = assert_success(response)
     assert body["deleted_at"] is not None
@@ -124,9 +127,11 @@ async def test_moderate_manual_job_entry_happy_path(
     log_entry = result.scalar_one()
     assert log_entry.actor_user_id == superuser.id
     assert log_entry.target_type == "manual_job_entry"
-    assert log_entry.before["deleted_at"] is None
-    assert log_entry.after["deleted_at"] is not None
-    assert log_entry.after["reason"] == "Duplicate entry reported"
+    deleted_at_key = next(iter(scrub_sensitive_data({"deleted_at": None})))
+    reason_key = next(iter(scrub_sensitive_data({"reason": None})))
+    assert log_entry.before[deleted_at_key] is None
+    assert log_entry.after[deleted_at_key] is not None
+    assert log_entry.after[reason_key] == "Duplicate entry reported"
 
 
 async def test_moderate_manual_job_entry_restore(
@@ -139,7 +144,7 @@ async def test_moderate_manual_job_entry_restore(
     response = client.post(
         f"/api/admin/manual-job-entries/{entry.id}/moderate",
         json={"action": "restore", "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"manual-job-restore-{entry.id}"),
     )
     body = assert_success(response)
     assert body["deleted_at"] is None
@@ -152,7 +157,7 @@ async def test_moderate_manual_job_entry_404(client, superuser, auth_headers):
     response = client.post(
         f"/api/admin/manual-job-entries/{uuid4()}/moderate",
         json={"action": "soft_delete", "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "manual-job-missing"),
     )
     assert_error(response, 404)
 
@@ -164,14 +169,11 @@ async def test_moderate_manual_job_entry_requires_moderate_permission_for_regula
     response = client.post(
         f"/api/admin/manual-job-entries/{entry.id}/moderate",
         json={"action": "soft_delete", "reason": None},
-        headers=auth_headers(regular_user.id),
+        headers=_idempotency_headers(auth_headers, regular_user.id, "manual-job-forbidden"),
     )
     assert_error(response, 403)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_read_but_not_moderate(
     client, support_user, auth_headers, db_session, regular_user
 ):
@@ -192,6 +194,18 @@ async def test_support_role_can_read_but_not_moderate(
     moderate_response = client.post(
         f"/api/admin/manual-job-entries/{entry.id}/moderate",
         json={"action": "soft_delete", "reason": None},
-        headers=auth_headers(support_user.id),
+        headers=_idempotency_headers(auth_headers, support_user.id, "manual-job-support-forbidden"),
     )
     assert_error(moderate_response, 403)
+
+
+async def test_moderate_manual_job_entry_requires_idempotency_key(
+    client, superuser, auth_headers, db_session, regular_user
+):
+    entry = await _make_manual_job_entry(db_session, regular_user.id)
+    response = client.post(
+        f"/api/admin/manual-job-entries/{entry.id}/moderate",
+        json={"action": "soft_delete", "reason": "Duplicate entry reported"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)

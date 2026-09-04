@@ -51,6 +51,25 @@ async def deactivate_brand(
     reason: str | None,
     ip_address: str | None = None,
 ) -> Brand:
+    brand = await stage_deactivate_brand(
+        db,
+        brand_id=brand_id,
+        actor_id=actor_id,
+        reason=reason,
+        ip_address=ip_address,
+    )
+    await db.commit()
+    return brand
+
+
+async def stage_deactivate_brand(
+    db: AsyncSession,
+    *,
+    brand_id: UUID,
+    actor_id: UUID,
+    reason: str | None,
+    ip_address: str | None = None,
+) -> Brand:
     """Turn a brand's public presentation off. No cascading effect on candidates,
     recruiters, or any of their data — a Brand is presentation-only, never a data
     owner, in this model. Fully reversible via reactivate_brand below."""
@@ -72,11 +91,27 @@ async def deactivate_brand(
         after=after,
         ip_address=ip_address,
     )
-    await db.commit()
     return brand
 
 
 async def reactivate_brand(
+    db: AsyncSession,
+    *,
+    brand_id: UUID,
+    actor_id: UUID,
+    ip_address: str | None = None,
+) -> Brand:
+    brand = await stage_reactivate_brand(
+        db,
+        brand_id=brand_id,
+        actor_id=actor_id,
+        ip_address=ip_address,
+    )
+    await db.commit()
+    return brand
+
+
+async def stage_reactivate_brand(
     db: AsyncSession,
     *,
     brand_id: UUID,
@@ -103,5 +138,4 @@ async def reactivate_brand(
         after=after,
         ip_address=ip_address,
     )
-    await db.commit()
     return brand

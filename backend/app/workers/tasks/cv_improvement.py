@@ -29,7 +29,9 @@ def generate_cv_improvement_job(document_id: str, job_id: str, target_role: str 
     asyncio.run(_generate_cv_improvement_job(document_id, job_id, target_role))
 
 
-async def _generate_cv_improvement_job(document_id: str, job_id: str, target_role: str | None) -> None:
+async def _generate_cv_improvement_job(
+    document_id: str, job_id: str, target_role: str | None
+) -> None:
     try:
         async with SessionLocal() as session:
             result = await session.execute(
@@ -40,7 +42,9 @@ async def _generate_cv_improvement_job(document_id: str, job_id: str, target_rol
                 raise ValueError(f"Document {document_id} not found or has no extracted text")
 
             settings = get_settings()
-            improvement, token_usage = await generate_cv_improvement(document.raw_text, target_role, settings)
+            improvement, token_usage = await generate_cv_improvement(
+                document.raw_text, target_role, settings
+            )
 
             report = CvFeedbackReport(
                 id=uuid4(),
@@ -74,7 +78,9 @@ async def _generate_cv_improvement_job(document_id: str, job_id: str, target_rol
             )
 
     except Exception as exc:
-        logger.error("CV improvement generation failed", exc_info=True, extra={"document_id": document_id})
+        logger.error(
+            "CV improvement generation failed", exc_info=True, extra={"document_id": document_id}
+        )
         try:
             async with SessionLocal() as recovery_session:
                 await recovery_session.execute(

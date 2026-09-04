@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
+from app.core.logging import scrub_sensitive_data
 from app.modules.admin.models import AdminAuditLog
 from app.modules.sessions.models import PracticeAudioRecording, PracticeSession
 from tests.envelope_helpers import assert_error, assert_success
@@ -22,6 +23,10 @@ from tests.envelope_helpers import assert_error, assert_success
 # NOTE: no module-level `pytestmark = pytest.mark.asyncio` — see
 # test_admin_rbac.py's comment; this repo's pyproject.toml sets
 # asyncio_mode = "auto" already, and every test here is `async def`.
+
+
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
 
 
 async def _make_practice_session(db_session, user_id) -> PracticeSession:
@@ -109,7 +114,9 @@ async def test_moderate_practice_audio_happy_path(client, superuser, auth_header
     response = client.post(
         f"/api/admin/practice-audio/{recording.id}/moderate",
         json={"moderation_status": "hidden", "reason": "Inappropriate content"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(
+            auth_headers, superuser.id, f"practice-audio-hide-{recording.id}"
+        ),
     )
     body = assert_success(response)
     assert body["moderation_status"] == "hidden"
@@ -130,16 +137,17 @@ async def test_moderate_practice_audio_happy_path(client, superuser, auth_header
     entry = result.scalar_one()
     assert entry.actor_user_id == superuser.id
     assert entry.target_type == "practice_audio_recording"
-    assert entry.before["moderation_status"] == "active"
-    assert entry.after["moderation_status"] == "hidden"
-    assert entry.after["reason"] == "Inappropriate content"
+    assert entry.before == scrub_sensitive_data({"moderation_status": "active"})
+    assert entry.after == scrub_sensitive_data(
+        {"moderation_status": "hidden", "reason": "Inappropriate content"}
+    )
 
 
 async def test_moderate_practice_audio_404(client, superuser, auth_headers):
     response = client.post(
         f"/api/admin/practice-audio/{uuid4()}/moderate",
         json={"moderation_status": "hidden", "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "practice-audio-missing"),
     )
     assert_error(response, 404)
 
@@ -151,6 +159,18 @@ async def test_moderate_practice_audio_requires_moderate_permission_for_regular_
     response = client.post(
         f"/api/admin/practice-audio/{recording.id}/moderate",
         json={"moderation_status": "hidden", "reason": None},
-        headers=auth_headers(regular_user.id),
+        headers=_idempotency_headers(auth_headers, regular_user.id, "practice-audio-forbidden"),
     )
     assert_error(response, 403)
+
+
+async def test_moderate_practice_audio_requires_idempotency_key(
+    client, superuser, auth_headers, db_session
+):
+    recording = await _make_recording(db_session, superuser.id)
+    response = client.post(
+        f"/api/admin/practice-audio/{recording.id}/moderate",
+        json={"moderation_status": "hidden", "reason": "Inappropriate content"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)

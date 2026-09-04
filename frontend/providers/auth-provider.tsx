@@ -1,9 +1,11 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { parseEnvelopeError, unwrapEnvelopeData } from "@/src/lib/api-envelope";
+import type { Permission } from "@/src/lib/product-doors";
 import { startProactiveRefresh, stopProactiveRefresh } from "@/src/lib/token-refresh";
 
-interface User {
+export interface User {
   id: string;
   email: string;
   first_name: string;
@@ -15,14 +17,19 @@ interface User {
   is_superuser: boolean;
   role_id?: string | null;
   role_name?: string | null;
-  permissions?: Array<string | { resource?: string; action?: string; name?: string }>;
+  permissions?: Permission[];
   mfa_enabled?: boolean;
 }
+
+type LoginResponse = {
+  user: User;
+  message: string;
+};
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   register: (
     email: string,
@@ -48,8 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setUser(data);
+        const body = await response.json();
+        setUser(unwrapEnvelopeData<User>(body));
       } else {
         setUser(null);
       }
@@ -90,12 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Login failed");
+      const body = await response.json();
+      throw parseEnvelopeError(body, response.status);
     }
 
-    const data = await response.json();
+    const body = await response.json();
+    const data = unwrapEnvelopeData<LoginResponse>(body);
     setUser(data.user);
+    return data.user;
   };
 
   const logout = async () => {

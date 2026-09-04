@@ -117,6 +117,7 @@ describe("GET /api/documents/[documentId]/feedback", () => {
       rewrittenBullets: [{ original: "a", rewritten: "b", rationale: "c" }],
       acceptedBulletIndices: [],
       createdAt: "2024-01-01",
+      isBlurred: false,
     });
   });
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 from uuid import UUID
 
@@ -11,18 +12,14 @@ from uuid import UUID
 # Otherwise, use SQLite for isolated unit tests
 _EXISTING_DB_URL = os.environ.get("DATABASE_URL", "")
 _USE_REAL_INFRA = "postgresql" in _EXISTING_DB_URL.lower()
-
-# Exported for test modules that need to conditionally xfail/skip based on DB
-# backend (see SQLITE_ROLE_UUID_DASH_BUG_REASON below) — verified against a
-# real Postgres instance: the dashed/undashed UUID FK-join bug is confirmed
-# SQLite-only, so tests gated on it must still run for real on Postgres.
 USING_POSTGRES = _USE_REAL_INFRA
 
 if not _USE_REAL_INFRA:
-    # Use SQLite for local/CI testing (isolated environment)
-    _TEST_DB = Path(__file__).resolve().parent / "_pytest_hyrepath.db"
-    if _TEST_DB.exists():
-        _TEST_DB.unlink()
+    # Give every pytest process its own database. A fixed repository path lets
+    # concurrent validation runs unlink or migrate the database underneath one
+    # another, leaving later tests with partially missing auth tables.
+    _TEST_DB_DIR = tempfile.TemporaryDirectory(prefix=f"hyrepath-pytest-{os.getpid()}-")
+    _TEST_DB = Path(_TEST_DB_DIR.name) / "hyrepath.db"
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_TEST_DB.as_posix()}"
     print(f"[TEST CONFIG] Using SQLite: {_TEST_DB}")
 else:
@@ -538,24 +535,6 @@ def client():
     return _TestClient(app)
 
 
-SQLITE_ROLE_UUID_DASH_BUG_REASON = (
-    "KNOWN BUG (SQLite-only, not fixed here — this task is test-writing/running only): "
-    "migration 038 seeds roles/permissions/role_permissions via raw SQL using "
-    "str(uuid4()) (dashed, e.g. '09467844-bb13-...'), while every ORM-written UUID "
-    "column (e.g. users.role_id, via the Mapped[UUID] default Uuid type) is stored "
-    "WITHOUT dashes on SQLite (confirmed directly against the sqlite file: roles.id is "
-    "dashed, users.role_id for the same role is undashed). Any FK comparison between an "
-    "ORM-written UUID value and a migration-seeded UUID value never matches as a raw "
-    "SQLite TEXT comparison, so user_has_permission()'s RolePermission lookup silently "
-    "returns no rows for any role-based (non-superuser) user on SQLite. Does not affect "
-    "PostgreSQL (native UUID column) — VERIFIED against a real Postgres 16 instance: all "
-    "4 tests gated on this reason pass for real there (see USING_POSTGRES below, which "
-    "makes the xfail conditional so Postgres runs actually exercise them instead of "
-    "silently xfail-skipping). Root cause is in app/modules/admin/models.py / the "
-    "migration files, both out of scope for this test-only task."
-)
-
-
 @pytest.fixture
 def auth_headers():
     """Factory returning the X-Test-User-ID + Bearer headers `test_auth_dependency`
@@ -605,6 +584,23 @@ async def superuser(db_session):
 @pytest.fixture
 async def regular_user(db_session):
     return await _make_persisted_user(db_session)
+
+
+@pytest.fixture
+async def staff_user(db_session):
+    """Verified staff actor with the minimum seeded role for staff-only routes."""
+    from sqlalchemy import select
+
+    from app.modules.admin.models import Role
+
+    result = await db_session.execute(select(Role).where(Role.name == "recruiter"))
+    recruiter_role = result.scalar_one()
+    return await _make_persisted_user(db_session, role_id=recruiter_role.id)
+
+
+@pytest.fixture
+def staff_auth_headers(auth_headers, staff_user):
+    return auth_headers(staff_user.id)
 
 
 @pytest.fixture

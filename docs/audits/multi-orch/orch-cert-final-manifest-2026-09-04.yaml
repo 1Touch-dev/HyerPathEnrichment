@@ -1,0 +1,95 @@
+orch_certification:
+  date: "2026-09-04"
+  plan: "/home/axiz/.cursor/plans/product-doors-remediation_4aba4d21.plan.md"
+  branch: "product-doors/remediation-shared-lane"
+  worktree: "/home/axiz/HyerPathEnrichment/.worktrees/product-doors-remediation-shared-lane"
+  scope: "local_shared_lane_signoff"
+  revisions:
+    pinned_head: "f39941a011b3df4f7b3ed37aee9ba817eb4637b4"
+  environment:
+    backend_url: "http://127.0.0.1:8010"
+    redirect_browser_port: 4330
+    auth_setup_port: 4335
+    t4_live_port: 4336
+    database: "sqlite+aiosqlite:////tmp/product-doors-signoff.db"
+    redis: "redis://127.0.0.1:6379/0"
+    classification: "non_production_local_only"
+  gates:
+    G3:
+      status: "PASS_FOR_LOCAL_SIGNOFF"
+      note: "The accepted remediation changes were validated locally on the pinned shared-lane tip."
+    G4:
+      status: "PASS_REFRESHED_ON_PINNED_TIP"
+      note: "Final audit and release sign-off artifacts were refreshed to match the actual validation run."
+  validation:
+    frontend_unit:
+      command: "cd frontend && npm run test:unit -- components/layout/AppShellCandidateAccess.test.tsx components/layout/AppSidebar.test.tsx src/lib/redirects.test.ts"
+      result: "PASS"
+      summary: "13 passed"
+    frontend_typecheck:
+      command: "cd frontend && npm run typecheck"
+      result: "PASS"
+    frontend_lint:
+      command: "cd frontend && npm run lint"
+      result: "PASS_WITH_PREEXISTING_WARNINGS"
+    frontend_build:
+      command: "cd frontend && npm run build"
+      result: "PASS_WITH_PREEXISTING_WARNINGS"
+    backend_auth_guard:
+      command: "cd backend && .venv/bin/python -m pytest tests/test_create_test_user.py tests/test_unverified_access.py -q"
+      result: "PASS"
+      summary: "21 passed"
+    backend_prod_like_deny:
+      command: "cd backend && APP_ENV=staging ALLOW_E2E_SUPERUSER_BOOTSTRAP=1 .venv/bin/python scripts/create_test_user.py --is-superuser"
+      result: "PASS_EXPECTED_FAILURE"
+      summary: "RuntimeError: create_test_user.py is disabled when APP_ENV is staging or production"
+    redirects_browser:
+      command: "PLAYWRIGHT_PORT=4330 FRONTEND_USE_MOCKS=true PLAYWRIGHT_REUSE_SERVER=false npx playwright test e2e/redirects.spec.ts --project chromium"
+      result: "PASS"
+      summary: "5 passed"
+    auth_setup_live:
+      command: "APP_ENV=development ALLOW_E2E_SUPERUSER_BOOTSTRAP=1 DATABASE_URL=sqlite+aiosqlite:////tmp/product-doors-signoff.db TEST_DATABASE_URL=sqlite+aiosqlite:////tmp/product-doors-signoff.db BACKEND_API_URL=http://127.0.0.1:8010 BACKEND_API_TOKEN=product-doors-signoff-token FRONTEND_USE_MOCKS=false PLAYWRIGHT_PORT=4335 PLAYWRIGHT_REUSE_SERVER=false INTEGRATION_TEST_EMAIL=e2e-integration@example.com INTEGRATION_TEST_PASSWORD=IntegrationTest123 npx playwright test e2e/integration/auth.setup.ts --project integration-setup"
+      result: "PASS"
+      summary: "1 passed"
+    t4_live:
+      command: "PATH=/home/axiz/HyerPathEnrichment/.worktrees/product-doors-remediation-shared-lane/backend/.venv/bin:$PATH APP_ENV=development ALLOW_E2E_SUPERUSER_BOOTSTRAP=1 DATABASE_URL=sqlite+aiosqlite:////tmp/product-doors-signoff.db TEST_DATABASE_URL=sqlite+aiosqlite:////tmp/product-doors-signoff.db BACKEND_API_URL=http://127.0.0.1:8010 BACKEND_API_TOKEN=product-doors-signoff-token FRONTEND_USE_MOCKS=false PLAYWRIGHT_PORT=4336 PLAYWRIGHT_REUSE_SERVER=false INTEGRATION_TEST_EMAIL=e2e-integration@example.com INTEGRATION_TEST_PASSWORD=IntegrationTest123 npx playwright test e2e/integration/product-doors-t4.spec.ts --project integration"
+      result: "PASS"
+      summary: "8 passed"
+  findings:
+    - id: "CERT-001"
+      severity: "closed"
+      title: "Product-door regression validation passed on the pinned shared-lane tip"
+      affected_paths:
+        - "frontend/features/dashboard/components/DashboardView.tsx"
+        - "frontend/components/layout/AppShellCandidateAccess.test.tsx"
+        - "frontend/components/layout/AppSidebar.tsx"
+        - "frontend/components/layout/AppSidebar.test.tsx"
+        - "frontend/src/lib/redirects.test.ts"
+        - "frontend/e2e/integration/auth.setup.ts"
+        - "frontend/e2e/integration/product-doors-t4.spec.ts"
+      impact: "Candidate CTA, sidebar copy, redirect, auth bootstrap, Desk, MFA, and impersonation validation all passed locally on f39941a."
+    - id: "NOTE-001"
+      severity: "note"
+      title: "Worktree prep was required for reproducible validation"
+      affected_paths: []
+      impact: "The shared worktree needed env copying, frontend dependency installation, backend virtualenv linking, and clean DB migration before live sign-off."
+    - id: "NOTE-002"
+      severity: "scope_limit"
+      title: "External release gates were not verified in this pass"
+      affected_paths: []
+      impact: "This manifest certifies local merge readiness only, not remote CI/deployment/production state."
+  completion:
+    plan_percent: 100
+    shared_lane_signoff_percent: 100
+  verdict: "LOCAL CERTIFICATION PASS"
+  release_decision: "READY_FOR_MERGE_EXTERNAL_GATES_UNVERIFIED"
+  todos:
+    all_plan_todos_can_close: true
+    test_and_signoff_todo_closed: true
+    remaining_release_hold:
+      - "Verify any external CI, deployment, or production gates that were outside this local sign-off run."
+  artifacts:
+    auth_setup_evidence: "docs/audits/multi-orch/evidence/AUTH-SETUP-001-2026-09-04.md"
+    t4_live_evidence: "docs/audits/multi-orch/evidence/T4-LIVE-001-2026-09-04.md"
+    final_audit_report: "docs/audits/multi-orch/orch-cert-final-audit-2026-09-04.md"
+    release_signoff_report: "docs/audits/multi-orch/orch-cert-release-signoff-2026-09-04.md"

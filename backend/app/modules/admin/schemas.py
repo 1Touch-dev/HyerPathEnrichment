@@ -70,6 +70,9 @@ class AdminAuditLogEntryResponse(BaseModel):
     id: UUID
     actor_user_id: UUID | None
     impersonated_by: UUID | None
+    impersonation_session_id: UUID | None
+    request_id: str | None
+    outcome: str | None
     action: str
     target_type: str
     target_id: str | None
@@ -158,6 +161,10 @@ class MfaEnrollResponse(BaseModel):
 
 class MfaVerifyRequest(BaseModel):
     code: str = Field(min_length=6, max_length=6)
+
+
+class MfaEnrollRequest(BaseModel):
+    current_code: str | None = Field(default=None, min_length=6, max_length=6)
 
 
 class MfaStatusResponse(BaseModel):

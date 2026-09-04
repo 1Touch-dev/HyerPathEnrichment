@@ -6,14 +6,21 @@ pending-signup UI."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_client_ip
 from app.auth.models import User
 from app.core.api_route import EnvelopeAPIRoute
+from app.core.errors import ForbiddenError, InternalError, ValidationAppError
+from app.core.logging import get_request_id
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_admin_mfa_verify_rate_limit
+from app.modules.admin.mfa import verify_mfa_code
+from app.modules.admin.models import Role
 from app.modules.admin.permissions import require_permission
 from app.modules.staff_invites import repository
 from app.modules.staff_invites.schemas import (
@@ -42,22 +49,39 @@ def _ensure_aware(dt: datetime) -> datetime:
     "/staff-invites",
     response_model=StaffInviteResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_admin_mfa_verify_rate_limit)],
 )
 async def create_invite(
     body: StaffInviteCreate,
+    request: Request,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
     user: User = Depends(require_permission("users", "write")),
     db: AsyncSession = Depends(get_db_session),
 ) -> StaffInviteResponse:
-    # Resend-upsert edge case: reuse a still-pending, unexpired invite for the same
-    # email instead of creating a duplicate row.
-    existing = await repository.get_pending_invite_for_email(db, body.email)
-    if existing:
-        return StaffInviteResponse.model_validate(existing)
-
-    invite = await repository.create_invite(
-        db, email=body.email, role_name=body.role_name, invited_by=user.id
+    if not idempotency_key.strip():
+        raise ValidationAppError("Idempotency-Key must not be blank")
+    if body.confirmation_email.casefold() != body.email.casefold():
+        raise ValidationAppError("Typed confirmation must match the invite email")
+    if not user.mfa_enabled or not verify_mfa_code(user, body.mfa_code.get_secret_value()):
+        raise ForbiddenError("Recent step-up authentication required")
+    request_id = get_request_id()
+    if not request_id:
+        raise InternalError("Request context unavailable")
+    invite, plaintext_token = await repository.create_invite(
+        db,
+        email=body.email,
+        role_name=body.role_name,
+        invited_by=user.id,
+        request_id=request_id,
+        idempotency_key=idempotency_key,
+        ip_address=get_client_ip(request),
     )
-    return StaffInviteResponse.model_validate(invite)
+    return StaffInviteResponse.model_validate(invite).model_copy(
+        update={"invite_token": plaintext_token}
+    )
 
 
 @public_router.get("/staff-invites/{token}", response_model=PublicStaffInviteResponse)
@@ -68,17 +92,28 @@ async def get_invite(
     endpoint a pending-signup UI calls to display invite details before the
     invitee has an account."""
     invite = await repository.get_invite_by_token(db, token)
-    if invite is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found")
-    if invite.accepted_at is not None:
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Invite already accepted")
-    if _ensure_aware(invite.expires_at) < datetime.now(UTC):
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Invite has expired")
-
+    recruiter_role_id = await db.scalar(select(Role.id).where(Role.name == "recruiter"))
     inviter: User | None = None
-    if invite.invited_by is not None:
-        result = await db.execute(select(User).where(User.id == invite.invited_by))
-        inviter = result.scalar_one_or_none()
+    if invite is not None and invite.invited_by is not None:
+        inviter = await db.get(User, invite.invited_by)
+    if (
+        invite is None
+        or invite.accepted_at is not None
+        or invite.revoked_at is not None
+        or invite.role_name != "recruiter"
+        or invite.role_id != recruiter_role_id
+        or invite.invited_by is None
+        or inviter is None
+        or not inviter.is_active
+        or inviter.deleted_at is not None
+        or _ensure_aware(invite.expires_at) < datetime.now(UTC)
+    ):
+        # Bearer-token callers must not be able to distinguish an unknown
+        # credential from an expired, revoked, replayed, or unsafe-role one.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invite unavailable",
+        )
 
     return PublicStaffInviteResponse(
         invited_by_name=f"{inviter.first_name} {inviter.last_name}" if inviter else None,

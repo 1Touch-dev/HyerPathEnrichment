@@ -11,14 +11,18 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from app.core.logging import scrub_sensitive_data
 from app.modules.admin.models import AdminAuditLog
 from app.modules.portfolio.models import PortfolioProfile
 from app.modules.portfolio.schemas import PortfolioProfileRequest
 from app.modules.portfolio.service import PortfolioService
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
 
 pytestmark = pytest.mark.asyncio
+
+
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
 
 
 def _ensure_portfolio_admin_router_mounted() -> None:
@@ -170,7 +174,7 @@ async def test_moderate_hides_profile_and_writes_audit(
     response = client.post(
         f"/api/admin/portfolio/{profile.id}/moderate",
         json={"admin_hidden": True, "reason": "Inappropriate content"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"portfolio-hide-{profile.id}"),
     )
     body = assert_success(response)
     assert body["admin_hidden"] is True
@@ -182,9 +186,10 @@ async def test_moderate_hides_profile_and_writes_audit(
         )
     )
     entry = result.scalar_one()
-    assert entry.before["admin_hidden"] is False
-    assert entry.after["admin_hidden"] is True
-    assert entry.after["reason"] == "Inappropriate content"
+    assert entry.before == scrub_sensitive_data({"admin_hidden": False})
+    assert entry.after == scrub_sensitive_data(
+        {"admin_hidden": True, "reason": "Inappropriate content"}
+    )
 
 
 async def test_moderate_unhides_profile_toggles_both_ways(
@@ -195,7 +200,7 @@ async def test_moderate_unhides_profile_toggles_both_ways(
     response = client.post(
         f"/api/admin/portfolio/{profile.id}/moderate",
         json={"admin_hidden": False, "reason": "False positive"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"portfolio-unhide-{profile.id}"),
     )
     body = assert_success(response)
     assert body["admin_hidden"] is False
@@ -207,22 +212,19 @@ async def test_moderate_unhides_profile_toggles_both_ways(
         )
     )
     entry = result.scalar_one()
-    assert entry.before["admin_hidden"] is True
-    assert entry.after["admin_hidden"] is False
+    assert entry.before == scrub_sensitive_data({"admin_hidden": True})
+    assert entry.after == scrub_sensitive_data({"admin_hidden": False, "reason": "False positive"})
 
 
 async def test_moderate_404_for_unknown_profile(client, superuser, auth_headers):
     response = client.post(
         f"/api/admin/portfolio/{uuid4()}/moderate",
         json={"admin_hidden": True, "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "portfolio-missing"),
     )
     assert_error(response, 404)
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_support_role_can_read_but_not_moderate(
     client, support_user, auth_headers, profile_factory
 ):
@@ -234,9 +236,19 @@ async def test_support_role_can_read_but_not_moderate(
     moderate_response = client.post(
         f"/api/admin/portfolio/{profile.id}/moderate",
         json={"admin_hidden": True, "reason": "test"},
-        headers=auth_headers(support_user.id),
+        headers=_idempotency_headers(auth_headers, support_user.id, "portfolio-support-forbidden"),
     )
     assert_error(moderate_response, 403)
+
+
+async def test_moderate_requires_idempotency_key(client, superuser, auth_headers, profile_factory):
+    profile = await profile_factory(slug="portfolio-missing-key")
+    response = client.post(
+        f"/api/admin/portfolio/{profile.id}/moderate",
+        json={"admin_hidden": True, "reason": "Inappropriate content"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)
 
 
 async def test_admin_hidden_profile_indistinguishable_from_nonexistent_via_public_route(
@@ -252,7 +264,7 @@ async def test_admin_hidden_profile_indistinguishable_from_nonexistent_via_publi
     moderate_response = client.post(
         f"/api/admin/portfolio/{profile.id}/moderate",
         json={"admin_hidden": True, "reason": "policy violation"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "portfolio-publicly-hidden"),
     )
     assert_success(moderate_response)
 

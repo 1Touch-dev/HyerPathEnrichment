@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { CandidatePolicyLink } from "@/components/layout/app-shell-access";
 import {
   Select,
   SelectContent,
@@ -109,13 +110,13 @@ export function TrackedMatchRow({ match }: TrackedMatchRowProps) {
             )
           ) : (
             <Button size="sm" asChild>
-              <a
+              <CandidatePolicyLink
                 href={getApplyRedirectUrl(match.matchId)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 Apply
-              </a>
+              </CandidatePolicyLink>
             </Button>
           )}
 

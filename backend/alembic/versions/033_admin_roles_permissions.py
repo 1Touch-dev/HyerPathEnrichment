@@ -49,7 +49,9 @@ def upgrade() -> None:
 
     op.create_table(
         "role_permissions",
-        sa.Column("role_id", uuid_type, sa.ForeignKey("roles.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "role_id", uuid_type, sa.ForeignKey("roles.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column(
             "permission_id",
             uuid_type,

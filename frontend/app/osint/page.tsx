@@ -1,26 +1,28 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/console/EmptyState";
 import { EnrichModeToggle } from "@/components/console/EnrichModeToggle";
 import { IntakeForm } from "@/components/console/IntakeForm";
-import { EmptyState } from "@/components/console/EmptyState";
+import { JobHistoryPanel } from "@/components/console/JobHistoryPanel";
 import { JobProgress } from "@/components/console/JobProgress";
 import { JobQueuePanel } from "@/components/console/JobQueuePanel";
 import { useCreateEnrichment, useJobCompletionToasts, useJobQuery } from "@/features/enrich";
+import { useLocalStorageJobs } from "@/hooks/useLocalStorageJobs";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { patchDraft, setEnrichMode } from "@/store/slices/intakeSlice";
-import { parseTiersFromQuery } from "@/src/lib/tier-utils";
-import { formatApiErrorMessage } from "@/src/lib/format-api-error";
-import { EnrichmentInput } from "@/src/lib/types";
-import { useLocalStorageJobs } from "@/hooks/useLocalStorageJobs";
 import { isTerminalStatus } from "@/src/lib/enrich-poll";
+import { formatApiErrorMessage } from "@/src/lib/format-api-error";
+import { parseTiersFromQuery } from "@/src/lib/tier-utils";
+import { EnrichmentInput } from "@/src/lib/types";
 
-function EnrichPageContent() {
+function OsintLookupPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
@@ -43,14 +45,11 @@ function EnrichPageContent() {
     }
   }, [dispatch, initialTiers]);
 
-  // Update job queue when active job status changes
   useEffect(() => {
     if (activeJob && activeAsyncJob) {
       updateJobStatus(activeAsyncJob, activeJob.status);
 
-      // Clear active job when it reaches terminal status
       if (isTerminalStatus(activeJob.status)) {
-        // Keep showing for a bit, then clear
         const timer = setTimeout(() => {
           setActiveAsyncJob(null);
         }, 3000);
@@ -59,7 +58,6 @@ function EnrichPageContent() {
     }
   }, [activeJob, activeAsyncJob, updateJobStatus]);
 
-  // Show toast notification when error occurs
   useEffect(() => {
     if (createMutation.error) {
       toast.error("Request failed", {
@@ -81,13 +79,12 @@ function EnrichPageContent() {
       return;
     }
 
-    // Sync mode: redirect to job detail
-    router.push(`/app/jobs/${created.id}`);
+    router.push(`/osint/jobs/${created.id}`);
   };
 
   const handleViewResults = () => {
     if (activeAsyncJob) {
-      router.push(`/app/jobs/${activeAsyncJob}`);
+      router.push(`/osint/jobs/${activeAsyncJob}`);
     }
   };
 
@@ -95,12 +92,17 @@ function EnrichPageContent() {
   const showViewResults = showProgress && isTerminalStatus(activeJob.status);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Look someone up</h1>
-        <p className="text-sm text-muted-foreground">
-          Async jobs show live progress below. Sync jobs redirect to results when complete.
-        </p>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Look someone up</h1>
+          <p className="text-sm text-muted-foreground">
+            Async jobs show live progress below. Sync jobs redirect to results when complete.
+          </p>
+        </div>
+        <Button asChild variant="outline" className="w-fit shrink-0">
+          <Link href="/osint/jobs">Open jobs</Link>
+        </Button>
       </div>
 
       <JobQueuePanel />
@@ -138,14 +140,16 @@ function EnrichPageContent() {
           description="Async: live progress appears above after submit. Sync: redirects to results immediately."
         />
       )}
+
+      <JobHistoryPanel />
     </div>
   );
 }
 
-export default function EnrichPage() {
+export default function OsintLookupPage() {
   return (
     <Suspense fallback={null}>
-      <EnrichPageContent />
+      <OsintLookupPageContent />
     </Suspense>
   );
 }

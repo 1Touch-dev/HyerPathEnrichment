@@ -170,7 +170,7 @@ POST /api/enrich
 ## Testing
 
 ### Manual Testing via UI
-1. Navigate to `/app/enrich` in the frontend
+1. As a staff user, navigate to `/osint` in the frontend
 2. Fill in the job fields:
    - Job Title: "Software Engineer"
    - Job Location: "Berlin"

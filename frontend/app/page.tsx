@@ -20,7 +20,7 @@ export default function HubPage() {
           </p>
           <div className="flex flex-wrap gap-2">
             <Button asChild className="w-fit">
-              <Link href="/app/enrich">Open console</Link>
+              <Link href="/osint">Open console</Link>
             </Button>
             <Button asChild variant="outline" className="w-fit">
               <Link href="/opt-out">Public opt-out</Link>

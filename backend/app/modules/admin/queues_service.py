@@ -1,5 +1,4 @@
-"""RQ queue introspection + retry. Read/retry access to the EXISTING queues in
-QUEUE_PRIORITIES only — never registers a new queue (Decision 9)."""
+"""Authorized, redacted RQ inspection with queue mutations disabled."""
 
 from __future__ import annotations
 
@@ -8,11 +7,21 @@ from datetime import UTC, datetime
 from rq import Queue, Worker
 from rq.registry import FailedJobRegistry
 
+from app.core.errors import AppError, NotFoundError
 from app.modules.admin.schemas import FailedJobResponse, QueueSnapshotResponse
+from app.observability.security_metrics import record_queue_event
 from app.workers.queue import QUEUE_PRIORITIES, get_redis_connection
+
+REDACTED_FAILURE_DETAIL = "Failure details redacted"
+
+
+def _require_allowed_queue(queue_name: str) -> None:
+    if queue_name not in QUEUE_PRIORITIES:
+        raise NotFoundError("Queue not found")
 
 
 def get_queues_overview() -> list[QueueSnapshotResponse]:
+    record_queue_event("overview", "inspected")
     connection = get_redis_connection()
     workers = Worker.all(connection=connection)
     snapshots = []
@@ -43,6 +52,9 @@ def get_queues_overview() -> list[QueueSnapshotResponse]:
 
 
 def list_failed_jobs(queue_name: str, limit: int = 50) -> list[FailedJobResponse]:
+    """Return failed-job metadata without exception payloads, arguments, or PII."""
+    _require_allowed_queue(queue_name)
+    record_queue_event("failed_jobs", "inspected")
     connection = get_redis_connection()
     queue = Queue(queue_name, connection=connection)
     registry = FailedJobRegistry(queue=queue)
@@ -53,6 +65,7 @@ def list_failed_jobs(queue_name: str, limit: int = 50) -> list[FailedJobResponse
         job = queue.fetch_job(job_id)
         if job is None:
             continue
+        record_queue_event("failed_jobs", "redacted")
         results.append(
             FailedJobResponse(
                 job_id=job.id,
@@ -60,17 +73,22 @@ def list_failed_jobs(queue_name: str, limit: int = 50) -> list[FailedJobResponse
                 func_name=job.func_name,
                 enqueued_at=job.enqueued_at,
                 failed_at=job.ended_at,
-                exc_info=job.exc_info,
+                exc_info=REDACTED_FAILURE_DETAIL,
             )
         )
     return results
 
 
-def retry_failed_job(queue_name: str, job_id: str) -> bool:
-    connection = get_redis_connection()
-    queue = Queue(queue_name, connection=connection)
-    registry = FailedJobRegistry(queue=queue)
-    if job_id not in registry.get_job_ids():
-        return False
-    registry.requeue(job_id)
-    return True
+def deny_retry(queue_name: str, job_id: str) -> None:
+    """Fail closed before any Redis lookup or mutation.
+
+    Retry stays unavailable until an explicit retry-safe function catalog and
+    an approved durable cross-store contract exist.
+    """
+    del queue_name, job_id
+    record_queue_event("retry", "denied")
+    raise AppError(
+        "QUEUE_ADMIN_READ_ONLY",
+        "Queue administration is read-only; retry is unavailable",
+        405,
+    )

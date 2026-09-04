@@ -289,7 +289,7 @@ export function JobProgress({ job, polling, pollTimedOut, onRetry, onRefresh }: 
         {pollTimedOut ? (
           <p className="text-sm text-muted-foreground">
             Still running — check{" "}
-            <Link href={`/app/jobs/${job.id}`} className="text-primary underline">
+            <Link href={`/osint/jobs/${job.id}`} className="text-primary underline">
               job detail
             </Link>{" "}
             or History.

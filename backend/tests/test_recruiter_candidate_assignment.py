@@ -29,7 +29,6 @@ from app.core.config import get_settings
 from app.modules.brands import repository as assignment_repository
 from app.modules.brands.models import RecruiterCandidateAssignment
 from app.modules.job_matching.models import JobMatch, JobPosting
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
 
 # Deliberately reuse conftest.py's default `client` fixture (plain
@@ -38,11 +37,11 @@ from tests.envelope_helpers import assert_error, assert_success
 # avoided here.
 
 
-def _auth_headers(user_id: str | None = None) -> dict[str, str]:
+def _auth_headers(user_id: str) -> dict[str, str]:
     settings = get_settings()
     return {
         "Authorization": f"Bearer {settings.api_token}",
-        "X-Test-User-ID": user_id or str(uuid4()),
+        "X-Test-User-ID": user_id,
     }
 
 
@@ -94,12 +93,20 @@ async def _make_job_match(db: AsyncSession, candidate: User) -> JobMatch:
 
 @pytest.fixture
 async def recruiter_a(db: AsyncSession) -> User:
-    return await _make_user(db)
+    from app.modules.admin.models import Role
+
+    result = await db.execute(select(Role).where(Role.name == "recruiter"))
+    recruiter_role = result.scalar_one()
+    return await _make_user(db, role_id=recruiter_role.id)
 
 
 @pytest.fixture
 async def recruiter_b(db: AsyncSession) -> User:
-    return await _make_user(db)
+    from app.modules.admin.models import Role
+
+    result = await db.execute(select(Role).where(Role.name == "recruiter"))
+    recruiter_role = result.scalar_one()
+    return await _make_user(db, role_id=recruiter_role.id)
 
 
 @pytest.fixture
@@ -176,8 +183,7 @@ async def test_assign_candidate_superuser_bypasses_gate_and_creates_row(
     """`is_superuser` short-circuits `user_has_permission` (Decision 1) without
     touching the role/permission-table lookup -- exercises the real
     `require_permission("recruiter_assignments", "write")` dependency on the
-    router without depending on role-based RBAC storage, which is affected by
-    the known SQLite dash-UUID bug (see the team_owner-role test below)."""
+    router."""
     response = client.post(
         "/api/recruiter-assignments",
         headers=_auth_headers(str(superuser.id)),
@@ -191,18 +197,13 @@ async def test_assign_candidate_superuser_bypasses_gate_and_creates_row(
     assert {row.candidate_user_id for row in rows} == {candidate.id}
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_assign_candidate_via_team_owner_role_permission_grant(
     client: TestClient, db: AsyncSession, recruiter_a: User, candidate: User
 ) -> None:
     """The *actual* production path: a user with the seeded `team_owner` role
     (granted `recruiter_assignments:write` by migration
     056_recruiter_assignments_permission.py) can create an assignment through
-    the real role -> permission lookup, not a superuser bypass. Confirmed
-    against real PostgreSQL (see USING_POSTGRES); xfails on SQLite for the
-    same pre-existing reason test_admin_rbac.py's role-based tests do."""
+    the real role -> permission lookup, not a superuser bypass."""
     from app.modules.admin.models import Role
 
     result = await db.execute(select(Role).where(Role.name == "team_owner"))

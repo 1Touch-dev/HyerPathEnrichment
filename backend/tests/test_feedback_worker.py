@@ -18,7 +18,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.database.base import Base
-from app.models import InterviewQuestion  # noqa: F401 — register on Base for create_all
+from app.models import InterviewQuestion
 from app.modules.sessions.models import QuestionAttempt
 from app.workers.tasks.feedback import _generate_feedback_sync, generate_feedback_job
 

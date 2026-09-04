@@ -10,11 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from alembic import command
 from sqlalchemy import inspect
 from sqlalchemy import text as sa_text
 from sqlalchemy.exc import IntegrityError
 
+from alembic import command
 from tests.migration_helpers import (
     alembic_config,
     sqlite_file_url,
@@ -26,7 +26,7 @@ from tests.migration_helpers import (
 REV_INTERVIEW_SCHEDULES = "042_interview_schedules"
 REV_MANUAL_JOB_ENTRIES = "043_manual_job_entries"
 REV_MERGE_ADMIN_AND_MODULE4_HEADS = "044_merge_admin_and_module4_heads"
-REV_CURRENT_SINGLE_HEAD = "060_merge_security_p1_and_billing_heads"
+REV_CURRENT_SINGLE_HEAD = "066_privileged_idempotency_records"
 
 
 @pytest.fixture
@@ -304,7 +304,7 @@ class TestDowngrade:
         finally:
             engine.dispose()
 
-        with pytest.raises(Exception):
+        with pytest.raises(IntegrityError):
             _downgrade_to(sqlite_url, REV_INTERVIEW_SCHEDULES)
 
     def test_full_downgrade_then_reupgrade_is_clean(self, sqlite_url: str):

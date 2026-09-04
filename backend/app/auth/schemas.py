@@ -14,6 +14,13 @@ EMAIL_REGEX = re.compile(
 )
 
 
+class PermissionSlug(BaseModel):
+    """Stable permission pair used to drive product-door navigation."""
+
+    resource: str
+    action: str
+
+
 class UserRead(BaseModel):
     """User response schema (public profile)."""
 
@@ -26,6 +33,9 @@ class UserRead(BaseModel):
     is_verified: bool
     is_active: bool
     is_superuser: bool
+    role_id: UUID | None = None
+    role_name: str | None = None
+    permissions: list[PermissionSlug] = Field(default_factory=list)
     deleted_at: datetime | None = None
     created_at: datetime
     updated_at: datetime

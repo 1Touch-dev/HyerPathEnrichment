@@ -14,9 +14,8 @@ export async function POST() {
     return backendFailureResponse(backendResponse);
   }
 
-  // Backend returns 204 No Content and clears the `access_token` cookie
-  // (backend/app/modules/admin/impersonation.py) — forward it, matching the
-  // existing Set-Cookie relay pattern in app/api/auth/login/route.ts.
+  // Backend returns 204 No Content and replaces the impersonation token with
+  // a normal admin `access_token`; relay that cookie like login and refresh.
   const bffResponse = bffSuccess(null);
   forwardBackendSetCookies(backendResponse, bffResponse);
   return bffResponse;

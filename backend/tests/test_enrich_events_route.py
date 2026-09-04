@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,11 +12,8 @@ from app.domain.enrichment import EnrichmentRequest
 from app.enrichers.pipeline import Pipeline
 from app.main import app
 
-_TEST_USER_ID = uuid4()
-_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(_TEST_USER_ID)}
 
-
-async def _create_completed_job(user_id: UUID | None = _TEST_USER_ID) -> str:
+async def _create_completed_job(user_id: UUID) -> str:
     await init_db()
     async with SessionLocal() as session:
         pipeline = Pipeline(session)
@@ -29,6 +26,8 @@ async def _create_completed_job(user_id: UUID | None = _TEST_USER_ID) -> str:
 
 async def test_events_route_returns_completed_status_for_finished_job(
     monkeypatch: pytest.MonkeyPatch,
+    staff_user,
+    staff_auth_headers: dict[str, str],
 ) -> None:
     from app.core.config import get_settings
     from app.enrichers import (
@@ -64,10 +63,10 @@ async def test_events_route_returns_completed_status_for_finished_job(
         monkeypatch.setattr(enricher, "_fetch", _empty_fetch)
     monkeypatch.setattr(get_settings(), "enable_tier1", False)
 
-    job_id = await _create_completed_job()
+    job_id = await _create_completed_job(staff_user.id)
 
     client = TestClient(app)
-    response = client.get(f"/enrich/{job_id}/events", headers=_HEADERS)
+    response = client.get(f"/enrich/{job_id}/events", headers=staff_auth_headers)
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
@@ -75,9 +74,11 @@ async def test_events_route_returns_completed_status_for_finished_job(
     assert '"status": "completed' in response.text
 
 
-def test_events_route_returns_404_for_unknown_job() -> None:
+def test_events_route_returns_404_for_unknown_job(
+    staff_auth_headers: dict[str, str],
+) -> None:
     client = TestClient(app)
-    response = client.get("/enrich/does-not-exist/events", headers=_HEADERS)
+    response = client.get("/enrich/does-not-exist/events", headers=staff_auth_headers)
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "NOT_FOUND"
