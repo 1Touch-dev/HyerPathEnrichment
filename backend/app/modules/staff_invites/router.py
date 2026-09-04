@@ -22,6 +22,7 @@ from app.dependencies.rate_limit import enforce_admin_mfa_verify_rate_limit
 from app.modules.admin.mfa import verify_mfa_code
 from app.modules.admin.models import Role
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import assert_operation_available
 from app.modules.staff_invites import repository
 from app.modules.staff_invites.schemas import (
     PublicStaffInviteResponse,
@@ -61,6 +62,7 @@ async def create_invite(
     user: User = Depends(require_permission("users", "write")),
     db: AsyncSession = Depends(get_db_session),
 ) -> StaffInviteResponse:
+    assert_operation_available("staff_invite.issued")
     if not idempotency_key.strip():
         raise ValidationAppError("Idempotency-Key must not be blank")
     if body.confirmation_email.casefold() != body.email.casefold():

@@ -47,6 +47,10 @@ export function UsersTable() {
     resource: "impersonation",
     action: "start",
   });
+  const canReactivate = hasPermission(currentUser, {
+    resource: "users",
+    action: "suspend",
+  });
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
@@ -73,19 +77,20 @@ export function UsersTable() {
     setCursorStack((stack) => (stack.length > 1 ? stack.slice(0, -1) : stack));
   }
 
-  function handleToggleStatus(targetUser: AdminUser) {
-    const nextIsActive = !targetUser.isActive;
-    const confirmed = window.confirm(
-      nextIsActive ? `Reactivate ${targetUser.email}?` : `Suspend ${targetUser.email}?`,
-    );
+  function handleReactivate(targetUser: AdminUser) {
+    const confirmed = window.confirm(`Reactivate ${targetUser.email}?`);
     if (!confirmed) return;
-    updateStatus.mutate({ userId: targetUser.id, isActive: nextIsActive });
+    updateStatus.mutate({ userId: targetUser.id, isActive: true });
   }
 
   const items = data?.items ?? [];
 
   return (
     <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted-foreground">
+        User deactivation is temporarily unavailable until ADR21 typed confirmation and step-up
+        controls are implemented.
+      </p>
       <div className="flex items-center justify-between gap-4">
         <Select value={statusFilter} onValueChange={handleFilterChange}>
           <SelectTrigger className="w-[180px]">
@@ -146,14 +151,16 @@ export function UsersTable() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={updateStatus.isPending}
-                        onClick={() => handleToggleStatus(targetUser)}
-                      >
-                        {targetUser.isActive ? "Suspend" : "Reactivate"}
-                      </Button>
+                      {!targetUser.isActive && canReactivate ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={updateStatus.isPending}
+                          onClick={() => handleReactivate(targetUser)}
+                        >
+                          Reactivate
+                        </Button>
+                      ) : null}
                       {canImpersonate ? (
                         <Button
                           variant="ghost"

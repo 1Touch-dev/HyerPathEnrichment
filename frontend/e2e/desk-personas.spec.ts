@@ -216,11 +216,11 @@ test.describe("frozen product-door persona contract", () => {
   test("named owners without permission cannot enter permission-gated Desk routes", async ({
     browser,
   }) => {
-    const ownerOnlyUsers = [identity("admin"), identity("team_owner")] as const;
+    const namedOwnersWithoutPermissions = [identity("admin"), identity("team_owner")] as const;
     const protectedRoutes = ["/desk/roles", "/desk/feature-flags", "/desk/queues"] as const;
     test.setTimeout(DENIED_ROUTE_MATRIX_ASSERTION_BUDGET_MS);
 
-    for (const user of ownerOnlyUsers) {
+    for (const user of namedOwnersWithoutPermissions) {
       for (const protectedRoute of protectedRoutes) {
         const context = await browser.newContext();
         try {

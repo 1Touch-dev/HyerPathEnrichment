@@ -135,7 +135,11 @@ async def test_explicit_audit_call_suppresses_fallback_logging(client, superuser
     request_id = "audit-explicit-mfa-enrollment"
     response = client.post(
         "/api/admin/mfa/enroll",
-        headers={**auth_headers(superuser.id), "X-Request-ID": request_id},
+        headers={
+            **auth_headers(superuser.id),
+            "X-Request-ID": request_id,
+            "Idempotency-Key": "audit-explicit-mfa-enrollment",
+        },
     )
     assert response.status_code == 200
 

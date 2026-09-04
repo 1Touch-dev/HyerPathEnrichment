@@ -13,7 +13,6 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from app.core.logging import scrub_sensitive_data
 from app.modules.admin.models import AdminAuditLog
 from tests.conftest import USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
@@ -51,16 +50,15 @@ async def test_support_role_can_list_users(client, support_user, auth_headers):
     assert_success(response)
 
 
-async def test_suspend_user_writes_audit_log(
+async def test_suspend_user_is_unavailable_until_adr21_step_up(
     client, superuser, regular_user, db_session, auth_headers
 ):
     response = client.patch(
         f"/api/admin/users/{regular_user.id}/status",
         json={"is_active": False, "reason": "ToS violation"},
-        headers=auth_headers(superuser.id),
+        headers={**auth_headers(superuser.id), "Idempotency-Key": "user-deactivate-blocked"},
     )
-    body = assert_success(response)
-    assert body["is_active"] is False
+    assert_error(response, 405, "PRIVILEGED_OPERATION_UNAVAILABLE")
 
     result = await db_session.execute(
         select(AdminAuditLog).where(
@@ -68,9 +66,7 @@ async def test_suspend_user_writes_audit_log(
             AdminAuditLog.target_id == str(regular_user.id),
         )
     )
-    entry = result.scalar_one()
-    assert entry.before == scrub_sensitive_data({"is_active": True})
-    assert entry.after == scrub_sensitive_data({"is_active": False, "reason": "ToS violation"})
+    assert result.scalars().all() == []
 
 
 async def test_suspend_user_requires_users_suspend_permission(
