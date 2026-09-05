@@ -54,13 +54,13 @@ _wait_for_enabled_sign_in_button = wait_for_enabled_sign_in_button
 _wait_for_profile_photo_ready = wait_for_profile_photo_ready
 
 __all__ = [
+    "NO_RETRY_OUTCOMES",
+    "ROTATE_PROFILE_OUTCOMES",
     "ActionChains",
     "ExtractionMethod",
     "LinkedInBrowserClient",
     "LinkedInPhotoError",
     "LinkedInPhotoResult",
-    "NO_RETRY_OUTCOMES",
-    "ROTATE_PROFILE_OUTCOMES",
     "_find_login_input",
     "_find_sign_in_button",
     "_photo_url_from_srcset",

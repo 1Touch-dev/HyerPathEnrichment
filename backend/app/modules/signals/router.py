@@ -1,17 +1,21 @@
 from __future__ import annotations
 
+import hmac
 import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.models import User
 from app.clients.notify import notify_change_signal
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import get_settings
 from app.core.errors import UnauthorizedError
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_signals_webhook_rate_limit
 from app.domain.enrichment import SignalListResponse
+from app.modules.admin.permissions import require_permission
 from app.signals.store import create_signal, list_signals
 
 logger = logging.getLogger(__name__)
@@ -35,7 +39,11 @@ def _parse_changedetection_payload(
     return watch_id, title, url, timestamp
 
 
-@webhook_router.post("/changedetection", status_code=status.HTTP_202_ACCEPTED)
+@webhook_router.post(
+    "/changedetection",
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(enforce_signals_webhook_rate_limit)],
+)
 async def changedetection_webhook(
     payload: dict[str, Any],
     x_signal_token: str | None = Header(default=None),
@@ -44,7 +52,9 @@ async def changedetection_webhook(
     """Consume changedetection.io change notifications."""
     settings = get_settings()
     expected = settings.changedetection_api_key.strip()
-    if expected and x_signal_token != expected:
+    provided = (x_signal_token or "").strip()
+    # Fail closed: empty configured key or missing/wrong token → unauthorized.
+    if not expected or not provided or not hmac.compare_digest(provided, expected):
         raise UnauthorizedError("invalid signal token")
 
     watch_id, title, url, timestamp = _parse_changedetection_payload(payload)
@@ -74,6 +84,7 @@ async def changedetection_webhook(
 async def read_signals(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    _user: User = Depends(require_permission("system_health", "read")),
     db: AsyncSession = Depends(get_db_session),
 ) -> SignalListResponse:
     items, total = await list_signals(db, limit, offset)

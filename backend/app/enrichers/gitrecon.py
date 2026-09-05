@@ -11,6 +11,7 @@ from typing import Any
 
 from redis.exceptions import RedisError
 
+from app.clients.cli_args import sanitize_cli_arg
 from app.clients.process import run_command
 from app.core.config import get_settings
 from app.domain.enrichment import EnrichmentRequest
@@ -125,6 +126,10 @@ class GitReconEnricher(Enricher):
         username = request.username or (request.email or "").split("@")[0]
         if not username:
             return {}
+        try:
+            username = sanitize_cli_arg(username, label="username")
+        except ValueError:
+            return {}
 
         if not await _throttle_allows_call():
             return {}
@@ -134,6 +139,7 @@ class GitReconEnricher(Enricher):
             command = ["python3", script, username, "-s", "github", "-o"]
         else:
             # Upstream CLI: gitrecon.py <username> -s github -o (writes JSON under results/)
+            # Username is sanitized (no leading '-') so it cannot be parsed as a flag.
             command = ["python3", "gitrecon.py", username, "-s", "github", "-o"]
 
         env = os.environ.copy()

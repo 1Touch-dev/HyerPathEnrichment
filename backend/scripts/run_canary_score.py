@@ -252,7 +252,9 @@ def main() -> int:
             actions["tier1"]["prereqs"] = prereqs
             if not ready:
                 actions["tier1"]["status"] = "SKIP"
-                actions["tier1"]["reason"] = "Multilogin prerequisites missing (see probe_tier1.py --prereqs)"
+                actions["tier1"]["reason"] = (
+                    "Multilogin prerequisites missing (see probe_tier1.py --prereqs)"
+                )
             elif not tier1_local_filled(TIER1_LOCAL):
                 actions["tier1"]["status"] = "SKIP"
                 actions["tier1"]["reason"] = (

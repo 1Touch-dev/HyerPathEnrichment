@@ -13,13 +13,14 @@ from app.enrichers.pipeline import Pipeline
 
 
 @pytest.mark.asyncio
-async def test_all_tiers_run_in_parallel(db_session: AsyncSession):
+async def test_all_tiers_run_in_parallel(db: AsyncSession):
     """Verify all tiers execute simultaneously rather than sequentially"""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
     request = EnrichmentRequest(
         username="test-user",
         linkedin_url="https://linkedin.com/in/test-user",
         company="TestCorp",
+        business="TestCorp",
         requested_tiers=[
             RequestedTier.tier1,
             RequestedTier.tier2,
@@ -63,11 +64,12 @@ async def test_all_tiers_run_in_parallel(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_partial_tier_failure_returns_results(db_session: AsyncSession):
+async def test_partial_tier_failure_returns_results(db: AsyncSession):
     """Verify partial results returned when some tiers fail"""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
     request = EnrichmentRequest(
         username="test-user",
+        linkedin_url="https://linkedin.com/in/test-user",
         requested_tiers=[
             RequestedTier.tier1,
             RequestedTier.tier2,
@@ -101,9 +103,9 @@ async def test_partial_tier_failure_returns_results(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_retry_logic_on_transient_failure(db_session: AsyncSession):
+async def test_retry_logic_on_transient_failure(db: AsyncSession):
     """Verify transient failures trigger retries with exponential backoff"""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
 
     # Mock enricher that fails twice then succeeds
     mock_enricher = Mock()
@@ -120,7 +122,7 @@ async def test_retry_logic_on_transient_failure(db_session: AsyncSession):
 
     with patch.object(pipeline, "_invoke_enricher", side_effect=mock_invoke_enricher):
         result = await pipeline._invoke_enricher_with_retry(
-            mock_enricher, EnrichmentRequest(username="test")
+            mock_enricher, EnrichmentRequest(username="test", requested_tiers=[RequestedTier.tier2])
         )
 
         assert call_count == 3, "Should attempt 3 times (2 failures + 1 success)"
@@ -128,9 +130,9 @@ async def test_retry_logic_on_transient_failure(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_permanent_failure_no_retry(db_session: AsyncSession):
+async def test_permanent_failure_no_retry(db: AsyncSession):
     """Verify permanent errors fail immediately without retry"""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
 
     mock_enricher = Mock()
     mock_enricher.source_name = "test-enricher"
@@ -144,7 +146,7 @@ async def test_permanent_failure_no_retry(db_session: AsyncSession):
 
     with patch.object(pipeline, "_invoke_enricher", side_effect=mock_invoke_enricher):
         result = await pipeline._invoke_enricher_with_retry(
-            mock_enricher, EnrichmentRequest(username="test")
+            mock_enricher, EnrichmentRequest(username="test", requested_tiers=[RequestedTier.tier2])
         )
 
         assert call_count == 1, "Should only attempt once for permanent errors"
@@ -152,11 +154,12 @@ async def test_permanent_failure_no_retry(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_tier_execution_metadata_added(db_session: AsyncSession):
+async def test_tier_execution_metadata_added(db: AsyncSession):
     """Verify execution metadata is added to payloads"""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
     request = EnrichmentRequest(
         username="test-user",
+        business="TestCorp",
         requested_tiers=[RequestedTier.tier2, RequestedTier.tier4],
     )
 
@@ -185,11 +188,12 @@ async def test_tier_execution_metadata_added(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_sync_mode_skips_tier1(db_session: AsyncSession):
+async def test_sync_mode_skips_tier1(db: AsyncSession):
     """Verify sync mode excludes tier1 (browser-based)"""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
     request = EnrichmentRequest(
         username="test-user",
+        linkedin_url="https://linkedin.com/in/test-user",
         requested_tiers=[
             RequestedTier.tier1,
             RequestedTier.tier2,

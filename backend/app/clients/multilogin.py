@@ -197,7 +197,7 @@ class MultiloginClient:
         """Stop a running browser profile."""
         settings = get_settings()
         bearer = token or await self.get_token()
-        base_url = settings.multilogin_launcher_url.rstrip("/")
+        base_url = self._launcher_v1_base(settings.multilogin_launcher_url)
         url = f"{base_url}/profile/stop/p/{profile_id}"
 
         async with self._launcher_client(timeout=30.0) as client:

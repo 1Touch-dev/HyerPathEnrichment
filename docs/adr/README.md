@@ -45,3 +45,13 @@ Add or update an ADR when you:
 | [0008](0008-tier1-linux-host-network.md) | Tier 1 Multilogin co-located with worker via `network_mode: host` on Linux | Accepted | 2026-07-22 |
 | [0009](0009-cookie-oauth-authentication.md) | Cookie-based OAuth authentication with FastAPI-Users | Accepted | 2026-07-31 |
 | [0011](0011-pgvector-vs-dedicated-vector-db.md) | pgvector over dedicated vector databases | Accepted | 2026-08-04 |
+| [0012](0012-semantic-chunking-strategy.md) | Semantic chunking strategy for document processing | Accepted | 2026-08-04 |
+| [0013](0013-job-matching-queue-and-storage.md) | Dedicated queue and storage for job matching (Module 1) | Accepted | 2026-08-10 |
+| [0014](0014-cv-chat-portfolio-outreach.md) | CV chat, portfolio, and outreach — storage, queue, and external API choices (Module 2) | Accepted | 2026-08-13 |
+| [0015](0015-admin-module-rbac-audit-mfa.md) | RBAC, audit log, feature flags, and support impersonation (Admin Module) | Accepted | 2026-08-19 |
+| [0016](0016-phase2-moderation-review-queue.md) | Generic review queue + per-domain moderation columns (Phase 2 Moderation) | Accepted | 2026-08-20 |
+| [0017](0017-interview-practice-question-personalization-and-queue-isolation.md) | Interview practice question personalization, queue isolation, and voice-tone scope limits (Module 3) | Accepted | 2026-08-14 |
+| [0018](0018-pasted-jd-and-document-id-practice-setup.md) | Pasted JD and optional document_id for interview practice setup | Accepted | 2026-08-25 |
+| [0019](0019-tenancy-model.md) | Brand as a presentation-only concept; no cross-brand data isolation | Accepted | 2026-08-26 |
+| [0020](0020-billing-provider.md) | Stripe over Paddle/Chargebee; subscription-per-candidate; webhook event-ledger idempotency | Accepted | 2026-08-27 |
+| [0021](0021-privileged-operation-controls.md) | Privileged-operation controls and replay safety | Accepted | 2026-09-03 |

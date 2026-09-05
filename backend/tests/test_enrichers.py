@@ -449,7 +449,7 @@ def test_local_business_parses_gmaps_fixture_csv() -> None:
 
 
 async def test_jobspy_maps_scraped_rows(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _scrape(self, search_term, company, limit):
+    def _scrape(self, search_term, location, country, company, limit, optimized_queries=None):
         return [
             {
                 "title": "SRE",

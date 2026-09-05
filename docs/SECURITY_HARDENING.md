@@ -4,7 +4,50 @@ Production security best practices for Hyrepath Enrichment operators. This guide
 
 **Target audience:** Self-hosted stack operators deploying to staging or production.
 
-**Last updated:** July 2026
+**Last updated:** August 2026
+
+---
+
+## 0. P0 runtime guards (code-enforced)
+
+As of branch `fix/security-p0-master-complete-foundation`, the API **refuses to start** when `APP_ENV` is `staging` or `production` and any of the following are true:
+
+- `SECRET_KEY` is missing, shorter than 32 characters, or still a known default
+- `API_TOKEN` is missing or still a known default (`change-me`, etc.)
+- `COOKIE_SECURE` is not `true`
+- `CHANGEDETECTION_API_KEY` is empty (signals webhook must not be open)
+
+Related code hardenings in the same change:
+
+- Opt-out/DSAR purge clears both `dossier_payload` and `request_payload`
+- Impersonation always requires MFA and cannot target a superuser
+- Candidate/operator webhook POSTs reject non-https and private/local targets (`follow_redirects=False`)
+- `/api/email/test` requires `X-API-Token` and returns 404 in staging/production
+
+**Still open (deferred):** email confirmation before opt-out purge.
+
+### P1 hardenings (branch `fix/security-p1-master-complete-foundation`)
+
+- Refresh tokens stored as SHA-256 hashes (dual-read upgrades legacy plaintext); account delete revokes all refresh sessions and clears both cookies
+- Account delete cascades erase of CVs/chat/outreach and scrubs sourced-lead PII; identifier purge also scrubs outreach recipients + sourced leads
+- MFA secrets sealed at rest (Fernet derived from `SECRET_KEY`); legacy plaintext still verifies
+- `recruiter_actions:write` required for apply/suggest; LinkedIn lead list requires `linkedin_sourcing:write`
+- Support cannot deactivate superusers (only another superuser can)
+- Transactional email HTML escapes dynamic fields; href schemes allowlisted
+- BFF forwards multi-`Set-Cookie` via `getSetCookie()` helper
+- `/auth/refresh` rate-limited; cookie-auth rate limits key on cookie+IP when Bearer is absent
+
+### P2 hardenings (branch `fix/security-p2-master-complete-foundation`)
+
+- pgvector similarity SQL uses bound `CAST(:emb AS vector)` params (documents + swipe boost)
+- Enricher CLI user tokens sanitized (reject leading `-` / NUL); `--` before positionals where safe
+- Document uploads sniff magic bytes and reject Content-Type mismatches
+- LinkedIn sourcing requires `/in/{slug}` via `extract_linkedin_slug` and stores the normalized URL
+- `/metrics` requires scrape token in staging/production (or whenever `METRICS_TOKEN` is set)
+- Access JWTs via PyJWT with hardcoded `HS256`; refresh cookies use `SameSite=strict`
+- `LEGAL.md` aligned with authenticated DSAR + current purge/account-erase behavior
+
+**Still open (deferred):** email confirmation before opt-out purge; full CSRF synchronizer tokens; privacy/consent ledger; OAuth token encryption at rest.
 
 ---
 

@@ -8,17 +8,26 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TypedDict
+from typing import Any, TypedDict
 from uuid import UUID
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import literal_column
 
 from app.core.config import get_settings
 from app.utils.text_chunking import ChunkDict
 
 logger = logging.getLogger(__name__)
+
+
+def _embedding_as_pgvector_literal(query_embedding: list[float]) -> str:
+    """Serialize floats for CAST(:emb AS vector) — never interpolate into SQL text."""
+    parts: list[str] = []
+    for x in query_embedding:
+        if not isinstance(x, (int, float)) or isinstance(x, bool) or not math.isfinite(float(x)):
+            raise ValueError("query_embedding must contain only finite numbers")
+        parts.append(repr(float(x)))
+    return "[" + ",".join(parts) + "]"
 
 
 class SearchResult(TypedDict):
@@ -168,30 +177,37 @@ async def similarity_search(
     is_postgres = "postgresql" in settings.database_url.lower()
 
     if is_postgres:
-        # Use pgvector cosine similarity (1 - cosine_distance)
-        # cosine_distance is <=> operator in pgvector
-        # similarity = 1 - cosine_distance
-        # Format embedding as PostgreSQL array string for pgvector
-        # IMPORTANT: We pass this as a literal string, not a bound parameter,
-        # because pgvector's ::vector cast doesn't work with parameter binding
-        embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
-
-        query_stmt = select(
-            DocumentEmbedding.document_id,
-            DocumentEmbedding.chunk_index,
-            DocumentEmbedding.chunk_text,
-            DocumentEmbedding.token_count,
-            # Use literal embedding string (not bound parameter) for pgvector compatibility
-            literal_column(f"(1 - (embedding <=> '{embedding_str}'::vector))").label("similarity"),
-        ).where(text(f"(1 - (embedding <=> '{embedding_str}'::vector)) >= {similarity_threshold}"))
-
+        # Bind embedding + threshold (same CAST(:emb AS vector) pattern as job_matching).
+        embedding_str = _embedding_as_pgvector_literal(query_embedding)
+        params: dict[str, Any] = {
+            "query_embedding": embedding_str,
+            "similarity_threshold": float(similarity_threshold),
+            "result_limit": int(limit),
+        }
+        document_filter_sql = ""
         if document_id:
-            query_stmt = query_stmt.where(DocumentEmbedding.document_id == document_id)
+            document_filter_sql = "AND document_id = :document_id"
+            params["document_id"] = str(document_id)
 
-        query_stmt = query_stmt.order_by(text("similarity DESC")).limit(limit)
+        similarity_sql = text(
+            f"""
+            SELECT
+                document_id,
+                chunk_index,
+                chunk_text,
+                token_count,
+                (1 - (embedding <=> CAST(:query_embedding AS vector))) AS similarity
+            FROM document_embeddings
+            WHERE (1 - (embedding <=> CAST(:query_embedding AS vector)))
+                >= :similarity_threshold
+                {document_filter_sql}
+            ORDER BY similarity DESC
+            LIMIT :result_limit
+            """
+        )
 
         try:
-            result = await session.execute(query_stmt)
+            result = await session.execute(similarity_sql, params)
             rows = result.all()
 
             results: list[SearchResult] = [
@@ -227,11 +243,11 @@ async def similarity_search(
     # SQLite fallback: fetch all embeddings and compute similarity in Python
     logger.info("Using Python-based cosine similarity (SQLite mode)")
 
-    query_stmt = select(DocumentEmbedding)
+    fallback_stmt = select(DocumentEmbedding)
     if document_id:
-        query_stmt = query_stmt.where(DocumentEmbedding.document_id == document_id)
+        fallback_stmt = fallback_stmt.where(DocumentEmbedding.document_id == document_id)
 
-    result = await session.execute(query_stmt)
+    result = await session.execute(fallback_stmt)
     all_embeddings = result.scalars().all()
 
     # Compute similarities
@@ -247,7 +263,7 @@ async def similarity_search(
     # Take top N
     top_results = scored_results[:limit]
 
-    results: list[SearchResult] = [
+    fallback_results: list[SearchResult] = [
         {
             "document_id": str(emb.document_id),
             "chunk_index": emb.chunk_index,
@@ -259,15 +275,15 @@ async def similarity_search(
     ]
 
     logger.info(
-        f"Python similarity search found {len(results)} results",
+        f"Python similarity search found {len(fallback_results)} results",
         extra={
             "total_checked": len(all_embeddings),
-            "num_results": len(results),
+            "num_results": len(fallback_results),
             "threshold": similarity_threshold,
         },
     )
 
-    return results
+    return fallback_results
 
 
 async def delete_document_embeddings(session: AsyncSession, document_id: UUID) -> None:

@@ -26,7 +26,7 @@ function showTerminalToast(status: JobStatus, jobId: string): void {
     action: {
       label: "View Results",
       onClick: () => {
-        window.location.href = `/app/jobs/${jobId}`;
+        window.location.href = `/osint/jobs/${jobId}`;
       },
     },
     duration: 5000,

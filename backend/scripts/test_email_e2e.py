@@ -26,7 +26,9 @@ async def test_email_service() -> None:
     logger.info(f"   EMAIL_TEST_MODE: {settings.email_test_mode}")
     logger.info(f"   SENDGRID_FROM_EMAIL: {settings.sendgrid_from_email}")
     logger.info(f"   SENDGRID_FROM_NAME: {settings.sendgrid_from_name}")
-    logger.info(f"   SENDGRID_API_KEY configured: {'Yes' if settings.sendgrid_api_key.get_secret_value() else 'No'}")
+    logger.info(
+        f"   SENDGRID_API_KEY configured: {'Yes' if settings.sendgrid_api_key.get_secret_value() else 'No'}"
+    )
 
     if not settings.email_enabled:
         logger.error("❌ EMAIL_ENABLED is False - email service is disabled")

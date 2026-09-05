@@ -4,12 +4,29 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/src/lib/utils";
+import { PRODUCT_ROOTS, type Product } from "@/src/lib/product-doors";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleSidebar } from "@/store/slices/uiSlice";
-import { allNavSections } from "./nav-config";
+import type { NavSection } from "./nav-config";
 
-export function AppSidebar() {
+type AppSidebarProps = {
+  product: Product;
+  sections: NavSection[];
+  matchesUnreadCount?: number;
+};
+
+const PRODUCT_DESCRIPTION: Record<Product, string> = {
+  candidate: "Candidate workspace",
+  desk: "Staff operations",
+  osint: "Public-only lookup",
+};
+
+const NAV_FOCUS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSidebarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const sidebarOpen = useAppSelector((state) => state.ui.sidebarOpen);
@@ -27,12 +44,22 @@ export function AppSidebar() {
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-4">
         {sidebarOpen ? (
-          <Link href="/app/enrich" className="flex flex-col gap-0.5 px-1">
+          <Link
+            href={PRODUCT_ROOTS[product]}
+            aria-label="Hyrepath home"
+            className={cn("flex flex-col items-start gap-1 rounded-md px-1", NAV_FOCUS)}
+          >
             <span className="text-sm font-semibold tracking-tight text-primary">Hyrepath</span>
-            <span className="text-[11px] text-muted-foreground">Lookup console</span>
+            <span className="rounded-md bg-secondary px-2.5 py-1 text-sm font-medium leading-5 text-primary">
+              {product === "osint" ? "OSINT" : `${product[0].toUpperCase()}${product.slice(1)}`}
+            </span>
           </Link>
         ) : (
-          <Link href="/app/enrich" className="mx-auto text-xs font-bold text-primary">
+          <Link
+            href={PRODUCT_ROOTS[product]}
+            aria-label="Hyrepath home"
+            className={cn("mx-auto rounded-md text-xs font-bold text-primary", NAV_FOCUS)}
+          >
             H
           </Link>
         )}
@@ -52,7 +79,7 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-2 py-4">
-        {allNavSections.map((section) => (
+        {sections.map((section) => (
           <div key={section.title}>
             {sidebarOpen ? (
               <p className="mb-2 px-2 text-xs font-medium text-muted-foreground">{section.title}</p>
@@ -61,12 +88,16 @@ export function AppSidebar() {
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
+                const showUnreadBadge = item.href === "/app/matches" && matchesUnreadCount > 0;
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      aria-label={item.label}
+                      aria-current={active ? "page" : undefined}
                       className={cn(
                         "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
+                        NAV_FOCUS,
                         active
                           ? "bg-secondary text-primary"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -74,8 +105,18 @@ export function AppSidebar() {
                       )}
                       title={!sidebarOpen ? item.label : undefined}
                     >
-                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="relative shrink-0">
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                        {showUnreadBadge && !sidebarOpen ? (
+                          <span className="absolute -right-1 -top-1 size-2 rounded-full bg-destructive" />
+                        ) : null}
+                      </span>
                       {sidebarOpen ? <span>{item.label}</span> : null}
+                      {showUnreadBadge && sidebarOpen ? (
+                        <Badge variant="destructive" className="ml-auto px-1.5 py-0 text-[10px]">
+                          {matchesUnreadCount}
+                        </Badge>
+                      ) : null}
                     </Link>
                   </li>
                 );
@@ -87,9 +128,7 @@ export function AppSidebar() {
 
       <div className="border-t border-border px-3 py-4">
         {sidebarOpen ? (
-          <p className="text-xs text-subtle-foreground">
-            Public signals only. Respect opt-out before every run.
-          </p>
+          <p className="text-xs text-subtle-foreground">{PRODUCT_DESCRIPTION[product]}</p>
         ) : null}
       </div>
     </aside>

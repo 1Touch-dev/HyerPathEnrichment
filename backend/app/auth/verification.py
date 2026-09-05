@@ -14,6 +14,17 @@ from app.core.config import get_settings
 from app.services.email_service import EmailTemplate, enqueue_email
 
 
+def _ensure_utc(value: datetime) -> datetime:
+    """Normalize a datetime to timezone-aware UTC.
+
+    SQLite does not persist timezone info, so datetimes read back from the
+    database are naive even though they were stored as UTC.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 async def generate_verification_token(
     db: AsyncSession, user_id: UUID, expiry_hours: int = 24
 ) -> str:
@@ -93,7 +104,7 @@ async def verify_email_token(db: AsyncSession, token: str) -> User | None:
         return None
 
     # Check expiry
-    if token_record.expires_at < datetime.now(UTC):
+    if _ensure_utc(token_record.expires_at) < datetime.now(UTC):
         await db.delete(token_record)
         await db.commit()
         return None
@@ -143,7 +154,7 @@ async def resend_verification_email(db: AsyncSession, email: str) -> tuple[bool,
 
     # Rate limit: Check if last email was sent within 5 minutes
     if user.verification_sent_at:
-        time_since_last = datetime.now(UTC) - user.verification_sent_at
+        time_since_last = datetime.now(UTC) - _ensure_utc(user.verification_sent_at)
         cooldown_seconds = 5 * 60  # 5 minutes
         if time_since_last.total_seconds() < cooldown_seconds:
             remaining_seconds = int(cooldown_seconds - time_since_last.total_seconds())

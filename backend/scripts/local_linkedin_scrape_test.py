@@ -1,4 +1,5 @@
 """One-off: local Chrome Selenium proof (no Multilogin)."""
+
 import asyncio
 import sys
 from pathlib import Path
@@ -30,7 +31,9 @@ def main() -> int:
     try:
         print(f"Scraping {PROFILE_URL}...")
         partial, image_url = _scrape_on_driver(driver, PROFILE_URL)
-        print(f"Scrape outcome: {partial.outcome}, method: {partial.method}, confidence: {partial.confidence}")
+        print(
+            f"Scrape outcome: {partial.outcome}, method: {partial.method}, confidence: {partial.confidence}"
+        )
 
         if partial.outcome != LinkedInPhotoError.SUCCESS or not image_url:
             return 1

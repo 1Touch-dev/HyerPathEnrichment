@@ -24,14 +24,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
-from app.core.config import get_settings
-from app.enrichers.local_business import LocalBusinessEnricher
-from app.enrichers.social_analyzer import SocialAnalyzerEnricher
-from app.enrichers.email_verify import EmailVerifyEnricher
-from app.domain.enrichment import EnrichmentRequest
-from app.domain.enums import RequestedTier
 from app.clients.email_verify import EmailVerifier
 from app.clients.sidecar import SidecarClient
+from app.core.config import get_settings
+from app.domain.enrichment import EnrichmentRequest
+from app.domain.enums import RequestedTier
+from app.enrichers.email_verify import EmailVerifyEnricher
+from app.enrichers.local_business import LocalBusinessEnricher
+from app.enrichers.social_analyzer import SocialAnalyzerEnricher
 
 RESULTS_DIR = ROOT / ".e2e-results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -43,7 +43,11 @@ def _unwrap(payload: Any) -> dict[str, Any]:
     """Unwrap the `{success, data}` envelope every JSON route now returns
     (see `app/core/api_route.py::EnvelopeAPIRoute`). Falls back to the raw
     payload for callers still on the pre-envelope shape."""
-    if isinstance(payload, dict) and payload.get("success") is True and isinstance(payload.get("data"), dict):
+    if (
+        isinstance(payload, dict)
+        and payload.get("success") is True
+        and isinstance(payload.get("data"), dict)
+    ):
         return payload["data"]
     return payload if isinstance(payload, dict) else {}
 
@@ -80,7 +84,8 @@ class FakeSidecarProbe:
         report = {
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "checks": [
-                {"name": r.name, "ok": r.ok, "detail": r.detail, "data": r.data} for r in self.results
+                {"name": r.name, "ok": r.ok, "detail": r.detail, "data": r.data}
+                for r in self.results
             ],
             "passed": sum(1 for r in self.results if r.ok),
             "failed": sum(1 for r in self.results if not r.ok),
@@ -124,7 +129,9 @@ class FakeSidecarProbe:
                 self.settings.email_verifier_url,
                 "GET",
                 "/v1/health@example.com/verification",
-                lambda payload: isinstance(payload, dict) and payload.get("syntax", {}).get("valid") is True,
+                lambda payload: (
+                    isinstance(payload, dict) and payload.get("syntax", {}).get("valid") is True
+                ),
             ),
             (
                 "fake_reacher_health",
@@ -212,7 +219,9 @@ class FakeSidecarProbe:
             dossier: dict[str, Any] = {}
             for _ in range(40):
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    poll = await client.get(f"{self.base_url}/enrich/{job_id}", headers=self.headers)
+                    poll = await client.get(
+                        f"{self.base_url}/enrich/{job_id}", headers=self.headers
+                    )
                 payload = _unwrap(poll.json())
                 final = payload.get("status", "")
                 dossier = payload.get("dossier") or {}
@@ -253,13 +262,14 @@ class FakeSidecarProbe:
             job_id = _unwrap(enqueue.json()).get("id")
 
             events: list[dict[str, Any]] = []
-            async with httpx.AsyncClient(timeout=60.0) as client, client.stream(
-                "GET", f"{self.base_url}/enrich/{job_id}/events", headers=self.headers
-            ) as response:
+            async with (
+                httpx.AsyncClient(timeout=60.0) as client,
+                client.stream(
+                    "GET", f"{self.base_url}/enrich/{job_id}/events", headers=self.headers
+                ) as response,
+            ):
                 if response.status_code != 200:
-                    self.record(
-                        "sse_job_events", False, f"stream status={response.status_code}"
-                    )
+                    self.record("sse_job_events", False, f"stream status={response.status_code}")
                     return
                 async for line in response.aiter_lines():
                     if not line or not line.startswith("data:"):

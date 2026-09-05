@@ -49,7 +49,7 @@ class EnrichmentService:
                 enqueue_enrichment(tier1_child.id, [RequestedTier.tier1], is_child_job=True)
 
                 # Create and enqueue tier234 child
-                tier234_tiers = [
+                tier234_tiers: list[RequestedTier] = [
                     t
                     for t in tiers
                     if t in {RequestedTier.tier2, RequestedTier.tier3, RequestedTier.tier4}

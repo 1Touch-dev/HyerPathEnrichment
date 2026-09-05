@@ -12,7 +12,10 @@ from uuid import UUID
 from rq import get_current_job
 from sqlalchemy import select
 
-from app.auth.models import User  # noqa: F401 - Import for SQLAlchemy FK resolution
+# Import ORM registry FIRST to register all models (User has relationships
+# to PracticeSession/QuestionAttempt that otherwise fail to resolve when this
+# worker process never imports app.modules.sessions.models).
+import app.database.orm_registry  # noqa: F401
 from app.clients.embeddings import get_embeddings_client
 from app.database.session import SessionLocal
 from app.modules.documents.models import CandidateDocument
@@ -62,7 +65,7 @@ async def process_document_embeddings(document_id: str) -> dict[str, bool | str 
             f"Processing embeddings for document {document_id}",
             extra={
                 "document_id": document_id,
-                "filename": document.original_filename,
+                "document_filename": document.original_filename,
                 "text_length": len(document.raw_text),
             },
         )
@@ -115,7 +118,7 @@ async def process_document_embeddings(document_id: str) -> dict[str, bool | str 
         )
 
         # Step 2: Generate embeddings
-        embeddings_client = await get_embeddings_client()
+        embeddings_client = get_embeddings_client()
         chunk_texts = [chunk["chunk_text"] for chunk in chunks]
 
         try:
@@ -148,7 +151,7 @@ async def process_document_embeddings(document_id: str) -> dict[str, bool | str 
         document.processing_status = "embedded"
         await session.commit()
 
-        result_data = {
+        result_data: dict[str, bool | str | int | float] = {
             "success": True,
             "document_id": document_id,
             "num_chunks": len(chunks),

@@ -92,5 +92,80 @@ services:
       retries: 3
       start_period: 30s
 
+  # Job matching worker - dedicated queue, isolated from the generic worker
+  # per phase2_module1.md §4/§9 (starvation analysis)
+  worker-job-matching:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker-job-matching
+    networks:
+      - default
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
+      SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
+      SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-true}
+      JOB_MATCHING_ENABLED: ${JOB_MATCHING_ENABLED:-true}
+      JOB_MATCHING_SCAN_CRON: ${JOB_MATCHING_SCAN_CRON:-0 6 * * *}
+      JOB_MATCHING_MAX_POSTINGS_PER_SCAN: ${JOB_MATCHING_MAX_POSTINGS_PER_SCAN:-50}
+      JOB_MATCHING_SIMILARITY_THRESHOLD: ${JOB_MATCHING_SIMILARITY_THRESHOLD:-0.5}
+      JOB_MATCHING_TOP_N_EXPLANATIONS: ${JOB_MATCHING_TOP_N_EXPLANATIONS:-5}
+      JOB_MATCHING_INACTIVE_AFTER_DAYS: ${JOB_MATCHING_INACTIVE_AFTER_DAYS:-14}
+      NOTIFY_SMS_ENABLED: ${NOTIFY_SMS_ENABLED:-false}
+      # Tier 4 job source: jobspy (free scraping) | jsearch (paid RapidAPI, reliable) —
+      # this worker calls JobSpyEnricher._scrape directly (scan_jobs_for_candidate), so
+      # it needs the same provider settings as api/worker.
+      JOB_SOURCE_PROVIDER: ${JOB_SOURCE_PROVIDER:-jobspy}
+      JSEARCH_API_KEY: ${JSEARCH_API_KEY:-}
+      JSEARCH_API_HOST: ${JSEARCH_API_HOST:-jsearch.p.rapidapi.com}
+      JSEARCH_NUM_PAGES: ${JSEARCH_NUM_PAGES:-1}
+      JSEARCH_TIMEOUT_SECONDS: ${JSEARCH_TIMEOUT_SECONDS:-20.0}
+      WORKER_STARTUP_DELAY: "0"
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+    command: ["python", "-m", "app.workers.rq_worker_job_matching"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from app.workers.tasks.job_matching import check_worker_health; import sys; sys.exit(0 if check_worker_health('job_matching') else 1)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # This overlay otherwise only adds document/embedding/job-matching workers
+  # (no `api` service block exists here). Billing passthrough is added so
+  # `api` keeps its env when this file is combined with the others.
+  api:
+    environment:
+      ENABLE_BILLING: ${ENABLE_BILLING:-false}
+      STRIPE_MODE: ${STRIPE_MODE:-live}
+      STRIPE_API_BASE: ${STRIPE_API_BASE:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_ID_PREMIUM: ${STRIPE_PRICE_ID_PREMIUM:-}
+
 volumes:
   document_cache:

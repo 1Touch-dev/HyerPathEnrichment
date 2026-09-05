@@ -5,14 +5,20 @@ Tests PDF/DOCX parsing, file validation, security checks, and deduplication.
 
 from __future__ import annotations
 
+import uuid
 
 import pytest
+from fastapi import HTTPException, status
+from sqlalchemy import select
 
-from app.services.document_processor import DocumentProcessor, DocumentProcessingError
+from app.auth.models import User
+from app.modules.documents.models import CandidateDocument, DocumentJob
+from app.modules.documents.service import DocumentService
+from app.services.document_processor import DocumentProcessingError, DocumentProcessor
 from app.storage.document_storage import (
+    MAX_FILE_SIZE_BYTES,
     DocumentStorageClient,
     DocumentStorageError,
-    MAX_FILE_SIZE_BYTES,
     compute_file_hash,
     validate_file_size,
     validate_mime_type,
@@ -101,8 +107,9 @@ startxref
 def sample_docx_data() -> bytes:
     """Create minimal valid DOCX data for testing."""
     try:
-        import docx
         from io import BytesIO
+
+        import docx
 
         doc = docx.Document()
         doc.add_paragraph("Test DOCX Content")
@@ -372,6 +379,162 @@ async def test_duplicate_upload_different_hash(
     # But same file hash (for deduplication detection)
     assert hash1 == hash2
     assert size1 == size2
+
+
+# ── Storage Download Tests ─────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_upload_then_download_round_trip(
+    storage_client: DocumentStorageClient,
+    sample_pdf_data: bytes,
+) -> None:
+    """Bytes written by upload_document must be retrievable via
+    download_document, exercising the local-cache fallback used in tests
+    (no R2 credentials configured)."""
+    storage_path, _, _ = await storage_client.upload_document(
+        sample_pdf_data,
+        "resume.pdf",
+        "application/pdf",
+        "user-round-trip",
+        "cv",
+    )
+
+    downloaded = await storage_client.download_document(storage_path)
+
+    assert downloaded == sample_pdf_data
+
+
+@pytest.mark.asyncio
+async def test_download_document_missing_object_raises(
+    storage_client: DocumentStorageClient,
+) -> None:
+    """Downloading a storage path that was never written raises a clear
+    DocumentStorageError instead of propagating a raw filesystem error."""
+    with pytest.raises(DocumentStorageError, match="Download failed"):
+        await storage_client.download_document("documents/user-missing/cv/does-not-exist.pdf")
+
+
+# ── reprocess_document Tests ───────────────────────────────────────
+
+
+async def _create_reprocess_test_user(db) -> User:
+    user = User(
+        email=f"reprocess-{uuid.uuid4().hex[:10]}@example.com",
+        first_name="Reprocess",
+        last_name="Tester",
+        is_verified=True,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def _create_reprocess_test_document(db, user_id, **overrides) -> CandidateDocument:
+    fields = {
+        "user_id": user_id,
+        "document_type": "cv",
+        "original_filename": "resume.pdf",
+        "storage_path": f"documents/{user_id}/cv/{uuid.uuid4().hex}.pdf",
+        "file_hash": uuid.uuid4().hex,
+        "file_size_bytes": 2048,
+        "processing_status": "completed",
+    }
+    fields.update(overrides)
+    doc = CandidateDocument(**fields)
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+@pytest.mark.asyncio
+async def test_reprocess_document_legacy_row_without_mime_type_raises(db) -> None:
+    """Legacy rows (mime_type=None, predating the storage-backed upload path)
+    can't be reprocessed automatically since there are no real stored bytes
+    to re-extract from — the service must raise a clear error instead of
+    silently no-op'ing."""
+    user = await _create_reprocess_test_user(db)
+    doc = await _create_reprocess_test_document(db, user.id, mime_type=None)
+
+    service = DocumentService(db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.reprocess_document(str(doc.id), user.id)
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "re-upload" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_reprocess_document_success_enqueues_job(db) -> None:
+    """A document with mime_type + real stored bytes gets its status/text
+    reset and a new DocumentJob enqueued via the same RQ wiring as
+    upload_document."""
+    user = await _create_reprocess_test_user(db)
+
+    storage_client = DocumentStorageClient()
+    storage_path, file_hash, file_size = await storage_client.upload_document(
+        b"%PDF-1.4 " + b"x" * 200,
+        "resume.pdf",
+        "application/pdf",
+        str(user.id),
+        "cv",
+    )
+
+    doc = await _create_reprocess_test_document(
+        db,
+        user.id,
+        storage_path=storage_path,
+        mime_type="application/pdf",
+        file_hash=file_hash,
+        file_size_bytes=file_size,
+        processing_status="failed",
+        raw_text="stale text",
+        extracted_data={"stale": True},
+    )
+
+    service = DocumentService(db)
+    response = await service.reprocess_document(str(doc.id), user.id)
+
+    assert response.document_id == str(doc.id)
+    assert response.job_id
+
+    await db.refresh(doc)
+    assert doc.processing_status == "pending"
+    assert doc.raw_text is None
+    assert doc.extracted_data is None
+
+    result = await db.execute(
+        select(DocumentJob).where(
+            DocumentJob.document_id == doc.id,
+            DocumentJob.job_type == "reprocess",
+        )
+    )
+    job = result.scalar_one()
+    assert str(job.id) == response.job_id
+
+
+@pytest.mark.asyncio
+async def test_reprocess_document_missing_stored_bytes_raises(db) -> None:
+    """If the document row has a mime_type but its bytes are gone from
+    storage (e.g. deleted out-of-band), reprocess must surface a clear
+    404 instead of an unhandled storage exception."""
+    user = await _create_reprocess_test_user(db)
+    doc = await _create_reprocess_test_document(
+        db,
+        user.id,
+        mime_type="application/pdf",
+        storage_path=f"documents/{user.id}/cv/never-uploaded.pdf",
+    )
+
+    service = DocumentService(db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.reprocess_document(str(doc.id), user.id)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ── Coverage Summary ───────────────────────────────────────────────

@@ -1,5 +1,6 @@
-# CD: build API/worker → GHCR → staging (auto on main) / production (approval).
-# Dry-run: Actions → Deploy → Run workflow → dry_run=true (no registry push, no SSH).
+# CD: build API/worker → GHCR → staging (auto after green CI on main) / production (approval).
+# Auto staging no longer runs on bare push to main — it waits for workflow "CI" success
+# (workflow_run). Manual: Actions → Deploy → Run workflow (dry_run / target preserved).
 # Validate locally:
 #   actionlint .github/workflows/deploy.yml
 #   (https://github.com/rhysd/actionlint — or:
@@ -8,7 +9,11 @@
 name: Deploy
 
 on:
-  push:
+  # Gate staging auto-deploy on green CI (FIND-INFRA-003). Replaces push-to-main trigger.
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -31,6 +36,7 @@ concurrency:
 permissions:
   contents: read
   packages: write
+  actions: read
 
 env:
   REGISTRY: ghcr.io
@@ -39,7 +45,28 @@ env:
   IMAGE_NAME_WORKER: ${{ github.repository }}/worker
 
 jobs:
+  # Skip failed/cancelled CI runs; always allow manual dispatch (incl. dry_run).
+  await-ci:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    outputs:
+      deploy_sha: ${{ steps.sha.outputs.deploy_sha }}
+    steps:
+      - name: Resolve deploy SHA
+        id: sha
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            SHA="${{ github.event.workflow_run.head_sha }}"
+          else
+            SHA="${{ github.sha }}"
+          fi
+          echo "deploy_sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Deploy SHA=${SHA} (event=${{ github.event_name }})"
+
   build-and-push:
+    needs: await-ci
     runs-on: ubuntu-latest
     outputs:
       dry_run: ${{ steps.flags.outputs.dry_run }}
@@ -49,6 +76,9 @@ jobs:
       dispatch_target: ${{ steps.flags.outputs.dispatch_target }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # workflow_run checks out default branch tip unless ref is set to the CI commit
+          ref: ${{ needs.await-ci.outputs.deploy_sha }}
 
       - name: Resolve flags
         id: flags
@@ -68,7 +98,7 @@ jobs:
       - name: Image metadata
         id: meta
         run: |
-          TAG="${GITHUB_SHA}"
+          TAG="${{ needs.await-ci.outputs.deploy_sha }}"
           API_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}"
           WORKER_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER }}"
           # GHCR requires lowercase repository path
@@ -137,7 +167,7 @@ jobs:
           cat <<EOF
           === Deploy dry-run ===
           Ref: ${{ github.ref }}
-          SHA: ${{ github.sha }}
+          SHA: ${{ needs.await-ci.outputs.deploy_sha }}
           Target (dispatch): ${{ steps.flags.outputs.dispatch_target }}
           API image:    ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.image_tag }}
           Worker image: ${{ steps.meta.outputs.worker_image }}:${{ steps.meta.outputs.image_tag }}
@@ -151,7 +181,9 @@ jobs:
     needs: build-and-push
     if: |
       needs.build-and-push.outputs.dry_run != 'true' && (
-        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'workflow_run' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_branch == 'main') ||
         (github.event_name == 'workflow_dispatch' && needs.build-and-push.outputs.dispatch_target == 'staging')
       )
     runs-on: ubuntu-latest

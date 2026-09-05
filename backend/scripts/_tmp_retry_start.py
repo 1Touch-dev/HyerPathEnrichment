@@ -40,7 +40,9 @@ def main() -> int:
     with httpx.Client(timeout=90.0, verify=False) as launcher_client:
         start_url = f"{LAUNCHER_BASE}/profile/f/{FOLDER_ID}/p/{PROFILE_ID}/start"
         print(f"[{time.strftime('%H:%M:%S')}] starting profile (up to 90s)...")
-        resp4 = launcher_client.get(start_url, params={"automation_type": "selenium"}, headers=headers)
+        resp4 = launcher_client.get(
+            start_url, params={"automation_type": "selenium"}, headers=headers
+        )
         print(f"[{time.strftime('%H:%M:%S')}] start_profile status:", resp4.status_code)
         print(resp4.text[:500])
         if resp4.status_code != 200:

@@ -189,11 +189,11 @@ def test_health_endpoint() -> None:
     assert response.json()["data"]["status"] == "ok"
 
 
-def test_sync_enrich_shape() -> None:
+def test_sync_enrich_shape(staff_auth_headers: dict[str, str]) -> None:
     client = TestClient(app)
     response = client.post(
         "/enrich/sync",
-        headers={"Authorization": "Bearer change-me"},
+        headers=staff_auth_headers,
         json={
             "email": "alex@hyrepath.dev",
             "linkedin_url": "https://linkedin.com/in/alex-hyrepath",
@@ -212,14 +212,16 @@ def test_sync_enrich_shape() -> None:
     assert "pipeline_id" in payload["dossier"]["metadata"]
 
 
-def test_sync_skips_tier1_photo(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sync_skips_tier1_photo(
+    monkeypatch: pytest.MonkeyPatch, staff_auth_headers: dict[str, str]
+) -> None:
     from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "enable_tier1", True)
     client = TestClient(app)
     response = client.post(
         "/enrich/sync",
-        headers={"Authorization": "Bearer change-me"},
+        headers=staff_auth_headers,
         json={
             "linkedin_url": "https://linkedin.com/in/alex-hyrepath",
             "username": "alex-hyrepath",
@@ -233,9 +235,9 @@ def test_sync_skips_tier1_photo(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "linkedin-photo" not in payload["dossier"]["sources"]
 
 
-def test_opt_out_suppresses_enrichment() -> None:
+def test_opt_out_suppresses_enrichment(staff_auth_headers: dict[str, str]) -> None:
     client = TestClient(app)
-    headers = {"Authorization": "Bearer change-me"}
+    headers = staff_auth_headers
     identifier = "suppressed-user@example.com"
 
     response = client.post("/api/opt-out", json={"identifier": identifier, "reason": "gdpr"})
@@ -256,12 +258,14 @@ def test_opt_out_suppresses_enrichment() -> None:
     assert payload["dossier"]["metadata"]["suppressed"] is True
 
 
-def test_sync_rate_limit_returns_429(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sync_rate_limit_returns_429(
+    monkeypatch: pytest.MonkeyPatch, staff_auth_headers: dict[str, str]
+) -> None:
     from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "max_sync_requests_per_minute", 2)
     client = TestClient(app)
-    headers = {"Authorization": "Bearer change-me"}
+    headers = staff_auth_headers
     body = {"username": "ratelimited", "requested_tiers": ["tier2"]}
 
     assert client.post("/enrich/sync", headers=headers, json=body).status_code == 200
@@ -271,16 +275,20 @@ def test_sync_rate_limit_returns_429(monkeypatch: pytest.MonkeyPatch) -> None:
     assert third.json()["error"]["message"] == "rate limit exceeded"
 
 
-def test_async_enrich_enqueues_queued_job(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_async_enrich_enqueues_queued_job(
+    monkeypatch: pytest.MonkeyPatch, staff_auth_headers: dict[str, str]
+) -> None:
     enqueued: list[str] = []
     monkeypatch.setattr(
-        enrichment_service, "enqueue_enrichment", lambda job_id: enqueued.append(job_id)
+        enrichment_service,
+        "enqueue_enrichment",
+        lambda job_id, *args, **kwargs: enqueued.append(job_id),
     )
 
     client = TestClient(app)
     response = client.post(
         "/enrich",
-        headers={"Authorization": "Bearer change-me"},
+        headers=staff_auth_headers,
         json={"username": "async-user", "requested_tiers": ["tier2"]},
     )
 
@@ -291,14 +299,18 @@ def test_async_enrich_enqueues_queued_job(monkeypatch: pytest.MonkeyPatch) -> No
     assert enqueued == [payload["id"]]
 
 
-def test_async_enrich_suppressed_skips_enqueue(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_async_enrich_suppressed_skips_enqueue(
+    monkeypatch: pytest.MonkeyPatch, staff_auth_headers: dict[str, str]
+) -> None:
     enqueued: list[str] = []
     monkeypatch.setattr(
-        enrichment_service, "enqueue_enrichment", lambda job_id: enqueued.append(job_id)
+        enrichment_service,
+        "enqueue_enrichment",
+        lambda job_id, *args, **kwargs: enqueued.append(job_id),
     )
 
     client = TestClient(app)
-    headers = {"Authorization": "Bearer change-me"}
+    headers = staff_auth_headers
     identifier = "async-suppressed@example.com"
 
     client.post("/api/opt-out", json={"identifier": identifier, "reason": "gdpr"})

@@ -65,7 +65,9 @@ STACK_SERVICES = [
 ]
 
 
-def run(cmd: list[str], *, cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
+def run(
+    cmd: list[str], *, cwd: Path | None = None, check: bool = True
+) -> subprocess.CompletedProcess[str]:
     print("+", " ".join(cmd), flush=True)
     return subprocess.run(
         cmd,
@@ -233,7 +235,10 @@ def main() -> int:
             env.setdefault("COMPOSE_DOCKER_CLI_BUILD", "0")
             # Parallel classic builds of the same fake-sidecar tag can race (AlreadyExists).
             env.setdefault("COMPOSE_PARALLEL_LIMIT", "1")
-            print("== bringing up loadtest stack (fake sidecars + elevated rate limits) ==", flush=True)
+            print(
+                "== bringing up loadtest stack (fake sidecars + elevated rate limits) ==",
+                flush=True,
+            )
             subprocess.run(
                 COMPOSE + ["build", "social-analyzer", "api", "worker"],
                 cwd=str(COMPOSE_DIR),
