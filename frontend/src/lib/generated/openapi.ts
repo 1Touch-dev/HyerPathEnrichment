@@ -9686,7 +9686,9 @@ export interface operations {
     end_impersonation_api_admin_impersonation_end_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: {
                 access_token?: string | null;
@@ -9788,6 +9790,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path: {
@@ -11293,6 +11296,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path?: never;
@@ -11400,6 +11404,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path?: never;
@@ -11507,6 +11512,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "Idempotency-Key"?: string | null;
                 authorization?: string | null;
             };
             path?: never;

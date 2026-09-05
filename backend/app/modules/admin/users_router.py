@@ -3,9 +3,8 @@ call one service/repository function, return."""
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
