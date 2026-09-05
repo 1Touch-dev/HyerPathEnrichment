@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from app.core.logging import scrub_sensitive_data
-from tests.envelope_helpers import assert_error, assert_success
+from tests.envelope_helpers import assert_error
 
 pytestmark = pytest.mark.asyncio
 
@@ -166,13 +166,16 @@ async def test_create_role_router_requires_roles_write_permission(
     assert_error(response, 403)
 
 
-async def test_create_role_router_succeeds_for_superuser(client, superuser, auth_headers):
+async def test_create_role_router_is_unavailable_until_adr21_step_up(
+    client, superuser, auth_headers
+):
+    """HTTP create stays frozen (ADR 0021) until typed confirmation + step-up
+    exist. Superusers still pass roles:write; assert_operation_available
+    returns 405. Service-level create_role tests above cover the unfrozen path.
+    """
     response = client.post(
         "/api/admin/roles",
         json={"name": "router-created-role", "description": "created via API"},
         headers=auth_headers(superuser.id),
     )
-    body = assert_success(response, status=201)
-    assert body["name"] == "router-created-role"
-    assert body["is_system"] is False
-    assert body["permissions"] == []
+    assert_error(response, 405, "PRIVILEGED_OPERATION_UNAVAILABLE")
