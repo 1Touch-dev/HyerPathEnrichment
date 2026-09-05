@@ -6,24 +6,26 @@ import { HealthIndicator } from "@/components/console/HealthIndicator";
 import { Button } from "@/components/ui/button";
 import { HyrepathLogo } from "@/components/layout/HyrepathLogo";
 import { UserMenu } from "@/components/auth/user-menu";
+import type { Product } from "@/src/lib/product-doors";
+import type { NavSection } from "./nav-config";
 
-export function AppTopbar() {
+type AppTopbarProps = {
+  product: Product;
+  sections: NavSection[];
+};
+
+export function AppTopbar({ product, sections }: AppTopbarProps) {
   const pathname = usePathname();
-  const sectionLabel = pathname.startsWith("/app/history")
-    ? "History"
-    : pathname.startsWith("/app/signals")
-      ? "Signals"
-      : pathname.startsWith("/app/dashboard")
-        ? "Dashboard"
-        : pathname.startsWith("/app/health")
-          ? "Health"
-          : pathname.startsWith("/app/settings")
-            ? "Settings"
-            : pathname.startsWith("/app/privacy")
-              ? "Privacy"
-              : pathname.startsWith("/app/jobs")
-                ? "Profile"
-                : "Look up";
+  const activeItem = sections
+    .flatMap((section) => section.items)
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  const sectionLabel =
+    activeItem?.label ??
+    (product === "candidate" ? "Candidate" : product === "desk" ? "Desk" : "Look up");
+  const productLabel =
+    product === "osint" ? "OSINT" : `${product[0].toUpperCase()}${product.slice(1)}`;
+  const settingsHref = product === "osint" ? "/osint/settings" : "/app/settings";
 
   return (
     <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background/95 px-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-6">
@@ -33,8 +35,8 @@ export function AppTopbar() {
             <HyrepathLogo className="size-5" />
           </div>
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Hyrepath
+            <p className="w-fit rounded-md bg-secondary px-2.5 py-1 text-sm font-medium leading-5 text-primary">
+              {productLabel}
             </p>
             <p className="text-sm font-semibold">{sectionLabel}</p>
           </div>
@@ -54,7 +56,7 @@ export function AppTopbar() {
         <Button asChild variant="outline" size="sm" className="h-9">
           <Link href="/opt-out">Opt out</Link>
         </Button>
-        <UserMenu />
+        <UserMenu settingsHref={settingsHref} />
       </div>
     </header>
   );

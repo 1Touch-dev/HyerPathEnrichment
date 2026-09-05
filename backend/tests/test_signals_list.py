@@ -16,13 +16,23 @@ def client() -> TestClient:
         yield test_client
 
 
-AUTH_HEADERS = {"Authorization": "Bearer change-me"}
+@pytest.fixture(autouse=True)
+def _signal_webhook_test_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin a known webhook token so tests do not depend on local .env secrets."""
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "changedetection_api_key", "test-signal-token")
+    monkeypatch.setattr(get_settings(), "notify_webhook_url", "")
+
+
+SIGNAL_HEADERS = {"X-Signal-Token": "test-signal-token"}
 
 
 def _post_signal(client: TestClient, watch_id: str, title: str, url: str) -> None:
     with patch("app.modules.signals.router.notify_change_signal", new_callable=AsyncMock):
         response = client.post(
             "/api/signals/changedetection",
+            headers=SIGNAL_HEADERS,
             json={
                 "watch_uuid": watch_id,
                 "watch_title": title,
@@ -32,12 +42,13 @@ def _post_signal(client: TestClient, watch_id: str, title: str, url: str) -> Non
     assert response.status_code == 202
 
 
-def test_list_signals_pagination(client: TestClient) -> None:
+def test_list_signals_pagination(client: TestClient, superuser, auth_headers) -> None:
     _post_signal(client, "watch-a", "Alpha", "https://alpha.example")
     _post_signal(client, "watch-b", "Beta", "https://beta.example")
     _post_signal(client, "watch-c", "Gamma", "https://gamma.example")
 
-    page_one = client.get("/api/signals?limit=2&offset=0", headers=AUTH_HEADERS)
+    staff_headers = auth_headers(superuser.id)
+    page_one = client.get("/api/signals?limit=2&offset=0", headers=staff_headers)
     assert page_one.status_code == 200
     payload = page_one.json()["data"]
     assert payload["total"] >= 3
@@ -45,7 +56,7 @@ def test_list_signals_pagination(client: TestClient) -> None:
     assert payload["offset"] == 0
     assert len(payload["signals"]) == 2
 
-    page_two = client.get("/api/signals?limit=2&offset=2", headers=AUTH_HEADERS)
+    page_two = client.get("/api/signals?limit=2&offset=2", headers=staff_headers)
     assert page_two.status_code == 200
     payload_two = page_two.json()["data"]
     assert payload_two["limit"] == 2
@@ -60,22 +71,33 @@ def test_list_signals_pagination(client: TestClient) -> None:
 def test_list_signals_requires_bearer(client: TestClient) -> None:
     response = client.get("/api/signals")
     assert response.status_code == 401
-    assert response.json()["error"]["message"] == "unauthorized"
+    assert "authorization" in response.json()["error"]["message"].lower()
+
+
+def test_list_signals_rejects_roleless_verified_user(
+    client: TestClient, regular_user, auth_headers
+) -> None:
+    response = client.get("/api/signals", headers=auth_headers(regular_user.id))
+    assert response.status_code == 403
+    assert response.json()["error"]["message"] == "Staff access required"
 
 
 def test_webhook_persists_before_notify(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    superuser,
+    auth_headers,
 ) -> None:
     from app.core.config import get_settings
 
-    monkeypatch.setattr(get_settings(), "changedetection_api_key", "")
+    monkeypatch.setattr(get_settings(), "changedetection_api_key", "test-signal-token")
     monkeypatch.setattr(get_settings(), "notify_webhook_url", "")
 
     watch_id = "persist-watch-1"
     with patch("app.modules.signals.router.notify_change_signal", new_callable=AsyncMock) as notify:
         response = client.post(
             "/api/signals/changedetection",
+            headers={"X-Signal-Token": "test-signal-token"},
             json={
                 "watch_uuid": watch_id,
                 "watch_title": "Persist Test",
@@ -86,7 +108,10 @@ def test_webhook_persists_before_notify(
     assert response.status_code == 202
     notify.assert_awaited_once()
 
-    listing = client.get("/api/signals?limit=10&offset=0", headers=AUTH_HEADERS)
+    listing = client.get(
+        "/api/signals?limit=10&offset=0",
+        headers=auth_headers(superuser.id),
+    )
     assert listing.status_code == 200
     signals = listing.json()["data"]["signals"]
     match = next((item for item in signals if item["watch_id"] == watch_id), None)

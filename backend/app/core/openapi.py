@@ -5,6 +5,11 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from fastapi import FastAPI
+
+_ERROR_RESPONSE_REF = "#/components/schemas/ErrorResponseEnvelope"
+_DEFAULT_ERROR_STATUS_CODES = ("400", "401", "403", "404", "409", "422", "429", "500", "503")
+
 
 def _success_response_schema(data_schema: dict[str, Any]) -> dict[str, Any]:
     return {
@@ -50,6 +55,21 @@ def _error_response_schema() -> dict[str, Any]:
     }
 
 
+def _error_response_documentation(response: dict[str, Any] | None = None) -> dict[str, Any]:
+    documented = deepcopy(response) if response is not None else {}
+    documented.setdefault("description", "Error response envelope")
+    content = documented.setdefault("content", {})
+    if not isinstance(content, dict):
+        content = {}
+        documented["content"] = content
+    json_content = content.setdefault("application/json", {})
+    if not isinstance(json_content, dict):
+        json_content = {}
+        content["application/json"] = json_content
+    json_content["schema"] = {"$ref": _ERROR_RESPONSE_REF}
+    return documented
+
+
 def apply_envelope_openapi(schema: dict[str, Any]) -> dict[str, Any]:
     """Wrap JSON success responses and attach standard error responses."""
     updated = deepcopy(schema)
@@ -82,17 +102,34 @@ def apply_envelope_openapi(schema: dict[str, Any]) -> dict[str, Any]:
                 inner_schema = json_content.get("schema")
                 if not isinstance(inner_schema, dict):
                     continue
-                json_content["schema"] = _success_response_schema(deepcopy(inner_schema))
+                if not (
+                    inner_schema.get("required") == ["success", "data"]
+                    and isinstance(inner_schema.get("properties"), dict)
+                    and "data" in inner_schema["properties"]
+                ):
+                    json_content["schema"] = _success_response_schema(deepcopy(inner_schema))
 
-            for status_code in ("400", "401", "403", "404", "409", "422", "429", "500", "503"):
-                if status_code not in responses:
-                    responses[status_code] = {
-                        "description": "Error response envelope",
-                        "content": {
-                            "application/json": {
-                                "schema": {"$ref": "#/components/schemas/ErrorResponseEnvelope"},
-                            },
-                        },
-                    }
+            for status_code in _DEFAULT_ERROR_STATUS_CODES:
+                response = responses.get(status_code)
+                if response is None or status_code == "422":
+                    responses[status_code] = _error_response_documentation(
+                        response if isinstance(response, dict) else None
+                    )
+
+            response_405 = responses.get("405")
+            if isinstance(response_405, dict):
+                responses["405"] = _error_response_documentation(response_405)
 
     return updated
+
+
+def install_envelope_openapi(app: FastAPI) -> None:
+    """Make the live app and offline exports share the canonical OpenAPI schema."""
+    original_openapi = app.openapi
+
+    def envelope_openapi() -> dict[str, Any]:
+        if app.openapi_schema is None:
+            app.openapi_schema = apply_envelope_openapi(original_openapi())
+        return app.openapi_schema
+
+    app.openapi = envelope_openapi  # type: ignore[method-assign]

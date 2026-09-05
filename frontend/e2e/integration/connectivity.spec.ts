@@ -39,33 +39,35 @@ test.describe("Live backend integration", () => {
   });
 
   test("health page reports live backend (not mock)", async ({ page }) => {
-    await page.goto("/app/health");
-    await expect(page.getByRole("heading", { name: "System health" })).toBeVisible();
-    await expect(page.getByText("ok", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await page.goto("/desk/system-health");
+    await expect(page.getByRole("heading", { name: "Self-checks" })).toBeVisible();
+    await expect(page.getByText("OK", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("hyrepath-enrichment-mock")).toHaveCount(0);
   });
 
   test("sync enrich completes dossier", async ({ page }) => {
     const username = `e2e-${Date.now()}`;
 
-    await page.goto("/app/enrich");
+    await page.goto("/osint");
     await expect(page.getByRole("heading", { name: "Look someone up" })).toBeVisible();
 
     await page.getByLabel("Quick (sync)").click();
     await page.getByRole("textbox", { name: /Username/ }).fill(username);
 
-    // Include tiers 2/3/4 (sync mode filters tier1 automatically).
-    await page.getByRole("button", { name: "Advanced" }).click();
-    await page.getByRole("radio", { name: "Deep" }).click();
+    // Tiers 2 (Username Discovery) and 3 (Deep OSINT) are checked by default
+    // in sync mode; tier 1 is unavailable and tier 4 needs extra fields we
+    // aren't filling here, so the defaults are exactly what this test wants.
+    await expect(page.getByRole("checkbox", { name: /Username Discovery/ })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: /Deep OSINT/ })).toBeChecked();
 
     await expect(page.getByRole("button", { name: "Look up" })).toBeEnabled({ timeout: 15_000 });
     await page.getByRole("button", { name: "Look up" }).click();
 
-    await expect(page).toHaveURL(/\/app\/jobs\/.+/, { timeout: 120_000 });
+    await expect(page).toHaveURL(/\/osint\/jobs\/.+/, { timeout: 120_000 });
     await expect(page.getByRole("heading", { name: "Job dossier" })).toBeVisible();
     await expect(page.getByText("completed", { exact: true })).toBeVisible({ timeout: 60_000 });
 
-    const match = page.url().match(/\/app\/jobs\/([^/?#]+)/);
+    const match = page.url().match(/\/osint\/jobs\/([^/?#]+)/);
     expect(match?.[1]).toBeTruthy();
     jobId = match![1];
   });
@@ -73,25 +75,24 @@ test.describe("Live backend integration", () => {
   test("job detail page loads", async ({ page }) => {
     test.skip(!jobId, "requires job from sync enrich test");
 
-    await page.goto(`/app/jobs/${jobId}`);
+    await page.goto(`/osint/jobs/${jobId}`);
     await expect(page.getByRole("heading", { name: "Job dossier" })).toBeVisible();
     await expect(page.locator("code").filter({ hasText: jobId })).toBeVisible();
   });
 
-  test("history list shows at least one job", async ({ page }) => {
+  test("jobs page shows at least one historical job", async ({ page }) => {
     test.skip(!jobId, "requires job from sync enrich test");
 
-    await page.goto("/app/history");
-    await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+    await page.goto("/osint/jobs");
+    await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();
     await expect(page.locator("table tbody tr").first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(jobId)).toBeVisible();
   });
 
-  test("dashboard shows total jobs without error", async ({ page }) => {
-    await page.goto("/app/dashboard");
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-    await expect(page.getByText("Total jobs")).toBeVisible();
-    await expect(page.locator("p.text-destructive")).toHaveCount(0);
+  test("Desk owner landing reports system health without error", async ({ page }) => {
+    await page.goto("/desk");
+    await expect(page.getByRole("heading", { name: "Self-checks" })).toBeVisible();
+    await expect(page.getByText("System health unavailable")).toHaveCount(0);
   });
 
   test("opt-out submission succeeds", async ({ page }) => {

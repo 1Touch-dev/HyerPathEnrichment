@@ -10,8 +10,6 @@ from app.domain.enrichment import EnrichmentRequest
 from app.domain.enums import RequestedTier
 from app.main import app
 
-AUTH_HEADERS = {"Authorization": "Bearer change-me"}
-
 
 def _validation_message(exc: ValidationError) -> str:
     return str(exc.errors()[0]["msg"])
@@ -101,51 +99,57 @@ class TestEnrichmentRequestTierValidation:
 
 
 class TestEnrichSyncTierValidation:
-    def test_sync_rejects_tier2_without_username(self) -> None:
+    def test_sync_rejects_tier2_without_username(self, staff_auth_headers: dict[str, str]) -> None:
         client = TestClient(app)
         response = client.post(
             "/enrich/sync",
-            headers=AUTH_HEADERS,
+            headers=staff_auth_headers,
             json={"email": "user@example.com", "requested_tiers": ["tier2"]},
         )
         assert response.status_code == 422
         assert "tier2 requires username" in response.text
 
-    def test_sync_rejects_tier1_without_linkedin_url(self) -> None:
+    def test_sync_rejects_tier1_without_linkedin_url(
+        self, staff_auth_headers: dict[str, str]
+    ) -> None:
         client = TestClient(app)
         response = client.post(
             "/enrich/sync",
-            headers=AUTH_HEADERS,
+            headers=staff_auth_headers,
             json={"username": "jane", "requested_tiers": ["tier1"]},
         )
         assert response.status_code == 422
         assert "tier1 requires linkedin_url" in response.text
 
-    def test_sync_rejects_tier3_without_required_identifiers(self) -> None:
+    def test_sync_rejects_tier3_without_required_identifiers(
+        self, staff_auth_headers: dict[str, str]
+    ) -> None:
         client = TestClient(app)
         response = client.post(
             "/enrich/sync",
-            headers=AUTH_HEADERS,
+            headers=staff_auth_headers,
             json={"business": "Acme", "requested_tiers": ["tier3"]},
         )
         assert response.status_code == 422
         assert "tier3 requires at least one of username, email, or company" in response.text
 
-    def test_sync_rejects_tier4_without_required_identifiers(self) -> None:
+    def test_sync_rejects_tier4_without_required_identifiers(
+        self, staff_auth_headers: dict[str, str]
+    ) -> None:
         client = TestClient(app)
         response = client.post(
             "/enrich/sync",
-            headers=AUTH_HEADERS,
+            headers=staff_auth_headers,
             json={"username": "jane", "requested_tiers": ["tier4"]},
         )
         assert response.status_code == 422
         assert "tier4 requires at least one of job_search or business" in response.text
 
-    def test_sync_accepts_valid_tier2_request(self) -> None:
+    def test_sync_accepts_valid_tier2_request(self, staff_auth_headers: dict[str, str]) -> None:
         client = TestClient(app)
         response = client.post(
             "/enrich/sync",
-            headers=AUTH_HEADERS,
+            headers=staff_auth_headers,
             json={"username": "jane", "requested_tiers": ["tier2"]},
         )
         assert response.status_code == 200

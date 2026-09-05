@@ -14,9 +14,12 @@ Next.js 14 console and marketing UI with a thin BFF layer (Option D).
 | ------------------------------- | ------------------- |
 | `/`                             | Marketing hub       |
 | `/recruiters`, `/candidates`, … | Audience landings   |
-| `/app`                          | Enrichment console  |
-| `/app/history`                  | Job list            |
-| `/app/jobs/[id]`                | Job detail + poll   |
+| `/app`                          | Candidate home      |
+| `/osint`                        | OSINT lookup        |
+| `/osint/jobs`                   | Queue + job history |
+| `/osint/jobs/[id]`              | Job detail + poll   |
+| `/desk`                         | Staff operations    |
+| `/desk/signals`                 | Change signals      |
 | `/opt-out`                      | Public opt-out form |
 
 ## Local dev

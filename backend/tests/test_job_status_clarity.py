@@ -6,14 +6,14 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.enrichment import EnrichmentRequest
-from app.domain.enums import JobStatus
+from app.domain.enums import JobStatus, RequestedTier
 from app.enrichers.pipeline import Pipeline
 
 
 @pytest.mark.asyncio
-async def test_job_with_data_shows_completed(db_session: AsyncSession) -> None:
+async def test_job_with_data_shows_completed(db: AsyncSession) -> None:
     """Job that finds enrichment data should have status 'completed'."""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
 
     # Mock enricher that returns photo data
     original_dispatch = pipeline._dispatch
@@ -33,7 +33,9 @@ async def test_job_with_data_shows_completed(db_session: AsyncSession) -> None:
 
     pipeline._dispatch = mock_dispatch_with_data
 
-    request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+    request = EnrichmentRequest(
+        linkedin_url="https://linkedin.com/in/test", requested_tiers=[RequestedTier.tier1]
+    )
     job = await pipeline.run(request)
 
     assert job.status == JobStatus.completed.value
@@ -45,9 +47,9 @@ async def test_job_with_data_shows_completed(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_job_with_no_data_shows_completed_no_data(db_session: AsyncSession) -> None:
+async def test_job_with_no_data_shows_completed_no_data(db: AsyncSession) -> None:
     """Job that finds no enrichment data should have status 'completed_no_data'."""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
 
     # Mock enricher that returns empty data
     original_dispatch = pipeline._dispatch
@@ -57,7 +59,9 @@ async def test_job_with_no_data_shows_completed_no_data(db_session: AsyncSession
 
     pipeline._dispatch = mock_dispatch_no_data
 
-    request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+    request = EnrichmentRequest(
+        linkedin_url="https://linkedin.com/in/test", requested_tiers=[RequestedTier.tier1]
+    )
     job = await pipeline.run(request)
 
     assert job.status == JobStatus.completed_no_data.value
@@ -71,9 +75,9 @@ async def test_job_with_no_data_shows_completed_no_data(db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_job_with_handles_shows_completed(db_session: AsyncSession) -> None:
+async def test_job_with_handles_shows_completed(db: AsyncSession) -> None:
     """Job that finds social handles should have status 'completed'."""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
 
     original_dispatch = pipeline._dispatch
 
@@ -94,7 +98,9 @@ async def test_job_with_handles_shows_completed(db_session: AsyncSession) -> Non
 
     pipeline._dispatch = mock_dispatch_with_handles
 
-    request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+    request = EnrichmentRequest(
+        linkedin_url="https://linkedin.com/in/test", requested_tiers=[RequestedTier.tier1]
+    )
     job = await pipeline.run(request)
 
     assert job.status == JobStatus.completed.value
@@ -104,9 +110,9 @@ async def test_job_with_handles_shows_completed(db_session: AsyncSession) -> Non
 
 
 @pytest.mark.asyncio
-async def test_job_with_emails_shows_completed(db_session: AsyncSession) -> None:
+async def test_job_with_emails_shows_completed(db: AsyncSession) -> None:
     """Job that finds emails should have status 'completed'."""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
 
     original_dispatch = pipeline._dispatch
 
@@ -115,7 +121,9 @@ async def test_job_with_emails_shows_completed(db_session: AsyncSession) -> None
 
     pipeline._dispatch = mock_dispatch_with_emails
 
-    request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+    request = EnrichmentRequest(
+        linkedin_url="https://linkedin.com/in/test", requested_tiers=[RequestedTier.tier1]
+    )
     job = await pipeline.run(request)
 
     assert job.status == JobStatus.completed.value
@@ -125,9 +133,9 @@ async def test_job_with_emails_shows_completed(db_session: AsyncSession) -> None
 
 
 @pytest.mark.asyncio
-async def test_job_with_verified_emails_shows_completed(db_session: AsyncSession) -> None:
+async def test_job_with_verified_emails_shows_completed(db: AsyncSession) -> None:
     """Job that finds verified emails should have status 'completed'."""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
 
     original_dispatch = pipeline._dispatch
 
@@ -148,7 +156,9 @@ async def test_job_with_verified_emails_shows_completed(db_session: AsyncSession
 
     pipeline._dispatch = mock_dispatch_with_verified_emails
 
-    request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+    request = EnrichmentRequest(
+        linkedin_url="https://linkedin.com/in/test", requested_tiers=[RequestedTier.tier1]
+    )
     job = await pipeline.run(request)
 
     assert job.status == JobStatus.completed.value
@@ -158,9 +168,9 @@ async def test_job_with_verified_emails_shows_completed(db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_job_with_business_shows_completed(db_session: AsyncSession) -> None:
+async def test_job_with_business_shows_completed(db: AsyncSession) -> None:
     """Job that finds business profile should have status 'completed'."""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
 
     original_dispatch = pipeline._dispatch
 
@@ -180,7 +190,7 @@ async def test_job_with_business_shows_completed(db_session: AsyncSession) -> No
 
     pipeline._dispatch = mock_dispatch_with_business
 
-    request = EnrichmentRequest(business="Test Company")
+    request = EnrichmentRequest(business="Test Company", requested_tiers=[RequestedTier.tier4])
     job = await pipeline.run(request)
 
     assert job.status == JobStatus.completed.value
@@ -190,9 +200,9 @@ async def test_job_with_business_shows_completed(db_session: AsyncSession) -> No
 
 
 @pytest.mark.asyncio
-async def test_job_with_only_sources_shows_completed(db_session: AsyncSession) -> None:
-    """Job that only has sources (no other data) should still show 'completed'."""
-    pipeline = Pipeline(db_session)
+async def test_job_with_only_sources_shows_completed(db: AsyncSession) -> None:
+    """Job with sources but no other data should show 'completed_no_data' (sources alone aren't real data)."""
+    pipeline = Pipeline(db)
 
     original_dispatch = pipeline._dispatch
 
@@ -201,19 +211,21 @@ async def test_job_with_only_sources_shows_completed(db_session: AsyncSession) -
 
     pipeline._dispatch = mock_dispatch_with_sources_only
 
-    request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+    request = EnrichmentRequest(
+        linkedin_url="https://linkedin.com/in/test", requested_tiers=[RequestedTier.tier1]
+    )
     job = await pipeline.run(request)
 
-    assert job.status == JobStatus.completed.value
+    assert job.status == JobStatus.completed_no_data.value
     assert len(job.dossier_payload.get("sources", [])) > 0
 
     pipeline._dispatch = original_dispatch
 
 
 @pytest.mark.asyncio
-async def test_multiple_enrichers_one_succeeds_shows_completed(db_session: AsyncSession) -> None:
+async def test_multiple_enrichers_one_succeeds_shows_completed(db: AsyncSession) -> None:
     """If one enricher finds data and others don't, job should be 'completed'."""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
 
     original_dispatch = pipeline._dispatch
 
@@ -226,7 +238,9 @@ async def test_multiple_enrichers_one_succeeds_shows_completed(db_session: Async
 
     pipeline._dispatch = mock_dispatch_mixed
 
-    request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/test")
+    request = EnrichmentRequest(
+        linkedin_url="https://linkedin.com/in/test", requested_tiers=[RequestedTier.tier1]
+    )
     job = await pipeline.run(request)
 
     assert job.status == JobStatus.completed.value
@@ -236,16 +250,18 @@ async def test_multiple_enrichers_one_succeeds_shows_completed(db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_suppressed_job_not_affected(db_session: AsyncSession) -> None:
+async def test_suppressed_job_not_affected(db: AsyncSession) -> None:
     """Suppressed jobs should still show 'suppressed' status, not affected by data check."""
-    pipeline = Pipeline(db_session)
+    pipeline = Pipeline(db)
 
     # First create an opt-out to trigger suppression
     from app.compliance.suppression import add_suppression
 
-    await add_suppression(db_session, "https://linkedin.com/in/optedout", "user request")
+    await add_suppression(db, "https://linkedin.com/in/optedout", "user request")
 
-    request = EnrichmentRequest(linkedin_url="https://linkedin.com/in/optedout")
+    request = EnrichmentRequest(
+        linkedin_url="https://linkedin.com/in/optedout", requested_tiers=[RequestedTier.tier1]
+    )
     job = await pipeline.run(request)
 
     assert job.status == JobStatus.suppressed.value

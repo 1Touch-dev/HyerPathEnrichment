@@ -9,10 +9,16 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-
 EMAIL_REGEX = re.compile(
     r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
 )
+
+
+class PermissionSlug(BaseModel):
+    """Stable permission pair used to drive product-door navigation."""
+
+    resource: str
+    action: str
 
 
 class UserRead(BaseModel):
@@ -27,6 +33,9 @@ class UserRead(BaseModel):
     is_verified: bool
     is_active: bool
     is_superuser: bool
+    role_id: UUID | None = None
+    role_name: str | None = None
+    permissions: list[PermissionSlug] = Field(default_factory=list)
     deleted_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
@@ -41,6 +50,10 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=8, max_length=128)
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
+    # Staff invite token (machine-1-tenancy-core/05-org-invite-flow.md). An invalid
+    # or expired token never hard-fails registration -- it just falls back to a
+    # normal candidate signup with a warning in the response.
+    invite_token: str | None = None
 
     @field_validator("email")
     @classmethod
@@ -135,3 +148,14 @@ class MessageResponse(BaseModel):
 
     message: str
     detail: dict[str, Any] | None = None
+
+
+class RegisterResponse(MessageResponse):
+    """Response for POST /auth/register only. Adds an optional `warning` field so
+    a registration that fell back from an invalid/expired invite token can surface
+    that to the caller without breaking existing callers that only read `.message`
+    -- see machine-1-tenancy-core/05-org-invite-flow.md. When there is no invite
+    token at all, `warning` stays None (same default MessageResponse callers have
+    always seen for the `message`/`detail` fields)."""
+
+    warning: str | None = None

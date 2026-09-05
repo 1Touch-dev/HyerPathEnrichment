@@ -43,6 +43,8 @@ class OptOutService:
                 "jobs_cleared": purge_result.jobs_cleared,
                 "photos_deleted": purge_result.photos_deleted,
                 "r2_objects_deleted": purge_result.r2_objects_deleted,
+                "outreach_scrubbed": purge_result.outreach_scrubbed,
+                "sourced_leads_scrubbed": purge_result.sourced_leads_scrubbed,
             },
         )
         await self.db.commit()

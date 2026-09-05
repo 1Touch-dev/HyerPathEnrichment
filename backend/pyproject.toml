@@ -5,10 +5,11 @@ description = "Production-ready enrichment backend for Hyrepath Enrichment"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi>=0.111,<1.0",
+  "fastapi>=0.135,<0.136",
   "uvicorn[standard]>=0.30,<1.0",
   "pydantic>=2.8,<3.0",
   "pydantic-settings>=2.3,<3.0",
+  "python-multipart>=0.0.31,<0.0.32",
   "sqlalchemy>=2.0,<3.0",
   "alembic>=1.13,<2.0",
   "aiosqlite>=0.20,<1.0",
@@ -17,17 +18,33 @@ dependencies = [
   "httpx>=0.27,<1.0",
   "redis>=5.0,<9.0",
   "rq>=1.16,<3.0",
+  "rq-scheduler>=0.13,<1.0",
   "prometheus-client>=0.20,<1.0",
   "mailchecker>=6.0,<7.0",
   "sentry-sdk[fastapi]>=2.0,<3.0",
   "sendgrid>=6.11,<7.0",
   "email-validator>=2.0,<3.0",
-  "fastapi-users[sqlalchemy]>=13.0,<14.0",
+  "fastapi-users[sqlalchemy]>=15.0.5,<15.1",
   "httpx-oauth>=0.15,<1.0",
-  "python-jose[cryptography]>=3.3,<4.0",
+  "PyJWT[crypto]>=2.13,<2.14",
   "passlib[bcrypt]>=1.7,<2.0",
   "bcrypt>=4.0,<5.0",
-  "slowapi>=0.1.9,<1.0",
+  "pyotp>=2.9,<3.0",
+  "tiktoken>=0.7,<1.0",
+  "langchain-text-splitters>=1.1.2,<1.2",
+  "openai>=1.0,<2.0",
+  "PyMuPDF>=1.24,<2.0",
+  "python-docx>=1.1,<2.0",
+  "pgvector>=0.3,<1.0",
+  "pydub>=0.25,<1.0",
+  "pywebpush>=2.0,<3.0",
+  "tenacity>=8.2,<10.0",
+  "stripe>=15.6,<16.0",
+]
+
+[tool.uv]
+constraint-dependencies = [
+  "starlette>=1.3.1,<1.4",
 ]
 
 [project.optional-dependencies]
@@ -69,6 +86,7 @@ include = ["app*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["."]
+testpaths = ["tests"]
 markers = [
   "postgres: requires TEST_DATABASE_URL pointing at PostgreSQL",
 ]
@@ -87,10 +105,16 @@ ignore = [
   "SIM102",  # Nested if statements are sometimes clearer
   "SIM103",  # Explicit if-else is sometimes clearer than returning condition directly
   "SIM117",  # Nested with statements are sometimes clearer
+  "B008",    # FastAPI's Depends()/Query() in argument defaults is the framework's idiomatic pattern
+  "TRY004",  # ValueError is intentionally used for request/schema validation errors, not just TypeError
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/conftest.py" = ["E402"]  # Imports must come after environment setup
+"tests/*" = [
+  "TRY002",   # Tests intentionally raise generic Exception to simulate arbitrary failures
+  "ASYNC230", # Blocking `open()` on small local test fixtures inside async tests is acceptable
+]
 
 [tool.mypy]
 python_version = "3.12"
@@ -103,6 +127,7 @@ ignore_missing_imports = false
 module = [
   "redis.*",
   "rq.*",
+  "rq_scheduler.*",
   "aioboto3.*",
   "selenium.*",
   "jobspy.*",
@@ -114,9 +139,14 @@ module = [
   "sendgrid.*",
   "fastapi_users.*",
   "httpx_oauth.*",
-  "jose.*",
+  "jwt",
   "passlib.*",
-  "slowapi.*",
+  "fitz",
+  "docx",
+  "tiktoken",
+  "langchain_text_splitters",
+  "pywebpush",
+  "pyotp",
 ]
 ignore_missing_imports = true
 

@@ -29,17 +29,23 @@ class PurgeResult:
     jobs_cleared: int = 0
     photos_deleted: int = 0
     r2_objects_deleted: int = 0
+    outreach_scrubbed: int = 0
+    sourced_leads_scrubbed: int = 0
 
 
 async def purge_identifier_data(db: AsyncSession, identifier: str) -> PurgeResult:
-    """Clear dossiers, photo cache, and object storage for one identifier hash."""
+    """Clear dossiers, photo cache, outreach/leads PII, and object storage for one identifier."""
     target_hash = hash_identifier(identifier)
     jobs_cleared = await _purge_matching_jobs(db, target_hash)
     photos_deleted, r2_objects_deleted = await _purge_photo_cache(db, identifier)
+    outreach_scrubbed = await _scrub_outreach_for_identifier(db, identifier, target_hash)
+    sourced_leads_scrubbed = await _scrub_sourced_leads_for_identifier(db, identifier)
     return PurgeResult(
         jobs_cleared=jobs_cleared,
         photos_deleted=photos_deleted,
         r2_objects_deleted=r2_objects_deleted,
+        outreach_scrubbed=outreach_scrubbed,
+        sourced_leads_scrubbed=sourced_leads_scrubbed,
     )
 
 
@@ -55,6 +61,9 @@ async def _purge_matching_jobs(db: AsyncSession, target_hash: str) -> int:
             continue
 
         job.dossier_payload = {}
+        # Clear request identifiers too — otherwise email/LinkedIn remain after
+        # opt-out/DSAR deletion even though the dossier is empty.
+        job.request_payload = {}
         job.status = JobStatus.purged.value
         job.updated_at = now
         cleared += 1
@@ -107,3 +116,55 @@ async def _purge_photo_cache(db: AsyncSession, identifier: str) -> tuple[int, in
     await cache.delete(slug)
 
     return 1, r2_deleted
+
+
+async def _scrub_outreach_for_identifier(
+    db: AsyncSession, identifier: str, target_hash: str
+) -> int:
+    """Redact outreach drafts whose recipient matches the suppressed identifier."""
+    from app.modules.outreach.models import OutreachMessage
+
+    result = await db.execute(select(OutreachMessage))
+    scrubbed = 0
+    for msg in result.scalars().all():
+        recipients = [msg.recipient_email, msg.recipient_linkedin_url]
+        if not any(
+            value and hash_identifier(value) == target_hash for value in recipients if value
+        ):
+            continue
+        msg.body = ""
+        msg.subject = ""
+        msg.recipient_email = None
+        msg.recipient_linkedin_url = None
+        msg.company_context_used = {}
+        scrubbed += 1
+    if scrubbed:
+        await db.flush()
+    return scrubbed
+
+
+async def _scrub_sourced_leads_for_identifier(db: AsyncSession, identifier: str) -> int:
+    """Redact sourced LinkedIn leads matching the suppressed profile URL/slug."""
+    from app.modules.linkedin_sourcing.models import SourcedCandidateLead
+
+    slug = linkedin_slug_from_identifier(identifier)
+    result = await db.execute(select(SourcedCandidateLead))
+    scrubbed = 0
+    for lead in result.scalars().all():
+        lead_slug = linkedin_slug_from_identifier(lead.linkedin_profile_url)
+        if slug and lead_slug == slug:
+            match = True
+        else:
+            match = hash_identifier(lead.linkedin_profile_url) == hash_identifier(identifier)
+        if not match:
+            continue
+        lead.full_name = "[redacted]"
+        lead.headline = None
+        lead.location = None
+        lead.linkedin_profile_url = "https://www.linkedin.com/in/redacted"
+        lead.notes = None
+        lead.target_role = None
+        scrubbed += 1
+    if scrubbed:
+        await db.flush()
+    return scrubbed

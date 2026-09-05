@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.clients.cli_args import sanitize_cli_arg
 from app.clients.process import run_command
 from app.clients.proxy import ProxyProvider
 from app.core.config import get_settings
@@ -23,6 +24,10 @@ class TheHarvesterEnricher(Enricher):
         settings = get_settings()
         domain = self._domain(request)
         if not domain:
+            return {}
+        try:
+            domain = sanitize_cli_arg(domain, label="domain")
+        except ValueError:
             return {}
 
         # ProxyProvider is consulted so free/paid parity is preserved; direct

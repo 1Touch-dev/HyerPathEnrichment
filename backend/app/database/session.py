@@ -1,5 +1,6 @@
 import logging
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import ConnectionPoolEntry
 
 from alembic import command
@@ -40,6 +42,20 @@ if settings.database_url.startswith("sqlite"):
 logger.info("database engine created (dialect=%s)", engine.dialect.name)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
+
+def _to_sync_url(url: str) -> str:
+    if url.startswith("postgresql+asyncpg://"):
+        return url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+    if url.startswith("sqlite+aiosqlite://"):
+        return url.replace("sqlite+aiosqlite://", "sqlite://", 1)
+    return url
+
+
+# Sync session factory for RQ workers (sync context)
+sync_engine = create_engine(_to_sync_url(settings.database_url), **_engine_kwargs)
+
+SyncSessionLocal = sessionmaker(sync_engine, expire_on_commit=False, class_=Session)
+
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_REVISION = "001_baseline_schema"
 # Stable lock key so API + worker do not run DDL concurrently.
@@ -52,14 +68,6 @@ def alembic_config(database_url: str | None = None) -> Config:
     cfg.set_main_option("script_location", str(_BACKEND_ROOT / "alembic"))
     cfg.set_main_option("sqlalchemy.url", database_url or settings.database_url)
     return cfg
-
-
-def _to_sync_url(url: str) -> str:
-    if url.startswith("postgresql+asyncpg://"):
-        return url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
-    if url.startswith("sqlite+aiosqlite://"):
-        return url.replace("sqlite+aiosqlite://", "sqlite://", 1)
-    return url
 
 
 def legacy_pre_alembic(connection: Connection) -> bool:
@@ -136,5 +144,27 @@ async def init_db() -> None:
 
 
 async def get_db_session() -> AsyncIterator[AsyncSession]:
+    async with SessionLocal() as session:
+        yield session
+
+
+@asynccontextmanager
+async def get_db_session_context() -> AsyncIterator[AsyncSession]:
+    """Async context-manager wrapper around the same session factory
+    `get_db_session()` uses — for callers outside FastAPI's `Depends()`
+    injection (e.g. ASGI middleware), which cannot receive
+    `db: AsyncSession = Depends(get_db_session)` the way routes do."""
+    async with SessionLocal() as session:
+        yield session
+
+
+@asynccontextmanager
+async def get_async_session_for_sync_context() -> AsyncIterator[AsyncSession]:
+    """One short-lived async session for a sync RQ task's event loop.
+
+    RQ tasks run sync, but modules like `app.modules.questions.service` are
+    async end-to-end (per RULE.md); this bridges the two without making the
+    async side sync just because one caller happens to be a worker.
+    """
     async with SessionLocal() as session:
         yield session

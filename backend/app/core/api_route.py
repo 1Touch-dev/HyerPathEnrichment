@@ -58,12 +58,16 @@ class EnvelopeAPIRoute(APIRoute):
             headers = {
                 key: value
                 for key, value in response.headers.items()
-                if key.lower() != "content-length"
+                if key.lower() not in {"content-length", "set-cookie"}
             }
-            return JSONResponse(
+            enveloped_response = JSONResponse(
                 content=success_envelope(payload),
                 status_code=response.status_code,
                 headers=headers,
             )
+            for key, value in response.raw_headers:
+                if key.lower() == b"set-cookie":
+                    enveloped_response.raw_headers.append((key, value))
+            return enveloped_response
 
         return envelope_handler

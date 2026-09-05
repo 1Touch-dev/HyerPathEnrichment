@@ -7,3 +7,4 @@ playwright-report
 test-results
 openapi/openapi.json
 src/lib/generated/
+e2e/integration/.auth/

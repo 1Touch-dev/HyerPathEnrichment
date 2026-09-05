@@ -23,6 +23,71 @@ cd backend/docker
 docker compose up --build api worker redis postgres
 ```
 
+## Fast local dev (full stack)
+
+`dev-up.sh` is a "nodemon for Docker" entrypoint: it brings up the whole
+backend — base services + AI/document/embedding/job-matching/interview-AI
+workers + the `llm`/`paid`/`observability` profiles (LiteLLM, Reacher,
+Scrapoxy, Langfuse, changedetection.io, GlitchTip) — using your existing
+`backend/.env.production`, then keeps it live-reloading while you code:
+
+- **Inner loop** — `docker compose watch` (`docker-compose.watch.yml`,
+  `develop.watch`): syncs `backend/app` into the running containers and
+  restarts them on save. No image rebuild, no bind-mount I/O overhead.
+- **Outer loop** — `watch-infra.sh`, run alongside it: watches the things
+  `docker compose watch` can't react to — `docker-compose*.yml`,
+  `Dockerfile.*`, `.env`, `.env.production` — and re-runs `up -d --build`
+  (cheap, Docker-layer-cached) when one of those changes.
+
+Multilogin / Tier 1 are never started by this workflow — no
+`docker-compose.tier1.yml` / `docker-compose.multilogin.yml` overlay is
+included, and `.env.production` is expected to already have
+`ENABLE_TIER1=false` (see `scripts/validate_env.sh`).
+
+**Prerequisites:**
+
+- `backend/.env.production` already exists locally, populated with real
+  values (never committed — see the Security note in
+  `docker-compose.prod.yml`'s header and `scripts/validate_env.sh`).
+- [`watchfiles`](https://pypi.org/project/watchfiles/) on `PATH`:
+  `pip install watchfiles`.
+- Docker Compose v2.20+ (this workflow was verified on Docker Compose
+  v5.4.0 / Docker 29.7.2) for `docker compose watch` support.
+
+**Run it:**
+
+```bash
+cd backend/docker
+bash dev-up.sh
+```
+
+This does an initial `up -d --build`, launches `watch-infra.sh` in the
+background, then runs `docker compose watch` in the foreground. Ctrl-C
+stops the foreground watch and cleans up the background infra watcher.
+Tear the whole stack down separately with:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.foundation.yml \
+  -f docker-compose.week2-ai.yml -f docker-compose.watch.yml \
+  --env-file ../.env.production down
+```
+
+**Per-OS setup notes:**
+
+- **Linux / macOS** — run `dev-up.sh` directly in a native terminal with
+  Docker Desktop (or Docker Engine) and `watchfiles` installed.
+- **Windows** — Docker Desktop's Linux containers require WSL2; run
+  `dev-up.sh` from a WSL2 shell (or Git Bash with Docker Desktop's
+  Windows/WSL2 integration enabled) — not plain PowerShell/cmd, since the
+  script is POSIX/bash. Same command either way: `bash dev-up.sh` from
+  `backend/docker`.
+
+Optional troubleshooting tip, not a required setup step: if the full
+profile set feels heavy on your machine, tune Docker's resource limits —
+Docker Desktop's Settings → Resources on Windows/macOS, a `.wslconfig`
+specifically for WSL2 (personal, local file — not part of this repo), or
+cgroup limits on native Linux.
+
 ### Worker Scaling
 
 **Single-queue mode (default):** All workers process jobs from one shared queue.

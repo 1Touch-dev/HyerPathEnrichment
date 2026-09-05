@@ -22,6 +22,8 @@ type JobHistoryTableProps = {
   total: number;
   limit: number;
   offset: number;
+  jobsBasePath?: string;
+  queryString?: string;
   loading?: boolean;
   onLoadMore?: () => void;
 };
@@ -29,8 +31,9 @@ type JobHistoryTableProps = {
 export function JobHistoryTable({
   jobs,
   total,
-  limit,
   offset,
+  jobsBasePath = "/osint/jobs",
+  queryString = "",
   loading,
   onLoadMore,
 }: JobHistoryTableProps) {
@@ -53,6 +56,8 @@ export function JobHistoryTable({
   }
 
   const hasMore = offset + jobs.length < total;
+  const detailHref = (jobId: string) =>
+    `${jobsBasePath}/${jobId}${queryString ? `?${queryString}` : ""}`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -81,7 +86,7 @@ export function JobHistoryTable({
                 <TableCell>
                   <div className="min-w-0">
                     <div className="truncate">
-                      <Link href={`/app/jobs/${job.id}`} className="text-primary hover:underline">
+                      <Link href={detailHref(job.id)} className="text-primary hover:underline">
                         {job.identifierSummary || job.id}
                       </Link>
                     </div>
@@ -100,7 +105,7 @@ export function JobHistoryTable({
                   <>
                     <TableCell>
                       <Link
-                        href={`/app/jobs/${job.id}`}
+                        href={detailHref(job.id)}
                         className="font-mono text-sm text-primary hover:underline"
                       >
                         {job.id}
@@ -119,7 +124,7 @@ export function JobHistoryTable({
                     <TableCell>
                       <div className="flex gap-2">
                         <Button asChild variant="outline" size="sm">
-                          <Link href={`/app/jobs/${job.id}`}>View</Link>
+                          <Link href={detailHref(job.id)}>View</Link>
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => void copyId(job.id)}>
                           {copiedId === job.id ? (

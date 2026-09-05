@@ -30,6 +30,12 @@ services:
       # Bridge network: use service names
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
+      ENABLE_BILLING: ${ENABLE_BILLING:-false}
+      STRIPE_MODE: ${STRIPE_MODE:-live}
+      STRIPE_API_BASE: ${STRIPE_API_BASE:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_ID_PREMIUM: ${STRIPE_PRICE_ID_PREMIUM:-}
     ports: !override
       - "127.0.0.1:8000:8000"
     restart: unless-stopped

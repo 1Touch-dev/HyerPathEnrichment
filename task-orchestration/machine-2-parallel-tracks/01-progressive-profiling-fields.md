@@ -1,0 +1,264 @@
+# Machine 2, Track 1 — Progressive Profiling Fields
+
+## Goal
+
+Add three new candidate-profile fields — `interests`, `learning_style`, `prep_timeline_weeks` —
+to the CV completeness domain and the CV-chat chatbot, so placement-agency recruiters (and
+direct candidates) get richer profiling data useful for interview-prep personalization and
+job-fit matching. Confirmed (2026-08-22): none of these three fields exist today in
+`backend/app/domain/cv_completeness.py` or `backend/app/domain/candidate.py`.
+
+**This chunk is not just passive field collection.** Once `learning_style` and
+`prep_timeline_weeks` are both known, the system generates and surfaces a short
+interview-prep strategy suggestion back to the candidate — see "Learning-style-suggestion-back
+feature" below. `interests` remains passive personalization data (used for small-talk/rapport,
+not for generating a suggestion) — only the two prep-relevant fields drive the suggestion.
+
+## Files to edit
+
+- `backend/app/domain/candidate.py`
+- `backend/app/domain/cv_completeness.py`
+- `backend/app/clients/llm_tools.py`
+
+## Files to create
+
+- None — `CandidateDocument.extracted_data` is a flexible `JsonDoc` column
+  (`backend/app/modules/documents/models.py` line 39); new `CVData` fields are stored inside it
+  without a migration, exactly like every existing field. No new table, no new migration.
+
+## `backend/app/domain/candidate.py` — `CVData`
+
+Add to the `# Preferences` block (after `salary_expectation`, before `# Metadata`):
+
+```python
+    # Progressive profiling (interview-prep personalization)
+    interests: list[str] = Field(default_factory=list)
+    learning_style: str | None = None  # "visual"/"reading"/"hands_on"/"discussion" (free text otherwise)
+    prep_timeline_weeks: int | None = None  # candidate's self-reported weeks until they need to be interview-ready
+    # Generated, not candidate-supplied — see "Learning-style-suggestion-back feature" below.
+    # Populated once learning_style and prep_timeline_weeks are both set; None until then.
+    prep_strategy_suggestion: str | None = None
+```
+
+## `backend/app/domain/cv_completeness.py`
+
+**Do not add these three fields to `REQUIRED_FIELDS`.** `REQUIRED_FIELDS` drives the mandatory
+completeness gate (used for the discoverability/matchability score); `interests`,
+`learning_style`, and `prep_timeline_weeks` are optional, "progressive profiling" fields —
+nice-to-have for personalization, not required for a candidate to be considered "complete."
+Making them required would silently lower every existing candidate's `completeness_score()` the
+moment this ships, which is a behavior regression, not a feature.
+
+Instead, add a **second, separate list** so the chatbot can ask about them only after the
+required fields are resolved:
+
+```python
+# Progressive profiling — asked only after all REQUIRED_FIELDS are resolved (see
+# cv_chat_service.py's session-completion branch). Optional: a candidate whose chat
+# session ends before these are asked is still "completed", not "abandoned".
+PROGRESSIVE_FIELDS: list[str] = [
+    "interests",
+    "learning_style",
+    "prep_timeline_weeks",
+]
+
+PROGRESSIVE_FIELD_QUESTIONS: dict[str, str] = {
+    "interests": "Outside of work, what are a few things you're genuinely interested in? (This helps us personalize interview prep and small talk.)",
+    "learning_style": "When you're prepping for something new, do you learn best by reading, watching/visual examples, hands-on practice, or talking it through with someone?",
+    "prep_timeline_weeks": "Roughly how many weeks do you have until you need to be interview-ready?",
+}
+
+
+def compute_missing_progressive_fields(cv_data: CVData) -> list[str]:
+    """Same shape as compute_missing_fields() but over PROGRESSIVE_FIELDS — kept as a
+    separate function (not merged into compute_missing_fields()) because these fields
+    are optional and must never affect completeness_score() or the required-fields gate."""
+    missing: list[str] = []
+    for field_name in PROGRESSIVE_FIELDS:
+        value = getattr(cv_data, field_name, None)
+        if value is None or isinstance(value, (list, str)) and len(value) == 0:
+            missing.append(field_name)
+    return missing
+```
+
+Do not add a `question_for_field`-style single function shared between required and progressive
+fields — keep `PROGRESSIVE_FIELD_QUESTIONS` and its own lookup separate so a future change to
+required-field question wording can't accidentally change progressive-field wording (and
+vice versa). Add:
+
+```python
+def question_for_progressive_field(field_name: str) -> str:
+    return PROGRESSIVE_FIELD_QUESTIONS.get(
+        field_name, f"Can you tell us about your {field_name.replace('_', ' ')}?"
+    )
+```
+
+## `backend/app/modules/documents/cv_chat_service.py` — wiring (context only, verify before editing)
+
+This file is listed as context, not required to edit for this chunk's minimum scope — the
+required-fields chat flow (`start_session`/`post_message`) is unaffected. If the developer
+subagent chooses to also wire progressive-field questions into the *same* chat session once
+required fields complete (extending the "That's everything" branch at
+`cv_chat_service.py` lines ~162-172 to instead ask progressive questions before marking
+`completed`), that is an acceptable, encouraged extension of this chunk — but it must:
+
+- Only change `CvChatService.post_message`'s post-required-fields branch, nothing else in that
+  file.
+- Track progressive-field answers the same way `fields_resolved` tracks required fields — either
+  reuse `fields_resolved` (since `PROGRESSIVE_FIELDS` and `REQUIRED_FIELDS` are disjoint field
+  names, no collision) or add a new `progressive_fields_resolved` JSON column on
+  `CvChatSession` (`backend/app/modules/documents/models.py`) if kept separate — implementer's
+  choice, but document which was chosen in the PR description since it affects
+  `_apply_field_value`'s field-name-based branching (list fields vs. scalar fields — note
+  `interests` is a list field like `technical_skills`, so it must be added to the `list_fields`
+  set in `_apply_field_value`, line ~259, if wired).
+- If `interests` is wired into `_apply_field_value`, add it to the `list_fields` set:
+  `{"technical_skills", "desired_roles", "desired_locations", "interests"}`.
+
+## `backend/app/clients/llm_tools.py` — `RECORD_CV_ANSWER_TOOL`
+
+The tool's `field_name` parameter is currently a plain `"type": "string"` with no enum
+constraint (verify this at implementation time — if an enum of valid field names has since been
+added, extend that enum with the three new field names instead of leaving the schema
+inconsistent). If it is unconstrained today, no change is strictly required here, but if an
+enum exists, add `"interests"`, `"learning_style"`, `"prep_timeline_weeks"` to it.
+
+## Learning-style-suggestion-back feature
+
+Passively collecting `learning_style`/`prep_timeline_weeks` and never using them is the gap this
+section closes. Once **both** fields are set on a candidate's `CVData` (order doesn't matter —
+either field can be answered first in the chat), generate a short, personalized interview-prep
+strategy suggestion and surface it back to the candidate in the same chat session, as a normal
+assistant message (not a separate feature/UI surface).
+
+### Generation trigger
+
+Add to `backend/app/domain/cv_completeness.py`, next to `compute_missing_progressive_fields`:
+
+```python
+def should_generate_prep_strategy_suggestion(cv_data: CVData) -> bool:
+    """True exactly once per candidate — the moment both prep-relevant fields become
+    known and no suggestion has been generated yet. Re-answering learning_style or
+    prep_timeline_weeks later (e.g. candidate corrects an earlier answer) does not
+    silently regenerate the suggestion — see cv_chat_service.py wiring note below for
+    the explicit re-generation path instead."""
+    return (
+        cv_data.learning_style is not None
+        and cv_data.prep_timeline_weeks is not None
+        and cv_data.prep_strategy_suggestion is None
+    )
+```
+
+### Prompt shape
+
+Add to `backend/app/clients/llm_tools.py` (or a new small module,
+`backend/app/domain/prep_strategy.py`, if `llm_tools.py`'s existing contents are tool-schema
+definitions only and a prompt-construction function would be a mismatch for that file — check
+`llm_tools.py`'s existing contents before deciding; this doc assumes the latter is more likely and
+specs a new module, but either location is acceptable as long as it is not duplicated in both):
+
+```python
+_PREP_STRATEGY_SYSTEM_PROMPT = (
+    "You are an interview-prep coach. Given a candidate's preferred learning style and "
+    "how many weeks they have until they need to be interview-ready, suggest a short, "
+    "concrete interview-prep strategy tailored to that learning style and timeline. "
+    "Be specific about *how* to use the time (e.g. what to prioritize in week 1 vs. "
+    "the final week), not generic advice like 'practice more.' Keep it to 3-5 sentences "
+    "or a short bulleted list. Do not repeat the candidate's own inputs back to them "
+    "verbatim (e.g. don't open with 'Since you prefer visual learning and have 4 weeks...')."
+)
+
+
+def build_prep_strategy_user_prompt(cv_data: CVData) -> str:
+    timeline = cv_data.prep_timeline_weeks
+    style = cv_data.learning_style
+    desired_roles = ", ".join(cv_data.desired_roles) if cv_data.desired_roles else "their target role"
+    return (
+        f"Learning style: {style}\n"
+        f"Weeks until interview-ready: {timeline}\n"
+        f"Target role(s): {desired_roles}\n\n"
+        "Suggest a concrete, time-boxed interview-prep strategy for this candidate."
+    )
+```
+
+Call this via whichever LLM client wrapper the CV-chat flow already uses for tool-calling
+(`llm_tools.py`'s existing OpenAI/Anthropic client setup — reuse that client, do not instantiate a
+second one), with `_PREP_STRATEGY_SYSTEM_PROMPT` as the system message and
+`build_prep_strategy_user_prompt(cv_data)` as the user message, no tool-calling needed for this
+call (it's a single free-text generation, not a structured-extraction call like
+`RECORD_CV_ANSWER_TOOL`'s). Store the returned text on `cv_data.prep_strategy_suggestion`.
+
+### Surfacing to the candidate
+
+Wire the trigger into `cv_chat_service.py`'s post-required-fields branch (the same branch this
+file's existing "wiring" section above already describes extending for progressive-field
+questions): immediately after applying the answer that makes
+`should_generate_prep_strategy_suggestion(cv_data)` become `True` (i.e. right after recording
+whichever of `learning_style`/`prep_timeline_weeks` was the second one answered), generate the
+suggestion and send it as the next assistant chat message — framed as a bonus/aside, not another
+question, e.g. prefixed with something like "One more thing before we wrap up — " so it doesn't
+read like a sixth progressive-profiling question the candidate needs to answer. The chat session
+then continues (or completes) exactly as it would have without this feature; the suggestion
+message does not block or gate session completion.
+
+**Regeneration:** if a candidate later edits `learning_style` or `prep_timeline_weeks` (e.g. via a
+future profile-edit surface — none exists today per this chunk's scope), that edit path should
+explicitly clear `prep_strategy_suggestion` back to `None` so
+`should_generate_prep_strategy_suggestion` fires again on the next chat session; this chunk does
+not build that edit surface, it only documents the invariant so a future editor of `CVData` fields
+doesn't leave a stale suggestion in place.
+
+## Do not touch
+
+- `backend/app/modules/documents/models.py` — no migration needed (see "Files to create"); do
+  not add new columns unless choosing the `progressive_fields_resolved` extension above, and if
+  so, that is the *only* column to add.
+- `backend/app/modules/job_matching/`, `backend/app/modules/outreach/`,
+  `backend/app/modules/portfolio/`, `backend/app/modules/admin/` — untouched by this track.
+- `REQUIRED_FIELDS`, `FIELD_WEIGHTS`, `FIELD_QUESTIONS`, `compute_missing_fields()`,
+  `completeness_score()` in `cv_completeness.py` — read-only reference, not edited. This chunk
+  only *adds* new module-level names; it does not change any existing one.
+
+## Verification
+
+- Add unit tests to whichever test file already covers `cv_completeness.py` (locate it under
+  `backend/tests/` before assuming a path) asserting: a `CVData` with all `REQUIRED_FIELDS` set
+  but no progressive fields still scores the same `completeness_score()` as before this change
+  (regression check), and `compute_missing_progressive_fields()` correctly reports all three as
+  missing when unset.
+- Add a unit test for `should_generate_prep_strategy_suggestion`: `False` when either
+  `learning_style` or `prep_timeline_weeks` is unset, `True` when both are set and
+  `prep_strategy_suggestion` is `None`, `False` again once `prep_strategy_suggestion` is set (no
+  double-generation).
+- If `cv_chat_service.py` was extended, add/extend its existing test module to cover the new
+  post-required-fields branch, including a test that the prep-strategy suggestion message is only
+  sent once per session (mock the LLM call, assert it fires exactly once even if both fields are
+  answered in the same session and further messages are exchanged afterward).
+
+## Frontend
+
+**No new screen needed for the candidate side.** Progressive-profiling questions
+(`interests`/`learning_style`/`prep_timeline_weeks`) — and the generated prep-strategy
+suggestion — are surfaced conversationally through the same CV-chat flow this file's own "wiring"
+section already describes extending (`cv_chat_service.py`'s post-required-fields branch) — the
+candidate never sees a distinct "fill in these 3 extra fields" form or a distinct
+"suggestion" widget; they see it all as ordinary assistant chat messages in the same session they
+already use for required fields. There is no candidate-facing frontend change in this chunk at
+all: the existing CV-chat UI component (whatever renders `CvChatSession`/`CvChatMessage` today)
+needs no new props, no new branch, no new field-type UI, and no new message-type rendering — it
+already renders whatever assistant text the backend sends next, and both
+`PROGRESSIVE_FIELD_QUESTIONS`' strings and the generated `prep_strategy_suggestion` text are just
+more assistant message text from the candidate's point of view.
+
+**Genuine gap found on the recruiter side (flagged, not built in this chunk):** searching the
+frontend for any existing view of a candidate's extracted CV data
+(`frontend/app/app/admin/documents/page.tsx` → `DocumentsModerationPanel.tsx`) shows that page is
+a moderation table (filename, document type, processing status, soft-delete/restore) — it has no
+column or drill-in view of `extracted_data`/`CVData` fields at all, progressive or required. There
+is no recruiter-facing view of a candidate's progressive-profile answers today, because there is
+no recruiter-facing view of *any* of a candidate's structured CV fields today. This predates
+progressive profiling and is a broader gap than this chunk's stated scope (adding three optional
+fields does not, by itself, justify building the first-ever recruiter CV-data viewer) — flag it as
+a follow-up in the PR description rather than building a new admin screen in this chunk. If a
+future chunk does build that viewer, it should render `PROGRESSIVE_FIELDS` alongside
+`REQUIRED_FIELDS` from the same `CVData` object, not as a separate progressive-only view.

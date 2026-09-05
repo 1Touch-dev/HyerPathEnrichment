@@ -2,7 +2,7 @@
 
 import secrets
 
-import bcrypt  # type: ignore[import-not-found]
+import bcrypt
 
 
 def hash_password(password: str) -> str:
