@@ -172,7 +172,14 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Start stack
-        run: make setup && make up
+        run: |
+          make setup && make up
+        env:
+          POSTGRES_PASSWORD: change-me
+
+      - name: Postgres logs on stack failure
+        if: failure()
+        run: cd backend/docker && docker compose logs postgres || true
 
       - name: Wait for /health
         run: |

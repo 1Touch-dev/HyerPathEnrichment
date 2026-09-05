@@ -5,7 +5,7 @@ services:
       dockerfile: docker/Dockerfile.api
     working_dir: /app/backend
     environment:
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-change-me}@postgres:5432/hyrepath
     command: ["/bin/bash", "/app/backend/docker/run-migrations.sh"]
     depends_on:
       postgres:
@@ -21,7 +21,7 @@ services:
       API_TOKEN: ${API_TOKEN:-change-me}
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-change-me}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       # Worker queue routing - must match tier-workers configuration
       WORKER_QUEUE_MODE: ${WORKER_QUEUE_MODE:-per_tier}
@@ -117,7 +117,7 @@ services:
       API_TOKEN: ${API_TOKEN:-}
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-change-me}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
@@ -199,7 +199,7 @@ services:
       dockerfile: Dockerfile.postgres
     environment:
       POSTGRES_USER: hyrepath
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       POSTGRES_DB: hyrepath
     ports:
       - "127.0.0.1:5433:5432"
@@ -283,7 +283,7 @@ services:
       APP_ENV: ${APP_ENV:-development}
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-change-me}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       EMAIL_ENABLED: ${EMAIL_ENABLED:-true}
       EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-false}
@@ -324,7 +324,7 @@ services:
       APP_ENV: ${APP_ENV:-development}
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-change-me}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       CLEANUP_INTERVAL_SECONDS: ${CLEANUP_INTERVAL_SECONDS:-300}
       OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
