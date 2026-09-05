@@ -102,17 +102,51 @@ describe("UsersTable", () => {
     expect(screen.getByText("No users found")).toBeInTheDocument();
   });
 
-  it("calls useUpdateUserStatus when Suspend is clicked, after confirmation", () => {
+  it("does not show Suspend while deactivation is unavailable", () => {
     render(<UsersTable />, { wrapper });
-    fireEvent.click(screen.getByText("Suspend"));
-    expect(updateStatusMutate).toHaveBeenCalledWith({ userId: "u1", isActive: false });
+    expect(screen.queryByText("Suspend")).not.toBeInTheDocument();
+    expect(screen.getByText(/User deactivation is temporarily unavailable/)).toBeInTheDocument();
   });
 
-  it("does not call useUpdateUserStatus when the confirmation is declined", () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("calls useUpdateUserStatus when Reactivate is clicked, after confirmation", () => {
+    mockUseAdminUsers({
+      data: { items: [{ ...baseUser, isActive: false }], nextCursor: null, hasMore: false },
+    });
     render(<UsersTable />, { wrapper });
-    fireEvent.click(screen.getByText("Suspend"));
+    fireEvent.click(screen.getByText("Reactivate"));
+    expect(updateStatusMutate).toHaveBeenCalledWith({ userId: "u1", isActive: true });
+  });
+
+  it("does not call useUpdateUserStatus when Reactivate confirmation is declined", () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    mockUseAdminUsers({
+      data: { items: [{ ...baseUser, isActive: false }], nextCursor: null, hasMore: false },
+    });
+    render(<UsersTable />, { wrapper });
+    fireEvent.click(screen.getByText("Reactivate"));
     expect(updateStatusMutate).not.toHaveBeenCalled();
+  });
+
+  it("hides Reactivate without users:suspend permission", () => {
+    mockUseAdminUsers({
+      data: { items: [{ ...baseUser, isActive: false }], nextCursor: null, hasMore: false },
+    });
+    mockUseAuth({
+      user: {
+        id: "admin2",
+        email: "reader@example.com",
+        first_name: "Reader",
+        last_name: "User",
+        is_verified: true,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        is_superuser: false,
+        role_name: "recruiter",
+        permissions: [{ resource: "users", action: "read" }],
+      },
+    });
+    render(<UsersTable />, { wrapper });
+    expect(screen.queryByText("Reactivate")).not.toBeInTheDocument();
   });
 
   it("does not show the Assign role action while role mutation is unavailable", () => {

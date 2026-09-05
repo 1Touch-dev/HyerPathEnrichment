@@ -7,9 +7,10 @@ repository helper to call without editing an already-merged file's body."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +22,12 @@ from app.dependencies.rate_limit import enforce_admin_impersonation_start_rate_l
 from app.modules.admin import impersonation, repository
 from app.modules.admin.models import ImpersonationSession
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import (
+    begin_idempotent_operation,
+    canonical_payload_hash,
+    complete_idempotent_operation,
+    require_idempotency_key,
+)
 from app.modules.admin.schemas import (
     ImpersonationStartRequest,
     ImpersonationStartResponse,
@@ -71,10 +78,22 @@ async def start_impersonation(
     payload: ImpersonationStartRequest,
     request: Request,
     response: Response,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     current_user: User = Depends(require_permission("impersonation", "start")),
     db: AsyncSession = Depends(get_db_session),
 ) -> ImpersonationStartResponse:
-    return await impersonation.start_impersonation(
+    normalized_key = require_idempotency_key("impersonation.started", idempotency_key)
+    state, replay = await begin_idempotent_operation(
+        db,
+        caller_user_id=current_user.id,
+        operation_id="impersonation.started",
+        idempotency_key=normalized_key,
+        request_hash=canonical_payload_hash({"user_id": user_id, "reason": payload.reason}),
+    )
+    if replay is not None:
+        return ImpersonationStartResponse.model_validate(replay.response_body["impersonation"])
+
+    result = await impersonation.start_impersonation(
         db,
         admin=current_user,
         target_user_id=user_id,
@@ -83,6 +102,17 @@ async def start_impersonation(
         response=response,
         ip_address=get_client_ip(request),
     )
+    if state is not None:
+        await complete_idempotent_operation(
+            db,
+            state,
+            response_status=200,
+            response_body={
+                "impersonation": result.model_dump(mode="json"),
+            },
+        )
+        await db.commit()
+    return result
 
 
 @router.post("/end", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -90,6 +120,7 @@ async def end_impersonation(
     request: Request,
     response: Response,
     current_user: VerifiedUser,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     admin_user_id = getattr(request.state, "impersonated_by", None)
@@ -99,6 +130,17 @@ async def end_impersonation(
     if token_jti is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid impersonation session")
 
+    normalized_key = require_idempotency_key("impersonation.ended", idempotency_key)
+    state, replay = await begin_idempotent_operation(
+        db,
+        caller_user_id=admin_user_id,
+        operation_id="impersonation.ended",
+        idempotency_key=normalized_key,
+        request_hash=canonical_payload_hash({"jti": token_jti}),
+    )
+    if replay is not None:
+        return
+
     await impersonation.end_impersonation(
         db,
         admin_user_id=admin_user_id,
@@ -106,6 +148,14 @@ async def end_impersonation(
         response=response,
         ip_address=get_client_ip(request),
     )
+    if state is not None:
+        await complete_idempotent_operation(
+            db,
+            state,
+            response_status=204,
+            response_body={},
+        )
+        await db.commit()
 
 
 @router.get("/status", response_model=ImpersonationStatusResponse)
