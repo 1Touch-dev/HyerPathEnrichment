@@ -1,17 +1,18 @@
 """Tests for cost tracking observability."""
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.observability.cost_tracking import (
-    track_embedding_cost,
+    EMBEDDING_COSTS,
     get_daily_cost,
     get_monthly_cost,
     get_total_cost,
+    track_embedding_cost,
     track_embedding_failure,
     update_queue_size,
-    EMBEDDING_COSTS,
 )
 
 
@@ -261,3 +262,150 @@ def test_embedding_costs_defined():
 
     # Check costs are reasonable
     assert EMBEDDING_COSTS["text-embedding-3-small"] < EMBEDDING_COSTS["text-embedding-3-large"]
+
+
+@pytest.mark.asyncio
+async def test_track_llm_cost():
+    """Test tracking LLM cost updates Redis and Prometheus."""
+    from app.observability.cost_tracking import track_llm_cost
+
+    mock_redis = MagicMock()
+    mock_redis.hincrby = MagicMock()
+    mock_redis.hincrbyfloat = MagicMock()
+
+    with patch("app.observability.cost_tracking.get_redis", return_value=mock_redis):
+        await track_llm_cost(
+            model="gpt-4o-mini",
+            input_tokens=1000,
+            output_tokens=500,
+            operation="completion",
+            user_id="test-user-123",
+        )
+
+        # Check Redis calls
+        assert mock_redis.hincrby.called
+        assert mock_redis.hincrbyfloat.called
+
+
+@pytest.mark.asyncio
+async def test_get_daily_llm_cost():
+    """Test retrieving daily LLM cost."""
+    from app.observability.cost_tracking import get_daily_llm_cost
+
+    mock_redis = MagicMock()
+    mock_redis.hgetall.return_value = {
+        b"input_tokens": b"10000",
+        b"output_tokens": b"5000",
+        b"cost_usd": b"0.015",
+    }
+
+    with patch("app.observability.cost_tracking.get_redis", return_value=mock_redis):
+        cost = await get_daily_llm_cost("2026-08-06")
+
+        assert cost["input_tokens"] == 10000
+        assert cost["output_tokens"] == 5000
+        assert cost["cost_usd"] == 0.015
+
+
+@pytest.mark.asyncio
+async def test_get_monthly_llm_cost():
+    """Test retrieving monthly LLM cost."""
+    from app.observability.cost_tracking import get_monthly_llm_cost
+
+    mock_redis = MagicMock()
+    mock_redis.hgetall.return_value = {
+        b"input_tokens": b"500000",
+        b"output_tokens": b"250000",
+        b"cost_usd": b"0.75",
+    }
+
+    with patch("app.observability.cost_tracking.get_redis", return_value=mock_redis):
+        cost = await get_monthly_llm_cost("2026-08")
+
+        assert cost["input_tokens"] == 500000
+        assert cost["output_tokens"] == 250000
+        assert cost["cost_usd"] == 0.75
+
+
+@pytest.mark.asyncio
+async def test_get_user_costs():
+    """Test retrieving top users by cost."""
+    from app.observability.cost_tracking import get_user_costs
+
+    mock_redis = MagicMock()
+    mock_redis.keys.return_value = [
+        b"llm:cost:user:user1",
+        b"llm:cost:user:user2",
+    ]
+
+    def mock_hgetall(key):
+        if key == b"llm:cost:user:user1":
+            return {
+                b"input_tokens": b"10000",
+                b"output_tokens": b"5000",
+                b"cost_usd": b"0.10",
+            }
+        elif key == b"llm:cost:user:user2":
+            return {
+                b"input_tokens": b"20000",
+                b"output_tokens": b"10000",
+                b"cost_usd": b"0.20",
+            }
+        return {}
+
+    mock_redis.hgetall.side_effect = mock_hgetall
+
+    with patch("app.observability.cost_tracking.get_redis", return_value=mock_redis):
+        users = await get_user_costs(limit=2)
+
+        assert len(users) == 2
+        # Should be sorted by cost descending
+        assert users[0]["user_id"] == "user2"
+        assert users[0]["cost_usd"] == 0.20
+        assert users[1]["user_id"] == "user1"
+        assert users[1]["cost_usd"] == 0.10
+
+
+@pytest.mark.asyncio
+async def test_budget_threshold_check():
+    """Test budget threshold detection."""
+    from app.observability.budget_alerts import check_budget_threshold
+
+    mock_redis = MagicMock()
+    mock_redis.hgetall.return_value = {
+        b"tokens": b"5000",
+        b"embeddings": b"50",
+        b"cost_usd": b"150.0",  # Over threshold
+    }
+
+    with patch("app.observability.cost_tracking.get_redis", return_value=mock_redis):
+        with patch("app.observability.budget_alerts.send_budget_alert") as mock_alert:
+            await check_budget_threshold()
+
+            # Should have triggered an alert
+            mock_alert.assert_called_once()
+            args = mock_alert.call_args[0]
+            assert args[0] == "daily_threshold_exceeded"
+
+
+@pytest.mark.asyncio
+async def test_llm_cost_per_user_attribution():
+    """Test that LLM costs are attributed to users correctly."""
+    from app.observability.cost_tracking import track_llm_cost
+
+    mock_redis = MagicMock()
+
+    with patch("app.observability.cost_tracking.get_redis", return_value=mock_redis):
+        await track_llm_cost(
+            model="gpt-4o-mini",
+            input_tokens=1000,
+            output_tokens=500,
+            operation="completion",
+            user_id="test-user-456",
+        )
+
+        # Check that user-specific counters were updated
+        user_calls = [
+            c for c in mock_redis.hincrby.call_args_list if "user:test-user-456" in str(c)
+        ]
+        assert len(user_calls) >= 1

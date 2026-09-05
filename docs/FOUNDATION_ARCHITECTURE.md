@@ -84,6 +84,54 @@ CREATE TABLE candidate_documents (
 );
 ```
 
+### Database Schema ER Diagram
+
+```mermaid
+erDiagram
+    users ||--o{ candidate_documents : owns
+    users ||--o{ document_jobs : owns
+    candidate_documents ||--o{ document_embeddings : contains
+    candidate_documents ||--o{ document_jobs : tracks
+
+    users {
+        uuid id PK
+        string email
+        timestamp created_at
+    }
+
+    candidate_documents {
+        uuid id PK
+        uuid user_id FK
+        string document_type
+        string storage_path
+        string file_hash
+        int file_size_bytes
+        text raw_text
+        jsonb extracted_data
+        string processing_status
+    }
+
+    document_jobs {
+        uuid id PK
+        uuid user_id FK
+        uuid document_id FK
+        string job_type
+        string status
+        float progress
+        jsonb result
+        text error
+    }
+
+    document_embeddings {
+        uuid id PK
+        uuid document_id FK
+        int chunk_index
+        text chunk_text
+        vector1536 embedding
+        int token_count
+    }
+```
+
 ### 3. Semantic Chunking & CV Extraction (Agent 3)
 
 **Module**: `backend/app/utils/text_chunking.py`, `backend/app/services/cv_extractor.py`
@@ -200,6 +248,49 @@ openai_cost_total{operation="embeddings"}
 openai_tokens_total{operation="embeddings"}
 ```
 
+## Monitoring & Alerts
+
+### Key Metrics
+
+**Document Processing:**
+- Queue depth: `rq:queue:document_processing`
+- Processing rate: documents/minute
+- Failure rate: failed jobs / total jobs
+
+**Embedding Generation:**
+- Queue depth: `rq:queue:embedding_generation`
+- Token consumption: tokens/hour
+- API latency: p50, p95, p99
+
+**Search Performance:**
+- Search latency: p50, p95, p99 (target: <100ms)
+- HNSW index size: GB
+- Cache hit rate: %
+
+### Prometheus Queries
+
+```promql
+# Daily embedding cost
+increase(embedding_cost_usd_total[1d])
+
+# Document processing rate
+rate(document_processing_total[5m])
+
+# Search p95 latency
+histogram_quantile(0.95, rate(search_duration_seconds_bucket[5m]))
+```
+
+### Alert Rules
+
+**High Priority:**
+- OpenAI API rate limit exceeded (>5 occurrences/hour)
+- Document queue backed up (>100 pending jobs for >30min)
+- Search latency spike (p95 >500ms for >5min)
+
+**Medium Priority:**
+- Daily embedding cost exceeds budget ($10/day)
+- Worker crash (container restart >3 times/hour)
+
 ## Data Flow
 
 ### Complete Pipeline
@@ -245,6 +336,18 @@ openai = ">=1.40,<2.0"         # Embeddings API
 pgvector = ">=0.3,<1.0"        # Vector storage
 langchain-text-splitters = ">=0.3,<1.0"  # Chunking
 ```
+
+### Migration Execution Order
+
+**Forward (upgrade):**
+1. 008_candidate_documents.py (Agent 1)
+2. 009_enable_pgvector.py (Agent 4)
+3. 011_document_jobs.py (Agent 5)
+4. 012_document_embeddings.py (Agent 2)
+
+**Backward (downgrade):**
+- Reverse order: 012 → 011 → 009 → 008
+- Warning: Downgrading 012 drops all embeddings (non-recoverable)
 
 ### Infrastructure
 

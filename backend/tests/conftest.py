@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 from uuid import UUID
 
@@ -11,12 +12,14 @@ from uuid import UUID
 # Otherwise, use SQLite for isolated unit tests
 _EXISTING_DB_URL = os.environ.get("DATABASE_URL", "")
 _USE_REAL_INFRA = "postgresql" in _EXISTING_DB_URL.lower()
+USING_POSTGRES = _USE_REAL_INFRA
 
 if not _USE_REAL_INFRA:
-    # Use SQLite for local/CI testing (isolated environment)
-    _TEST_DB = Path(__file__).resolve().parent / "_pytest_hyrepath.db"
-    if _TEST_DB.exists():
-        _TEST_DB.unlink()
+    # Give every pytest process its own database. A fixed repository path lets
+    # concurrent validation runs unlink or migrate the database underneath one
+    # another, leaving later tests with partially missing auth tables.
+    _TEST_DB_DIR = tempfile.TemporaryDirectory(prefix=f"hyrepath-pytest-{os.getpid()}-")
+    _TEST_DB = Path(_TEST_DB_DIR.name) / "hyrepath.db"
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_TEST_DB.as_posix()}"
     print(f"[TEST CONFIG] Using SQLite: {_TEST_DB}")
 else:
@@ -60,8 +63,9 @@ async def setup_test_database():
     For PostgreSQL: Disposes and recreates the engine to ensure it binds to the test event loop.
     For SQLite: Just ensures proper cleanup.
     """
-    from app.database import session as db_session_module
     from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.database import session as db_session_module
 
     # Check if using PostgreSQL (which has the event loop issue)
     db_url = get_settings().database_url
@@ -80,7 +84,7 @@ async def setup_test_database():
         )
 
         # Recreate SessionLocal with new engine
-        from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
         db_session_module.SessionLocal = async_sessionmaker(
             db_session_module.engine, expire_on_commit=False, class_=AsyncSession
@@ -134,10 +138,41 @@ class FakeRedis:
     async def expire(self, key: str, seconds: int) -> bool:
         return key in self._counters
 
+    async def eval(self, script: str, numkeys: int, *keys_and_args: str) -> int:
+        """Reproduce the weighted sliding-window Lua script's semantics.
+
+        Not a general Lua interpreter -- this mirrors the exact algorithm in
+        ``app.infrastructure.redis._RATE_LIMIT_SCRIPT`` (same weighted-estimate
+        formula, same reject-without-incrementing-on-limit behavior) against
+        this fake's own ``_counters`` dict, which is the same store ``incr``/
+        ``expire`` above already use. The current/previous window keys and the
+        weight are computed by the real (unmocked) ``check_rate_limit`` before
+        it calls ``client.eval(...)``, so there is nothing left for this fake
+        to recompute independently -- it just has to apply the same estimate
+        check and increment step against its own state.
+        """
+        current_key, previous_key = keys_and_args[:numkeys]
+        limit_str, weight_str = keys_and_args[numkeys], keys_and_args[numkeys + 1]
+        limit = int(limit_str)
+        weight = float(weight_str)
+
+        current = self._counters.get(current_key, 0)
+        previous = self._counters.get(previous_key, 0)
+        estimated = current + previous * weight
+        if estimated >= limit:
+            return 0
+
+        self._counters[current_key] = current + 1
+        return 1
+
     async def get(self, key: str) -> str | None:
         return self._kv.get(key)
 
-    async def set(self, key: str, value: str, ex: int | None = None) -> bool:
+    async def set(
+        self, key: str, value: str, ex: int | None = None, nx: bool = False
+    ) -> bool | None:
+        if nx and key in self._kv:
+            return None
         self._kv[key] = value
         return True
 
@@ -159,8 +194,12 @@ class FakeRedis:
         lst = self._lists.get(key, [])
         return lst.pop() if lst else None
 
-    def exists(self, key: str) -> int:
-        """Check if key exists (for RQ compatibility)."""
+    async def exists(self, key: str) -> int:
+        """Check if key exists (matches redis.asyncio.Redis.exists)."""
+        return 1 if key in self._kv or key in self._lists or key in self._sets else 0
+
+    def _exists_sync(self, key: str) -> int:
+        """Sync helper for internal RQ-compatibility methods."""
         return 1 if key in self._kv or key in self._lists or key in self._sets else 0
 
     def hset(self, name: str, key: str, value: str) -> int:
@@ -174,13 +213,13 @@ class FakeRedis:
         prefix = f"{name}:"
         return {k.removeprefix(prefix): v for k, v in self._kv.items() if k.startswith(prefix)}
 
-    def setex(self, key: str, time: int, value: str) -> bool:
-        """Set with expiry (for RQ compatibility)."""
+    async def setex(self, key: str, time: int, value: str) -> bool:
+        """Set with expiry (matches redis.asyncio.Redis.setex)."""
         self._kv[key] = value
         return True
 
-    def sadd(self, key: str, *values: str) -> int:
-        """Add members to set (sync version for RQ)."""
+    async def sadd(self, key: str, *values: str) -> int:
+        """Add members to set (async, matches redis.asyncio.Redis.sadd)."""
         members = self._sets.setdefault(key, set())
         added = len([value for value in values if value not in members])
         members.update(values)
@@ -215,7 +254,7 @@ class FakeRedis:
 
     def ttl(self, key: str) -> int:
         """Time to live (for RQ - always return -1 for no expiry)."""
-        return -1 if self.exists(key) else -2
+        return -1 if self._exists_sync(key) else -2
 
     def zadd(self, name: str, mapping: dict) -> int:
         """Add to sorted set (stub for RQ)."""
@@ -243,11 +282,9 @@ class FakeRedis:
 
     def watch(self, *keys: str):
         """Watch keys (no-op for fake)."""
-        pass
 
     def multi(self):
         """Start transaction (no-op for fake)."""
-        pass
 
 
 @pytest.fixture(autouse=True)
@@ -279,6 +316,24 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     monkeypatch.setattr(job_events, "_get_events_redis_client", lambda: fake)
     # Patch workers.queue.get_redis_connection for document service
     monkeypatch.setattr("app.workers.queue.get_redis_connection", lambda: fake)
+    # Patch auth router's Redis usage (token blacklisting on logout/delete)
+    monkeypatch.setattr("app.auth.router.get_redis_client", lambda: fake)
+    monkeypatch.setattr("app.auth.dependencies.get_redis_client", lambda: fake)
+    # Admin Module (phase2_admin_module.md §9): cache.py's cached_aggregate() and
+    # health.py's Redis ping both import get_redis_client from
+    # app.infrastructure.redis directly into their own module namespace, so they
+    # need their own patch targets here, same as every other module above.
+    monkeypatch.setattr("app.modules.admin.cache.get_redis_client", lambda: fake)
+    monkeypatch.setattr("app.modules.admin.health.get_redis_client", lambda: fake)
+    # impersonation.py's end_impersonation() imports get_redis_client *inside*
+    # the function body (not at module top), so there is no
+    # `app.modules.admin.impersonation.get_redis_client` name to patch — the
+    # lookup happens against the source module at call time. Patching the
+    # source directly covers this and any other function-scoped import site.
+    monkeypatch.setattr("app.infrastructure.redis.get_redis_client", lambda: fake)
+    # Patch outreach service's Redis usage (imported by name, so the
+    # `app.workers.queue` patch above doesn't reach this module's binding).
+    monkeypatch.setattr("app.modules.outreach.service.get_redis_connection", lambda: fake)
 
     # Mock RQ Queue for document processing tests
     class FakeRQJob:
@@ -299,8 +354,8 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
 
         def enqueue(self, func, *args, job_timeout=None, **kwargs):
             """Enqueue and immediately process job synchronously."""
-            import uuid
             import importlib
+            import uuid
 
             job_id = str(uuid.uuid4())
             job = FakeRQJob(job_id)
@@ -309,10 +364,10 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
             # Try to actually process the job synchronously if it's a string path
             if isinstance(func, str):
                 try:
-                    # Import and call the function
+                    # Verify the target function is importable before marking queued
                     module_path, func_name = func.rsplit(".", 1)
                     module = importlib.import_module(module_path)
-                    worker_func = getattr(module, func_name)
+                    getattr(module, func_name)
                     # Call it in the background (don't block)
                     # For now, just mark as queued - the test will need to handle this
                     job.status = "queued"
@@ -326,6 +381,7 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     import rq
 
     monkeypatch.setattr("app.modules.documents.service.Queue", FakeQueue)
+    monkeypatch.setattr("app.modules.outreach.service.Queue", FakeQueue)
     monkeypatch.setattr(rq, "Queue", FakeQueue)  # Keep this for other potential uses
 
     return fake
@@ -420,3 +476,232 @@ async def override_auth_for_tests() -> None:
 
     # Clean up overrides after test
     app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# Admin Module (phase2_admin_module.md §9) fixtures.
+#
+# The plan's example test snippets (§9.1-§9.11) reference fixture names —
+# `db_session`, `client`, `superuser`, `superuser_cookie`, `regular_user`,
+# `support_user`, `support_role_cookie`, `seed_user`, `mock_redis`,
+# `seeded_job_postings`, `superuser_with_mfa` — that assume a cookie-based
+# login flow. This repo's actual test-auth mechanism is the header-based
+# `test_auth_dependency` above (X-Test-User-ID + Bearer API token), so the
+# fixtures below are adapted to that mechanism instead of inventing a second,
+# parallel one. Where the plan says "*_cookie", use `auth_headers(user.id)`.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def db_session():
+    """Async DB session fixture — name matches phase2_admin_module.md's tests.
+
+    Same lifecycle as the `db` fixture above; kept separate (rather than a
+    plain alias) so admin tests read the same way the plan wrote them.
+    """
+    from app.database.session import SessionLocal
+
+    async with SessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.rollback()
+            await session.close()
+
+
+@pytest.fixture
+def db_engine():
+    """The application's async engine, already pointed at the test database
+    by `setup_test_database`/`ensure_db_schema` above. Resolved fresh on each
+    use (not cached at session scope) since `setup_test_database` may replace
+    the module-level engine object for PostgreSQL runs."""
+    from app.database import session as db_session_module
+
+    return db_session_module.engine
+
+
+@pytest.fixture
+def client():
+    """Shared TestClient(app), matching test_admin_costs.py's existing pattern.
+
+    Test files that need different behavior (e.g. a `with TestClient(app)`
+    lifespan context) define their own local `client` fixture, which shadows
+    this one for that module only.
+    """
+    from fastapi.testclient import TestClient as _TestClient
+
+    from app.main import app
+
+    return _TestClient(app)
+
+
+@pytest.fixture
+def auth_headers():
+    """Factory returning the X-Test-User-ID + Bearer headers `test_auth_dependency`
+    expects. Stands in for the plan's cookie-based `superuser_cookie` /
+    `support_role_cookie` fixtures — see module docstring above."""
+    settings = get_settings()
+
+    def _make(user_id) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {settings.api_token}",
+            "X-Test-User-ID": str(user_id),
+        }
+
+    return _make
+
+
+async def _make_persisted_user(db_session, /, **overrides):
+    from uuid import uuid4
+
+    from app.auth.models import User
+
+    defaults = {
+        "id": uuid4(),
+        "email": f"admin-test-{uuid4().hex[:10]}@example.com",
+        "first_name": "Test",
+        "last_name": "User",
+        "is_active": True,
+        "is_verified": True,
+        "is_superuser": False,
+    }
+    defaults.update(overrides)
+    user = User(**defaults)
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+async def superuser(db_session):
+    """Real, persisted superuser row (not a MagicMock) — needed so HTTP-level
+    tests that authenticate via `auth_headers(superuser.id)` resolve to a real
+    DB user with `is_superuser=True` when `test_auth_dependency` looks it up."""
+    return await _make_persisted_user(db_session, is_superuser=True)
+
+
+@pytest.fixture
+async def regular_user(db_session):
+    return await _make_persisted_user(db_session)
+
+
+@pytest.fixture
+async def staff_user(db_session):
+    """Verified staff actor with the minimum seeded role for staff-only routes."""
+    from sqlalchemy import select
+
+    from app.modules.admin.models import Role
+
+    result = await db_session.execute(select(Role).where(Role.name == "recruiter"))
+    recruiter_role = result.scalar_one()
+    return await _make_persisted_user(db_session, role_id=recruiter_role.id)
+
+
+@pytest.fixture
+def staff_auth_headers(auth_headers, staff_user):
+    return auth_headers(staff_user.id)
+
+
+@pytest.fixture
+async def seed_user(db_session):
+    """Distinct persisted user for tests (e.g. test_admin_audit.py) that need
+    an actor unrelated to any other fixture in the same test."""
+    return await _make_persisted_user(db_session)
+
+
+@pytest.fixture
+async def support_user(db_session):
+    """Persisted user assigned the seeded 'support' role (migration 038):
+    users:read, users:suspend, audit_logs:read, system_health:read — read-only
+    plus suspend, no write/role-management permissions."""
+    from sqlalchemy import select
+
+    from app.modules.admin.models import Role
+
+    result = await db_session.execute(select(Role).where(Role.name == "support"))
+    support_role = result.scalar_one()
+    return await _make_persisted_user(db_session, role_id=support_role.id)
+
+
+@pytest.fixture
+async def superuser_with_mfa(db_session):
+    """Superuser with TOTP MFA enrolled+enabled, secret known to the test so it
+    can compute valid codes with `pyotp.TOTP(user.mfa_secret).now()`."""
+    from datetime import UTC, datetime
+
+    import pyotp
+
+    return await _make_persisted_user(
+        db_session,
+        is_superuser=True,
+        mfa_enabled=True,
+        mfa_secret=pyotp.random_base32(),
+        mfa_enrolled_at=datetime.now(UTC),
+    )
+
+
+@pytest.fixture
+def mock_redis(fake_redis):
+    """Alias for phase2_admin_module.md's fixture name — same FakeRedis
+    instance the autouse `fake_redis` fixture above already installs
+    everywhere Admin Module code reads Redis (cache.py, health.py)."""
+    return fake_redis
+
+
+@pytest.fixture
+async def seeded_job_postings(db_session):
+    """A handful of JobPosting + JobMatch rows for test_admin_analytics.py —
+    enough spread across `source`/`company` to exercise the group-by
+    aggregates in app/modules/admin/analytics.py.
+
+    Source/company names carry a unique-per-invocation suffix so tests that
+    run get_job_match_analytics() (a table-wide aggregate, not scoped to this
+    fixture's own rows) can assert exact counts without leaking into/from
+    other tests that also use this fixture in the same session-scoped SQLite
+    database.
+    """
+    from uuid import uuid4
+
+    from app.modules.job_matching.models import JobMatch, JobPosting
+
+    suffix = uuid4().hex[:8]
+    postings_spec = [
+        (f"linkedin-{suffix}", f"Acme Corp {suffix}", 100_000, 140_000),
+        (f"linkedin-{suffix}", f"Acme Corp {suffix}", 110_000, 150_000),
+        (f"indeed-{suffix}", f"Globex Inc {suffix}", 90_000, 120_000),
+    ]
+    postings = []
+    for source, company, salary_min, salary_max in postings_spec:
+        posting = JobPosting(
+            dedup_key=f"dedup-{uuid4().hex}",
+            title="Backend Engineer",
+            company=company,
+            location="Remote",
+            remote=True,
+            source=source,
+            source_url="https://example.com/job",
+            salary_min=salary_min,
+            salary_max=salary_max,
+            salary_currency="USD",
+        )
+        db_session.add(posting)
+        postings.append(posting)
+    await db_session.commit()
+    for posting in postings:
+        await db_session.refresh(posting)
+
+    user = await _make_persisted_user(db_session)
+    for i, posting in enumerate(postings):
+        match = JobMatch(
+            user_id=user.id,
+            job_posting_id=posting.id,
+            similarity_score=0.8,
+            rule_score=0.7,
+            overall_score=70.0 + i * 10,
+            score_breakdown={"salary_fit": 1.0},
+        )
+        db_session.add(match)
+    await db_session.commit()
+
+    return postings

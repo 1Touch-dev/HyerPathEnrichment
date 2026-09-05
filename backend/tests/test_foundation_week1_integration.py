@@ -28,6 +28,16 @@ from sqlalchemy import text
 from app.core.config import get_settings
 from app.database.session import get_db_session
 from app.main import app
+from tests.migration_helpers import postgres_test_url
+
+# These tests exercise the full document pipeline (Postgres+pgvector for vector
+# search, a real OpenAI API key for embeddings, and a worker consuming jobs) and
+# cannot produce meaningful results against the default SQLite/FakeRedis test
+# setup used for the rest of the suite.
+pytestmark = pytest.mark.skipif(
+    not postgres_test_url(),
+    reason="requires TEST_DATABASE_URL (Postgres+pgvector) and a real OpenAI API key",
+)
 
 # Test fixtures directory
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -162,7 +172,7 @@ class TestDocumentUploadFlow:
                     headers=auth_headers,
                 )
             assert response1.status_code == 200
-            _job_id_1 = unwrap_envelope(response1)["job_id"]  # noqa: F841
+            _job_id_1 = unwrap_envelope(response1)["job_id"]
 
             # Wait for processing
             await asyncio.sleep(5)
@@ -201,7 +211,7 @@ class TestEmbeddingGeneration:
                     headers=auth_headers,
                 )
 
-            _job_id = unwrap_envelope(response)["job_id"]  # noqa: F841
+            _job_id = unwrap_envelope(response)["job_id"]
 
             # Wait for full pipeline (parsing + embedding)
             await asyncio.sleep(15)

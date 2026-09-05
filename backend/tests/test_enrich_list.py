@@ -68,9 +68,9 @@ def _create_sync_job(client: TestClient, headers: dict[str, str], email: str) ->
     return response.json()["data"]["id"]
 
 
-def test_list_jobs_pagination() -> None:
+def test_list_jobs_pagination(staff_auth_headers: dict[str, str]) -> None:
     client = TestClient(app)
-    headers = {"Authorization": "Bearer change-me"}
+    headers = staff_auth_headers
 
     _create_sync_job(client, headers, "first@example.com")
     _create_sync_job(client, headers, "second@example.com")
@@ -109,4 +109,4 @@ def test_list_jobs_requires_bearer() -> None:
     client = TestClient(app)
     response = client.get("/enrich")
     assert response.status_code == 401
-    assert response.json()["error"]["message"] == "unauthorized"
+    assert "authorization" in response.json()["error"]["message"].lower()

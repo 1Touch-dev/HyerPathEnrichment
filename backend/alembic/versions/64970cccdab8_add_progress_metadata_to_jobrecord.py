@@ -5,21 +5,22 @@ Revises: 003_add_signals_table
 Create Date: 2026-07-23 09:49:41.044707
 
 """
+
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from sqlalchemy.types import Text
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.types import Text
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '64970cccdab8'
-down_revision: Union[str, Sequence[str], None] = '003_add_signals_table'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "64970cccdab8"
+down_revision: str | Sequence[str] | None = "003_add_signals_table"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -30,73 +31,75 @@ def upgrade() -> None:
     from alembic import context
 
     bind = context.get_bind()
-    is_sqlite = bind.dialect.name == 'sqlite'
+    is_sqlite = bind.dialect.name == "sqlite"
+
+    # Backfill any pre-existing NULL timestamps before enforcing NOT NULL below.
+    # Legacy pre-Alembic databases (stamped at baseline, never had a
+    # server_default on these columns) can have rows with NULL created_at /
+    # updated_at; without this, the ALTER COLUMN ... SET NOT NULL a few lines
+    # down fails with a NotNullViolation on any DB that actually has such rows.
+    for table, column in (
+        ("audit_logs", "created_at"),
+        ("dsar_requests", "created_at"),
+        ("jobs", "created_at"),
+        ("jobs", "updated_at"),
+        ("photo_cache", "uploaded_at"),
+        ("photo_cache", "expires_at"),
+        ("signals", "created_at"),
+        ("suppression_list", "created_at"),
+    ):
+        op.execute(
+            sa.text(f"UPDATE {table} SET {column} = CURRENT_TIMESTAMP WHERE {column} IS NULL")
+        )
 
     if is_sqlite:
         # SQLite: use batch operations
-        with op.batch_alter_table('audit_logs', schema=None) as batch_op:
-            batch_op.alter_column('created_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=False)
+        with op.batch_alter_table("audit_logs", schema=None) as batch_op:
+            batch_op.alter_column("created_at", existing_type=sa.DATETIME(), nullable=False)
 
-        with op.batch_alter_table('dsar_requests', schema=None) as batch_op:
-            batch_op.alter_column('created_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=False)
+        with op.batch_alter_table("dsar_requests", schema=None) as batch_op:
+            batch_op.alter_column("created_at", existing_type=sa.DATETIME(), nullable=False)
 
-        with op.batch_alter_table('jobs', schema=None) as batch_op:
-            batch_op.add_column(sa.Column('progress_metadata', postgresql.JSONB(astext_type=Text()).with_variant(sa.JSON(), 'sqlite'), nullable=True))
-            batch_op.alter_column('created_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=False)
-            batch_op.alter_column('updated_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=False)
+        with op.batch_alter_table("jobs", schema=None) as batch_op:
+            batch_op.add_column(
+                sa.Column(
+                    "progress_metadata",
+                    postgresql.JSONB(astext_type=Text()).with_variant(sa.JSON(), "sqlite"),
+                    nullable=True,
+                )
+            )
+            batch_op.alter_column("created_at", existing_type=sa.DATETIME(), nullable=False)
+            batch_op.alter_column("updated_at", existing_type=sa.DATETIME(), nullable=False)
 
-        with op.batch_alter_table('photo_cache', schema=None) as batch_op:
-            batch_op.alter_column('uploaded_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=False)
-            batch_op.alter_column('expires_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=False)
+        with op.batch_alter_table("photo_cache", schema=None) as batch_op:
+            batch_op.alter_column("uploaded_at", existing_type=sa.DATETIME(), nullable=False)
+            batch_op.alter_column("expires_at", existing_type=sa.DATETIME(), nullable=False)
 
-        with op.batch_alter_table('signals', schema=None) as batch_op:
-            batch_op.alter_column('created_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=False)
+        with op.batch_alter_table("signals", schema=None) as batch_op:
+            batch_op.alter_column("created_at", existing_type=sa.DATETIME(), nullable=False)
 
-        with op.batch_alter_table('suppression_list', schema=None) as batch_op:
-            batch_op.alter_column('created_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=False)
+        with op.batch_alter_table("suppression_list", schema=None) as batch_op:
+            batch_op.alter_column("created_at", existing_type=sa.DATETIME(), nullable=False)
     else:
         # Postgres: use regular alter_column
-        op.alter_column('audit_logs', 'created_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=False)
-        op.alter_column('dsar_requests', 'created_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=False)
-        op.add_column('jobs', sa.Column('progress_metadata', postgresql.JSONB(astext_type=Text()).with_variant(sa.JSON(), 'sqlite'), nullable=True))
-        op.alter_column('jobs', 'created_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=False)
-        op.alter_column('jobs', 'updated_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=False)
-        op.alter_column('photo_cache', 'uploaded_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=False)
-        op.alter_column('photo_cache', 'expires_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=False)
-        op.alter_column('signals', 'created_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=False)
-        op.alter_column('suppression_list', 'created_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=False)
+        op.alter_column("audit_logs", "created_at", existing_type=sa.DATETIME(), nullable=False)
+        op.alter_column("dsar_requests", "created_at", existing_type=sa.DATETIME(), nullable=False)
+        op.add_column(
+            "jobs",
+            sa.Column(
+                "progress_metadata",
+                postgresql.JSONB(astext_type=Text()).with_variant(sa.JSON(), "sqlite"),
+                nullable=True,
+            ),
+        )
+        op.alter_column("jobs", "created_at", existing_type=sa.DATETIME(), nullable=False)
+        op.alter_column("jobs", "updated_at", existing_type=sa.DATETIME(), nullable=False)
+        op.alter_column("photo_cache", "uploaded_at", existing_type=sa.DATETIME(), nullable=False)
+        op.alter_column("photo_cache", "expires_at", existing_type=sa.DATETIME(), nullable=False)
+        op.alter_column("signals", "created_at", existing_type=sa.DATETIME(), nullable=False)
+        op.alter_column(
+            "suppression_list", "created_at", existing_type=sa.DATETIME(), nullable=False
+        )
     # ### end Alembic commands ###
 
 
@@ -105,71 +108,41 @@ def downgrade() -> None:
     from alembic import context
 
     bind = context.get_bind()
-    is_sqlite = bind.dialect.name == 'sqlite'
+    is_sqlite = bind.dialect.name == "sqlite"
 
     if is_sqlite:
         # SQLite: use batch operations
-        with op.batch_alter_table('suppression_list', schema=None) as batch_op:
-            batch_op.alter_column('created_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=True)
+        with op.batch_alter_table("suppression_list", schema=None) as batch_op:
+            batch_op.alter_column("created_at", existing_type=sa.DATETIME(), nullable=True)
 
-        with op.batch_alter_table('signals', schema=None) as batch_op:
-            batch_op.alter_column('created_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=True)
+        with op.batch_alter_table("signals", schema=None) as batch_op:
+            batch_op.alter_column("created_at", existing_type=sa.DATETIME(), nullable=True)
 
-        with op.batch_alter_table('photo_cache', schema=None) as batch_op:
-            batch_op.alter_column('expires_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=True)
-            batch_op.alter_column('uploaded_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=True)
+        with op.batch_alter_table("photo_cache", schema=None) as batch_op:
+            batch_op.alter_column("expires_at", existing_type=sa.DATETIME(), nullable=True)
+            batch_op.alter_column("uploaded_at", existing_type=sa.DATETIME(), nullable=True)
 
-        with op.batch_alter_table('jobs', schema=None) as batch_op:
-            batch_op.alter_column('updated_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=True)
-            batch_op.alter_column('created_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=True)
-            batch_op.drop_column('progress_metadata')
+        with op.batch_alter_table("jobs", schema=None) as batch_op:
+            batch_op.alter_column("updated_at", existing_type=sa.DATETIME(), nullable=True)
+            batch_op.alter_column("created_at", existing_type=sa.DATETIME(), nullable=True)
+            batch_op.drop_column("progress_metadata")
 
-        with op.batch_alter_table('dsar_requests', schema=None) as batch_op:
-            batch_op.alter_column('created_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=True)
+        with op.batch_alter_table("dsar_requests", schema=None) as batch_op:
+            batch_op.alter_column("created_at", existing_type=sa.DATETIME(), nullable=True)
 
-        with op.batch_alter_table('audit_logs', schema=None) as batch_op:
-            batch_op.alter_column('created_at',
-                       existing_type=sa.DATETIME(),
-                       nullable=True)
+        with op.batch_alter_table("audit_logs", schema=None) as batch_op:
+            batch_op.alter_column("created_at", existing_type=sa.DATETIME(), nullable=True)
     else:
         # Postgres: use regular alter_column
-        op.alter_column('suppression_list', 'created_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=True)
-        op.alter_column('signals', 'created_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=True)
-        op.alter_column('photo_cache', 'expires_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=True)
-        op.alter_column('photo_cache', 'uploaded_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=True)
-        op.alter_column('jobs', 'updated_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=True)
-        op.alter_column('jobs', 'created_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=True)
-        op.drop_column('jobs', 'progress_metadata')
-        op.alter_column('dsar_requests', 'created_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=True)
-        op.alter_column('audit_logs', 'created_at',
-                   existing_type=sa.DATETIME(),
-                   nullable=True)
+        op.alter_column(
+            "suppression_list", "created_at", existing_type=sa.DATETIME(), nullable=True
+        )
+        op.alter_column("signals", "created_at", existing_type=sa.DATETIME(), nullable=True)
+        op.alter_column("photo_cache", "expires_at", existing_type=sa.DATETIME(), nullable=True)
+        op.alter_column("photo_cache", "uploaded_at", existing_type=sa.DATETIME(), nullable=True)
+        op.alter_column("jobs", "updated_at", existing_type=sa.DATETIME(), nullable=True)
+        op.alter_column("jobs", "created_at", existing_type=sa.DATETIME(), nullable=True)
+        op.drop_column("jobs", "progress_metadata")
+        op.alter_column("dsar_requests", "created_at", existing_type=sa.DATETIME(), nullable=True)
+        op.alter_column("audit_logs", "created_at", existing_type=sa.DATETIME(), nullable=True)
     # ### end Alembic commands ###

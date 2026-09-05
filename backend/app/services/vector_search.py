@@ -8,16 +8,26 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TypedDict
+from typing import Any, TypedDict
 from uuid import UUID
 
 from sqlalchemy import select, text
-from sqlalchemy.sql import literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.utils.text_chunking import ChunkDict
 
 logger = logging.getLogger(__name__)
+
+
+def _embedding_as_pgvector_literal(query_embedding: list[float]) -> str:
+    """Serialize floats for CAST(:emb AS vector) — never interpolate into SQL text."""
+    parts: list[str] = []
+    for x in query_embedding:
+        if not isinstance(x, (int, float)) or isinstance(x, bool) or not math.isfinite(float(x)):
+            raise ValueError("query_embedding must contain only finite numbers")
+        parts.append(repr(float(x)))
+    return "[" + ",".join(parts) + "]"
 
 
 class SearchResult(TypedDict):
@@ -65,7 +75,7 @@ def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
 async def store_embeddings(
     session: AsyncSession,
     document_id: UUID,
-    chunks_with_embeddings: list[tuple[dict, list[float], int]],
+    chunks_with_embeddings: list[tuple[ChunkDict, list[float], int]],
 ) -> None:
     """Store document chunk embeddings in database.
 
@@ -74,8 +84,45 @@ async def store_embeddings(
         document_id: Parent document UUID
         chunks_with_embeddings: List of (chunk_dict, embedding_vector, token_count)
             where chunk_dict has keys: chunk_text, chunk_index, start_char, end_char
+
+    Raises:
+        ValueError: If embeddings fail validation (dimension mismatch, duplicates, token count)
     """
     from app.modules.documents.models import DocumentEmbedding
+
+    # Validation: Check embedding dimensions
+    if chunks_with_embeddings:
+        expected_dim = len(chunks_with_embeddings[0][1])
+        if expected_dim != 1536:  # text-embedding-3-small dimension
+            logger.warning(
+                "Unexpected embedding dimension",
+                extra={
+                    "document_id": str(document_id),
+                    "expected": 1536,
+                    "actual": expected_dim,
+                },
+            )
+
+        for idx, (chunk, embedding, token_count) in enumerate(chunks_with_embeddings):
+            if len(embedding) != expected_dim:
+                raise ValueError(
+                    f"Embedding dimension mismatch at chunk {idx}: "
+                    f"expected {expected_dim}, got {len(embedding)}"
+                )
+
+            # Validate token count is reasonable
+            if token_count <= 0 or token_count > 8192:  # OpenAI max context
+                raise ValueError(
+                    f"Invalid token count at chunk {idx}: {token_count} (expected 1-8192)"
+                )
+
+    # Validation: Check for duplicate chunk indices
+    chunk_indices = [chunk["chunk_index"] for chunk, _, _ in chunks_with_embeddings]
+    if len(chunk_indices) != len(set(chunk_indices)):
+        duplicates = [idx for idx in chunk_indices if chunk_indices.count(idx) > 1]
+        raise ValueError(
+            f"Duplicate chunk indices detected for document {document_id}: {set(duplicates)}"
+        )
 
     embeddings = []
     for chunk, embedding, token_count in chunks_with_embeddings:
@@ -97,6 +144,7 @@ async def store_embeddings(
             "document_id": str(document_id),
             "num_chunks": len(embeddings),
             "total_tokens": sum(e.token_count for e in embeddings),
+            "embedding_dimension": expected_dim if embeddings else 0,
         },
     )
 
@@ -129,29 +177,37 @@ async def similarity_search(
     is_postgres = "postgresql" in settings.database_url.lower()
 
     if is_postgres:
-        # Use pgvector cosine similarity (1 - cosine_distance)
-        # cosine_distance is <=> operator in pgvector
-        # similarity = 1 - cosine_distance
-        query_stmt = select(
-            DocumentEmbedding.document_id,
-            DocumentEmbedding.chunk_index,
-            DocumentEmbedding.chunk_text,
-            DocumentEmbedding.token_count,
-            # Use literal_column for computed similarity
-            literal_column("(1 - (embedding <=> :query_embedding))").label("similarity"),
-        ).where(text("(1 - (embedding <=> :query_embedding)) >= :threshold"))
-
+        # Bind embedding + threshold (same CAST(:emb AS vector) pattern as job_matching).
+        embedding_str = _embedding_as_pgvector_literal(query_embedding)
+        params: dict[str, Any] = {
+            "query_embedding": embedding_str,
+            "similarity_threshold": float(similarity_threshold),
+            "result_limit": int(limit),
+        }
+        document_filter_sql = ""
         if document_id:
-            query_stmt = query_stmt.where(DocumentEmbedding.document_id == document_id)
+            document_filter_sql = "AND document_id = :document_id"
+            params["document_id"] = str(document_id)
 
-        query_stmt = (
-            query_stmt.order_by(text("similarity DESC"))
-            .limit(limit)
-            .params(query_embedding=query_embedding, threshold=similarity_threshold)
+        similarity_sql = text(
+            f"""
+            SELECT
+                document_id,
+                chunk_index,
+                chunk_text,
+                token_count,
+                (1 - (embedding <=> CAST(:query_embedding AS vector))) AS similarity
+            FROM document_embeddings
+            WHERE (1 - (embedding <=> CAST(:query_embedding AS vector)))
+                >= :similarity_threshold
+                {document_filter_sql}
+            ORDER BY similarity DESC
+            LIMIT :result_limit
+            """
         )
 
         try:
-            result = await session.execute(query_stmt)
+            result = await session.execute(similarity_sql, params)
             rows = result.all()
 
             results: list[SearchResult] = [
@@ -187,11 +243,11 @@ async def similarity_search(
     # SQLite fallback: fetch all embeddings and compute similarity in Python
     logger.info("Using Python-based cosine similarity (SQLite mode)")
 
-    query_stmt = select(DocumentEmbedding)
+    fallback_stmt = select(DocumentEmbedding)
     if document_id:
-        query_stmt = query_stmt.where(DocumentEmbedding.document_id == document_id)
+        fallback_stmt = fallback_stmt.where(DocumentEmbedding.document_id == document_id)
 
-    result = await session.execute(query_stmt)
+    result = await session.execute(fallback_stmt)
     all_embeddings = result.scalars().all()
 
     # Compute similarities
@@ -207,7 +263,7 @@ async def similarity_search(
     # Take top N
     top_results = scored_results[:limit]
 
-    results: list[SearchResult] = [
+    fallback_results: list[SearchResult] = [
         {
             "document_id": str(emb.document_id),
             "chunk_index": emb.chunk_index,
@@ -219,15 +275,15 @@ async def similarity_search(
     ]
 
     logger.info(
-        f"Python similarity search found {len(results)} results",
+        f"Python similarity search found {len(fallback_results)} results",
         extra={
             "total_checked": len(all_embeddings),
-            "num_results": len(results),
+            "num_results": len(fallback_results),
             "threshold": similarity_threshold,
         },
     )
 
-    return results
+    return fallback_results
 
 
 async def delete_document_embeddings(session: AsyncSession, document_id: UUID) -> None:

@@ -38,6 +38,10 @@ setup: ## Env file + editable backend install (venv; avoids PEP 668)
 	else \
 		echo "$(BACKEND_DIR)/.env already exists - skipping copy"; \
 	fi
+	@if [ ! -f $(DOCKER_DIR)/.env ]; then \
+		printf '%s\n' 'POSTGRES_PASSWORD=change-me' > $(DOCKER_DIR)/.env; \
+		echo "Created $(DOCKER_DIR)/.env with local POSTGRES_PASSWORD default"; \
+	fi
 	@if [ ! -d $(BACKEND_DIR)/.venv ]; then \
 		python3 -m venv $(BACKEND_DIR)/.venv; \
 		echo "Created $(BACKEND_DIR)/.venv"; \

@@ -64,6 +64,7 @@ This design balances **scalability**, **isolation**, and **technical requirement
 ### Bridge Network (Default) - Used By:
 - API service
 - Tier 2-4 workers
+- Foundation workers (document processing, embedding generation)
 - PostgreSQL
 - Redis
 - All sidecar services (email-verifier, social-analyzer, google-maps-scraper, etc.)
@@ -155,6 +156,11 @@ worker-tier1:
 - Uses bridge network service names
 - Port bindings restricted to `127.0.0.1` for security
 
+**`docker-compose.foundation.yml`** (foundation week 1 workers):
+- `worker-document`: **No `network_mode` (bridge by default)**
+- `worker-embedding`: **No `network_mode` (bridge by default)**
+- Both workers use `networks: [default]` to explicitly join the default bridge network
+
 **`docker-compose.tier-workers.yml`** (tier-specific workers):
 - `worker-tier1`: **Explicit `network_mode: host`**
 - `worker-tier234`: **No `network_mode` (bridge by default)**
@@ -164,6 +170,23 @@ worker-tier1:
 - `worker`: **Overridden to `network_mode: host`** (if using this overlay)
 
 ## Scaling Workers
+
+### Scaling Foundation Workers (Bridge Network)
+
+Foundation workers (document processing and embedding generation) use bridge networking and can be scaled:
+
+```bash
+cd backend/docker
+
+# Start with multiple document processing workers
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.foundation.yml \
+  --env-file ../.env.production \
+  up -d --scale worker-document=3 --scale worker-embedding=2
+
+# No port conflicts! Each container gets its own network namespace
+```
 
 ### Scaling Tier 2-4 Workers (Bridge Network)
 
@@ -332,6 +355,7 @@ For more context on why these networking decisions were made:
 | Component | Network Mode | Service Resolution | Scalable? |
 |-----------|-------------|-------------------|-----------|
 | API | Bridge | `postgres:5432` | ✅ Yes |
+| Foundation Workers | Bridge | `postgres:5432` | ✅ Yes |
 | Tier 2-4 Workers | Bridge | `postgres:5432` | ✅ Yes |
 | Email Worker | Bridge | `redis:6379` | ✅ Yes |
 | Tier 1 Worker | Host | `127.0.0.1:5432` | ❌ No |
@@ -343,10 +367,23 @@ For more context on why these networking decisions were made:
 ## Summary
 
 The hybrid networking approach:
-- ✅ Maximizes scalability for Tier 2-4 workers and email workers
+- ✅ Maximizes scalability for foundation workers, Tier 2-4 workers, and email workers
 - ✅ Maintains proper isolation with bridge networking
 - ✅ Enables Tier 1 to reach Multilogin's localhost-only ports
 - ✅ Uses Docker's built-in service discovery where possible
 - ✅ Minimizes configuration complexity
 
 **Key Takeaway:** Bridge networking is the default and preferred approach. Host networking is only used for Tier 1 due to Multilogin's technical constraint of binding to `127.0.0.1`.
+
+## Foundation Workers
+
+Foundation workers (`worker-document` and `worker-embedding`) use the default bridge network and connect to Redis and PostgreSQL using service names:
+
+- **Document Processing Worker**: Handles PDF/DOCX parsing, uploads to R2/local cache
+- **Embedding Generation Worker**: Creates OpenAI embeddings for vector search
+
+Both workers:
+- Connect to `redis://redis:6379/0` for RQ job queue
+- Connect to `postgresql+asyncpg://hyrepath:password@postgres:5432/hyrepath` for database
+- Explicitly join the default network with `networks: [default]` in `docker-compose.foundation.yml`
+- Can be scaled horizontally without port conflicts

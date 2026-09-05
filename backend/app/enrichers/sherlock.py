@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.clients.cli_args import sanitize_cli_arg
 from app.clients.process import run_command
 from app.clients.proxy import ProxyProvider
 from app.core.config import get_settings
@@ -23,8 +24,11 @@ class SherlockEnricher(Enricher):
         # NOTE: sherlock ships a CLI; we shell out for stability rather than
         # driving its internal QueryNotify API. Proxy flows through unchanged.
         settings = get_settings()
-        username = request.username or ""
-        args = ["sherlock", "--print-found", "--no-color", "--timeout", "10", username]
+        try:
+            username = sanitize_cli_arg(request.username or "", label="username")
+        except ValueError:
+            return {}
+        args = ["sherlock", "--print-found", "--no-color", "--timeout", "10", "--", username]
         proxy = self.proxies.get()
         if proxy:
             args[1:1] = ["--proxy", proxy]

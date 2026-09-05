@@ -5,8 +5,8 @@ services:
       dockerfile: docker/Dockerfile.api
     working_dir: /app/backend
     environment:
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
-    command: ["alembic", "upgrade", "head"]
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-change-me}@postgres:5432/hyrepath
+    command: ["/bin/bash", "/app/backend/docker/run-migrations.sh"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -16,8 +16,12 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.api
     environment:
+      APP_NAME: ${APP_NAME:-Hyrepath Enrichment Backend}
+      APP_ENV: ${APP_ENV:-development}
       API_TOKEN: ${API_TOKEN:-change-me}
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-change-me}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       # Worker queue routing - must match tier-workers configuration
       WORKER_QUEUE_MODE: ${WORKER_QUEUE_MODE:-per_tier}
@@ -38,6 +42,12 @@ services:
       DISAMBIGUATION_THRESHOLD: ${DISAMBIGUATION_THRESHOLD:-0.7}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
+      # Tier 4 job source: jobspy (free scraping) | jsearch (paid RapidAPI, reliable)
+      JOB_SOURCE_PROVIDER: ${JOB_SOURCE_PROVIDER:-jobspy}
+      JSEARCH_API_KEY: ${JSEARCH_API_KEY:-}
+      JSEARCH_API_HOST: ${JSEARCH_API_HOST:-jsearch.p.rapidapi.com}
+      JSEARCH_NUM_PAGES: ${JSEARCH_NUM_PAGES:-1}
+      JSEARCH_TIMEOUT_SECONDS: ${JSEARCH_TIMEOUT_SECONDS:-20.0}
       # Tier 3 â€” OSINT + email (free default-on sidecar + worker CLIs)
       GITRECON_SCRIPT: /opt/gitrecon/gitrecon.py
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
@@ -69,6 +79,18 @@ services:
       SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
       SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
       SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
+      OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
+      OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
+      # OpenAI API for embeddings (document search)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Admin Module: RBAC, audit log, feature flags, cached aggregates, MFA, impersonation
+      ADMIN_AUDIT_LOG_RETENTION_DAYS: ${ADMIN_AUDIT_LOG_RETENTION_DAYS:-1825}
+      ADMIN_AGGREGATE_CACHE_TTL_SECONDS: ${ADMIN_AGGREGATE_CACHE_TTL_SECONDS:-300}
+      ADMIN_DEFAULT_PAGE_SIZE: ${ADMIN_DEFAULT_PAGE_SIZE:-20}
+      ADMIN_MAX_PAGE_SIZE: ${ADMIN_MAX_PAGE_SIZE:-100}
+      ADMIN_MFA_ISSUER_NAME: ${ADMIN_MFA_ISSUER_NAME:-Hyrepath Admin}
+      ADMIN_IMPERSONATION_MAX_DURATION_MINUTES: ${ADMIN_IMPERSONATION_MAX_DURATION_MINUTES:-30}
+      PROMETHEUS_QUERY_URL: ${PROMETHEUS_QUERY_URL:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -77,7 +99,8 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      # Readiness (Postgres + Redis + Alembic head) — matches docs/deployment.md /ready probe
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/ready"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -89,8 +112,12 @@ services:
     extra_hosts:
       - "host.docker.internal:${MULTILOGIN_HOST_IP:-host-gateway}"
     environment:
+      APP_NAME: ${APP_NAME:-Hyrepath Enrichment Backend}
+      APP_ENV: ${APP_ENV:-development}
       API_TOKEN: ${API_TOKEN:-}
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-change-me}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
@@ -106,6 +133,12 @@ services:
       DISAMBIGUATION_THRESHOLD: ${DISAMBIGUATION_THRESHOLD:-0.7}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
+      # Tier 4 job source: jobspy (free scraping) | jsearch (paid RapidAPI, reliable)
+      JOB_SOURCE_PROVIDER: ${JOB_SOURCE_PROVIDER:-jobspy}
+      JSEARCH_API_KEY: ${JSEARCH_API_KEY:-}
+      JSEARCH_API_HOST: ${JSEARCH_API_HOST:-jsearch.p.rapidapi.com}
+      JSEARCH_NUM_PAGES: ${JSEARCH_NUM_PAGES:-1}
+      JSEARCH_TIMEOUT_SECONDS: ${JSEARCH_TIMEOUT_SECONDS:-20.0}
       GITRECON_SCRIPT: /opt/gitrecon/gitrecon.py
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       EMAIL_SLEUTH_BIN: email-sleuth
@@ -115,6 +148,8 @@ services:
       EMAIL_VERIFY_SMTP_DELAY_SECONDS: ${EMAIL_VERIFY_SMTP_DELAY_SECONDS:-6}
       REACHER_URL: ${REACHER_URL:-}
       REACHER_FROM_EMAIL: ${REACHER_FROM_EMAIL:-}
+      OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
+      OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
       PROXY_MODE: ${PROXY_MODE:-none}
       SCRAPOXY_URL: ${SCRAPOXY_URL:-}
       CROSSLINKED_SEARCH_ENGINES: ${CROSSLINKED_SEARCH_ENGINES:-yahoo}
@@ -124,6 +159,9 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       SENTRY_SEND_DEFAULT_PII: ${SENTRY_SEND_DEFAULT_PII:-false}
+      # OpenAI API for embeddings (document search) and feedback generation
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      WORKER_STARTUP_DELAY: "0"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -161,7 +199,7 @@ services:
       dockerfile: Dockerfile.postgres
     environment:
       POSTGRES_USER: hyrepath
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       POSTGRES_DB: hyrepath
     ports:
       - "127.0.0.1:5433:5432"
@@ -241,7 +279,11 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.worker
     environment:
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      APP_NAME: ${APP_NAME:-Hyrepath Enrichment Backend}
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-change-me}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       EMAIL_ENABLED: ${EMAIL_ENABLED:-true}
       EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-false}
@@ -249,6 +291,8 @@ services:
       SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
       SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
       SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
+      OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
+      OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
       WORKER_STARTUP_DELAY: "0"
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
@@ -276,9 +320,15 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.worker
     environment:
-      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
+      APP_NAME: ${APP_NAME:-Hyrepath Enrichment Backend}
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD:-change-me}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       CLEANUP_INTERVAL_SECONDS: ${CLEANUP_INTERVAL_SECONDS:-300}
+      OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
+      OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
       WORKER_STARTUP_DELAY: "0"
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
@@ -402,7 +452,13 @@ services:
     ports:
       - "8001:8000"
     healthcheck:
-      test: ["CMD-SHELL", "python3 /code/healthcheck.py || exit 1"]
+      # v4.1.5 predates /code/healthcheck.py (added in later glitchtip images),
+      # so hit the web root with stdlib urllib instead (curl isn't in this image).
+      test:
+        [
+          "CMD-SHELL",
+          "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/').status\"",
+        ]
       interval: 15s
       timeout: 5s
       retries: 12

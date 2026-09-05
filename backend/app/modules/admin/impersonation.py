@@ -1,0 +1,164 @@
+"""Support impersonation: a scoped JWT claim on the existing access_token
+cookie, not a second auth system. See Decision 6. Sequenced last in the
+build order (§9) — requires the audit log and MFA to already exist."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
+
+from fastapi import HTTPException, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.jwt_tokens import create_user_access_token, encode_access_token
+from app.auth.models import User
+from app.core.config import get_settings
+from app.modules.admin import repository
+from app.modules.admin.audit import record_admin_action
+from app.modules.admin.mfa import revoke_refresh_sessions, verify_mfa_code
+from app.modules.admin.models import ImpersonationSession
+from app.modules.admin.schemas import ImpersonationStartResponse
+
+
+async def start_impersonation(
+    db: AsyncSession,
+    *,
+    admin: User,
+    target_user_id: UUID,
+    reason: str,
+    mfa_code: str | None,
+    response: Response,
+    ip_address: str | None,
+) -> ImpersonationStartResponse:
+    # Privileged action: MFA is mandatory for every impersonation start, not only
+    # when the admin already enrolled (empty enrollments must not skip the gate).
+    if not admin.mfa_enabled or not mfa_code or not verify_mfa_code(admin, mfa_code):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Valid MFA code required to start an impersonation session",
+        )
+
+    target = await repository.get_user_by_id(db, target_user_id)
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Target user not found")
+    if target.id == admin.id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot impersonate yourself")
+    if target.is_superuser:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot impersonate a superuser")
+    if (
+        target.role_id is not None
+        or not target.is_verified
+        or not target.is_active
+        or target.deleted_at is not None
+    ):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Only an active, verified candidate can be impersonated",
+        )
+
+    settings = get_settings()
+    jti = uuid4().hex
+    expires_at = datetime.now(UTC) + timedelta(
+        minutes=settings.admin_impersonation_max_duration_minutes
+    )
+
+    payload = {
+        "sub": str(target.id),
+        "jti": jti,
+        "imp": str(admin.id),
+        "exp": expires_at,
+    }
+    token = encode_access_token(payload, settings.SECRET_KEY)
+    response.delete_cookie(
+        "refresh_token",
+        domain=settings.COOKIE_DOMAIN,
+        path="/",
+    )
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        max_age=settings.admin_impersonation_max_duration_minutes * 60,
+        domain=settings.COOKIE_DOMAIN,
+        path="/",
+    )
+
+    session = ImpersonationSession(
+        admin_user_id=admin.id,
+        target_user_id=target.id,
+        token_jti=jti,
+        reason=reason,
+        expires_at=expires_at,
+    )
+    db.add(session)
+    await db.flush()
+    await revoke_refresh_sessions(db, admin.id)
+
+    await record_admin_action(
+        db,
+        actor_user_id=admin.id,
+        action="impersonation.started",
+        target_type="user",
+        target_id=str(target.id),
+        after={"reason": reason, "expires_at": expires_at.isoformat()},
+        ip_address=ip_address,
+        impersonation_session_id=session.id,
+    )
+    await db.commit()
+
+    return ImpersonationStartResponse(target_user_id=target.id, expires_at=expires_at)
+
+
+async def end_impersonation(
+    db: AsyncSession, *, admin_user_id: UUID, jti: str, response: Response, ip_address: str | None
+) -> None:
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(ImpersonationSession).where(ImpersonationSession.token_jti == jti)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Impersonation session not found")
+    if session.admin_user_id != admin_user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Impersonation actor mismatch")
+    if session.ended_at is not None or session.revoked_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Impersonation session is not active")
+
+    admin = await repository.get_user_by_id(db, admin_user_id)
+    if admin is None or not admin.is_active or admin.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Admin user not found")
+
+    session.ended_at = datetime.now(UTC)
+
+    await record_admin_action(
+        db,
+        actor_user_id=session.target_user_id,
+        action="impersonation.ended",
+        target_type="user",
+        target_id=str(session.target_user_id),
+        ip_address=ip_address,
+        impersonated_by=admin_user_id,
+        impersonation_session_id=session.id,
+    )
+    await db.commit()
+
+    settings = get_settings()
+    access_token, _ = create_user_access_token(
+        str(admin.id),
+        admin.email,
+        secret_key=settings.SECRET_KEY,
+        expires_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+    )
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        domain=settings.COOKIE_DOMAIN,
+        path="/",
+    )

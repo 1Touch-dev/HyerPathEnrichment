@@ -1,0 +1,35 @@
+# Job Matching Worker - AI job matching scans, scoring, explanations, digest emails
+FROM python:3.12-slim
+
+WORKDIR /app/backend
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files
+COPY pyproject.toml README.md ./
+
+# Install Python dependencies (incl. [enrichers] extra for python-jobspy, used
+# by _scan_jobs_for_candidate_async's reuse of JobSpyEnricher._scrape)
+RUN pip install --no-cache-dir -e ".[enrichers]"
+
+# Copy application code
+COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
+
+# Create non-root user
+RUN useradd -m -u 1000 worker && \
+    chown -R worker:worker /app
+USER worker
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD python -c "from app.workers.tasks.job_matching import check_worker_health; import sys; sys.exit(0 if check_worker_health('job_matching') else 1)"
+
+# Default command: dedicated RQ worker for the job_matching queue
+# CMD is overridden by docker-compose.foundation.yml
+# CMD ["python", "-m", "app.workers.rq_worker_job_matching"]

@@ -11,10 +11,16 @@ import { useLocalStorageJobs } from "@/hooks/useLocalStorageJobs";
 import { useState } from "react";
 
 type JobQueuePanelProps = {
+  jobsBasePath?: string;
+  queryString?: string;
   onJobStatusUpdate?: (jobId: string, status: "completed" | "failed" | "suppressed") => void;
 };
 
-export function JobQueuePanel({ onJobStatusUpdate }: JobQueuePanelProps) {
+export function JobQueuePanel({
+  jobsBasePath = "/osint/jobs",
+  queryString = "",
+  onJobStatusUpdate,
+}: JobQueuePanelProps) {
   const { jobs, activeJobs, removeJob, clearCompleted } = useLocalStorageJobs();
   const [isOpen, setIsOpen] = useState(true);
 
@@ -82,7 +88,9 @@ export function JobQueuePanel({ onJobStatusUpdate }: JobQueuePanelProps) {
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/app/jobs/${job.id}`}>
+                      <Link
+                        href={`${jobsBasePath}/${job.id}${queryString ? `?${queryString}` : ""}`}
+                      >
                         <ExternalLink className="size-3" />
                       </Link>
                     </Button>

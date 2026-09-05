@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -106,8 +105,11 @@ def main() -> int:
                 "api",
                 "sh",
                 "-c",
-                "set -e; export E2E_BASE_URL=http://127.0.0.1:8000; export E2E_BACKEND_ROOT=/app/backend; "
-                "cd /app/backend; mkdir -p /app/backend/.e2e-results; python -",
+                (
+                    "set -e; export E2E_BASE_URL=http://127.0.0.1:8000; "
+                    "export E2E_BACKEND_ROOT=/app/backend; "
+                    "cd /app/backend; mkdir -p /app/backend/.e2e-results; python -"
+                ),
             ],
             cwd=COMPOSE_DIR,
             input_text=probe,

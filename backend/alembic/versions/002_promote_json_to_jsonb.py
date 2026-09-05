@@ -13,16 +13,17 @@ Create Date: 2026-07-15
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy import inspect, text
 
+from alembic import op
+
 revision: str = "002_promote_json_to_jsonb"
-down_revision: Union[str, Sequence[str], None] = "001_baseline_schema"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "001_baseline_schema"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # (table, column, pg_default, sqlite_default_literal)
 _DOC_COLUMNS: tuple[tuple[str, str, str, str], ...] = (
@@ -89,10 +90,7 @@ def upgrade() -> None:
         udt = _pg_column_udt(bind, table, column)
         if udt == "json":
             op.execute(
-                text(
-                    f"ALTER TABLE {table} ALTER COLUMN {column} TYPE jsonb "
-                    f"USING {column}::jsonb"
-                )
+                text(f"ALTER TABLE {table} ALTER COLUMN {column} TYPE jsonb USING {column}::jsonb")
             )
 
 
@@ -111,8 +109,5 @@ def downgrade() -> None:
         udt = _pg_column_udt(bind, table, column)
         if udt == "jsonb":
             op.execute(
-                text(
-                    f"ALTER TABLE {table} ALTER COLUMN {column} TYPE json "
-                    f"USING {column}::json"
-                )
+                text(f"ALTER TABLE {table} ALTER COLUMN {column} TYPE json USING {column}::json")
             )

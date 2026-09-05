@@ -32,10 +32,7 @@ print("evidence", evidence)
 print("dropped_meta", payload["dossier"]["metadata"].get("disambiguation_dropped"))
 print(
     "handles",
-    [
-        (h["platform"][:40], round(h["confidence"], 3))
-        for h in payload["dossier"]["handles"]
-    ],
+    [(h["platform"][:40], round(h["confidence"], 3)) for h in payload["dossier"]["handles"]],
 )
 assert any("llm disambiguation dropped" in e for e in evidence), evidence
 print("PASS: enrich uses new confidence evidence")

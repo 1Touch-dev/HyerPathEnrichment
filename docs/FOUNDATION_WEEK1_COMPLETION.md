@@ -261,9 +261,11 @@ Rollback procedures documented in `docs/FOUNDATION_ROLLBACK_GUIDE.md`.
 
 **Test CV (2-page resume)**:
 - Raw text: ~1,200 tokens
-- Chunks: 3-4 chunks (512 tokens each)
+- Chunks: 3-4 chunks (configurable via EMBEDDING_CHUNK_SIZE, default 512 tokens)
+- Chunk overlap: Configurable via EMBEDDING_CHUNK_OVERLAP (default 50 tokens)
 - Embeddings: 3-4 API calls
 - Cost: ~$0.0001 per CV
+- Validation: Dimension check (1536), duplicate detection, token count limits
 
 **Batch processing (1000 CVs)**:
 - Embeddings: $0.10

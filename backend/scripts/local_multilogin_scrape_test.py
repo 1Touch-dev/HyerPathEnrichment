@@ -27,7 +27,7 @@ import asyncio
 import hashlib
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -36,14 +36,19 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.domain.dossier import PhotoAsset
-from app.database.session import init_db
 from app.core.config import get_settings
-from app.integrations.linkedin.urls import extract_linkedin_slug
-from app.integrations.linkedin.browser_facade import LinkedInBrowserClient, LinkedInPhotoError
-from app.storage.photo_cache import PhotoCache, _redis_key, slug_hash
-from app.storage.r2 import R2StorageClient, R2StorageError, object_key_with_extension, r2_is_configured
+from app.database.session import init_db
+from app.domain.dossier import PhotoAsset
 from app.infrastructure.redis import get_redis_client
+from app.integrations.linkedin.browser_facade import LinkedInBrowserClient, LinkedInPhotoError
+from app.integrations.linkedin.urls import extract_linkedin_slug
+from app.storage.photo_cache import PhotoCache, _redis_key, slug_hash
+from app.storage.r2 import (
+    R2StorageClient,
+    R2StorageError,
+    object_key_with_extension,
+    r2_is_configured,
+)
 
 DEFAULT_URL = "https://www.linkedin.com/in/rajshamani/?isSelfProfile=false"
 OUT_DIR = ROOT / "artifacts" / "tier1"
@@ -125,11 +130,13 @@ async def scrape_upload_cache(*, linkedin_url: str, skip_local_file: bool) -> in
         return 1
 
     content_type = result.content_type or "image/jpeg"
-    print(f"Scrape OK: {len(result.image_bytes)} bytes method={result.method} confidence={result.confidence}")
+    print(
+        f"Scrape OK: {len(result.image_bytes)} bytes method={result.method} confidence={result.confidence}"
+    )
 
     if not skip_local_file:
         OUT_DIR.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         out = OUT_DIR / f"local_mlx_{slug}_{stamp}.{_extension(content_type)}"
         out.write_bytes(result.image_bytes)
         print(f"Local copy: {out}")
@@ -154,7 +161,7 @@ async def scrape_upload_cache(*, linkedin_url: str, skip_local_file: bool) -> in
     photo = PhotoAsset(
         source="linkedin-photo",
         asset_url=asset_url,
-        captured_at=datetime.now(timezone.utc),
+        captured_at=datetime.now(UTC),
         confidence=result.confidence,
     )
     cache = PhotoCache()

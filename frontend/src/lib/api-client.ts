@@ -6,6 +6,13 @@ import {
   SuccessEnvelope,
 } from "@/src/lib/api-envelope";
 import {
+  AudioRecordingStatus,
+  AudioUploadResult,
+  CvChatSession,
+  CvCompleteness,
+  CvFeedbackReport,
+  DocumentJobStatus,
+  DocumentSummary,
   DsarInput,
   DsarResponse,
   EnrichmentInput,
@@ -14,7 +21,25 @@ import {
   HealthStatus,
   JobListResponse,
   OptOutInput,
+  OutreachCompanyTier,
+  OutreachCompanyTierValue,
+  OutreachListResponse,
+  OutreachDraftAccepted,
+  OutreachMessage,
+  OutreachMessageType,
+  OutreachRoleType,
+  OutreachSeniority,
+  OutreachStrategy,
+  PortfolioItem,
+  PortfolioProfile,
+  PracticeAttempt,
+  PracticeSession,
+  PracticeSessionListResult,
+  PublicPortfolioProfile,
+  QuestionListResult,
   SignalListResponse,
+  SwipeDeck,
+  SwipeDirection,
 } from "@/src/lib/types";
 
 async function parseJsonBody(response: Response): Promise<unknown> {
@@ -172,4 +197,336 @@ export async function listSignals(
 
 export async function getHealth(): Promise<SuccessEnvelope<HealthStatus>> {
   return request<HealthStatus>("/api/health");
+}
+
+// Module 2: Tinder-Style Job Board + CV Management (phase2_module2.md §12.2)
+// Snake_case→camelCase adaptation already happens inside the BFF routes
+// (§11.4-11.7), so these functions only need the frontend-shaped types.
+
+// ── CV completeness + chat + feedback ──────────────────────────────
+
+export async function fetchCvCompleteness(
+  documentId: string,
+): Promise<SuccessEnvelope<CvCompleteness>> {
+  return request<CvCompleteness>(`/api/documents/${documentId}/completeness`);
+}
+
+export async function startCvChatSession(
+  documentId: string,
+): Promise<SuccessEnvelope<CvChatSession>> {
+  return request<CvChatSession>(`/api/documents/${documentId}/cv-chat/sessions`, {
+    method: "POST",
+  });
+}
+
+export async function getCvChatSession(sessionId: string): Promise<SuccessEnvelope<CvChatSession>> {
+  return request<CvChatSession>(`/api/cv-chat/sessions/${sessionId}`);
+}
+
+export async function postCvChatMessage(
+  sessionId: string,
+  content: string,
+): Promise<SuccessEnvelope<CvChatSession>> {
+  return request<CvChatSession>(`/api/cv-chat/sessions/${sessionId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function requestCvFeedback(
+  documentId: string,
+  targetRole?: string,
+): Promise<SuccessEnvelope<{ jobId: string }>> {
+  return request<{ jobId: string }>(`/api/documents/${documentId}/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ targetRole: targetRole ?? null }),
+  });
+}
+
+export async function fetchCvFeedback(
+  documentId: string,
+): Promise<SuccessEnvelope<CvFeedbackReport>> {
+  return request<CvFeedbackReport>(`/api/documents/${documentId}/feedback`);
+}
+
+/**
+ * Polls the real job-status endpoint (`GET /api/documents/jobs/{job_id}` — backend's
+ * `JobStatusResponse`) for the async CV-feedback-generation job enqueued by
+ * `requestCvFeedback`. There is no interim "pending" `CvFeedbackReport` row (see
+ * backend/app/workers/tasks/cv_improvement.py), so this job record is the only real
+ * signal that generation is still running vs. done vs. failed.
+ */
+export async function fetchDocumentJobStatus(
+  jobId: string,
+): Promise<SuccessEnvelope<DocumentJobStatus>> {
+  return request<DocumentJobStatus>(`/api/documents/jobs/${jobId}`);
+}
+
+export async function fetchDocuments(): Promise<SuccessEnvelope<DocumentSummary[]>> {
+  return request<DocumentSummary[]>("/api/documents");
+}
+
+export async function acceptCvBullet(
+  documentId: string,
+  reportId: string,
+  bulletIndex: number,
+): Promise<SuccessEnvelope<{ accepted: boolean }>> {
+  return request<{ accepted: boolean }>(`/api/cv-feedback/${reportId}/accept-bullet`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ documentId, bulletIndex }),
+  });
+}
+
+// ── Portfolio ───────────────────────────────────────────────────────
+
+export async function fetchPortfolioProfile(): Promise<SuccessEnvelope<PortfolioProfile>> {
+  return request<PortfolioProfile>("/api/portfolio/profile");
+}
+
+export async function savePortfolioProfile(
+  payload: Partial<PortfolioProfile> & { slug: string },
+): Promise<SuccessEnvelope<PortfolioProfile>> {
+  return request<PortfolioProfile>("/api/portfolio/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function addPortfolioItem(
+  payload: Omit<PortfolioItem, "itemId" | "displayOrder">,
+): Promise<SuccessEnvelope<PortfolioItem>> {
+  return request<PortfolioItem>("/api/portfolio/items", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePortfolioItem(
+  itemId: string,
+): Promise<SuccessEnvelope<{ deleted: boolean }>> {
+  return request<{ deleted: boolean }>(`/api/portfolio/items/${itemId}`, { method: "DELETE" });
+}
+
+/** Public — no auth cookie needed, but still routed through the BFF (§11.5) for consistency. */
+export async function fetchPublicPortfolio(
+  slug: string,
+): Promise<SuccessEnvelope<PublicPortfolioProfile>> {
+  return request<PublicPortfolioProfile>(`/api/portfolio/public/${slug}`);
+}
+
+// ── Job swipe ───────────────────────────────────────────────────────
+
+export async function fetchSwipeDeck(): Promise<SuccessEnvelope<SwipeDeck>> {
+  return request<SwipeDeck>("/api/matches/swipe-deck");
+}
+
+export async function submitSwipe(
+  matchId: string,
+  direction: SwipeDirection,
+): Promise<SuccessEnvelope<{ direction: SwipeDirection }>> {
+  return request<{ direction: SwipeDirection }>(`/api/matches/${matchId}/swipe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ direction }),
+  });
+}
+
+// ── Outreach ────────────────────────────────────────────────────────
+
+export async function fetchOutreachMessages(): Promise<SuccessEnvelope<OutreachListResponse>> {
+  return request<OutreachListResponse>("/api/outreach");
+}
+
+export async function draftOutreach(payload: {
+  companyName: string;
+  documentId: string;
+  recipientRoleTitle?: string;
+  jobMatchId?: string;
+  jobDescription?: string;
+  messageType?: OutreachMessageType;
+  customInstruction?: string;
+  strategy?: OutreachStrategy;
+  referralContext?: string;
+  roleType?: OutreachRoleType;
+  seniority?: OutreachSeniority;
+}): Promise<SuccessEnvelope<OutreachDraftAccepted>> {
+  return request<OutreachDraftAccepted>("/api/outreach/drafts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      companyName: payload.companyName,
+      documentId: payload.documentId,
+      recipientRoleTitle: payload.recipientRoleTitle ?? null,
+      jobMatchId: payload.jobMatchId ?? null,
+      jobDescription: payload.jobDescription ?? null,
+      // Module 4, Module G (§11.7): forwarded to the BFF route, which maps these
+      // to the backend's snake_case `message_type`/`custom_instruction` fields.
+      messageType: payload.messageType ?? "email",
+      customInstruction: payload.customInstruction ?? null,
+      // machine-2/03: forwarded to the BFF route, which maps these to the
+      // backend's snake_case `strategy`/`referral_context`/`role_type`/`seniority`
+      // fields, mirroring `messageType`/`customInstruction` above.
+      strategy: payload.strategy ?? "direct_pitch",
+      referralContext: payload.referralContext ?? null,
+      roleType: payload.roleType ?? null,
+      seniority: payload.seniority ?? null,
+    }),
+  });
+}
+
+// machine-2/03: manual, recruiter-set employer classification — persists across
+// every future draft for the same `companyName` (backend's `EmployerCompanyTier`).
+export async function getCompanyTier(
+  companyName: string,
+): Promise<SuccessEnvelope<OutreachCompanyTier | null>> {
+  const search = new URLSearchParams({ companyName });
+  return request<OutreachCompanyTier | null>(`/api/outreach/company-tier?${search.toString()}`);
+}
+
+export async function setCompanyTier(
+  companyName: string,
+  tier: OutreachCompanyTierValue,
+  notes?: string,
+): Promise<SuccessEnvelope<OutreachCompanyTier>> {
+  return request<OutreachCompanyTier>("/api/outreach/company-tier", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      companyName,
+      tier,
+      notes: notes ?? null,
+    }),
+  });
+}
+
+export async function editOutreachDraft(
+  messageId: string,
+  subject: string,
+  body: string,
+): Promise<SuccessEnvelope<OutreachMessage>> {
+  return request<OutreachMessage>(`/api/outreach/${messageId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subject, body }),
+  });
+}
+
+export async function sendOutreach(messageId: string): Promise<SuccessEnvelope<OutreachMessage>> {
+  return request<OutreachMessage>(`/api/outreach/${messageId}/send`, { method: "POST" });
+}
+
+// Module 3: Interview Prep (phase2_module3.md §10.4)
+// Snake_case→camelCase adaptation already happens inside the BFF routes (§10.3),
+// so these functions only need the frontend-shaped types.
+
+export async function createPracticeSession(
+  sessionType: string,
+  metadata?: Record<string, unknown>,
+): Promise<SuccessEnvelope<PracticeSession>> {
+  return request<PracticeSession>("/api/practice/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_type: sessionType, session_metadata: metadata ?? {} }),
+  });
+}
+
+export async function listPracticeSessions(
+  params: { limit?: number; offset?: number } = {},
+): Promise<SuccessEnvelope<PracticeSessionListResult>> {
+  const search = new URLSearchParams();
+  if (params.limit !== undefined) search.set("limit", String(params.limit));
+  if (params.offset !== undefined) search.set("offset", String(params.offset));
+
+  const query = search.toString();
+  return request<PracticeSessionListResult>(`/api/practice/sessions${query ? `?${query}` : ""}`);
+}
+
+export async function getPracticeSession(id: string): Promise<SuccessEnvelope<PracticeSession>> {
+  return request<PracticeSession>(`/api/practice/sessions/${id}`);
+}
+
+/**
+ * Sent as snake_case to match the backend's `QuestionAttemptRequest`
+ * (backend/app/modules/sessions/schemas.py) — this request body is proxied through as-is
+ * by the BFF route (§10.3's `[id]/attempts/route.ts`), not passed through a `toBackend*`
+ * adapter helper, since none exists for this shape in `api-adapter.ts`.
+ */
+export async function addPracticeAttempt(
+  sessionId: string,
+  payload: {
+    questionId?: string;
+    responseType: "text" | "audio";
+    textResponse?: string;
+    audioRecordingId?: string;
+    timeTakenSeconds?: number;
+  },
+): Promise<SuccessEnvelope<PracticeAttempt>> {
+  return request<PracticeAttempt>(`/api/practice/sessions/${sessionId}/attempts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question_id: payload.questionId ?? null,
+      response_type: payload.responseType,
+      text_response: payload.textResponse ?? null,
+      audio_recording_id: payload.audioRecordingId ?? null,
+      time_taken_seconds: payload.timeTakenSeconds ?? null,
+    }),
+  });
+}
+
+export async function fetchQuestions(payload: {
+  jobRole: string;
+  count?: number;
+  category?: string;
+  difficulty?: string;
+  personalize?: boolean;
+  documentId?: string;
+}): Promise<SuccessEnvelope<QuestionListResult>> {
+  return request<QuestionListResult>("/api/practice/questions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      job_role: payload.jobRole,
+      count: payload.count,
+      category: payload.category ?? undefined,
+      difficulty: payload.difficulty ?? undefined,
+      personalize: payload.personalize ?? undefined,
+      document_id: payload.documentId ?? undefined,
+    }),
+  });
+}
+
+/**
+ * Multipart upload — deliberately does not go through the shared `request()` helper's
+ * usual JSON body pattern, since `FormData` needs the browser to set its own
+ * `Content-Type: multipart/form-data; boundary=...` header. `request()` never forces a
+ * JSON content-type itself (callers set that header explicitly), so it is reused here
+ * unchanged; this function just omits the header and passes `FormData` as the body.
+ */
+export async function uploadPracticeAudio(
+  practiceSessionId: string,
+  audioFormat: string,
+  file: Blob,
+  filename: string,
+): Promise<SuccessEnvelope<AudioUploadResult>> {
+  const formData = new FormData();
+  formData.set("practice_session_id", practiceSessionId);
+  formData.set("audio_format", audioFormat);
+  formData.set("file", file, filename);
+
+  return request<AudioUploadResult>("/api/practice/audio", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function getPracticeAudioStatus(
+  id: string,
+): Promise<SuccessEnvelope<AudioRecordingStatus>> {
+  return request<AudioRecordingStatus>(`/api/practice/audio/${id}`);
 }

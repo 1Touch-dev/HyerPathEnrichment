@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, List
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -195,7 +195,7 @@ class Pipeline:
         if not parent:
             return
 
-        children: List[JobRecord] = await self.jobs.get_children(parent.id)
+        children: list[JobRecord] = await self.jobs.get_children(parent.id)
 
         # Merge all child dossiers
         merged_dossier = self._merge_child_dossiers(
@@ -226,7 +226,7 @@ class Pipeline:
         if not parent:
             return
 
-        children: List[JobRecord] = await self.jobs.get_children(parent.id)
+        children: list[JobRecord] = await self.jobs.get_children(parent.id)
         if not children:
             return
 
@@ -777,7 +777,7 @@ class Pipeline:
             try:
                 await worker.cleanup()
             except Exception:
-                pass
+                logger.debug("Ignoring cleanup failure after enricher error", exc_info=True)
             return {}
 
     @staticmethod

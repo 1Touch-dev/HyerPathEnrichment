@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from app.clients.multilogin import MultiloginClient, MultiloginError
@@ -42,7 +42,7 @@ class ProfilePool:
 
     @staticmethod
     def _views_key(profile_id: str) -> str:
-        return f"tier1:profile:{profile_id}:views:{date.today().isoformat()}"
+        return f"tier1:profile:{profile_id}:views:{datetime.now(UTC).date().isoformat()}"
 
     @staticmethod
     def _cooldown_key(profile_id: str) -> str:

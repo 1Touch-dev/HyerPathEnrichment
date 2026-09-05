@@ -15,6 +15,17 @@ from app.auth.models import LoggedOutToken
 logger = logging.getLogger(__name__)
 
 
+def _ensure_utc(value: datetime) -> datetime:
+    """Normalize a datetime to timezone-aware UTC.
+
+    SQLite does not persist timezone info, so datetimes read back from the
+    database are naive even though they were stored as UTC.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 class LoggedOutTokenService:
     """Service for managing logged-out token blacklist (Redis + PostgreSQL)."""
 
@@ -97,7 +108,7 @@ class LoggedOutTokenService:
 
         synced = 0
         for token in tokens:
-            ttl_seconds = int((token.expires_at - now).total_seconds())
+            ttl_seconds = int((_ensure_utc(token.expires_at) - now).total_seconds())
             if ttl_seconds > 0:
                 await self.redis.setex(f"{self.prefix}{token.token_jti}", ttl_seconds, "revoked")
                 synced += 1
@@ -164,7 +175,7 @@ class LoggedOutTokenService:
                 ip_address=ip_address,
                 user_agent=user_agent,
                 failure_reason="Token used after logout (possible token theft)",
-                metadata={
+                extra_data={
                     "token_jti": token_jti,
                     "alert_type": "logged_out_token_reuse",
                 },

@@ -14,6 +14,11 @@ async def test_list_jobs_excludes_child_jobs(db: AsyncSession):
     """Test that child jobs are excluded from list by default"""
     repo = JobRepository(db)
 
+    # Get initial count (other tests in the shared session-scoped DB may
+    # have already committed external jobs, so we compare against a
+    # baseline rather than asserting an absolute count).
+    _, initial_total = await repo.list(limit=100, offset=0)
+
     # Create a parent job
     parent_request = EnrichmentRequest(
         linkedin_url="https://linkedin.com/in/test",
@@ -29,13 +34,16 @@ async def test_list_jobs_excludes_child_jobs(db: AsyncSession):
     await db.commit()
 
     # List jobs (default: exclude internal)
-    jobs, total = await repo.list(limit=10, offset=0)
+    jobs, total = await repo.list(limit=100, offset=0)
 
-    # Should only contain parent job
-    assert total == 1
-    assert len(jobs) == 1
-    assert jobs[0].id == parent_job.id
-    assert jobs[0].is_internal is False
+    # Should only contain the new parent job (children remain hidden)
+    assert total == initial_total + 1
+    new_job_ids = {job.id for job in jobs}
+    assert parent_job.id in new_job_ids
+    assert child1.id not in new_job_ids
+    assert child2.id not in new_job_ids
+    matched = next(job for job in jobs if job.id == parent_job.id)
+    assert matched.is_internal is False
 
     # Verify child jobs are marked as internal
     assert child1.is_internal is True
@@ -64,13 +72,13 @@ async def test_list_jobs_includes_internal_when_requested(db: AsyncSession):
     await db.commit()
 
     # List jobs with include_internal=True
-    jobs, total = await repo.list(limit=100, offset=0, include_internal=True)
+    _jobs, total = await repo.list(limit=100, offset=0, include_internal=True)
 
     # Should contain 3 more jobs than before (1 parent + 2 children)
     assert total == initial_all + 3
 
     # List jobs with include_internal=False
-    jobs_external, total_external = await repo.list(limit=100, offset=0, include_internal=False)
+    _jobs_external, total_external = await repo.list(limit=100, offset=0, include_internal=False)
 
     # Should contain 1 more job than before (just parent)
     assert total_external == initial_external + 1

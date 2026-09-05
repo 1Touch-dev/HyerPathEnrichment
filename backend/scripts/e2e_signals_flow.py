@@ -14,7 +14,7 @@ received: list[dict] = []
 
 
 class _NotifyHandler(BaseHTTPRequestHandler):
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(length)
         received.append(json.loads(body.decode()))
@@ -33,7 +33,6 @@ def _run_notify_server() -> HTTPServer:
 
 
 def main() -> None:
-    notify_url = f"http://127.0.0.1:{NOTIFY_PORT}/hook"
     server = _run_notify_server()
 
     try:

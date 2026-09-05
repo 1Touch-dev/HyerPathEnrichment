@@ -2,7 +2,7 @@
 
 Hyrepath Enrichment — compliance reference for operators and developers.
 
-**Version:** 0.3 (July 2026)
+**Version:** 0.4 (August 2026)
 
 ---
 
@@ -11,18 +11,19 @@ Hyrepath Enrichment — compliance reference for operators and developers.
 - **Public data only** — public profiles, commits, and search results.
 - **Customer-supplied identifiers only** — no unsolicited people-finding.
 - **Opt-out is permanent** — once registered, the identifier is blocked across all tiers.
-- **Data erasure on opt-out** — matching job dossiers, photo cache, and R2/local assets are purged.
+- **Data erasure on opt-out** — matching job dossiers (`dossier_payload` + `request_payload`), photo cache, R2/local assets, outreach recipient fields, and sourced-lead PII are purged/scrubbed.
 - **LGPD / GDPR / CCPA** — data subject requests supported via opt-out and DSAR endpoints.
 
 ---
 
 ## Authentication (v1)
 
-Enrichment routes (`/enrich`, `/enrich/sync`, …) require **Bearer token** authentication (`Authorization: Bearer <API_TOKEN>`).
+Enrichment routes (`/enrich`, `/enrich/sync`, …) require an **authenticated, verified user** (cookie JWT session; ADR 0009). Operator tooling may still use `API_TOKEN` where documented.
 
-`POST /api/opt-out`, `GET /api/opt-out/check`, `POST /api/dsar`, and `GET /api/dsar/{id}` are **unauthenticated** so data subjects can exercise rights without an API key. They are protected by an IP-scoped rate limit (`MAX_COMPLIANCE_REQUESTS_PER_MINUTE`, default 20).
+- `POST /api/opt-out` and `GET /api/opt-out/check` remain **public** (IP rate-limited) so data subjects can exercise opt-out without an account.
+- `POST /api/dsar` and `GET /api/dsar/{id}` require an **authenticated verified user**.
 
-The public frontend form at `/opt-out` proxies requests to the backend (the BFF may still send a server-side token; it is not required for these routes).
+The public frontend form at `/opt-out` proxies requests to the backend.
 
 ---
 
@@ -44,13 +45,17 @@ LinkedIn URL variants (with/without `www`, trailing slash) hash identically.
 
 ## What purge deletes
 
-On opt-out or DSAR deletion:
+On opt-out or DSAR deletion (`app/compliance/purge.py`):
 
-1. **Jobs** — matching rows in `jobs` get `dossier_payload = {}` and `status = purged`
+1. **Jobs** — matching rows get `dossier_payload = {}`, `request_payload = {}`, and `status = purged`
 2. **Photo cache** — `photo_cache` SQL rows and Redis `tier1:photo:*` keys
 3. **Object storage** — R2 objects (or local `.asset-cache/` files) referenced by `asset_key`
+4. **Outreach** — recipient PII on matching messages scrubbed
+5. **Sourced leads** — PII scrubbed when the identifier matches
 
 Suppression list entries are **never** deleted.
+
+**Account self-delete** (`DELETE /auth/me` via `account_erase.py`) additionally deletes the user's CV documents/chat sessions and outreach rows, and scrubs sourced leads they acted on. Document blobs in R2/local storage for those documents should be treated as follow-up operator cleanup if not already unlinked by storage keys on the deleted rows.
 
 ---
 
@@ -77,15 +82,15 @@ cd backend && python scripts/purge_audit_logs.py
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /api/dsar` | Create access or deletion request |
+| `POST /api/dsar` | Create access or deletion request (authenticated verified user) |
 | `GET /api/dsar/{id}` | Poll status and summary |
 
 **v1 behavior:** Requests are processed immediately on create (automated self-hosted stack).
 
-- **Access** — returns job count, date range, and photo-cached flag (no dossier PII).
-- **Deletion** — runs suppression + purge, same as opt-out.
+- **Access** — returns a machine-readable summary of enrichment jobs for the authenticated subject (includes enriched dossier fields stored on those jobs).
+- **Deletion** — runs suppression + purge, same as opt-out for the subject's identifiers.
 
-Manual review queues and email notifications are deferred.
+Manual review queues and email confirmation before opt-out purge are deferred.
 
 **Escalation:** For requests that cannot be satisfied automatically, contact your Hyrepath operator with the DSAR id from the API response.
 

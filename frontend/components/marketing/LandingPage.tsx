@@ -10,7 +10,7 @@ type LandingPageProps = {
 };
 
 export function LandingPage({ config }: LandingPageProps) {
-  const ctaHref = `/app/enrich?tiers=${tiersToQuery(config.tiers)}`;
+  const ctaHref = `/osint?tiers=${tiersToQuery(config.tiers)}`;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-12 px-4 py-12">

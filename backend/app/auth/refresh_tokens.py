@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -16,6 +17,58 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 
+def hash_refresh_token(raw: str) -> str:
+    """SHA-256 hex digest of a refresh token (high-entropy; no salt needed)."""
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _ensure_aware(dt: datetime) -> datetime:
+    """
+    Normalize a datetime to be timezone-aware (UTC).
+
+    SQLite does not persist tzinfo even for DateTime(timezone=True) columns,
+    so values read back from the DB come back naive. Treat naive values as UTC
+    to allow safe comparison against datetime.now(UTC).
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt
+
+
+async def _get_refresh_token_row(db: AsyncSession, raw_token: str) -> RefreshToken | None:
+    """Lookup by hashed PK, with dual-read fallback for pre-hash plaintext rows."""
+    token_hash = hash_refresh_token(raw_token)
+    result = await db.execute(select(RefreshToken).where(RefreshToken.token == token_hash))
+    row = result.scalar_one_or_none()
+    if row is not None:
+        return row
+
+    # Legacy plaintext rows (pre-P1): upgrade in place on successful hit.
+    result = await db.execute(select(RefreshToken).where(RefreshToken.token == raw_token))
+    row = result.scalar_one_or_none()
+    if row is None:
+        return None
+
+    parent = row.parent_token
+    if parent and len(parent) != 64:
+        # Likely plaintext parent; hash it for consistency.
+        parent = hash_refresh_token(parent)
+
+    # Primary key update: delete+reinsert is safer across dialects than UPDATE PK.
+    upgraded = RefreshToken(
+        token=token_hash,
+        user_id=row.user_id,
+        used=row.used,
+        parent_token=parent,
+        created_at=row.created_at,
+        expires_at=row.expires_at,
+    )
+    await db.delete(row)
+    db.add(upgraded)
+    await db.flush()
+    return upgraded
+
+
 async def create_refresh_token(
     db: AsyncSession,
     user_id: UUID,
@@ -24,28 +77,27 @@ async def create_refresh_token(
     """
     Create a new refresh token for user.
 
-    Args:
-        db: Database session
-        user_id: User UUID
-        parent_token: Optional parent token ID for rotation tracking
-
-    Returns:
-        Tuple of (token_value, RefreshToken object)
+    Returns the raw token for the cookie; stores only the SHA-256 hash in the DB.
+    ``parent_token`` may be raw or already-hashed; it is normalized to a hash.
     """
     settings = get_settings()
 
-    # Generate cryptographically secure random token (256-bit)
     token_value = secrets.token_urlsafe(43)
-
-    # Calculate expiration
     expires_at = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
-    # Create token record
+    parent_hash: str | None = None
+    if parent_token:
+        parent_hash = (
+            parent_token
+            if len(parent_token) == 64 and all(c in "0123456789abcdef" for c in parent_token)
+            else hash_refresh_token(parent_token)
+        )
+
     refresh_token = RefreshToken(
-        token=token_value,
+        token=hash_refresh_token(token_value),
         user_id=user_id,
         used=False,
-        parent_token=parent_token,
+        parent_token=parent_hash,
         created_at=datetime.now(UTC),
         expires_at=expires_at,
     )
@@ -61,30 +113,17 @@ async def validate_refresh_token(
     db: AsyncSession,
     token_value: str,
 ) -> tuple[RefreshToken, User] | tuple[None, None]:
-    """
-    Validate refresh token and return token + user.
-
-    Args:
-        db: Database session
-        token_value: Token string to validate
-
-    Returns:
-        Tuple of (RefreshToken, User) if valid, (None, None) otherwise
-    """
-    # Fetch token from database
-    result = await db.execute(select(RefreshToken).where(RefreshToken.token == token_value))
-    refresh_token = result.scalar_one_or_none()
+    """Validate refresh token and return token + user."""
+    refresh_token = await _get_refresh_token_row(db, token_value)
 
     if not refresh_token:
         logger.warning("Refresh token not found in database")
         return None, None
 
-    # Check if expired
-    if refresh_token.expires_at < datetime.now(UTC):
+    if _ensure_aware(refresh_token.expires_at) < datetime.now(UTC):
         logger.info(f"Refresh token expired for user {refresh_token.user_id}")
         return None, None
 
-    # Fetch user
     user_result = await db.execute(select(User).where(User.id == refresh_token.user_id))
     user = user_result.scalar_one_or_none()
 
@@ -99,16 +138,7 @@ async def detect_token_reuse(
     db: AsyncSession,
     refresh_token: RefreshToken,
 ) -> bool:
-    """
-    Detect if a refresh token has been reused (already marked as used).
-
-    Args:
-        db: Database session
-        refresh_token: RefreshToken object to check
-
-    Returns:
-        True if token was already used (reuse detected), False otherwise
-    """
+    """Detect if a refresh token has been reused (already marked as used)."""
     return refresh_token.used
 
 
@@ -117,35 +147,31 @@ async def revoke_token_family(
     token: str,
     reason: str = "Token reuse detected",
 ) -> int:
-    """
-    Revoke entire token family for security.
+    """Revoke all unused refresh tokens for the user that owns ``token``."""
+    reused_token = await _get_refresh_token_row(db, token)
 
-    When token reuse is detected, all tokens in the family chain
-    (parent and descendants) are marked as used to prevent further use.
-
-    Args:
-        db: Database session
-        token: Token that was reused
-        reason: Reason for revocation (for logging)
-
-    Returns:
-        Number of tokens revoked
-    """
-    # Fetch the reused token
-    result = await db.execute(select(RefreshToken).where(RefreshToken.token == token))
-    reused_token = result.scalar_one_or_none()
+    if not reused_token:
+        # Also try treating input as an already-hashed PK (reuse path may pass hash).
+        result = await db.execute(select(RefreshToken).where(RefreshToken.token == token))
+        reused_token = result.scalar_one_or_none()
 
     if not reused_token:
         return 0
 
-    user_id = reused_token.user_id
+    return await revoke_all_refresh_tokens(db, reused_token.user_id, reason=reason)
 
-    # Mark all tokens for this user as used
-    # In a family-based approach, we revoke all tokens to be safe
+
+async def revoke_all_refresh_tokens(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    reason: str = "revoke all sessions",
+) -> int:
+    """Mark all unused refresh tokens for a user as used."""
     result = await db.execute(
         select(RefreshToken).where(
             RefreshToken.user_id == user_id,
-            RefreshToken.used == False,  # noqa: E712
+            ~RefreshToken.used,
         )
     )
     tokens_to_revoke = result.scalars().all()
@@ -156,9 +182,12 @@ async def revoke_token_family(
         count += 1
 
     await db.commit()
-
-    logger.warning(f"Token family revoked for user {user_id}: {reason}. Revoked {count} token(s)")
-
+    logger.warning(
+        "Refresh tokens revoked for user %s: %s. Revoked %s token(s)",
+        user_id,
+        reason,
+        count,
+    )
     return count
 
 
@@ -167,36 +196,21 @@ async def rotate_refresh_token(
     old_token_value: str,
     user_id: UUID,
 ) -> tuple[str, RefreshToken] | tuple[None, None]:
-    """
-    Rotate refresh token - mark old as used and create new one.
-
-    This is an atomic operation to prevent race conditions.
-
-    Args:
-        db: Database session
-        old_token_value: Current token to be rotated
-        user_id: User ID
-
-    Returns:
-        Tuple of (new_token_value, RefreshToken) if successful, (None, None) otherwise
-    """
-    # Mark old token as used
-    result = await db.execute(select(RefreshToken).where(RefreshToken.token == old_token_value))
-    old_token = result.scalar_one_or_none()
+    """Rotate refresh token — mark old as used and create new one."""
+    old_token = await _get_refresh_token_row(db, old_token_value)
 
     if not old_token:
         return None, None
 
     old_token.used = True
+    old_token_hash = old_token.token
 
-    # Create new token with old token as parent (for family tracking)
     new_token_value, new_token = await create_refresh_token(
         db=db,
         user_id=user_id,
-        parent_token=old_token_value,
+        parent_token=old_token_hash,
     )
 
-    # Commit both changes atomically
     await db.commit()
 
     logger.info(f"Rotated refresh token for user {user_id}")
@@ -208,18 +222,8 @@ async def revoke_refresh_token(
     db: AsyncSession,
     token_value: str,
 ) -> bool:
-    """
-    Revoke a single refresh token (mark as used).
-
-    Args:
-        db: Database session
-        token_value: Token to revoke
-
-    Returns:
-        True if revoked successfully, False if token not found
-    """
-    result = await db.execute(select(RefreshToken).where(RefreshToken.token == token_value))
-    token = result.scalar_one_or_none()
+    """Revoke a single refresh token (mark as used)."""
+    token = await _get_refresh_token_row(db, token_value)
 
     if not token:
         return False

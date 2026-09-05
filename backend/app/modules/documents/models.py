@@ -20,6 +20,12 @@ except ImportError:
     PGVECTOR_AVAILABLE = False
 
 
+DOCUMENT_READY_STATUSES: tuple[str, ...] = ("completed", "embedded")
+"""processing_status values where a CandidateDocument is fully usable by
+downstream features (extraction done; embedding may or may not have run
+yet, but both states mean the extracted structured data is ready)."""
+
+
 class CandidateDocument(Base):
     """Candidate document (CV, cover letter) with processing metadata."""
 
@@ -32,6 +38,7 @@ class CandidateDocument(Base):
     document_type: Mapped[str] = mapped_column(String(20), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     storage_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    mime_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
     file_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -47,6 +54,7 @@ class CandidateDocument(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class DocumentJob(Base):
@@ -106,12 +114,13 @@ class DocumentEmbedding(Base):
         # SQLite fallback - store as JSON text array
         _embedding_json: Mapped[str] = mapped_column("embedding", Text, nullable=False)
 
-        @property
+        @property  # type: ignore[no-redef]
         def embedding(self) -> list[float]:
             """Get embedding as list of floats."""
             if isinstance(self._embedding_json, list):
                 return self._embedding_json
-            return json.loads(self._embedding_json)
+            result: list[float] = json.loads(self._embedding_json)
+            return result
 
         @embedding.setter
         def embedding(self, value: list[float]) -> None:
@@ -120,3 +129,71 @@ class DocumentEmbedding(Base):
                 self._embedding_json = value
             else:
                 self._embedding_json = json.dumps(value)
+
+
+class CvChatSession(Base):
+    """CV-completeness chatbot conversation state (Decision 1/2)."""
+
+    __tablename__ = "cv_chat_sessions"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("candidate_documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    missing_fields_at_start: Mapped[list[str]] = mapped_column(
+        JsonDoc, default=list, nullable=False
+    )
+    fields_resolved: Mapped[list[str]] = mapped_column(JsonDoc, default=list, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CvChatMessage(Base):
+    """Single turn in a CV-completeness chat session."""
+
+    __tablename__ = "cv_chat_messages"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("cv_chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String(10), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    field_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    tool_call_result: Mapped[dict[str, Any] | None] = mapped_column(JsonDoc, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class CvFeedbackReport(Base):
+    """AI-generated CV improvement suggestions (Decision 3)."""
+
+    __tablename__ = "cv_feedback_reports"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("candidate_documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_role: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ats_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    strengths: Mapped[list[str]] = mapped_column(JsonDoc, default=list, nullable=False)
+    improvements: Mapped[list[str]] = mapped_column(JsonDoc, default=list, nullable=False)
+    rewritten_bullets: Mapped[list[dict[str, Any]]] = mapped_column(
+        JsonDoc, default=list, nullable=False
+    )
+    accepted_bullet_indices: Mapped[list[int]] = mapped_column(
+        JsonDoc, default=list, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )

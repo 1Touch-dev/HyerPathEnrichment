@@ -42,16 +42,20 @@ Hyrepath Enrichment uses **cookie-based authentication** with JWT tokens for sec
 - `/metrics` - Prometheus metrics (if exposed)
 
 **AUTHENTICATED (verified not required):**
-- `/users/me` - Current user info
+- `/auth/me` - Current user info, role, and permission pairs
 - `/auth/resend-verification` - Resend verification email
 - `/auth/logout` - End session
 - `/auth/delete-account` - Sign out (soft delete)
 
 **AUTHENTICATED + VERIFIED:**
-- `/enrich/*` - All enrichment endpoints
 - `/api/dsar` - Data subject access request
 - `/api/jobs/*` - Job management
-- All protected business logic
+- Candidate product endpoints
+
+**STAFF (verified and either assigned a role or superuser):**
+- `/enrich/*` - All enrichment endpoints
+- Staff API modules mounted behind the staff boundary
+- Frontend OSINT (`/osint/*`) and Desk (`/desk/*`) product doors
 
 ---
 
@@ -287,7 +291,7 @@ See [Google OAuth Setup Guide](./google-oauth-setup.md) for detailed instruction
    - `access_token` cookie
    - `refresh_token` cookie
 5. Frontend receives user data
-6. User redirected to home page
+6. User is redirected to the role-appropriate product home
 
 ### Google OAuth Flow
 
@@ -373,6 +377,10 @@ See [Google OAuth Setup Guide](./google-oauth-setup.md) for detailed instruction
 4. New tokens set in cookies
 5. User session continues seamlessly
 
+`POST /auth/refresh` returns the same success-envelope nesting as login:
+`data.user` contains the refreshed identity and `data.message` is
+`"Token refreshed successfully"`.
+
 **Security:** Refresh token reuse (already marked `used`) triggers security response (revoke all user tokens).
 
 ---
@@ -427,12 +435,20 @@ Login with email/password.
 {
   "success": true,
   "data": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "first_name": "John",
-    "last_name": "Doe",
-    "is_verified": true
-  }
+    "user": {
+      "id": "uuid",
+      "email": "user@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "is_verified": true,
+      "role_id": null,
+      "role_name": null,
+      "permissions": []
+    },
+    "message": "Login successful"
+  },
+  "message": null,
+  "meta": null
 }
 ```
 
@@ -469,8 +485,8 @@ Verify email with token from email.
 
 ### Authenticated Endpoints (Requires login)
 
-#### GET /users/me
-Get current user info.
+#### GET /auth/me
+Get the current user identity used for product-door routing.
 
 **Response:** 200 OK
 ```json
@@ -482,8 +498,18 @@ Get current user info.
     "first_name": "John",
     "last_name": "Doe",
     "is_verified": true,
-    "oauth_provider": null
-  }
+    "oauth_provider": null,
+    "role_id": "uuid-or-null",
+    "role_name": "recruiter",
+    "permissions": [
+      {
+        "resource": "brands",
+        "action": "read"
+      }
+    ]
+  },
+  "message": null,
+  "meta": null
 }
 ```
 

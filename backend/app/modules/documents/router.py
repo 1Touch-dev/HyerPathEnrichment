@@ -10,8 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import CurrentUser
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.dependencies.rate_limit import enforce_documents_upload_rate_limit
+from app.modules.documents.cv_chat_service import CvChatService
 from app.modules.documents.schemas import (
+    AcceptBulletRequest,
+    CvChatMessageRequest,
+    CvChatSessionResponse,
+    CvChatTurnResponse,
+    CvCompletenessResponse,
     CVDataResponse,
+    CvFeedbackRequest,
+    CvFeedbackResponse,
     DocumentDetailResponse,
     DocumentMetadata,
     DocumentUploadResponse,
@@ -30,6 +39,7 @@ router = APIRouter(prefix="/api/documents", tags=["documents"], route_class=Enve
     "/upload",
     response_model=DocumentUploadResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(enforce_documents_upload_rate_limit)],
 )
 async def upload_document(
     current_user: CurrentUser,
@@ -183,3 +193,127 @@ async def list_documents(
     """
     service = DocumentService(db)
     return await service.list_documents(current_user.id, limit)
+
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def delete_document(
+    document_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    """Delete a document and its associated data.
+
+    Deletes the document record, embeddings, and associated jobs.
+    Cascade delete handles embeddings automatically.
+
+    Args:
+        document_id: Document UUID
+        current_user: Authenticated user
+        db: Database session
+
+    Raises:
+        404: Document not found
+    """
+    service = DocumentService(db)
+    await service.delete_document(document_id, current_user.id)
+
+
+@router.post("/{document_id}/reprocess", response_model=DocumentUploadResponse)
+async def reprocess_document(
+    document_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> DocumentUploadResponse:
+    """Reprocess an existing document.
+
+    Creates a new processing job for an existing document.
+    Useful for reprocessing failed jobs or updating extracted data.
+
+    Args:
+        document_id: Document UUID
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Upload response with new job_id
+
+    Raises:
+        404: Document not found
+    """
+    service = DocumentService(db)
+    return await service.reprocess_document(document_id, current_user.id)
+
+
+@router.get("/{document_id}/completeness", response_model=CvCompletenessResponse)
+async def get_completeness(
+    document_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> CvCompletenessResponse:
+    """Missing-field completeness check (Decision 1). Drives the 'let's finish your CV' prompt."""
+    service = DocumentService(db)
+    return await service.get_completeness(document_id, current_user.id)
+
+
+@router.post("/{document_id}/cv-chat/sessions", response_model=CvChatSessionResponse)
+async def start_cv_chat_session(
+    document_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> CvChatSessionResponse:
+    """Start (or resume) the missing-info chatbot for a document."""
+    service = CvChatService(db)
+    return await service.start_session(document_id, current_user.id)
+
+
+@router.get("/cv-chat/sessions/{session_id}", response_model=CvChatSessionResponse)
+async def get_cv_chat_session(
+    session_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> CvChatSessionResponse:
+    """Fetch an owned CV-completeness chat session by id."""
+    service = CvChatService(db)
+    return await service.get_session(session_id, current_user.id)
+
+
+@router.post("/cv-chat/sessions/{session_id}/messages", response_model=CvChatTurnResponse)
+async def post_cv_chat_message(
+    session_id: str,
+    body: CvChatMessageRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> CvChatTurnResponse:
+    """One turn-based (non-streamed, Decision 2) chatbot exchange."""
+    service = CvChatService(db)
+    return await service.post_message(session_id, current_user.id, body.content)
+
+
+@router.post("/{document_id}/feedback", response_model=DocumentUploadResponse)
+async def request_cv_feedback(
+    document_id: str,
+    body: CvFeedbackRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> DocumentUploadResponse:
+    """Enqueue AI CV-improvement generation (Decision 3)."""
+    service = DocumentService(db)
+    return await service.request_cv_feedback(document_id, current_user.id, body.target_role)
+
+
+@router.get("/{document_id}/feedback", response_model=CvFeedbackResponse)
+async def get_cv_feedback(
+    document_id: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> CvFeedbackResponse:
+    """Latest CV-improvement report for a document."""
+    service = DocumentService(db)
+    return await service.get_latest_cv_feedback(document_id, current_user.id)
+
+
+@router.post("/{document_id}/feedback/{report_id}/accept", response_model=CvFeedbackResponse)
+async def accept_cv_feedback_bullet(
+    document_id: str,
+    report_id: str,
+    body: AcceptBulletRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> CvFeedbackResponse:
+    """Explicitly accept one rewritten bullet — the only way a suggestion is endorsed (Decision 3)."""
+    service = DocumentService(db)
+    return await service.accept_cv_feedback_bullet(
+        document_id, current_user.id, report_id, body.bullet_index
+    )

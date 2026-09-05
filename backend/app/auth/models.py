@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, JsonDoc
+
+if TYPE_CHECKING:
+    from app.modules.admin.models import Role
+    from app.modules.sessions.models import PracticeSession, QuestionAttempt
 
 
 class User(Base):
@@ -35,6 +39,22 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_superuser: Mapped[bool] = mapped_column(default=False, nullable=False)
 
+    # Admin Module: RBAC role assignment + MFA (phase2_admin_module.md §8.8)
+    role_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("roles.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    mfa_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    mfa_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
+    mfa_enrolled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Brand attribution (docs/adr/0019-tenancy-model.md): which brand storefront this
+    # candidate signed up through, if any. Presentation-only — NEVER used to filter
+    # any query or restrict which recruiter can act on this candidate. NULL means
+    # signed up directly (no storefront), or predates the Brand concept.
+    signup_brand_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("brands.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # Email verification
     verification_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
     verification_sent_at: Mapped[datetime | None] = mapped_column(
@@ -46,6 +66,19 @@ class User(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
 
+    # Recruiter-initiated actions (machine-2/09): "autonomous" lets a recruiter's
+    # "apply for candidate" action take effect immediately; "approval_required"
+    # (default) requires the candidate to approve a pending action first. Applies
+    # only to "apply for candidate" — "suggest role to candidate" is always
+    # presented to the candidate for review regardless of this setting, since a
+    # suggestion has no "immediate effect" to gate in the first place. See
+    # machine-2-parallel-tracks/09-recruiter-initiated-apply-and-suggest.md's
+    # Ambiguities resolved section for why default is approval_required, not
+    # autonomous.
+    recruiter_action_mode: Mapped[str] = mapped_column(
+        String(20), default="approval_required", nullable=False
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
@@ -55,6 +88,17 @@ class User(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+    # Relationships
+    practice_sessions: Mapped[list[PracticeSession]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    question_attempts: Mapped[list[QuestionAttempt]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    role: Mapped[Role | None] = relationship(lazy="joined")
 
 
 class OAuthAccount(Base):
@@ -142,7 +186,7 @@ class LoggedOutToken(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[UUID] = mapped_column(nullable=False, index=True)
-    token_jti: Mapped[str] = mapped_column(String(64), nullable=False, index=True, unique=True)
+    token_jti: Mapped[str] = mapped_column(String(128), nullable=False, index=True, unique=True)
 
     logged_out_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
