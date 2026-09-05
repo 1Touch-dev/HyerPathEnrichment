@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { CandidatePolicyLink, useAppShellAccess } from "@/components/layout/app-shell-access";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import type { JobMatch } from "@/src/lib/types";
 import { getApplyRedirectUrl } from "../api/client";
@@ -23,17 +24,18 @@ function scoreColor(score: number): string {
 }
 
 export function MatchCard({ match }: MatchCardProps) {
+  const { candidateMutationsAllowed } = useAppShellAccess();
   const markViewed = useMarkMatchViewed();
   const submitFeedback = useSubmitFeedback();
   const markApplied = useMarkApplied();
   const belowSimilarityThreshold = match.scoreBreakdown.below_similarity_threshold === true;
 
   useEffect(() => {
-    if (match.isNew) {
+    if (candidateMutationsAllowed && match.isNew) {
       markViewed.mutate(match.matchId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [match.matchId]);
+  }, [candidateMutationsAllowed, match.matchId]);
 
   return (
     <div className="relative rounded-lg border p-4">
@@ -78,9 +80,13 @@ export function MatchCard({ match }: MatchCardProps) {
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Button size="sm" asChild>
-          <a href={getApplyRedirectUrl(match.matchId)} target="_blank" rel="noopener noreferrer">
+          <CandidatePolicyLink
+            href={getApplyRedirectUrl(match.matchId)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Apply
-          </a>
+          </CandidatePolicyLink>
         </Button>
 
         <div className="flex items-center gap-2">

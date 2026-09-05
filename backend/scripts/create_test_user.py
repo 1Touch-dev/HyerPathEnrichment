@@ -16,12 +16,31 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
+
+
+_PROD_LIKE_ENVS = frozenset({"production", "staging"})
+_SUPERUSER_ALLOW_ENV = "ALLOW_E2E_SUPERUSER_BOOTSTRAP"
+
+
+def validate_bootstrap_context(*, app_env: str, is_superuser: bool) -> None:
+    normalized_env = app_env.strip().lower()
+    if normalized_env in _PROD_LIKE_ENVS:
+        raise RuntimeError("create_test_user.py is disabled when APP_ENV is staging or production")
+    if is_superuser and os.getenv(_SUPERUSER_ALLOW_ENV, "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
+        raise RuntimeError(
+            f"--is-superuser requires {_SUPERUSER_ALLOW_ENV}=1 so the non-production exception is explicit"
+        )
 
 
 async def _create_or_update_user(
@@ -62,7 +81,11 @@ async def _create_or_update_user(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create a verified test user for e2e integration tests")
+    from app.core.config import get_settings
+
+    parser = argparse.ArgumentParser(
+        description="Create a verified test user for e2e integration tests"
+    )
     parser.add_argument("--email", default="e2e-integration@example.com")
     parser.add_argument("--password", default="IntegrationTest123")
     parser.add_argument("--first-name", default="E2E")
@@ -74,6 +97,10 @@ def main() -> int:
         help="Create/update the user as a superuser (grants all admin RBAC permissions).",
     )
     args = parser.parse_args()
+    validate_bootstrap_context(
+        app_env=get_settings().app_env,
+        is_superuser=args.is_superuser,
+    )
 
     asyncio.run(
         _create_or_update_user(

@@ -6,10 +6,10 @@ every Batch-1 chunk, see plan)."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,12 @@ from app.models import InterviewQuestion
 from app.modules.admin.audit import record_admin_action
 from app.modules.admin.pagination import decode_cursor, encode_cursor
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import (
+    begin_idempotent_operation,
+    canonical_payload_hash,
+    complete_idempotent_operation,
+    require_idempotency_key,
+)
 
 router = APIRouter(prefix="/api/admin/questions", tags=["admin"], route_class=EnvelopeAPIRoute)
 
@@ -137,9 +143,27 @@ async def moderate_question(
     question_id: UUID,
     payload: ModerateQuestionRequest,
     request: Request,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     current_user: User = Depends(require_permission("questions", "moderate")),
     db: AsyncSession = Depends(get_db_session),
 ) -> AdminQuestionResponse:
+    normalized_key = require_idempotency_key("questions.moderate", idempotency_key)
+    state, replay = await begin_idempotent_operation(
+        db,
+        caller_user_id=current_user.id,
+        operation_id="questions.moderate",
+        idempotency_key=normalized_key,
+        request_hash=canonical_payload_hash(
+            {
+                "question_id": question_id,
+                "moderation_status": payload.moderation_status,
+                "reason": payload.reason,
+            }
+        ),
+    )
+    if replay is not None:
+        return AdminQuestionResponse.model_validate(replay.response_body["question"])
+
     question = await _get_question_or_404(db, question_id)
 
     before = {"moderation_status": question.moderation_status}
@@ -159,6 +183,14 @@ async def moderate_question(
         after=after,
         ip_address=get_client_ip(request),
     )
+    response = _to_response(question)
+    if state is not None:
+        await complete_idempotent_operation(
+            db,
+            state,
+            response_status=200,
+            response_body={"question": response.model_dump(mode="json")},
+        )
     await db.commit()
     await db.refresh(question)
-    return _to_response(question)
+    return response

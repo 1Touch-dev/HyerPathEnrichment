@@ -35,7 +35,7 @@ Follow this step-by-step tutorial to run your first enrichment.
 
 ### Step 1: Open the Console
 
-Navigate to `/app/enrich` in your browser. You'll see the enrichment console with an intake form.
+Staff users can navigate to `/osint` in the browser. You'll see the enrichment console with an intake form; candidates use the separate `/app` product.
 
 <!-- Screenshot: Console landing page with intake form -->
 
@@ -766,6 +766,6 @@ If you are an individual who wishes to opt out of enrichment:
 
 ---
 
-**Last updated**: July 30, 2026
+**Last updated**: September 2, 2026
 **Version**: 1.0
 **For technical documentation**, see `backend/docs/ARCHITECTURE.md`

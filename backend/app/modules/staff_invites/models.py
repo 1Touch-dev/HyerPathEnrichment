@@ -16,25 +16,27 @@ from app.database.base import Base
 
 
 class StaffInvite(Base):
-    """A pending invitation for an email address to join as staff (recruiter/intern/
-    team_owner) with a specific role. No org/brand association -- see this chunk's
-    file for why."""
+    """A recruiter-only staff invitation with no org/brand association."""
 
     __tablename__ = "staff_invites"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    # secrets.token_urlsafe(32): cryptographically random, URL-safe, ~43 chars -- not
-    # a sequential id or anything derivable from email, since this token is the
-    # entire bearer-credential for GET /api/staff-invites/{token} (public,
-    # unauthenticated) and for redeeming staff status at signup.
-    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
-    # The role to assign on acceptance. References Role.name from the seeded
-    # team_owner/recruiter rows (047_seed_system_roles) -- stored as a plain string,
-    # not a FK to admin_roles.id, because this module does not import from the admin
-    # module's models and because that RBAC track may not have landed yet when this
-    # chunk is implemented elsewhere (graceful-degradation posture).
+    # Transitional plaintext column. Current writes leave it NULL; revision
+    # 065 retains safe active values only for hardened restored-schema
+    # recovery, never to support a pre-hardening binary.
+    token: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True)
+    # Authoritative bearer-credential digest. Nullable only for the bounded
+    # restored-schema fallback described in repository.get_invite_by_token().
+    token_digest: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True, index=True
+    )
+    # Legacy display value retained during transition; redemption additionally
+    # requires role_id to reference the seeded recruiter role.
     role_name: Mapped[str] = mapped_column(String(64), nullable=False, default="recruiter")
+    role_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("roles.id", ondelete="RESTRICT"), nullable=True
+    )
     invited_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -47,6 +49,10 @@ class StaffInvite(Base):
         nullable=False,
     )
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    accepted_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

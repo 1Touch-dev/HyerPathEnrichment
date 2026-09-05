@@ -81,7 +81,9 @@ async def worker_document(db: AsyncSession, worker_user: User) -> CandidateDocum
 
 
 @pytest.fixture
-async def worker_job(db: AsyncSession, worker_user: User, worker_document: CandidateDocument) -> DocumentJob:
+async def worker_job(
+    db: AsyncSession, worker_user: User, worker_document: CandidateDocument
+) -> DocumentJob:
     job = DocumentJob(
         id=uuid4(),
         user_id=worker_user.id,
@@ -102,7 +104,13 @@ async def test_generate_cv_improvement_job_success(
         "ats_score": 82,
         "strengths": ["Strong technical depth"],
         "improvements": ["Quantify impact"],
-        "rewritten_bullets": [{"original": "Built stuff", "rewritten": "Built X, improving Y by 20%", "rationale": "metrics"}],
+        "rewritten_bullets": [
+            {
+                "original": "Built stuff",
+                "rewritten": "Built X, improving Y by 20%",
+                "rationale": "metrics",
+            }
+        ],
     }
     token_usage = {"input_tokens": 100, "output_tokens": 50}
 
@@ -116,9 +124,13 @@ async def test_generate_cv_improvement_job_success(
         ),
     ):
         mock_engine.dispose = AsyncMock()
-        await _generate_cv_improvement_job(str(worker_document.id), str(worker_job.id), "Backend Engineer")
+        await _generate_cv_improvement_job(
+            str(worker_document.id), str(worker_job.id), "Backend Engineer"
+        )
 
-    result = await db.execute(select(CvFeedbackReport).where(CvFeedbackReport.document_id == worker_document.id))
+    result = await db.execute(
+        select(CvFeedbackReport).where(CvFeedbackReport.document_id == worker_document.id)
+    )
     report = result.scalar_one()
     assert report.ats_score == 82
     assert report.strengths == ["Strong technical depth"]

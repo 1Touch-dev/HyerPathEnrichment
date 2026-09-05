@@ -2,23 +2,35 @@
 
 import Link from "next/link";
 import { cn } from "@/src/lib/utils";
-import { adminNav, allNavSections } from "./nav-config";
+import { PRODUCT_ROOTS, type Product } from "@/src/lib/product-doors";
+import type { NavSection } from "./nav-config";
+
+const NAV_FOCUS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 type AppNavRailProps = {
+  product: Product;
+  sections: NavSection[];
   pathname: string;
   matchesUnreadCount?: number;
-  isAdmin?: boolean;
 };
 
-export function AppNavRail({ pathname, matchesUnreadCount = 0, isAdmin = false }: AppNavRailProps) {
-  const sections = isAdmin ? [...allNavSections, adminNav] : allNavSections;
-
+export function AppNavRail({
+  product,
+  sections,
+  pathname,
+  matchesUnreadCount = 0,
+}: AppNavRailProps) {
   return (
     <aside className="hidden h-full w-[72px] flex-col items-center justify-between border-r border-border bg-card py-4 md:flex lg:hidden">
       <div className="flex w-full flex-col items-center gap-4">
         <Link
-          href="/app/enrich"
-          className="flex size-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-primary"
+          href={PRODUCT_ROOTS[product]}
+          aria-label="Hyrepath home"
+          className={cn(
+            "flex size-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-primary",
+            NAV_FOCUS,
+          )}
         >
           H
         </Link>
@@ -34,12 +46,15 @@ export function AppNavRail({ pathname, matchesUnreadCount = 0, isAdmin = false }
                   key={item.href}
                   href={item.href}
                   title={item.label}
+                  aria-label={item.label}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative flex h-11 items-center justify-center rounded-md text-muted-foreground transition-colors",
+                    NAV_FOCUS,
                     active ? "bg-secondary text-primary" : "hover:bg-muted hover:text-foreground",
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4" aria-hidden="true" />
                   {showUnreadBadge ? (
                     <span className="absolute right-3 top-2 size-2 rounded-full bg-destructive" />
                   ) : null}
@@ -49,7 +64,7 @@ export function AppNavRail({ pathname, matchesUnreadCount = 0, isAdmin = false }
         </nav>
       </div>
       <p className="px-2 text-center text-[11px] leading-4 text-subtle-foreground">
-        Public-only lookup
+        {product === "osint" ? "OSINT" : `${product[0].toUpperCase()}${product.slice(1)}`}
       </p>
     </aside>
   );

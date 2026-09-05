@@ -290,7 +290,12 @@ class TestDowngrades:
         _downgrade_to(sqlite_url, REV_JOB_SWIPE_ACTIONS)
         names = table_names(sqlite_url)
         assert "outreach_messages" not in names
-        assert {"cv_chat_sessions", "cv_feedback_reports", "portfolio_profiles", "job_swipe_actions"} <= names
+        assert {
+            "cv_chat_sessions",
+            "cv_feedback_reports",
+            "portfolio_profiles",
+            "job_swipe_actions",
+        } <= names
 
     def test_downgrade_029_job_swipe_actions_drops_only_that_table(self, sqlite_url: str):
         upgrade_head(sqlite_url)
@@ -356,7 +361,9 @@ def test_module2_migrations_upgrade_and_downgrade_cleanly(sqlite_url: str):
     (backend/tests/migration_helpers.py's upgrade_head, already imported by conftest.py).
     """
     upgrade_head(sqlite_url)
-    command.downgrade(alembic_config(sqlite_url), "024_push_subscriptions")  # back to just before Module 2
+    command.downgrade(
+        alembic_config(sqlite_url), "024_push_subscriptions"
+    )  # back to just before Module 2
     upgrade_head(sqlite_url)  # re-apply, proving idempotent forward path
 
     names = table_names(sqlite_url)

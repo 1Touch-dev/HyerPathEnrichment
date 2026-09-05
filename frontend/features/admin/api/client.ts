@@ -1,4 +1,5 @@
 import { parseResponseEnvelopeError } from "@/src/lib/api-envelope";
+import { withIdempotencyHeaders } from "@/src/lib/idempotency";
 import type {
   AdminAuditLogListResponse,
   AdminJobPosting,
@@ -57,7 +58,7 @@ export async function updateUserStatus(
 ): Promise<void> {
   const res = await fetch(`/api/admin/users/${userId}/status`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: withIdempotencyHeaders("admin-user-status", { "Content-Type": "application/json" }),
     body: JSON.stringify({ is_active: isActive, reason }),
   });
   if (!res.ok) throw new Error(`Failed to update user status: ${res.status}`);
@@ -105,7 +106,9 @@ export async function moderateJobPosting(
 ): Promise<AdminJobPosting> {
   const res = await fetch(`/api/admin/job-postings/${id}/moderate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: withIdempotencyHeaders("admin-job-posting-moderate", {
+      "Content-Type": "application/json",
+    }),
     body: JSON.stringify({ moderation_status: moderationStatus, reason }),
   });
   return unwrap(res, "Failed to moderate job posting");
@@ -142,7 +145,9 @@ export async function moderateOutreachMessage(
 ): Promise<void> {
   const res = await fetch(`/api/admin/outreach/${id}/moderate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: withIdempotencyHeaders("admin-outreach-moderate", {
+      "Content-Type": "application/json",
+    }),
     body: JSON.stringify({ admin_blocked: adminBlocked, reason }),
   });
   if (!res.ok) throw new Error(`Failed to moderate outreach message: ${res.status}`);
@@ -255,7 +260,9 @@ export async function moderatePortfolioProfile(
 ): Promise<AdminPortfolioProfile> {
   const res = await fetch(`/api/admin/portfolio/${profileId}/moderate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: withIdempotencyHeaders("admin-portfolio-moderate", {
+      "Content-Type": "application/json",
+    }),
     body: JSON.stringify({ admin_hidden: adminHidden, reason }),
   });
   return unwrap(res, "Failed to moderate portfolio profile");
@@ -264,18 +271,6 @@ export async function moderatePortfolioProfile(
 export async function fetchFeatureFlags(): Promise<FeatureFlag[]> {
   const res = await fetch("/api/admin/feature-flags");
   return unwrap(res, "Failed to fetch feature flags");
-}
-
-export async function upsertFeatureFlag(
-  key: string,
-  payload: Partial<FeatureFlag>,
-): Promise<FeatureFlag> {
-  const res = await fetch(`/api/admin/feature-flags/${key}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return unwrap(res, "Failed to update feature flag");
 }
 
 export async function fetchQueuesOverview(): Promise<QueueSnapshot[]> {
@@ -324,8 +319,12 @@ export async function confirmMfaEnrollment(code: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to confirm MFA: ${res.status}`);
 }
 
-export async function disableMfa(): Promise<void> {
-  const res = await fetch("/api/admin/mfa/disable", { method: "POST" });
+export async function disableMfa(code: string): Promise<void> {
+  const res = await fetch("/api/admin/mfa/disable", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
   if (!res.ok) throw new Error(`Failed to disable MFA: ${res.status}`);
 }
 
@@ -379,7 +378,9 @@ export async function decideReviewQueueItem(
 ): Promise<AdminReviewQueueItem> {
   const res = await fetch(`/api/admin/review-queue/${id}/decide`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: withIdempotencyHeaders("admin-review-queue-decide", {
+      "Content-Type": "application/json",
+    }),
     body: JSON.stringify({ status, review_notes: reviewNotes }),
   });
   return unwrap(res, "Failed to decide review queue item");
@@ -409,7 +410,9 @@ export async function moderateDocument(
 ): Promise<AdminDocument> {
   const res = await fetch(`/api/admin/documents/${id}/moderate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: withIdempotencyHeaders("admin-document-moderate", {
+      "Content-Type": "application/json",
+    }),
     body: JSON.stringify({ action, reason }),
   });
   return unwrap(res, "Failed to moderate document");

@@ -11,6 +11,8 @@ keeping the same call shape and behavior the plan describes.
 
 from __future__ import annotations
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.auth.models import User
 from app.modules.interview_scheduling.ics_builder import build_google_calendar_link
 from app.modules.interview_scheduling.models import InterviewSchedule
@@ -19,7 +21,6 @@ from app.modules.job_matching import push
 from app.modules.job_matching.models import JobMatch, JobPosting
 from app.modules.job_matching.repository import list_subscriptions_for_user
 from app.services.email_service import EmailTemplate, get_email_service
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _to_response(schedule: InterviewSchedule) -> InterviewScheduleResponse:

@@ -16,7 +16,11 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.api
     environment:
+      APP_NAME: ${APP_NAME:-Hyrepath Enrichment Backend}
+      APP_ENV: ${APP_ENV:-development}
       API_TOKEN: ${API_TOKEN:-change-me}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       # Worker queue routing - must match tier-workers configuration
@@ -75,6 +79,8 @@ services:
       SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
       SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
       SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
+      OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
+      OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
       # OpenAI API for embeddings (document search)
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # Admin Module: RBAC, audit log, feature flags, cached aggregates, MFA, impersonation
@@ -93,7 +99,8 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      # Readiness (Postgres + Redis + Alembic head) — matches docs/deployment.md /ready probe
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/ready"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -105,7 +112,11 @@ services:
     extra_hosts:
       - "host.docker.internal:${MULTILOGIN_HOST_IP:-host-gateway}"
     environment:
+      APP_NAME: ${APP_NAME:-Hyrepath Enrichment Backend}
+      APP_ENV: ${APP_ENV:-development}
       API_TOKEN: ${API_TOKEN:-}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
@@ -137,6 +148,8 @@ services:
       EMAIL_VERIFY_SMTP_DELAY_SECONDS: ${EMAIL_VERIFY_SMTP_DELAY_SECONDS:-6}
       REACHER_URL: ${REACHER_URL:-}
       REACHER_FROM_EMAIL: ${REACHER_FROM_EMAIL:-}
+      OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
+      OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
       PROXY_MODE: ${PROXY_MODE:-none}
       SCRAPOXY_URL: ${SCRAPOXY_URL:-}
       CROSSLINKED_SEARCH_ENGINES: ${CROSSLINKED_SEARCH_ENGINES:-yahoo}
@@ -266,6 +279,10 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.worker
     environment:
+      APP_NAME: ${APP_NAME:-Hyrepath Enrichment Backend}
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       EMAIL_ENABLED: ${EMAIL_ENABLED:-true}
@@ -274,6 +291,8 @@ services:
       SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
       SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
       SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
+      OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
+      OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
       WORKER_STARTUP_DELAY: "0"
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
@@ -301,9 +320,15 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.worker
     environment:
+      APP_NAME: ${APP_NAME:-Hyrepath Enrichment Backend}
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-use-openssl-rand-hex-32}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
       CLEANUP_INTERVAL_SECONDS: ${CLEANUP_INTERVAL_SECONDS:-300}
+      OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
+      OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
       WORKER_STARTUP_DELAY: "0"
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}

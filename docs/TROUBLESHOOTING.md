@@ -414,7 +414,8 @@ print(f'Ended: {job.ended_at}')
 docker compose restart worker
 ```
 
-**Related:** Frontend polls every 2 seconds for up to 5 minutes. After timeout, user must manually refresh. See `frontend/app/jobs/[id]/page.tsx`.
+**Related:** Frontend polls every 2 seconds for up to 5 minutes. After timeout, the user must
+manually refresh. See `frontend/app/osint/jobs/[id]/page.tsx`.
 
 ---
 

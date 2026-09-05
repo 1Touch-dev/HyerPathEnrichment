@@ -2,8 +2,8 @@
 
 Hyrepath Enrichment backend — architecture reference for the FastAPI service under `backend/`.
 
-**Version:** 0.4 (August 2026)
-**Last verified against code:** 2026-09-01
+**Version:** 0.5 (September 2026)
+**Last verified against code:** 2026-09-03
 **Repo layout:** `HyerEnrichment/backend/` (split from the Next.js frontend in `frontend/`)
 
 ---
@@ -63,6 +63,9 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Module 2 shipped a CV upload widget | It did not — `frontend/app/app/documents/DocumentsView.tsx` only lists and links into existing documents; it explicitly assumes a generic upload widget that, as of this writing, still does not exist anywhere in `frontend/` (same gap `phase2_module1.md` §11.10 already flagged, still open after Module 2 and Module 3). |
 | Admin RBAC replaces `is_superuser` | It does not. `is_superuser` remains the highest-privilege override; `Role`/`Permission` only add narrower grants for non-superuser admins (ADR 0015, Decision 1). |
 | Admin audit log and compliance audit log are the same table | They are not. `admin_audit_logs` (admin-write trail) is distinct from `compliance.models.AuditLog` (candidate compliance/DSAR trail) — see `phase2_admin_module.md` §5. |
+| Fallback admin audit rows satisfy privileged-mutation evidence | They do not. The frozen contract requires exactly one explicit row in the mutation transaction, with `request_id` and `outcome`; fallback capture is anomaly detection only. Default retention is 1,825 days (ADR 0021). |
+| Impersonation JWT claims are sufficient authorization | They are not. The frozen contract is candidate-only and `view_only`; every impersonated request must validate the session/JTI, expiry/revocation, real actor, and current permission (ADR 0021). Request-path enforcement exists in `get_current_user_from_cookie` / `_validate_impersonation_request` and the impersonation start/end service (candidate-only, MFA, allowlisted read-only operations). Residual gap: `ImpersonationSession.revoked_at` is checked on the request path but no production writer sets it yet (end uses `ended_at`). |
+| Feature flags can safely be mutated today | They cannot. No business consumer exists, so mutations remain disabled pending an implemented evaluator and rollback owner (ADR 0015). |
 | Prometheus golden-signals panel always populated | Only when `PROMETHEUS_QUERY_URL` is set; otherwise the System Health page shows self-checks only and an explanatory empty state (§8.12, §12.4). |
 | `LLM_MODE=stub` silences all LLM spend | It does not, for every caller — `question_generator.py` and `feedback_generator.py` (Module 3, like Module 2's `cv_chat_service.py`/`generate_cv_improvement()` before them) call `api.openai.com` directly via raw `httpx`, bypassing `LLM_MODE`/LiteLLM entirely. They require `OPENAI_API_KEY` to be genuinely unset to produce no spend, not `LLM_MODE=stub` — see `.env.example`'s "Direct OpenAI usage" block. |
 | Interview practice has a dedicated worker container by default | It does not — `feedback`/`question_generation` run on the existing generic `worker` container's fixed-priority queue list by default (`rq_worker.py`), same as Module 2's `outreach_generation`. An optional `worker-interview-ai` overlay (`docker-compose.week2-ai.yml`) isolates them, but requires an operator to explicitly add that compose file — see ADR 0017 Decision 4. |
@@ -565,7 +568,7 @@ Copy `backend/.env.example` → `backend/.env`.
 
 `CORS_ALLOWED_ORIGINS` — comma-separated origin allowlist for `CORSMiddleware` (`app/main.py`); falls back to `FRONTEND_URL`, then `http://localhost:3000`, when unset. `allow_methods` and `allow_headers` are an explicit tightened set (`GET, POST, PUT, PATCH, DELETE, OPTIONS`; `Authorization, Content-Type`), not wildcards, since `allow_credentials=True` forbids a wildcard origin/credentials combination anyway. Preflight responses are cached client-side for 600s (`max_age=600`).
 
-The Admin Module UI (`/app/admin/*` routes) is served from this same Next.js frontend, not a separate host/subdomain — so no additional entry in `CORS_ALLOWED_ORIGINS` is needed for admin traffic. If the admin console is ever split out to its own origin, add it to the allowlist alongside the candidate-facing frontend origin.
+The Desk UI (`/desk/*` routes) is served from this same Next.js frontend, not a separate host/subdomain — so no additional entry in `CORS_ALLOWED_ORIGINS` is needed for staff traffic. If Desk is ever split out to its own origin, add it to the allowlist alongside the candidate-facing frontend origin.
 
 ---
 
@@ -613,9 +616,9 @@ python scripts/setup_changedetection_watches.py create https://acme.example/care
 python scripts/setup_changedetection_watches.py list
 ```
 
-Flow: changedetection detects a page change → `POST /api/signals/changedetection` → API persists to `signals` table → forwards `{source, watch_id, title, url, timestamp}` to `NOTIFY_WEBHOOK_URL` when configured → frontend displays at `/signals` route.
+Flow: changedetection detects a page change → `POST /api/signals/changedetection` → API persists to `signals` table → forwards `{source, watch_id, title, url, timestamp}` to `NOTIFY_WEBHOOK_URL` when configured → frontend displays at `/desk/signals`.
 
-**Frontend UI:** Authenticated route at `/app/signals` displays signals list with pagination, external links, and empty state. Uses `@tanstack/react-query` for data fetching and auto-refresh. Components: `features/signals/components/SignalsTable.tsx`, `features/signals/hooks/useSignalList.ts`.
+**Frontend UI:** Staff route at `/desk/signals` displays signals list with pagination, external links, and empty state. Uses `@tanstack/react-query` for data fetching and auto-refresh. Components: `features/signals/components/SignalsTable.tsx`, `features/signals/hooks/useSignalList.ts`.
 
 ### Structured logging
 
@@ -727,7 +730,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Candidate portfolio (Module 2) | `app/modules/portfolio/` | Real, implemented per `phase2_module2.md`. Only Module 2 feature with an unauthenticated public route (`GET /api/portfolio/public/{slug}`, ADR 0014) — served by a separate `public_router` with no auth dependency, and a distinct `PublicPortfolioResponse` schema with no `user_id` field. |
 | Job swipe deck (Module 2) | `app/modules/job_swipe/` | Real, implemented per `phase2_module2.md`. Read-only against Module 1's `job_matches`/`job_postings` (joined in `repository.py`) — never writes to either table; only writes its own `job_swipe_actions`. Depends on Module 1 shipping first. |
 | Personalized outreach (Module 2) | `app/modules/outreach/`, `app/clients/perplexity.py` | Real, implemented per `phase2_module2.md`. New external dependency: Perplexity Sonar API (ADR 0014), degrades to a generic draft on failure. Every message starts `status="draft"`; "send" appends the mandatory CAN-SPAM disclosure footer and marks `sent`, but does not transmit email itself — the candidate copies/sends it externally (v1 scope; see `outreach/service.py`). |
-| Admin Module (RBAC, audit, flags, impersonation) | `app/modules/admin/`, 4 new `users` columns | Real, scaffolded per `phase2_admin_module.md` (ADR 0015). `is_superuser` unchanged and still authoritative; `Role`-based permissions are an additive, narrower grant checked only when `is_superuser` is false. No new Docker service or queue — runs inside `api`, reads existing Redis/RQ queues read-only. |
+| Admin Module (RBAC, audit, flags, impersonation) | `app/modules/admin/`, 4 new `users` columns | Real, scaffolded per `phase2_admin_module.md` (ADR 0015). `is_superuser` remains authoritative and RBAC is database-resolved per request. Revisions 063–066 add contract storage for request-correlated audit outcomes, candidate-only view-only impersonation revocation, secure staff-invite transition fields, and privileged idempotency. Request-path enforcement for candidate-only `view_only` impersonation exists (ADR 0021): start requires MFA + candidate eligibility; `_validate_impersonation_request` re-checks session/JTI, expiry, actor permission, and allowlisted GETs on every impersonated request. Residual: `revoked_at` column is enforced on read but unused as a writer (session end sets `ended_at`). Feature-flag mutations remain disabled pending a consumer; P4/four-eyes operations are unavailable (ADR 0021). |
 | Billing (Stripe, candidate freemium) | `app/modules/billing/`, `app/integrations/stripe/` | Implemented (ADR 0020). Default `ENABLE_BILLING=false` (everyone premium — not free-tier). `STRIPE_MODE=live\|mock`; mock allowed only outside staging/production. Mock checkout/portal post signed webhooks through the real `/api/billing/webhooks/stripe` handler. `current_period_end` prefers Basil `items.data[0]`. |
 | Interview question bank + selection (Module 3) | `app/modules/questions/`, `app/services/question_selector.py`, `app/services/question_generator.py` | Real, implemented per `phase2_module3.md`. `question_selector.py`'s recency-exclusion query now reads `question_attempts` (the table `session_manager.add_attempt()` actually writes), not the never-populated `interview_attempts` table it read before — see `InterviewAttempt` deprecation note below. Personalized questions (`InterviewQuestion.personalized_for_user_id`) are excluded from every other user's rotation (ADR 0017). |
 | Interview feedback question-text lookup fix (Module 3) | `app/workers/tasks/feedback.py` | Real, implemented per `phase2_module3.md`. Previously read a nonexistent `attempt_metadata["question_text"]` key and always silently got `None`; now looks up `InterviewQuestion.question_text` via `question_attempts.question_id`'s new FK constraint (migration `033`). |
@@ -738,6 +741,62 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Admin surfaces for Module 4 (`applications`, `interview_schedules`, `manual_job_entries`) | `app/modules/admin/applications_router.py`, `app/modules/admin/interview_schedules_router.py`, `app/modules/admin/manual_job_entries_router.py` | Implemented — `applications` is read-only visibility into the application tracker; `interview_schedules` and `manual_job_entries` add moderate actions; permissions seeded by migration `046`. |
 
 Use this table when reviewing PRs, running `GRILLME.md` sessions, or planning the next delivery slice.
+
+### Staff-invite digest rollout
+
+Revisions 065–066 require a stop-the-world maintenance window for API traffic.
+Mixed API versions are unsupported. `INT-RELEASE` owns execution and evidence
+for this handoff; schema/application owners provide the checks but do not
+generalize this exception into the repository-wide deployment workflow.
+
+Invite-issuance idempotency records retain a Fernet-sealed response token for
+their 24-hour replay window, keyed by the application `SECRET_KEY`. A
+`SECRET_KEY` rotation must retain the old key or be coordinated only after that
+24-hour window has expired. The current application does not implement
+multi-key decrypt overlap; rotating sooner makes outstanding response replays
+fail closed.
+
+Release gate (all boxes are mandatory and ordered):
+
+- [ ] Stop every old API instance. Invite creation, public invite lookup, and
+      invite redemption are unavailable for the maintenance window.
+- [ ] Verify at the load balancer and process/container layer that no old API
+      process serves traffic; record the API-drain acknowledgement.
+- [ ] Apply revisions 065 then 066 while API traffic remains stopped.
+- [ ] Start only the digest-first/new-redemption application version.
+- [ ] Pass health checks plus security smoke: new issuance stores only a
+      digest, digest lookup succeeds, revoked/unsafe-role redemption fails,
+      email binding holds, and successful legacy redemption clears plaintext.
+- [ ] Run acknowledged cleanup from `backend/`:
+      `python scripts/cleanup_staff_invite_plaintext.py
+      --api-drain-acknowledged --new-code-smoke-passed`.
+
+Rollback gate:
+
+- [ ] Stop and drain API/invite traffic before changing artifact or schema.
+- [ ] Never start a pre-hardening/old API binary for staff-invite creation,
+      public lookup, or redemption against revision 065 or any restored
+      schema.
+- [ ] Resume traffic only with a prebuilt artifact verified against the target
+      schema to retain this hardened digest-first, recruiter-only,
+      email-bound, revocation-aware implementation.
+- [ ] Run health and invite-security smoke before reopening traffic.
+- [ ] If no verified compatible artifact exists, keep API/invite paths stopped
+      and roll forward.
+
+The repository cannot verify the deployed artifact, load-balancer drain, or
+traffic reopening. `INT-RELEASE` must record those three external controls as
+mandatory evidence. A schema downgrade alone is never approval to run an old
+binary.
+
+The default cleanup clears accepted/expired/revoked legacy plaintext. Safe
+active legacy plaintext is retained only for restored-schema recovery by the
+verified hardened compatibility artifact. It is cleared on redemption, after
+expiry by a later cleanup, or explicitly with
+`--include-active --schema-recovery-window-closed` once recovery closes. The
+cleanup command refuses to run without the drain and smoke acknowledgements,
+and refuses active cleanup without schema-recovery acknowledgement. Do not add
+cleanup to an automatically applied migration.
 
 ---
 

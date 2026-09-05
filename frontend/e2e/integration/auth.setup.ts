@@ -42,16 +42,28 @@ setup("authenticate against live backend", async ({ page }) => {
 
   // The real register -> verify-email -> login flow requires clicking a link
   // sent by email. For integration tests we skip straight to a verified
-  // user by writing the DB row directly (mirrors backend/tests fixtures),
-  // then log in over HTTP like a normal client to obtain real cookies.
+  // staff user by writing the DB row directly (mirrors backend/tests fixtures),
+  // then log in over HTTP like a normal client to obtain real cookies. This
+  // suite exercises staff-only OSINT routes; role-specific coverage is separate.
   execFileSync(
     pythonExecutable(),
-    ["scripts/create_test_user.py", "--email", TEST_EMAIL, "--password", TEST_PASSWORD],
+    [
+      "scripts/create_test_user.py",
+      "--email",
+      TEST_EMAIL,
+      "--password",
+      TEST_PASSWORD,
+      "--is-superuser",
+    ],
     {
       cwd: BACKEND_ROOT,
       stdio: ["ignore", "pipe", "inherit"],
       // Host .env may be production-like; scripts only need DB access.
-      env: { ...process.env, APP_ENV: "development", COOKIE_SECURE: "false" },
+      env: {
+        ...process.env,
+        APP_ENV: "development",
+        COOKIE_SECURE: "false",
+      },
     },
   );
 

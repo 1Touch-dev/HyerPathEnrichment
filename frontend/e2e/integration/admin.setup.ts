@@ -58,7 +58,12 @@ setup("authenticate as superuser against live backend", async ({ page }) => {
       cwd: BACKEND_ROOT,
       stdio: ["ignore", "pipe", "inherit"],
       // Host .env may be production-like; scripts only need DB access.
-      env: { ...process.env, APP_ENV: "development", COOKIE_SECURE: "false" },
+      env: {
+        ...process.env,
+        APP_ENV: "development",
+        COOKIE_SECURE: "false",
+        ALLOW_E2E_SUPERUSER_BOOTSTRAP: "1",
+      },
     },
   );
 

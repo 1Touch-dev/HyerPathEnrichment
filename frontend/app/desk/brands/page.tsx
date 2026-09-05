@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/providers/auth-provider";
 import { parseResponseEnvelopeError, unwrapEnvelopeData } from "@/src/lib/api-envelope";
 import {
   parseBrandLandingConfig,
@@ -25,6 +26,8 @@ import {
   type BrandLandingCopy,
   type ParsedBrandLandingConfig,
 } from "@/src/lib/brand-landing-config";
+import { withIdempotencyHeaders } from "@/src/lib/idempotency";
+import { hasPermission } from "@/src/lib/product-doors";
 import type { AdminBrand, AdminBrandCreate, AdminBrandUpdate } from "@/src/lib/types";
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
@@ -131,6 +134,10 @@ async function readBrandResponse(res: Response): Promise<AdminBrand> {
 
 export default function AdminBrandsPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canWriteBrands = hasPermission(user, { resource: "brands", action: "write" });
+  const canDeleteBrands = hasPermission(user, { resource: "brands", action: "delete" });
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-brands"],
     queryFn: async () => {
@@ -150,7 +157,9 @@ export default function AdminBrandsPage() {
     mutationFn: async (payload: AdminBrandCreate) => {
       const res = await fetch("/api/admin/brands", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withIdempotencyHeaders("admin-brand-create", {
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify(payload),
       });
       return readBrandResponse(res);
@@ -165,7 +174,9 @@ export default function AdminBrandsPage() {
     mutationFn: async ({ brandId, payload }: { brandId: string; payload: AdminBrandUpdate }) => {
       const res = await fetch(`/api/admin/brands/${brandId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: withIdempotencyHeaders("admin-brand-update", {
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify(payload),
       });
       return readBrandResponse(res);
@@ -180,7 +191,9 @@ export default function AdminBrandsPage() {
     mutationFn: async ({ brandId, reason }: { brandId: string; reason?: string }) => {
       const res = await fetch(`/api/admin/brands/${brandId}/deactivate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withIdempotencyHeaders("admin-brand-deactivate", {
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify(reason ? { reason } : {}),
       });
       return readBrandResponse(res);
@@ -195,6 +208,7 @@ export default function AdminBrandsPage() {
     mutationFn: async (brandId: string) => {
       const res = await fetch(`/api/admin/brands/${brandId}/reactivate`, {
         method: "POST",
+        headers: withIdempotencyHeaders("admin-brand-reactivate"),
       });
       return readBrandResponse(res);
     },
@@ -219,19 +233,25 @@ export default function AdminBrandsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Brands</h1>
-        <Button
-          onClick={() => {
-            createMutation.reset();
-            setCreateOpen(true);
-          }}
-        >
-          Create brand
-        </Button>
+        {canWriteBrands ? (
+          <Button
+            onClick={() => {
+              createMutation.reset();
+              setCreateOpen(true);
+            }}
+          >
+            Create brand
+          </Button>
+        ) : null}
       </div>
       {!brands.length ? (
         <EmptyState
           title="No brands yet"
-          description="Create a brand to publish a landing page and manage its config."
+          description={
+            canWriteBrands
+              ? "Create a brand to publish a landing page and manage its config."
+              : "Brands available to your account will appear here."
+          }
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -254,16 +274,18 @@ export default function AdminBrandsPage() {
                   Created {new Date(brand.createdAt).toLocaleString()}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      updateMutation.reset();
-                      setEditing(brand);
-                    }}
-                  >
-                    Edit
-                  </Button>
+                  {canWriteBrands ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        updateMutation.reset();
+                        setEditing(brand);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  ) : null}
                   {brand.isActive ? (
                     <Button asChild size="sm" variant="outline">
                       <a href={`/b/${brand.slug}`} target="_blank" rel="noreferrer">
@@ -271,7 +293,7 @@ export default function AdminBrandsPage() {
                       </a>
                     </Button>
                   ) : null}
-                  {brand.isActive ? (
+                  {canDeleteBrands && brand.isActive ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -282,7 +304,8 @@ export default function AdminBrandsPage() {
                     >
                       Deactivate
                     </Button>
-                  ) : (
+                  ) : null}
+                  {canDeleteBrands && !brand.isActive ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -291,7 +314,7 @@ export default function AdminBrandsPage() {
                     >
                       {reactivateMutation.isPending ? "Reactivating..." : "Reactivate"}
                     </Button>
-                  )}
+                  ) : null}
                 </div>
                 {reactivateMutation.isError && reactivateMutation.variables === brand.id ? (
                   <p className="text-sm text-destructive">
@@ -306,57 +329,67 @@ export default function AdminBrandsPage() {
         </div>
       )}
 
-      <BrandFormDialog
-        mode="create"
-        open={createOpen}
-        isPending={createMutation.isPending}
-        submitError={createMutation.error instanceof Error ? createMutation.error.message : null}
-        onOpenChange={(open) => {
-          if (!open) createMutation.reset();
-          setCreateOpen(open);
-        }}
-        onSubmit={(payload) => createMutation.mutate(payload as AdminBrandCreate)}
-      />
+      {canWriteBrands ? (
+        <>
+          <BrandFormDialog
+            mode="create"
+            open={createOpen}
+            isPending={createMutation.isPending}
+            submitError={
+              createMutation.error instanceof Error ? createMutation.error.message : null
+            }
+            onOpenChange={(open) => {
+              if (!open) createMutation.reset();
+              setCreateOpen(open);
+            }}
+            onSubmit={(payload) => createMutation.mutate(payload as AdminBrandCreate)}
+          />
 
-      <BrandFormDialog
-        mode="edit"
-        brand={editing}
-        open={editing !== null}
-        isPending={updateMutation.isPending}
-        submitError={updateMutation.error instanceof Error ? updateMutation.error.message : null}
-        onOpenChange={(open) => {
-          if (!open) {
-            updateMutation.reset();
-            setEditing(null);
-          }
-        }}
-        onSubmit={(payload) => {
-          if (!editing) return;
-          updateMutation.mutate({ brandId: editing.id, payload });
-        }}
-      />
+          <BrandFormDialog
+            mode="edit"
+            brand={editing}
+            open={editing !== null}
+            isPending={updateMutation.isPending}
+            submitError={
+              updateMutation.error instanceof Error ? updateMutation.error.message : null
+            }
+            onOpenChange={(open) => {
+              if (!open) {
+                updateMutation.reset();
+                setEditing(null);
+              }
+            }}
+            onSubmit={(payload) => {
+              if (!editing) return;
+              updateMutation.mutate({ brandId: editing.id, payload });
+            }}
+          />
+        </>
+      ) : null}
 
-      <DeactivateBrandDialog
-        brand={deactivating}
-        open={deactivating !== null}
-        isPending={deactivateMutation.isPending}
-        submitError={
-          deactivateMutation.error instanceof Error ? deactivateMutation.error.message : null
-        }
-        onOpenChange={(open) => {
-          if (!open) {
-            deactivateMutation.reset();
-            setDeactivating(null);
+      {canDeleteBrands ? (
+        <DeactivateBrandDialog
+          brand={deactivating}
+          open={deactivating !== null}
+          isPending={deactivateMutation.isPending}
+          submitError={
+            deactivateMutation.error instanceof Error ? deactivateMutation.error.message : null
           }
-        }}
-        onConfirm={(reason) => {
-          if (!deactivating) return;
-          deactivateMutation.mutate({
-            brandId: deactivating.id,
-            reason: reason || undefined,
-          });
-        }}
-      />
+          onOpenChange={(open) => {
+            if (!open) {
+              deactivateMutation.reset();
+              setDeactivating(null);
+            }
+          }}
+          onConfirm={(reason) => {
+            if (!deactivating) return;
+            deactivateMutation.mutate({
+              brandId: deactivating.id,
+              reason: reason || undefined,
+            });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

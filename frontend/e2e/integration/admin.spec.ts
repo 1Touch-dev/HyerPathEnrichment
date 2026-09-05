@@ -1,14 +1,5 @@
 import { test, expect } from "@playwright/test";
 
-/**
- * QA-000 / QA-002 — Desk URLs are the stable targets (CTR-URL).
- * T-E2E-01 /desk/system-health Self-checks
- * T-E2E-02 /app/admin 307 → /desk/system-health
- * T-E2E-03 recruiter owner bounce is unit-tested (AdminGuard.test.tsx)
- * T-E2E-04 candidate /desk bounce is unit-tested
- * T-E2E-05 impersonation hrefs are unit-tested (ImpersonationBanner.test.tsx)
- */
-
 const BACKEND_URL = (process.env.BACKEND_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
 async function pollBackendHealth(maxAttempts = 60, intervalMs = 2000): Promise<void> {
@@ -36,10 +27,10 @@ test.beforeAll(async () => {
   await pollBackendHealth();
 });
 
-test.describe("Desk Module pages (live backend, superuser session)", () => {
-  test("/app/admin redirects to /desk system health, no error state", async ({ page }) => {
-    await page.goto("/app/admin");
-    await expect(page).toHaveURL(/\/desk\/system-health$/, { timeout: 15_000 });
+test.describe("Desk pages (live backend, superuser session)", () => {
+  test("/desk renders the owner landing without an error state", async ({ page }) => {
+    await page.goto("/desk");
+    await expect(page).toHaveURL(/\/desk$/, { timeout: 15_000 });
     await expect(page.getByRole("heading", { name: "Self-checks" })).toBeVisible();
     await expect(page.getByText("System health unavailable")).toHaveCount(0);
   });

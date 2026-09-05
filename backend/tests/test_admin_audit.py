@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import FastAPI, Request
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
+from starlette.responses import JSONResponse
 
+from app.core.logging import scrub_sensitive_data
+from app.modules.admin.audit import _build_fallback_action
 from app.modules.admin.models import AdminAuditLog
 
 # NOTE: no module-level `pytestmark = pytest.mark.asyncio` — this file mixes
@@ -34,8 +40,8 @@ async def test_record_admin_action_persists_entry(db_session, seed_user):
 
     result = await db_session.execute(select(AdminAuditLog).where(AdminAuditLog.id == entry.id))
     persisted = result.scalar_one()
-    assert persisted.before == {"is_active": True}
-    assert persisted.after == {"is_active": False}
+    assert persisted.before == scrub_sensitive_data({"is_active": True})
+    assert persisted.after == scrub_sensitive_data({"is_active": False})
 
 
 # INDIRECT (judgment call): §9.2's own sketch is explicitly illustrative — its
@@ -75,7 +81,7 @@ def test_fallback_middleware_logs_uncaptured_mutation(
             result = await session.execute(
                 select(AdminAuditLog).where(
                     AdminAuditLog.captured_by == "fallback",
-                    AdminAuditLog.action == f"{method.lower()}_{path}",
+                    AdminAuditLog.action == _build_fallback_action(method, path),
                 )
             )
             return result.scalars().all()
@@ -126,10 +132,14 @@ async def test_explicit_audit_call_suppresses_fallback_logging(client, superuser
     record_admin_action (the normal, non-mocked path), the fallback middleware
     must not also write a second, redundant 'unclassified' row for the same
     request."""
-    response = client.put(
-        "/api/admin/feature-flags/normal_flow_flag",
-        json={"enabled": True, "value": None, "description": "normal probe"},
-        headers=auth_headers(superuser.id),
+    request_id = "audit-explicit-mfa-enrollment"
+    response = client.post(
+        "/api/admin/mfa/enroll",
+        headers={
+            **auth_headers(superuser.id),
+            "X-Request-ID": request_id,
+            "Idempotency-Key": "audit-explicit-mfa-enrollment",
+        },
     )
     assert response.status_code == 200
 
@@ -137,9 +147,113 @@ async def test_explicit_audit_call_suppresses_fallback_logging(client, superuser
 
     async with SessionLocal() as session:
         result = await session.execute(
-            select(AdminAuditLog).where(
-                AdminAuditLog.target_id == "normal_flow_flag",
-                AdminAuditLog.captured_by == "fallback",
-            )
+            select(AdminAuditLog).where(AdminAuditLog.request_id == request_id)
         )
-        assert result.scalars().all() == []
+        rows = result.scalars().all()
+
+    assert len(rows) == 1
+    entry = rows[0]
+    assert entry.captured_by == "explicit"
+    assert entry.actor_user_id == superuser.id
+    assert entry.action == "mfa.enrollment_started"
+    assert entry.target_type == "user"
+    assert entry.target_id == str(superuser.id)
+    assert entry.outcome == "success"
+    assert entry.request_id == request_id
+
+
+async def test_concurrent_requests_keep_explicit_and_fallback_capture_isolated(
+    seed_user,
+    superuser,
+):
+    from app.core.logging import RequestContextMiddleware
+    from app.database.session import get_db_session_context
+    from app.modules.admin.audit import AdminAuditFallbackMiddleware, record_admin_action
+
+    concurrent_app = FastAPI()
+    concurrent_app.add_middleware(RequestContextMiddleware)
+    concurrent_app.add_middleware(AdminAuditFallbackMiddleware)
+    both_started = asyncio.Event()
+    explicit_recorded = asyncio.Event()
+    arrival_count = 0
+    arrival_lock = asyncio.Lock()
+
+    async def rendezvous() -> None:
+        nonlocal arrival_count
+        async with arrival_lock:
+            arrival_count += 1
+            if arrival_count == 2:
+                both_started.set()
+        await both_started.wait()
+
+    @concurrent_app.post("/api/admin/concurrency-explicit")
+    async def explicit(request: Request):
+        request.state.user_id = seed_user.id
+        await rendezvous()
+        async with get_db_session_context() as session:
+            await record_admin_action(
+                session,
+                actor_user_id=seed_user.id,
+                action="audit.concurrency_explicit",
+                target_type="audit_probe",
+                target_id="explicit",
+                request_id=request.headers["x-request-id"],
+                outcome="success",
+            )
+            await session.commit()
+        explicit_recorded.set()
+        return {"ok": True}
+
+    @concurrent_app.post("/api/admin/concurrency-fallback")
+    async def fallback(request: Request):
+        request.state.user_id = superuser.id
+        await rendezvous()
+        await explicit_recorded.wait()
+        return JSONResponse({"detail": "denied"}, status_code=403)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=concurrent_app),
+        base_url="http://test",
+    ) as client:
+        explicit_response, fallback_response = await asyncio.gather(
+            client.post(
+                "/api/admin/concurrency-explicit",
+                headers={"X-Request-ID": "audit-concurrent-explicit"},
+            ),
+            client.post(
+                "/api/admin/concurrency-fallback",
+                headers={"X-Request-ID": "audit-concurrent-fallback"},
+            ),
+        )
+
+    assert explicit_response.status_code == 200
+    assert fallback_response.status_code == 403
+
+    async with get_db_session_context() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(AdminAuditLog).where(
+                        AdminAuditLog.request_id.in_(
+                            ["audit-concurrent-explicit", "audit-concurrent-fallback"]
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert len(rows) == 2
+    by_request = {row.request_id: row for row in rows}
+    explicit_row = by_request["audit-concurrent-explicit"]
+    assert explicit_row.actor_user_id == seed_user.id
+    assert explicit_row.outcome == "success"
+    assert explicit_row.captured_by == "explicit"
+    assert explicit_row.action == "audit.concurrency_explicit"
+
+    fallback_row = by_request["audit-concurrent-fallback"]
+    assert fallback_row.actor_user_id == superuser.id
+    assert fallback_row.outcome == "denied"
+    assert fallback_row.captured_by == "fallback"
+    assert fallback_row.action == _build_fallback_action("POST", "/api/admin/concurrency-fallback")

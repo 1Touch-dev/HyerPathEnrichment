@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
 import pytest
 from fastapi import APIRouter
@@ -16,8 +15,6 @@ from app.core.responses import success_envelope
 from app.enrichers import MaigretEnricher, SherlockEnricher, SocialAnalyzerEnricher
 from app.main import app
 from tests.envelope_helpers import assert_error, assert_success
-
-AUTH_HEADERS = {"Authorization": "Bearer change-me", "X-Test-User-ID": str(uuid4())}
 
 
 def test_health_success_envelope() -> None:
@@ -34,10 +31,10 @@ def test_unauthorized_error_envelope() -> None:
     assert body["meta"] is None
 
 
-def test_not_found_error_envelope() -> None:
+def test_not_found_error_envelope(staff_auth_headers: dict[str, str]) -> None:
     client = TestClient(app)
     body = assert_error(
-        client.get("/enrich/missing-job-id", headers=AUTH_HEADERS),
+        client.get("/enrich/missing-job-id", headers=staff_auth_headers),
         404,
         "NOT_FOUND",
     )
@@ -45,10 +42,10 @@ def test_not_found_error_envelope() -> None:
     assert body["meta"] == {"job_id": "missing-job-id"}
 
 
-def test_validation_error_envelope() -> None:
+def test_validation_error_envelope(staff_auth_headers: dict[str, str]) -> None:
     client = TestClient(app)
     body = assert_error(
-        client.post("/enrich/sync", headers=AUTH_HEADERS, json={}),
+        client.post("/enrich/sync", headers=staff_auth_headers, json={}),
         422,
         "VALIDATION_ERROR",
     )
@@ -56,7 +53,11 @@ def test_validation_error_envelope() -> None:
     assert isinstance(body["error"]["details"], list)
 
 
-async def test_rate_limit_error_envelope(monkeypatch: pytest.MonkeyPatch, db: AsyncSession) -> None:
+async def test_rate_limit_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+    db: AsyncSession,
+    staff_auth_headers: dict[str, str],
+) -> None:
     from app.core.config import get_settings
     from app.modules.enrichment.models import JobRecord
 
@@ -79,11 +80,11 @@ async def test_rate_limit_error_envelope(monkeypatch: pytest.MonkeyPatch, db: As
     try:
         for _ in range(2):
             data = assert_success(
-                client.post("/enrich/sync", headers=AUTH_HEADERS, json=body_payload)
+                client.post("/enrich/sync", headers=staff_auth_headers, json=body_payload)
             )
             created_job_ids.append(data["id"])
         body = assert_error(
-            client.post("/enrich/sync", headers=AUTH_HEADERS, json=body_payload),
+            client.post("/enrich/sync", headers=staff_auth_headers, json=body_payload),
             429,
             "RATE_LIMIT_EXCEEDED",
         )

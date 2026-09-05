@@ -2,6 +2,14 @@ import { defineConfig, devices } from "@playwright/test";
 
 process.env.FRONTEND_USE_MOCKS = process.env.FRONTEND_USE_MOCKS ?? "true";
 
+const playwrightPort = Number(process.env.PLAYWRIGHT_PORT ?? "3100");
+
+if (!Number.isInteger(playwrightPort) || playwrightPort < 1 || playwrightPort > 65_535) {
+  throw new Error("PLAYWRIGHT_PORT must be an integer between 1 and 65535");
+}
+
+const playwrightBaseURL = `http://127.0.0.1:${playwrightPort}`;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -10,7 +18,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: playwrightBaseURL,
     trace: "on-first-retry",
   },
   projects: [
@@ -54,9 +62,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
-    url: "http://127.0.0.1:3000",
-    reuseExistingServer: !process.env.CI,
+    command: `npm run dev -- --hostname 127.0.0.1 --port ${playwrightPort}`,
+    url: playwrightBaseURL,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "true",
     timeout: 120_000,
     env: {
       ...process.env,

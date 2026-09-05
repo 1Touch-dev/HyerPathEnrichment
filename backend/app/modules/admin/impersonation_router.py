@@ -6,9 +6,11 @@ repository helper to call without editing an already-merged file's body."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +22,12 @@ from app.dependencies.rate_limit import enforce_admin_impersonation_start_rate_l
 from app.modules.admin import impersonation, repository
 from app.modules.admin.models import ImpersonationSession
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import (
+    begin_idempotent_operation,
+    canonical_payload_hash,
+    complete_idempotent_operation,
+    require_idempotency_key,
+)
 from app.modules.admin.schemas import (
     ImpersonationStartRequest,
     ImpersonationStartResponse,
@@ -30,18 +38,23 @@ router = APIRouter(prefix="/api/admin/impersonation", tags=["admin"], route_clas
 
 
 async def _get_active_session(
-    db: AsyncSession, *, admin_user_id: UUID, target_user_id: UUID
+    db: AsyncSession,
+    *,
+    session_id: UUID,
+    admin_user_id: UUID,
+    target_user_id: UUID,
 ) -> ImpersonationSession | None:
     result = await db.execute(
-        select(ImpersonationSession)
-        .where(
+        select(ImpersonationSession).where(
+            ImpersonationSession.id == session_id,
             ImpersonationSession.admin_user_id == admin_user_id,
             ImpersonationSession.target_user_id == target_user_id,
             ImpersonationSession.ended_at.is_(None),
+            ImpersonationSession.revoked_at.is_(None),
+            ImpersonationSession.expires_at > datetime.now(UTC),
         )
-        .order_by(ImpersonationSession.started_at.desc())
     )
-    return result.scalars().first()
+    return result.scalar_one_or_none()
 
 
 async def _forbid_while_impersonating(request: Request) -> None:
@@ -65,10 +78,22 @@ async def start_impersonation(
     payload: ImpersonationStartRequest,
     request: Request,
     response: Response,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     current_user: User = Depends(require_permission("impersonation", "start")),
     db: AsyncSession = Depends(get_db_session),
 ) -> ImpersonationStartResponse:
-    return await impersonation.start_impersonation(
+    normalized_key = require_idempotency_key("impersonation.started", idempotency_key)
+    state, replay = await begin_idempotent_operation(
+        db,
+        caller_user_id=current_user.id,
+        operation_id="impersonation.started",
+        idempotency_key=normalized_key,
+        request_hash=canonical_payload_hash({"user_id": user_id, "reason": payload.reason}),
+    )
+    if replay is not None:
+        return ImpersonationStartResponse.model_validate(replay.response_body["impersonation"])
+
+    result = await impersonation.start_impersonation(
         db,
         admin=current_user,
         target_user_id=user_id,
@@ -77,6 +102,17 @@ async def start_impersonation(
         response=response,
         ip_address=get_client_ip(request),
     )
+    if state is not None:
+        await complete_idempotent_operation(
+            db,
+            state,
+            response_status=200,
+            response_body={
+                "impersonation": result.model_dump(mode="json"),
+            },
+        )
+        await db.commit()
+    return result
 
 
 @router.post("/end", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -84,25 +120,42 @@ async def end_impersonation(
     request: Request,
     response: Response,
     current_user: VerifiedUser,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     admin_user_id = getattr(request.state, "impersonated_by", None)
     if admin_user_id is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not currently impersonating")
+    token_jti = getattr(request.state, "token_jti", None)
+    if token_jti is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid impersonation session")
 
-    session = await _get_active_session(
-        db, admin_user_id=admin_user_id, target_user_id=current_user.id
+    normalized_key = require_idempotency_key("impersonation.ended", idempotency_key)
+    state, replay = await begin_idempotent_operation(
+        db,
+        caller_user_id=admin_user_id,
+        operation_id="impersonation.ended",
+        idempotency_key=normalized_key,
+        request_hash=canonical_payload_hash({"jti": token_jti}),
     )
-    if session is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Impersonation session not found")
+    if replay is not None:
+        return
 
     await impersonation.end_impersonation(
         db,
         admin_user_id=admin_user_id,
-        jti=session.token_jti,
+        jti=token_jti,
         response=response,
         ip_address=get_client_ip(request),
     )
+    if state is not None:
+        await complete_idempotent_operation(
+            db,
+            state,
+            response_status=204,
+            response_body={},
+        )
+        await db.commit()
 
 
 @router.get("/status", response_model=ImpersonationStatusResponse)
@@ -121,9 +174,17 @@ async def get_impersonation_status(
             expires_at=None,
         )
 
+    session_id = getattr(request.state, "impersonation_session_id", None)
+    if session_id is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid impersonation session")
     session = await _get_active_session(
-        db, admin_user_id=admin_user_id, target_user_id=current_user.id
+        db,
+        session_id=session_id,
+        admin_user_id=admin_user_id,
+        target_user_id=current_user.id,
     )
+    if session is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Impersonation session is not active")
     admin = await repository.get_user_by_id(db, admin_user_id)
     return ImpersonationStatusResponse(
         is_impersonating=True,

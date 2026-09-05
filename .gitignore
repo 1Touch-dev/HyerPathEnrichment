@@ -3,6 +3,9 @@ node_modules/
 .venv/
 venv/
 
+# Orphan uv lockfile — CI/Docker use pip install -e (not uv sync); do not commit
+backend/uv.lock
+
 # Build / output
 dist/
 build/
@@ -17,6 +20,11 @@ coverage/
 !.env.example
 backend/.env
 frontend/.env.local
+
+# Session cookie jars (never commit; may contain JWTs / refresh tokens)
+**/cookies.txt
+backend/docker/cookies.txt
+backend/cookies.txt
 
 # Logs & OS
 *.log

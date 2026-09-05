@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.core.logging import scrub_sensitive_data
 from tests.envelope_helpers import assert_error, assert_success
 
 pytestmark = pytest.mark.asyncio
@@ -40,7 +41,7 @@ async def test_create_role_writes_audit_log(db_session, superuser):
         )
     )
     entry = result.scalar_one()
-    assert entry.after["name"] == "audited-role"
+    assert entry.after == scrub_sensitive_data({"name": "audited-role", "description": None})
 
 
 async def test_attach_permission_to_role_happy_path(db_session, superuser):

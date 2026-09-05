@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { LogIn, ShieldCheck } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { EmptyState } from "@/components/console/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,10 +22,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/providers/auth-provider";
+import { hasPermission } from "@/src/lib/product-doors";
 import type { AdminUser } from "@/src/lib/types";
-import { fetchRoles } from "../api/client";
-import { adminKeys } from "../api/keys";
-import { useAdminUsers, useAssignUserRole, useUpdateUserStatus } from "../hooks/useAdminUsers";
+import { useAdminUsers, useUpdateUserStatus } from "../hooks/useAdminUsers";
 import { ImpersonateUserDialog } from "./ImpersonateUserDialog";
 import { RoleBadge } from "./RoleBadge";
 
@@ -45,26 +43,24 @@ function toIsActive(filter: StatusFilter): boolean | null {
  */
 export function UsersTable() {
   const { user: currentUser } = useAuth();
-  const isCurrentUserSuperuser = !!currentUser?.is_superuser;
-  // impersonation:start is granted to the "admin" role and to superusers
-  // (Decision 1's ROLE_PERMISSIONS seed) — the frontend has no per-user
-  // permission list, only isSuperuser/roleName, so this mirrors that seed.
-  const canImpersonate = isCurrentUserSuperuser || currentUser?.role_name === "admin";
+  const canImpersonate = hasPermission(currentUser, {
+    resource: "impersonation",
+    action: "start",
+  });
+  const canReactivate = hasPermission(currentUser, {
+    resource: "users",
+    action: "suspend",
+  });
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
-  const [editingRoleUserId, setEditingRoleUserId] = useState<string | null>(null);
   const [impersonateTarget, setImpersonateTarget] = useState<AdminUser | null>(null);
 
   const cursor = cursorStack[cursorStack.length - 1];
   const isActive = toIsActive(statusFilter);
 
   const { data, isLoading } = useAdminUsers(cursor, isActive);
-  const rolesQuery = useQuery({ queryKey: adminKeys.roles(), queryFn: fetchRoles });
   const updateStatus = useUpdateUserStatus();
-  const assignRole = useAssignUserRole();
-
-  const roleOptions = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
 
   function handleFilterChange(value: string) {
     setStatusFilter(value as StatusFilter);
@@ -81,24 +77,20 @@ export function UsersTable() {
     setCursorStack((stack) => (stack.length > 1 ? stack.slice(0, -1) : stack));
   }
 
-  function handleToggleStatus(targetUser: AdminUser) {
-    const nextIsActive = !targetUser.isActive;
-    const confirmed = window.confirm(
-      nextIsActive ? `Reactivate ${targetUser.email}?` : `Suspend ${targetUser.email}?`,
-    );
+  function handleReactivate(targetUser: AdminUser) {
+    const confirmed = window.confirm(`Reactivate ${targetUser.email}?`);
     if (!confirmed) return;
-    updateStatus.mutate({ userId: targetUser.id, isActive: nextIsActive });
-  }
-
-  function handleAssignRole(targetUser: AdminUser, roleId: string) {
-    assignRole.mutate({ userId: targetUser.id, roleId: roleId === "none" ? null : roleId });
-    setEditingRoleUserId(null);
+    updateStatus.mutate({ userId: targetUser.id, isActive: true });
   }
 
   const items = data?.items ?? [];
 
   return (
     <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted-foreground">
+        User deactivation is temporarily unavailable until ADR21 typed confirmation and step-up
+        controls are implemented.
+      </p>
       <div className="flex items-center justify-between gap-4">
         <Select value={statusFilter} onValueChange={handleFilterChange}>
           <SelectTrigger className="w-[180px]">
@@ -147,29 +139,10 @@ export function UsersTable() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {editingRoleUserId === targetUser.id ? (
-                      <Select
-                        defaultValue={targetUser.roleId ?? "none"}
-                        onValueChange={(value) => handleAssignRole(targetUser, value)}
-                      >
-                        <SelectTrigger className="w-[140px]" aria-label="Select role">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No role</SelectItem>
-                          {roleOptions.map((role) => (
-                            <SelectItem key={role.id} value={role.id}>
-                              {role.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <RoleBadge
-                        isSuperuser={targetUser.isSuperuser}
-                        roleName={targetUser.roleName}
-                      />
-                    )}
+                    <RoleBadge
+                      isSuperuser={targetUser.isSuperuser}
+                      roleName={targetUser.roleName}
+                    />
                   </TableCell>
                   <TableCell>
                     <Badge variant={targetUser.mfaEnabled ? "success" : "outline"}>
@@ -178,26 +151,14 @@ export function UsersTable() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={updateStatus.isPending}
-                        onClick={() => handleToggleStatus(targetUser)}
-                      >
-                        {targetUser.isActive ? "Suspend" : "Reactivate"}
-                      </Button>
-                      {isCurrentUserSuperuser ? (
+                      {!targetUser.isActive && canReactivate ? (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            setEditingRoleUserId((current) =>
-                              current === targetUser.id ? null : targetUser.id,
-                            )
-                          }
+                          disabled={updateStatus.isPending}
+                          onClick={() => handleReactivate(targetUser)}
                         >
-                          <ShieldCheck className="mr-1 size-3" />
-                          Assign role
+                          Reactivate
                         </Button>
                       ) : null}
                       {canImpersonate ? (

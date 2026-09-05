@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { User, Settings, LogOut, Mail } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
-export function UserMenu() {
+export function UserMenu({ settingsHref = "/app/settings" }: { settingsHref?: string }) {
   const router = useRouter();
   const { user, logout } = useAuth();
 
@@ -68,7 +68,7 @@ export function UserMenu() {
             <Button
               variant="ghost"
               className="w-full justify-start"
-              onClick={() => router.push("/app/settings")}
+              onClick={() => router.push(settingsHref)}
             >
               <Settings className="mr-2 h-4 w-4" />
               Settings

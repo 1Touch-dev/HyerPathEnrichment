@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { CandidatePolicyLink } from "@/components/layout/app-shell-access";
 import type { SwipeCard as SwipeCardData, SwipeDirection } from "@/src/lib/types";
 import { getApplyRedirectUrl } from "@/features/job-matching/api/client";
 import { useMarkApplied } from "@/features/job-matching/hooks/useMatches";
@@ -161,14 +162,14 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
               Draft outreach
             </Button>
             <Button size="sm" asChild>
-              <a
+              <CandidatePolicyLink
                 href={getApplyRedirectUrl(card.matchId)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
               >
                 Apply
-              </a>
+              </CandidatePolicyLink>
             </Button>
             <div
               className="flex items-center gap-2"

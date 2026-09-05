@@ -239,42 +239,47 @@ def run_smoke(base_url: str) -> bool:
             f"status={resp.status_code}",
         )
 
-        # --- Feature flag create/flip/read-back (cache invalidation) ---
-        flag_key = "admin-smoke-flag"
-        resp = client.put(
-            f"/api/admin/feature-flags/{flag_key}", json={"enabled": True, "description": "smoke"}
+        # --- Feature flags: administration-only reads, mutations disabled ---
+        flag_keys = {
+            method: f"admin-smoke-read-only-{method.lower()}-{uuid.uuid4().hex}"
+            for method in ("POST", "PUT", "PATCH", "DELETE")
+        }
+        mutation_probes = (
+            (
+                "POST",
+                "/api/admin/feature-flags",
+                {"key": flag_keys["POST"], "enabled": True, "description": "smoke"},
+            ),
+            (
+                "PUT",
+                f"/api/admin/feature-flags/{flag_keys['PUT']}",
+                {"enabled": True, "description": "smoke"},
+            ),
+            (
+                "PATCH",
+                f"/api/admin/feature-flags/{flag_keys['PATCH']}",
+                {"enabled": True},
+            ),
+            ("DELETE", f"/api/admin/feature-flags/{flag_keys['DELETE']}", None),
         )
-        _record(
-            "PUT /api/admin/feature-flags/{key} (enable)",
-            resp.status_code == 200,
-            f"status={resp.status_code}",
-        )
+        for method, path, payload in mutation_probes:
+            resp = client.request(method, path, json=payload)
+            error = resp.json().get("error", {})
+            _record(
+                f"{method} {path} (read-only)",
+                resp.status_code == 405 and error.get("code") == "FEATURE_FLAGS_READ_ONLY",
+                f"status={resp.status_code} code={error.get('code')}",
+            )
 
         resp = client.get("/api/admin/feature-flags")
         flags = resp.json().get("data", []) if resp.status_code == 200 else []
-        enabled_now = next((f["enabled"] for f in flags if f["key"] == flag_key), None)
-        _record(
-            "GET /api/admin/feature-flags (reflects enabled=True)",
-            enabled_now is True,
-            f"enabled_now={enabled_now}",
-        )
-
-        resp = client.put(
-            f"/api/admin/feature-flags/{flag_key}", json={"enabled": False, "description": "smoke"}
+        submitted_keys_exist = sorted(
+            flag["key"] for flag in flags if flag["key"] in flag_keys.values()
         )
         _record(
-            "PUT /api/admin/feature-flags/{key} (disable)",
-            resp.status_code == 200,
-            f"status={resp.status_code}",
-        )
-
-        resp = client.get("/api/admin/feature-flags")
-        flags = resp.json().get("data", []) if resp.status_code == 200 else []
-        disabled_now = next((f["enabled"] for f in flags if f["key"] == flag_key), None)
-        _record(
-            "GET /api/admin/feature-flags (reflects enabled=False, no stale cache)",
-            disabled_now is False,
-            f"enabled_now={disabled_now}",
+            "GET /api/admin/feature-flags (submitted keys absent)",
+            resp.status_code == 200 and not submitted_keys_exist,
+            f"status={resp.status_code} submitted_keys_exist={submitted_keys_exist}",
         )
 
         # --- MFA enroll + confirm ---

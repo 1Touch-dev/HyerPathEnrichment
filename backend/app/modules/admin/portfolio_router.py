@@ -7,9 +7,10 @@ pattern), since this module has no dedicated schemas.py of its own."""
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +23,12 @@ from app.dependencies.rate_limit import enforce_admin_moderation_rate_limit
 from app.modules.admin.audit import record_admin_action
 from app.modules.admin.pagination import decode_cursor, encode_cursor
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import (
+    begin_idempotent_operation,
+    canonical_payload_hash,
+    complete_idempotent_operation,
+    require_idempotency_key,
+)
 from app.modules.portfolio.models import PortfolioItem, PortfolioProfile
 
 router = APIRouter(prefix="/api/admin/portfolio", tags=["admin"], route_class=EnvelopeAPIRoute)
@@ -175,9 +182,27 @@ async def moderate_portfolio_profile(
     profile_id: UUID,
     payload: ModeratePortfolioRequest,
     request: Request,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     current_user: User = Depends(require_permission("portfolio", "moderate")),
     db: AsyncSession = Depends(get_db_session),
 ) -> AdminPortfolioProfileResponse:
+    normalized_key = require_idempotency_key("portfolio.moderate", idempotency_key)
+    state, replay = await begin_idempotent_operation(
+        db,
+        caller_user_id=current_user.id,
+        operation_id="portfolio.moderate",
+        idempotency_key=normalized_key,
+        request_hash=canonical_payload_hash(
+            {
+                "profile_id": profile_id,
+                "admin_hidden": payload.admin_hidden,
+                "reason": payload.reason,
+            }
+        ),
+    )
+    if replay is not None:
+        return AdminPortfolioProfileResponse.model_validate(replay.response_body["profile"])
+
     profile = (
         await db.execute(select(PortfolioProfile).where(PortfolioProfile.id == profile_id))
     ).scalar_one_or_none()
@@ -201,6 +226,14 @@ async def moderate_portfolio_profile(
         after=after,
         ip_address=get_client_ip(request),
     )
+    response = _profile_to_response(profile)
+    if state is not None:
+        await complete_idempotent_operation(
+            db,
+            state,
+            response_status=200,
+            response_body={"profile": response.model_dump(mode="json")},
+        )
     await db.commit()
     await db.refresh(profile)
-    return _profile_to_response(profile)
+    return response
