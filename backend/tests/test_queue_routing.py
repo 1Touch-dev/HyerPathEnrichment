@@ -1,10 +1,30 @@
 """Tests for queue routing logic in tier-specific worker architecture."""
 
+import sys
+from unittest.mock import MagicMock
+
 import pytest
 
 from app.core.config import get_settings
 from app.domain.enums import RequestedTier
-from app.workers.queue import get_queue_name_for_tiers, get_worker_queue
+from app.workers.queue import (
+    AUXILIARY_WORKER_QUEUES,
+    QUEUE_AUDIO_CLEANUP,
+    QUEUE_CV_EXTRACTION,
+    QUEUE_DOCUMENT,
+    QUEUE_EMBEDDING,
+    QUEUE_FEEDBACK,
+    QUEUE_INTERVIEW_REMINDERS,
+    QUEUE_JOB_MATCHING,
+    QUEUE_LINKEDIN_SEND_BATCH,
+    QUEUE_OUTREACH,
+    QUEUE_QUESTION_GENERATION,
+    QUEUE_PRIORITIES,
+    register_scheduled_jobs,
+    get_queue_name_for_tiers,
+    get_worker_queue,
+    get_worker_queue_names,
+)
 
 
 def test_single_queue_mode_tier1(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -114,6 +134,52 @@ def test_get_worker_queue_per_tier_mode_tier234(monkeypatch: pytest.MonkeyPatch)
     assert queue.name == "tier234"
 
 
+def test_get_worker_queue_names_single_mode_includes_auxiliary_and_enrichment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WORKER_QUEUE_MODE", "single")
+    monkeypatch.delenv("WORKER_TARGET_QUEUE", raising=False)
+    get_settings.cache_clear()
+
+    assert get_worker_queue_names() == [*AUXILIARY_WORKER_QUEUES, "enrichment"]
+
+
+def test_auxiliary_queue_order_matches_declared_priority_model() -> None:
+    assert AUXILIARY_WORKER_QUEUES == (
+        QUEUE_FEEDBACK,
+        QUEUE_INTERVIEW_REMINDERS,
+        QUEUE_OUTREACH,
+        QUEUE_LINKEDIN_SEND_BATCH,
+        QUEUE_DOCUMENT,
+        QUEUE_CV_EXTRACTION,
+        QUEUE_QUESTION_GENERATION,
+        QUEUE_EMBEDDING,
+        QUEUE_AUDIO_CLEANUP,
+    )
+    assert QUEUE_JOB_MATCHING not in AUXILIARY_WORKER_QUEUES
+
+
+def test_auxiliary_queue_order_descends_by_priority_metadata() -> None:
+    priorities = [QUEUE_PRIORITIES[name] for name in AUXILIARY_WORKER_QUEUES]
+    assert priorities == sorted(priorities, reverse=True)
+
+
+def test_get_worker_queue_names_per_tier_tier1_isolated(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WORKER_QUEUE_MODE", "per_tier")
+    monkeypatch.setenv("WORKER_TARGET_QUEUE", "tier1")
+    get_settings.cache_clear()
+
+    assert get_worker_queue_names() == ["tier1"]
+
+
+def test_get_worker_queue_names_per_tier_tier234_isolated(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WORKER_QUEUE_MODE", "per_tier")
+    monkeypatch.setenv("WORKER_TARGET_QUEUE", "tier234")
+    get_settings.cache_clear()
+
+    assert get_worker_queue_names() == ["tier234"]
+
+
 def test_get_worker_queue_per_tier_mode_missing_target_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -182,3 +248,41 @@ def test_should_split_into_children_per_tier_mode_single_tier_group(
     # Only tier234
     assert not should_split_into_children([RequestedTier.tier2, RequestedTier.tier3])
     assert not should_split_into_children([RequestedTier.tier4])
+
+
+def test_register_scheduled_jobs_routes_audio_cleanup_and_job_matching_to_declared_workers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scheduled_calls: list[dict[str, object]] = []
+    logged_extra: dict[str, object] = {}
+
+    class _FakeScheduler:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        def cron(self, *args: object, **kwargs: object) -> None:
+            scheduled_calls.append(kwargs)
+
+    fake_rq_scheduler_module = MagicMock()
+    fake_rq_scheduler_module.Scheduler = _FakeScheduler
+    monkeypatch.setitem(sys.modules, "rq_scheduler", fake_rq_scheduler_module)
+    monkeypatch.setattr("app.workers.queue.get_redis_connection", lambda: object())
+    monkeypatch.setattr(
+        "app.workers.queue.get_settings",
+        lambda: type("Settings", (), {"job_matching_scan_cron": "0 6 * * *"})(),
+    )
+
+    fake_logger = MagicMock()
+    fake_logger.info.side_effect = lambda *args, **kwargs: logged_extra.update(
+        kwargs.get("extra", {})
+    )
+    monkeypatch.setattr("app.workers.queue.logger", fake_logger)
+
+    register_scheduled_jobs()
+
+    assert {call["id"]: call["queue_name"] for call in scheduled_calls} == {
+        "audio_cleanup_daily": QUEUE_AUDIO_CLEANUP,
+        "job_matching_fan_out_daily": QUEUE_JOB_MATCHING,
+    }
+    assert logged_extra["audio_cleanup_consumer"] == "worker"
+    assert logged_extra["job_matching_consumer"] == "worker-job-matching"

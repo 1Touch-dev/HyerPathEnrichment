@@ -9,7 +9,7 @@ exercised for `sync`/`async`/`compliance`/`auth` scopes (see `test_api_envelopes
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -65,12 +65,8 @@ def _post_webhook(client: TestClient, watch_id: str = "test-1"):
 
 
 def _post_scan(client: TestClient, headers: dict[str, str]):
-    """`job_matching/service.py` does `from rq import Queue`, binding its own module-level
-    name at import time, so patching `rq.Queue` (as the autouse `fake_redis` fixture does
-    for documents) does not reach it -- patch it directly here, same as
-    `test_job_matching_api.py::test_trigger_scan_returns_enqueued`."""
-    with patch("app.modules.job_matching.service.Queue") as mock_queue_cls:
-        mock_queue_cls.return_value.enqueue = MagicMock(return_value=None)
+    with patch("app.modules.job_matching.service.enqueue_job_matching_scan") as mock_enqueue:
+        mock_enqueue.return_value = None
         return client.post("/api/job-matching/scan", headers=headers)
 
 

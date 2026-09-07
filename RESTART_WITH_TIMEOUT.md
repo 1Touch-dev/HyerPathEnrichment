@@ -1,10 +1,10 @@
-# Restart Tier1 Worker with Increased Timeout
+# Restart Supported Linux MLX Workers With Increased Timeout
 
 The browser timeout has been increased from 45s to 90s to handle slow LinkedIn page loads.
 
 ## Restart Command
 
-Run this in your WSL terminal:
+Run this on the supported Linux MLX host:
 
 ```bash
 cd /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/docker
@@ -12,11 +12,11 @@ cd /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/docker
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
-  -f docker-compose.multilogin.yml \
+  -f docker-compose.foundation.yml \
   -f docker-compose.tier-workers.yml \
+  -f docker-compose.multilogin.yml \
   --env-file ../.env.production \
-  restart worker-tier1
+  restart worker worker-email worker-cleanup worker-job-matching worker-tier1 worker-tier234 multilogin
 ```
 
 ## Test Again

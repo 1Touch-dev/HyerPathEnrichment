@@ -3,6 +3,11 @@
 LinkedIn profile photo enrichment uses **Multilogin + Selenium on the worker only**.
 `/enrich/sync` never runs Tier 1 even if `tier1` is in `requested_tiers`.
 
+**Proof boundary:** on this Windows/WSL host, the repo can prove mocked behavior,
+queue routing, compose selection, and bounded container health. A real Linux
+host is still required for a full end-to-end proof of the supported Linux MLX
+path (`worker-tier1 -> multilogin -> LinkedIn`).
+
 ---
 
 ## Layer 0 — Shape tests (mocked, fast)
@@ -37,7 +42,7 @@ docker compose exec worker chromium --version
 | `BROWSER_MODE` | `multilogin` in prod; `local` only for dev experiments |
 | `MULTILOGIN_*` | Email, password (MD5 in code), folder id, launcher URL; set `MULTILOGIN_WORKSPACE_ID` for workspace-scoped token refresh; set `MULTILOGIN_PROFILE_ID` to skip `/profile/search` (local probe) |
 | `LINKEDIN_BOT_*` | Dummy LinkedIn account for Selenium login |
-| `MULTILOGIN_SELENIUM_HOST` | Host-native: `http://127.0.0.1`; Docker Tier 1 override: `http://launcher.mlx.yt` |
+| `MULTILOGIN_SELENIUM_HOST` | Host-native / real Linux target: `http://127.0.0.1`; legacy WSL2 Docker diagnostic path: `http://launcher.mlx.yt` |
 | `selenium` + Chromium | Installed in `Dockerfile.worker` via `.[enrichers]` |
 | R2 (optional) | `R2_*` creds; unset writes to `backend/.asset-cache/` |
 
@@ -45,7 +50,7 @@ docker compose exec worker chromium --version
 
 ## Layer 2 — Multilogin connectivity
 
-Multilogin launcher must be running on the host (not inside Docker).
+For the legacy WSL2/Windows diagnostic path, the Multilogin launcher must be running on the host (not inside Docker). For the supported Linux MLX path, Multilogin runs in the Linux containerized service and shares host networking with `worker-tier1`.
 Launcher start/stop uses HTTPS with TLS verify disabled (self-signed/expired local cert);
 cloud auth (`api.multilogin.com`) keeps normal TLS verify.
 
@@ -74,7 +79,7 @@ python scripts/probe_tier1.py --connect-test
 python scripts/probe_tier1.py --scrape --linkedin-url https://www.linkedin.com/in/<slug>
 ```
 
-From the worker container (host MLX must be reachable):
+From the worker container (legacy WSL2 Docker diagnostic path only; host MLX must be reachable):
 
 ```bash
 cd backend/docker
@@ -84,7 +89,9 @@ docker compose -f docker-compose.yml -f docker-compose.tier1.yml exec worker \
 
 ---
 
-## Layer 3 — Docker worker (async path)
+## Layer 3 — Docker worker paths
+
+### Layer 3A — Legacy WSL2 Docker diagnostic path
 
 Build and start the stack (Tier 1 off by default):
 
@@ -93,7 +100,7 @@ cd backend/docker
 docker compose up --build -d api worker redis postgres
 ```
 
-Enable Tier 1 on the worker (recommended override file). Secrets come from
+Enable Tier 1 on the worker (legacy diagnostic override file). Secrets come from
 `backend/.env` via `env_file` (or set `WORKER_ENV_FILE` to a host-only secrets
 file in production). The override forces `MULTILOGIN_SELENIUM_HOST=http://launcher.mlx.yt`
 and maps `launcher.mlx.yt` / `host.docker.internal` → `host-gateway` (or
@@ -103,7 +110,8 @@ confirm the agent with PowerShell first
 (`curl.exe -sk https://127.0.0.1:45001/api/v2/` → non-`000`, often `404`).
 
 On Windows Desktop Docker, prefer the host-native worker path above if Selenium
-attach fails with Host-header / connection errors.
+attach fails with Host-header / connection errors. Do not treat this
+`docker-compose.tier1.yml` flow as proof of the supported Linux MLX production path.
 
 **WSL2 + Docker Engine:** `host-gateway` is the WSL VM, not Windows. Export the
 Windows host IP before `up`:
@@ -145,7 +153,26 @@ curl -s -X POST http://localhost:8000/enrich \
   }'
 ```
 
-Poll `GET /enrich/{job_id}` until `status` is `completed`; expect `dossier.photo.asset_url`.
+Poll `GET /enrich/{job_id}` until `status` is `completed`; expect `dossier.photo.asset_url`
+only if the underlying Windows-host Multilogin/Selenium attach path really works.
+
+### Layer 3B — Supported Linux MLX target (real Linux host required)
+
+This is the intended production topology:
+
+```bash
+bash backend/scripts/start_production.sh --with-linux-mlx
+```
+
+Expected runtime contract on a real Linux host:
+- `worker-tier1` and `multilogin` share host networking and use `127.0.0.1`
+- `worker-tier1` reaches Postgres on `127.0.0.1:5433` and Redis on `127.0.0.1:6379`
+- `worker` continues consuming auxiliary queues, including `audio_cleanup`
+- `worker-email`, `worker-cleanup`, and `worker-job-matching` remain part of the supported service set
+
+On this Windows/WSL repo host, only compose selection and bounded container
+health were proven for that target. The final end-to-end Linux-host scrape proof
+still belongs to a separate real-Linux validation run.
 
 Repeat the same `linkedin_url` with query variants — second job should hit **slug cache** (no new MLX profile start in worker logs).
 

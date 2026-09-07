@@ -7,14 +7,36 @@ import tempfile
 from pathlib import Path
 from uuid import UUID
 
-# Check if running in Docker container with real infrastructure
-# If DATABASE_URL is already set to PostgreSQL, use it (real infrastructure testing)
-# Otherwise, use SQLite for isolated unit tests
+# Keep the default pytest path hermetic. Ambient shell/.env state on a developer
+# machine must not silently switch these focused suites onto production-ish
+# settings or real infrastructure. Opt in explicitly when a live-infra run is
+# intended. The live-infra contract uses TEST_DATABASE_URL (and optionally
+# TEST_REDIS_URL) so the selector is explicit before pytest imports this file.
+_USE_REAL_INFRA = os.environ.get("PYTEST_USE_REAL_INFRA", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
+_TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "").strip()
+_TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "").strip()
+
+if _USE_REAL_INFRA and _TEST_DATABASE_URL:
+    os.environ["DATABASE_URL"] = _TEST_DATABASE_URL
+if _USE_REAL_INFRA and _TEST_REDIS_URL:
+    os.environ["REDIS_URL"] = _TEST_REDIS_URL
+
 _EXISTING_DB_URL = os.environ.get("DATABASE_URL", "")
-_USE_REAL_INFRA = "postgresql" in _EXISTING_DB_URL.lower()
-USING_POSTGRES = _USE_REAL_INFRA
+USING_POSTGRES = _USE_REAL_INFRA and "postgresql" in _EXISTING_DB_URL.lower()
 
 if not _USE_REAL_INFRA:
+    os.environ["APP_ENV"] = "development"
+    os.environ["API_TOKEN"] = "test-api-token-abcdefghijklmnopqrstuvwxyz"
+    os.environ["SECRET_KEY"] = "test-secret-key-abcdefghijklmnopqrstuvwxyz123456"
+    os.environ["COOKIE_SECURE"] = "false"
+    os.environ["OUTREACH_PHYSICAL_ADDRESS"] = "123 Test St, Suite 100, Test City, TS 12345"
+    os.environ["CHANGEDETECTION_API_KEY"] = "test-changedetection-key"
+
+if not USING_POSTGRES:
     # Give every pytest process its own database. A fixed repository path lets
     # concurrent validation runs unlink or migrate the database underneath one
     # another, leaving later tests with partially missing auth tables.
@@ -25,8 +47,6 @@ if not _USE_REAL_INFRA:
 else:
     # Use existing PostgreSQL (real infrastructure testing)
     print(f"[TEST CONFIG] Using real PostgreSQL: {_EXISTING_DB_URL[:50]}...")
-
-os.environ["API_TOKEN"] = "change-me"
 
 import asyncio
 
@@ -42,6 +62,16 @@ from app.database.session import get_db_session
 from app.modules.enrichment import job_events
 from app.storage import photo_cache
 from tests.migration_helpers import upgrade_head
+
+get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> None:
+    """Ensure env changes/monkeypatches are visible across tests."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture(scope="session")

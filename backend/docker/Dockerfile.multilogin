@@ -52,16 +52,20 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tm
     && rm -rf /tmp/awscliv2.zip /tmp/awscliv2
 
 # ── Block 3: download mlxapp .deb from S3 ───────────────────────────────────
-# Build-time AWS credentials — only used here to pull the binary; no runtime
-# access to AWS is required by the container after build.
+# Build-time AWS credentials — Compose passes these from the main
+# `--env-file` (for example `backend/.env.production`) because build-arg
+# interpolation does not read `WORKER_ENV_FILE`. No runtime access to AWS is
+# required by the container after build.
 ARG AWS_ACCESS_KEY_ID
 ARG AWS_SECRET_ACCESS_KEY
+ARG AWS_SESSION_TOKEN
 ARG AWS_DEFAULT_REGION=us-east-1
 
 RUN mkdir -p /opt/mlx && \
     if [ -n "$AWS_ACCESS_KEY_ID" ]; then \
         AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
         AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+        AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
         AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
         aws s3 cp \
             "s3://onetouch-sm-automation-logs/multilogin_agents/Prod_Working_Multilogin_Ubuntu_24.04_amd64.deb" \

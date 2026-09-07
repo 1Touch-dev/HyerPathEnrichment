@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Real-world single-profile Tier 1-4 run: brings up the production-shaped
-# compose stack (docker-compose.prod.yml + docker-compose.tier1.yml) and runs
-# ONE real profile (Nithin Kamath, CEO, Zerodha) through the live API+worker
-# path — not the 20-profile canary set.
+# Real-world single-profile Tier 1-4 run on a REAL Linux host: brings up the
+# supported Linux MLX compose family and runs ONE real profile (Nithin Kamath,
+# CEO, Zerodha) through the live API+worker path — not the 20-profile canary
+# set.
 #
 # Usage:
 #   bash backend/scripts/run_real_world_single_profile.sh
 #
-# Requires Docker in WSL (Ubuntu). On Windows, invoke via:
-#   wsl -d Ubuntu bash /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/scripts/run_real_world_single_profile.sh
+# Do not use this script on Windows/WSL to claim a Linux MLX proof run.
+# It is only honest on a real Linux host where `--with-linux-mlx` is supported.
 #
 # Env:
 #   E2E_KEEP_STACK=1   leave the production stack up after the run
@@ -23,7 +23,13 @@ COMPOSE_DIR="$BACKEND_DIR/docker"
 ENV_FILE="${API_ENV_FILE:-$BACKEND_DIR/.env.production}"
 RESULTS_DIR="$BACKEND_DIR/.e2e-results"
 BASE="http://localhost:8000"
-COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.tier1.yml)
+COMPOSE_FILES=(
+  -f docker-compose.yml
+  -f docker-compose.prod.yml
+  -f docker-compose.foundation.yml
+  -f docker-compose.tier-workers.yml
+  -f docker-compose.multilogin.yml
+)
 
 pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1" >&2; exit 1; }
@@ -35,6 +41,10 @@ if [ ! -f "$ENV_FILE" ]; then
   fail "$ENV_FILE not found - create backend/.env.production before a production run"
 fi
 
+if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
+  fail "run_real_world_single_profile.sh must run on a real Linux host, not Windows/WSL"
+fi
+
 cleanup() {
   if [ "${E2E_KEEP_STACK:-0}" != "1" ]; then
     (cd "$COMPOSE_DIR" && docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" down)
@@ -42,8 +52,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "== bring up production stack (Tier 1-4, real sidecars, real Multilogin) =="
-bash "$SCRIPT_DIR/start_production.sh" --with-tier1
+echo "== bring up supported Linux MLX production stack =="
+bash "$SCRIPT_DIR/start_production.sh" --with-linux-mlx
 
 # docker-compose.prod.yml sets `ports: []` on the sidecars (internal-only, by
 # design for production) — check their health from inside the compose network
@@ -79,16 +89,16 @@ done
 pass "email-verifier ready"
 unset ok
 
-echo "== wait for worker (Tier 1 enabled) =="
+echo "== wait for worker-tier1 =="
 for i in $(seq 1 30); do
-  if (cd "$COMPOSE_DIR" && docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T worker true 2>/dev/null); then
+  if (cd "$COMPOSE_DIR" && docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T worker-tier1 true 2>/dev/null); then
     break
   fi
   sleep 2
 done
-(cd "$COMPOSE_DIR" && docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T worker true 2>/dev/null) \
-  || fail "worker is not running (check ENABLE_TIER1 / Multilogin settings)"
-pass "worker running"
+(cd "$COMPOSE_DIR" && docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T worker-tier1 true 2>/dev/null) \
+  || fail "worker-tier1 is not running (check Linux MLX settings)"
+pass "worker-tier1 running"
 
 echo ""
 echo "========== Real-world single-profile run (Nithin Kamath / Zerodha) =========="
@@ -96,8 +106,9 @@ echo "========== Real-world single-profile run (Nithin Kamath / Zerodha) =======
 # The WSL host has no python3-venv/pip (and no interactive sudo in this
 # session) — run the client script inside the `api` container instead, which
 # already has httpx + the full app package installed. The job itself is
-# still dispatched to the real `worker` (Tier1 Multilogin + Tier2-4 CLIs) via
-# Redis/RQ; only the POST/poll client runs inside `api`. scripts/ is
+# still dispatched to the real worker set (`worker`, `worker-tier234`,
+# `worker-tier1`, `worker-email`, `worker-job-matching`) via Redis/RQ; only
+# the POST/poll client runs inside `api`. scripts/ is
 # dockerignored, so stream the file in via stdin (same pattern as
 # e2e_realworld_strict.sh).
 PROD_API_TOKEN="$(grep -E '^API_TOKEN=' "$ENV_FILE" | head -n1 | cut -d= -f2-)"

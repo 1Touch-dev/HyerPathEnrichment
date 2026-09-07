@@ -161,7 +161,7 @@ services:
       SENTRY_SEND_DEFAULT_PII: ${SENTRY_SEND_DEFAULT_PII:-false}
       # OpenAI API for embeddings (document search) and feedback generation
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      WORKER_STARTUP_DELAY: "0"
+      WORKER_STARTUP_DELAY: ${WORKER_STARTUP_DELAY:-0}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -293,7 +293,7 @@ services:
       SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
       OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
       OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
-      WORKER_STARTUP_DELAY: "0"
+      WORKER_STARTUP_DELAY: ${WORKER_STARTUP_DELAY:-0}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
     command: ["rq", "worker", "email", "--url", "redis://redis:6379/0"]
@@ -314,7 +314,9 @@ services:
       retries: 12
       start_period: 30s
 
-  # Cleanup worker — finds and fixes orphaned jobs
+  # Cleanup worker — finds and fixes orphaned jobs.
+  # This is maintenance for stuck enrichment records; it is NOT the RQ consumer
+  # for the `audio_cleanup` queue (that queue is consumed by the generic worker).
   worker-cleanup:
     build:
       context: ..
@@ -329,7 +331,7 @@ services:
       CLEANUP_INTERVAL_SECONDS: ${CLEANUP_INTERVAL_SECONDS:-300}
       OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
       OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
-      WORKER_STARTUP_DELAY: "0"
+      WORKER_STARTUP_DELAY: ${WORKER_STARTUP_DELAY:-0}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
     command: ["python", "-m", "app.workers.cleanup_worker"]

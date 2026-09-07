@@ -41,7 +41,7 @@ queues = [
 ]
 ```
 
-This is the fixed-priority list RQ's `Worker` actually honors (list order = priority — verified against [RQ README](https://github.com/rq/rq/blob/master/README.md) and [rq/rq#1420](https://github.com/rq/rq/issues/1420), ✅ DIRECT). This is the **only** mechanism that matters for starvation. `QUEUE_PRIORITIES` (`backend/app/workers/queue.py:24-33`) is a **plain Python dict that is never imported or read anywhere else in the codebase** (verified: `grep -r QUEUE_PRIORITIES backend/` returns only its own definition file) — it is documentation-only metadata today, not an enforced priority. Every module doc's "priority: 6" / "priority: 4" annotation refers to this dict, **not** to actual RQ behavior. §4.6 below has the real, list-order reconciliation.
+This is the fixed-priority list RQ's `Worker` actually honors (list order = priority — verified against [RQ README](https://github.com/rq/rq/blob/master/README.md) and [rq/rq#1420](https://github.com/rq/rq/issues/1420), ✅ DIRECT). This is the **only** mechanism that matters for starvation. `QUEUE_PRIORITIES` in `backend/app/workers/queue.py` is still real code and is consumed by the admin queue-status surfaces, but it does **not** drive worker polling order by itself. The harness/docs therefore need both pieces to agree: the tuple/list order for actual execution priority, and the `QUEUE_PRIORITIES` map for operator visibility. §4.6 below has the real, list-order reconciliation.
 
 ### 1.3 Networking model (verified against `backend/docker/NETWORKING.md` + the compose files themselves)
 
@@ -97,24 +97,26 @@ Module 3 explicitly documents (§8.2 design notes) that once `docker-compose.wee
 
 ### 4.3 🆕 NEW — audio_cleanup gets a consumer
 
-Per §1.4's verified gap: add `QUEUE_AUDIO_CLEANUP` to the generic worker's queue list, lowest priority position (matches its `QUEUE_PRIORITIES` weight of 1, the lowest in the dict — the one place in this plan where the documentation-only priority dict and the actual list happen to agree once this fix lands).
+Per §1.4's verified gap: add `QUEUE_AUDIO_CLEANUP` to the generic worker's queue list at the lowest-priority position. `worker-job-matching` remains the scheduler owner for `audio_cleanup_daily`, but the generic `worker` is the declared queue consumer.
 
 ### 4.4 Final reconciled generic-worker queue list (resolves §2's conflict)
 
-Ordering rationale, made explicit rather than left to chance: `feedback` (user is waiting) → `outreach_generation` (user-initiated, waiting on a spinner, per Module 2 §10.2 — same urgency class as feedback) → `document_processing` (async upload processing, no one is watching a spinner) → `question_generation` (explicitly "not user-blocking" per Module 3's own §7.5 comment — pre-generation, lower urgency than either document or embedding processing since nothing downstream is blocked on it existing *yet*) → `embedding_generation` (pure batch) → `cv_extraction` (kept in its existing, pre-Phase-2 position — reordering it is out of scope for this plan; `RULE.md`'s "fix only what the task needs" applies: the `CV_EXTRACTION` priority-dict/list-order mismatch noted in §1.2 is a pre-existing Foundation Week 1 inconsistency, not introduced by Phase 2, and is not touched here) → `enrichment` (Phase 1 fallback, lowest) → `audio_cleanup` (maintenance, per §4.3).
+Ordering rationale, made explicit rather than left to chance: `feedback` (user is waiting) → `interview_reminders` (time-sensitive delivery) → `outreach_generation` (user-triggered drafting) → `linkedin_send_batch` (operator-triggered batching) → `document_processing` (async upload processing) → `cv_extraction` (post-parse user-facing derivative) → `question_generation` (explicitly not user-blocking) → `embedding_generation` (pure batch) → `enrichment` (Phase 1 fallback) → `audio_cleanup` (maintenance, per §4.3).
 
 ```python
 # backend/app/workers/rq_worker.py — final "else" branch after Modules 1-3 (job_matching
 # is deliberately absent — it never joins this list; see §5.4/§5.5, dedicated container only)
 queues = [
     Queue(QUEUE_FEEDBACK, connection=connection),
-    Queue(QUEUE_OUTREACH, connection=connection),           # Module 2
+    Queue(QUEUE_INTERVIEW_REMINDERS, connection=connection),
+    Queue(QUEUE_OUTREACH, connection=connection),
+    Queue(QUEUE_LINKEDIN_SEND_BATCH, connection=connection),
     Queue(QUEUE_DOCUMENT, connection=connection),
-    Queue(QUEUE_QUESTION_GENERATION, connection=connection), # Module 3
-    Queue(QUEUE_EMBEDDING, connection=connection),
     Queue(QUEUE_CV_EXTRACTION, connection=connection),
+    Queue(QUEUE_QUESTION_GENERATION, connection=connection),
+    Queue(QUEUE_EMBEDDING, connection=connection),
     Queue(QUEUE_NAME, connection=connection),
-    Queue(QUEUE_AUDIO_CLEANUP, connection=connection),        # this plan, §4.3
+    Queue(QUEUE_AUDIO_CLEANUP, connection=connection),
 ]
 ```
 
