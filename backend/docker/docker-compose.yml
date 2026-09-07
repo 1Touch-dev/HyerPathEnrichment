@@ -56,7 +56,7 @@ services:
       EMAIL_VERIFY_LEVEL: ${EMAIL_VERIFY_LEVEL:-basic}
       EMAIL_VERIFY_MAX_PER_JOB: ${EMAIL_VERIFY_MAX_PER_JOB:-10}
       EMAIL_VERIFY_SMTP_DELAY_SECONDS: ${EMAIL_VERIFY_SMTP_DELAY_SECONDS:-6}
-      REACHER_URL: ${REACHER_URL:-}
+      REACHER_URL: http://reacher:8080
       REACHER_FROM_EMAIL: ${REACHER_FROM_EMAIL:-}
       PROXY_MODE: ${PROXY_MODE:-none}
       SCRAPOXY_URL: ${SCRAPOXY_URL:-}
@@ -97,7 +97,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "${API_HOST_PORT:-8000}:8000"
     healthcheck:
       # Readiness (Postgres + Redis + Alembic head) — matches docs/deployment.md /ready probe
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/ready"]
@@ -146,7 +146,7 @@ services:
       EMAIL_VERIFY_LEVEL: ${EMAIL_VERIFY_LEVEL:-basic}
       EMAIL_VERIFY_MAX_PER_JOB: ${EMAIL_VERIFY_MAX_PER_JOB:-10}
       EMAIL_VERIFY_SMTP_DELAY_SECONDS: ${EMAIL_VERIFY_SMTP_DELAY_SECONDS:-6}
-      REACHER_URL: ${REACHER_URL:-}
+      REACHER_URL: http://reacher:8080
       REACHER_FROM_EMAIL: ${REACHER_FROM_EMAIL:-}
       OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
       OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
@@ -185,7 +185,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -390,8 +390,9 @@ services:
     restart: unless-stopped
   scrapoxy:
     image: scrapoxy/scrapoxy:latest
-    profiles: ["paid"]
-    restart: unless-stopped
+    # Upstream is discontinued; keep this as an explicit legacy opt-in only.
+    profiles: ["scrapoxy"]
+    restart: "no"
   # NOTE: langfuse (v3) needs its own datastore stack; kept behind a profile so
   # a plain `docker compose up` stays light. LLMProvider.trace() is a no-op
   # until LANGFUSE_* is set, so free mode runs without it.
@@ -427,7 +428,7 @@ services:
     profiles: ["observability"]
     command: ./manage.py migrate
     environment: &glitchtip-env
-      DATABASE_URL: ${GLITCHTIP_DATABASE_URL:-postgresql://hyrepath:psjjssjsjndj479987ffhudfui@postgres:5432/glitchtip}
+      DATABASE_URL: ${GLITCHTIP_DATABASE_URL:-postgresql://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/glitchtip}
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-glitchtip-secret}
       PORT: "8000"
       GLITCHTIP_DOMAIN: ${GLITCHTIP_PUBLIC_URL:-http://localhost:8001}
@@ -450,7 +451,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "8001:8000"
+      - "${GLITCHTIP_HOST_PORT:-8001}:8000"
     healthcheck:
       # v4.1.5 predates /code/healthcheck.py (added in later glitchtip images),
       # so hit the web root with stdlib urllib instead (curl isn't in this image).

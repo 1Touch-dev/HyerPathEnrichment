@@ -14,6 +14,8 @@ COMPOSE_DIR="$(cd "$SCRIPT_DIR/../docker" && pwd)"
 BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$BACKEND_DIR/.env"
 BASE="http://localhost:8000"
+E2E_USER_EMAIL="${E2E_USER_EMAIL:-e2e-realworld-staff@example.com}"
+E2E_USER_PASSWORD="${E2E_USER_PASSWORD:-RealWorldE2E123}"
 
 pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1" >&2; exit 1; }
@@ -60,9 +62,23 @@ done
 [ "$code" = "200" ] || fail "gmaps /api/docs never returned 200 (last=$code)"
 pass "google-maps-scraper ready"
 
+echo "== seed verified E2E user =="
+docker compose --env-file "$ENV_FILE" exec -T \
+  -e E2E_USER_EMAIL="$E2E_USER_EMAIL" \
+  -e E2E_USER_PASSWORD="$E2E_USER_PASSWORD" \
+  -e ALLOW_E2E_SUPERUSER_BOOTSTRAP=1 \
+  -e PYTHONPATH=/app/backend \
+  api sh -c \
+  'python - --email "$E2E_USER_EMAIL" --password "$E2E_USER_PASSWORD" --is-superuser' \
+  < "$SCRIPT_DIR/create_test_user.py"
+pass "verified E2E user ready"
+
 echo "== run strict probe (inside api container — Python 3.12) =="
 # scripts/ is dockerignored — stream the probe into the container.
-docker compose --env-file "$ENV_FILE" exec -T api sh -c '
+docker compose --env-file "$ENV_FILE" exec -T \
+  -e E2E_USER_EMAIL="$E2E_USER_EMAIL" \
+  -e E2E_USER_PASSWORD="$E2E_USER_PASSWORD" \
+  api sh -c '
   set -e
   export E2E_BASE_URL=http://127.0.0.1:8000
   export SOCIAL_ANALYZER_URL=http://social-analyzer:9005

@@ -56,7 +56,11 @@ class Pipeline:
     async def run(self, request: EnrichmentRequest, user_id: UUID | None = None) -> JobRecord:
         """Synchronous path: create a job and run the pipeline inline."""
         job = await self.jobs.create(request, JobStatus.running, user_id=user_id)
-        await self.jobs.flush()
+        # Persist the job before slow external enrichment calls. Leaving the
+        # INSERT transaction open can exceed Postgres's
+        # idle_in_transaction_session_timeout and close the connection before
+        # the terminal status is written.
+        job = await self.jobs.mark_status(job, JobStatus.running)
         return await self._execute(job, request, sync_mode=True)
 
     async def create_queued_job(
@@ -308,6 +312,11 @@ class Pipeline:
                 JobStatus.suppressed,
                 dossier_payload=dossier.model_dump(mode="json"),
             )
+
+        # The durable suppression fallback performs a SQL read, which starts an
+        # implicit transaction. Close it before slow network/subprocess work so
+        # Postgres does not terminate the session as idle-in-transaction.
+        await self.jobs.commit()
 
         payloads = await self._dispatch(request, sync_mode=sync_mode)
         # #region agent log

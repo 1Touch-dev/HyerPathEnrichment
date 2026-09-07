@@ -441,7 +441,11 @@ def _note_for_empty(name: str, settings: Any) -> str:
         "TheHarvester": "install theHarvester CLI on PATH",
         "Email Discover": "email-sleuth missing - fallback may still guess an email",
         "Email Verify": "set EMAIL_VERIFIER_URL for AfterShip; dnspython via .[enrichers]; REACHER_URL when EMAIL_VERIFY_LEVEL=smtp",
-        "CrossLinked": "install crosslinked CLI on PATH",
+        "CrossLinked": (
+            "CLI returned no results; check search-engine availability"
+            if shutil.which("crosslinked")
+            else "install crosslinked CLI on PATH"
+        ),
         "JobSpy": "pip install .[enrichers] (python-jobspy)",
         "Local Business": "start gmaps sidecar; set GMAPS_SCRAPER_URL (slow: 1-5 min)",
     }
