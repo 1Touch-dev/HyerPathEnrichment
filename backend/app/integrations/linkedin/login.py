@@ -12,6 +12,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
+from app.clients.multilogin import normalize_multilogin_selenium_host
 from app.core.config import get_settings
 from app.integrations.linkedin.constants import (
     LINKEDIN_FEED_URL,
@@ -142,7 +143,7 @@ def wait_for_post_login_navigation(driver: Any, wait: Any) -> None:
 def connect_selenium(port: int) -> Any:
     """Connect a Selenium Remote driver to a Multilogin profile port."""
     settings = get_settings()
-    host = settings.multilogin_selenium_host.rstrip("/")
+    host = normalize_multilogin_selenium_host(settings.multilogin_selenium_host)
     options = ChromiumOptions()
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")

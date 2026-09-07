@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import time
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
@@ -19,6 +21,7 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 _TOKEN_TTL_SECONDS = 25 * 60  # refresh before MLX ~30 min expiry
+_DOCKER_ONLY_MULTILOGIN_HOSTS = frozenset({"host.docker.internal", "launcher.mlx.yt"})
 
 
 class MultiloginError(Exception):
@@ -44,8 +47,12 @@ class MultiloginClient:
         return headers
 
     @staticmethod
+    def _launcher_v2_base(launcher_v2_url: str) -> str:
+        return normalize_multilogin_launcher_url(launcher_v2_url).rstrip("/")
+
+    @staticmethod
     def _launcher_v1_base(launcher_v2_url: str) -> str:
-        base = launcher_v2_url.rstrip("/")
+        base = MultiloginClient._launcher_v2_base(launcher_v2_url)
         if base.endswith("/api/v2"):
             return base[: -len("/api/v2")] + "/api/v1"
         if "/api/v2" in base:
@@ -81,12 +88,15 @@ class MultiloginClient:
             "refresh_token": refresh_token,
             "workspace_id": workspace_id,
         }
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(
-                f"{api_base}/user/refresh_token",
-                json=payload,
-                headers=self._json_headers(),
-            )
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.post(
+                    f"{api_base}/user/refresh_token",
+                    json=payload,
+                    headers=self._json_headers(),
+                )
+        except httpx.HTTPError as exc:
+            raise MultiloginError(f"Multilogin workspace token refresh failed: {exc}") from exc
 
         if response.status_code != 200:
             body_snip = (response.text or "")[:300]
@@ -118,12 +128,15 @@ class MultiloginClient:
             "password": hashlib.md5(password.encode()).hexdigest(),
         }
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(
-                f"{api_base}/user/signin",
-                json=payload,
-                headers=self._json_headers(),
-            )
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.post(
+                    f"{api_base}/user/signin",
+                    json=payload,
+                    headers=self._json_headers(),
+                )
+        except httpx.HTTPError as exc:
+            raise MultiloginError(f"Multilogin sign-in request failed: {exc}") from exc
 
         if response.status_code != 200:
             logger.warning("Multilogin sign-in failed with status %s", response.status_code)
@@ -165,16 +178,20 @@ class MultiloginClient:
         _email, _password, folder_id = self._require_credentials()
         bearer = token or await self.get_token()
 
-        # Use the launcher URL as-is (should be /api/v2 for proper port response)
-        base_url = settings.multilogin_launcher_url.rstrip("/")
+        base_url = self._launcher_v2_base(settings.multilogin_launcher_url)
         url = f"{base_url}/profile/f/{folder_id}/p/{profile_id}/start"
 
-        async with self._launcher_client(timeout=60.0) as client:
-            response = await client.get(
-                url,
-                params={"automation_type": "selenium"},
-                headers=self._json_headers(bearer),
-            )
+        try:
+            async with self._launcher_client(timeout=60.0) as client:
+                response = await client.get(
+                    url,
+                    params={"automation_type": "selenium"},
+                    headers=self._json_headers(bearer),
+                )
+        except httpx.HTTPError as exc:
+            raise MultiloginError(
+                f"Failed to start Multilogin profile {profile_id}: {exc}"
+            ) from exc
 
         if response.status_code != 200:
             logger.warning(
@@ -200,8 +217,11 @@ class MultiloginClient:
         base_url = self._launcher_v1_base(settings.multilogin_launcher_url)
         url = f"{base_url}/profile/stop/p/{profile_id}"
 
-        async with self._launcher_client(timeout=30.0) as client:
-            response = await client.get(url, headers=self._json_headers(bearer))
+        try:
+            async with self._launcher_client(timeout=30.0) as client:
+                response = await client.get(url, headers=self._json_headers(bearer))
+        except httpx.HTTPError as exc:
+            raise MultiloginError(f"Failed to stop Multilogin profile {profile_id}: {exc}") from exc
 
         if response.status_code != 200:
             logger.warning(
@@ -229,46 +249,80 @@ class MultiloginClient:
         page_size = 100
         pool_cap = settings.multilogin_profile_pool_size
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            while True:
-                payload: dict[str, Any] = {
-                    "limit": page_size,
-                    "offset": offset,
-                    "search_text": "",
-                    "folder_id": folder_id,
-                }
-                response = await client.post(
-                    f"{settings.multilogin_api_url.rstrip('/')}/profile/search",
-                    json=payload,
-                    headers=self._json_headers(bearer),
-                )
-                if response.status_code != 200:
-                    body_snip = (response.text or "")[:300]
-                    logger.warning(
-                        "Multilogin profile search failed (status %s): %s",
-                        response.status_code,
-                        body_snip,
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                while True:
+                    payload: dict[str, Any] = {
+                        "limit": page_size,
+                        "offset": offset,
+                        "search_text": "",
+                        "folder_id": folder_id,
+                    }
+                    response = await client.post(
+                        f"{settings.multilogin_api_url.rstrip('/')}/profile/search",
+                        json=payload,
+                        headers=self._json_headers(bearer),
                     )
-                    raise MultiloginError(
-                        "Failed to list Multilogin profiles",
-                        status_code=response.status_code,
-                    )
+                    if response.status_code != 200:
+                        body_snip = (response.text or "")[:300]
+                        logger.warning(
+                            "Multilogin profile search failed (status %s): %s",
+                            response.status_code,
+                            body_snip,
+                        )
+                        raise MultiloginError(
+                            "Failed to list Multilogin profiles",
+                            status_code=response.status_code,
+                        )
 
-                data = response.json().get("data", {})
-                profiles = data.get("profiles") or []
-                for profile in profiles:
-                    profile_id = profile.get("profile_id") or profile.get("id")
-                    if profile_id:
-                        profile_ids.append(str(profile_id))
-                        if pool_cap > 0 and len(profile_ids) >= pool_cap:
-                            return profile_ids
+                    data = response.json().get("data", {})
+                    profiles = data.get("profiles") or []
+                    for profile in profiles:
+                        profile_id = profile.get("profile_id") or profile.get("id")
+                        if profile_id:
+                            profile_ids.append(str(profile_id))
+                            if pool_cap > 0 and len(profile_ids) >= pool_cap:
+                                return profile_ids
 
-                total = int(data.get("total") or 0)
-                offset += len(profiles)
-                if not profiles or offset >= total:
-                    break
+                    total = int(data.get("total") or 0)
+                    offset += len(profiles)
+                    if not profiles or offset >= total:
+                        break
+        except httpx.HTTPError as exc:
+            raise MultiloginError(f"Failed to list Multilogin profiles: {exc}") from exc
 
         return profile_ids
+
+
+def _running_on_native_windows() -> bool:
+    return os.name == "nt"
+
+
+def _rewrite_docker_only_multilogin_host(url_or_host: str) -> str:
+    raw = url_or_host.strip().rstrip("/")
+    if not raw or not _running_on_native_windows():
+        return raw
+
+    has_scheme = "://" in raw
+    parsed = urlsplit(raw if has_scheme else f"http://{raw}")
+    hostname = (parsed.hostname or "").lower()
+    if hostname not in _DOCKER_ONLY_MULTILOGIN_HOSTS:
+        return raw
+
+    netloc = "127.0.0.1"
+    if parsed.port is not None:
+        netloc = f"{netloc}:{parsed.port}"
+    rewritten = urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+    return rewritten.rstrip("/") if has_scheme else rewritten.removeprefix(f"{parsed.scheme}://")
+
+
+def normalize_multilogin_launcher_url(launcher_url: str) -> str:
+    """Translate Docker-only MLX launcher hosts to localhost for Windows-native runs."""
+    return _rewrite_docker_only_multilogin_host(launcher_url)
+
+
+def normalize_multilogin_selenium_host(selenium_host: str) -> str:
+    return _rewrite_docker_only_multilogin_host(selenium_host)
 
 
 _default_client = MultiloginClient()

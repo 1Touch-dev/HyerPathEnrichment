@@ -165,6 +165,11 @@ The proof harnesses and startup checks were not trustworthy enough to prove the 
 | Job-matching regressions | PASS | API and scheduler/queue ownership covered |
 | Audio-cleanup regressions | PASS | Auxiliary queue ownership covered |
 | Proof-harness selector/collection path | PASS | Real-infra path now collects with explicit plugin/env contract |
+| Native Windows launcher probe | BLOCKED | `127.0.0.1:45001` not listening on this machine during live proof attempt |
+| Native Windows Tier 1 connect-test | BLOCKED | MLX cloud auth and profile discovery worked, but local launcher/profile start could not attach |
+| Native Windows Tier 1 scrape attempt | BLOCKED | `probe_tier1.py --scrape` degraded cleanly to `temporary_failure` because the local launcher was unavailable |
+| LinkedIn send live boundary | PASS | Shipped manual/not-implemented boundary validated without fake sends |
+| LinkedIn sourcing live boundary | PASS | Current shipped manual CRUD/runtime path validated |
 | Real Linux-host MLX end-to-end scrape | BLOCKED | Not executed from this Windows/WSL environment |
 
 ## 9. Failure Masking
@@ -226,6 +231,13 @@ Real-infra selector proof:
 
 - `tests/test_foundation_week1_integration.py` collects under explicit `PYTEST_USE_REAL_INFRA=true` and `-p tests.conftest_real_infrastructure`
 
+Live proof attempt from this machine:
+
+- native Windows probe commands now normalize Docker-only launcher hosts to `127.0.0.1`
+- real MLX cloud auth and profile discovery succeeded
+- local launcher probes to `https://127.0.0.1:45001/api/v2/` failed because no local Multilogin listener was present
+- WSL/Docker fallback proof was also unavailable during the live pass, so the final blocker remained environment-side rather than repo-side
+
 ## 12. Validation Result
 
 **Current branch status:** code/test/contract remediation complete, with external operational proof still pending.
@@ -269,3 +281,11 @@ Restarting/recreating services helped only by changing the active topology, not 
 This branch fixes that contract drift across startup scripts, env validation, compose overlays, worker ownership, proof harnesses, and operator docs.
 
 What remains is the final external validation step on a real Linux host to prove the supported Linux MLX topology end-to-end with a live `worker-tier1 -> multilogin -> LinkedIn` run.
+
+On this Windows/WSL machine we additionally proved that the remaining failure is now environmental:
+
+- no reachable local Multilogin launcher on `127.0.0.1:45001`
+- no active Multilogin process to own that listener
+- no viable WSL/Docker Linux MLX fallback during the live proof attempt
+
+So the unresolved gap is no longer a repo-side contract bug. It is the absence of a working local or native-Linux Multilogin runtime to attach to.
