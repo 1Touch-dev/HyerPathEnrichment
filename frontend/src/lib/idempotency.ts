@@ -29,3 +29,15 @@ export function forwardIdempotencyHeader(
     "Idempotency-Key": key,
   };
 }
+
+export function ensureIdempotencyHeaders(
+  request: Request | { headers: Headers },
+  scope: string,
+  headers: Record<string, string> = {},
+): Record<string, string> {
+  const forwarded = forwardIdempotencyHeader(request, headers);
+  if (forwarded["Idempotency-Key"]) {
+    return forwarded;
+  }
+  return withIdempotencyHeaders(scope, headers);
+}

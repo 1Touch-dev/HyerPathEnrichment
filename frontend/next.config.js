@@ -4,6 +4,11 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: "/app",
+        destination: "/app/matches",
+        permanent: false,
+      },
+      {
         source: "/app/enrich",
         destination: "/osint",
         permanent: false,

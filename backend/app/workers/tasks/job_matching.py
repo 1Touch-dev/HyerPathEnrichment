@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from datetime import datetime
 from uuid import UUID
@@ -198,7 +199,7 @@ async def _scan_jobs_for_candidate_async(user_id: str) -> dict[str, int]:
                         "description_raw": description,
                         "salary_min": _safe_int(row.get("min_amount")),
                         "salary_max": _safe_int(row.get("max_amount")),
-                        "salary_currency": row.get("currency"),
+                        "salary_currency": _safe_currency(row.get("currency")),
                         "country_iso2": country_iso2,
                     },
                     source,
@@ -385,6 +386,17 @@ def _safe_int(value: object) -> int | None:
         return int(value)  # type: ignore[call-overload,no-any-return]
     except (TypeError, ValueError):
         return None
+
+
+def _safe_currency(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "none", "null"}:
+        return None
+    return text[:10]
 
 
 def generate_explanations_for_candidate(user_id: str) -> dict[str, int]:

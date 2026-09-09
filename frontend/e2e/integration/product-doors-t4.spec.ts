@@ -29,6 +29,8 @@ const deskRoutes = [
 
 /** Align with `next.config.js` + `e2e/redirects.spec.ts` (Candidate keep-under-/app). */
 const redirects = [
+  ["/app", "/app/matches"],
+  ["/app?tab=matches", "/app/matches?tab=matches"],
   ["/app/enrich?tiers=tier1", "/osint?tiers=tier1"],
   ["/app/signals?source=webhook", "/desk/signals?source=webhook"],
   ["/app/admin?from=legacy", "/desk?from=legacy"],

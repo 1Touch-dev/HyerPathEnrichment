@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { BackendMfaVerifyRequest } from "@/src/lib/api-adapter";
 import { backendFetch } from "@/src/lib/backend-client";
 import { backendFailureResponse, bffServiceUnavailable, bffSuccess } from "@/src/lib/bff-response";
+import { ensureIdempotencyHeaders } from "@/src/lib/idempotency";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as BackendMfaVerifyRequest;
@@ -10,7 +11,9 @@ export async function POST(request: NextRequest) {
   try {
     backendResponse = await backendFetch("/api/admin/mfa/disable", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: ensureIdempotencyHeaders(request, "admin-mfa-disable", {
+        "Content-Type": "application/json",
+      }),
       body: JSON.stringify(body),
     });
   } catch {
