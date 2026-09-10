@@ -9,11 +9,16 @@ type EmptyStateProps = {
 
 export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
-    <Card>
-      <CardContent className="flex flex-col items-start gap-3 py-10">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
-        {action}
+    <Card className="border-dashed bg-surface/70">
+      <CardContent className="flex flex-col items-start gap-4 py-10 sm:py-12">
+        <div className="flex max-w-2xl flex-col gap-2">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+            Nothing here yet
+          </p>
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">{title}</h3>
+          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+        </div>
+        {action ? <div className="flex flex-wrap items-center gap-3">{action}</div> : null}
       </CardContent>
     </Card>
   );

@@ -1,10 +1,5 @@
 export function redirectAfterDomContentLoaded(redirect: () => void): () => void {
-  const navigationTiming = performance.getEntriesByType?.("navigation")[0] as
-    PerformanceNavigationTiming | undefined;
-  const domContentLoaded =
-    document.readyState === "complete" || (navigationTiming?.domContentLoadedEventEnd ?? 0) > 0;
-
-  if (domContentLoaded) {
+  if (document.readyState !== "loading") {
     redirect();
     return () => undefined;
   }

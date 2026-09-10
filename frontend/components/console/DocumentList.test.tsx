@@ -41,7 +41,7 @@ describe("DocumentList", () => {
   it("renders document rows with filename, type, and status", () => {
     render(<DocumentList documents={sampleDocuments} />, { wrapper });
     expect(screen.getByText("resume.pdf")).toBeInTheDocument();
-    expect(screen.getByText("CV")).toBeInTheDocument();
+    expect(screen.getByText("CV / resume")).toBeInTheDocument();
     expect(screen.getByText("completed")).toBeInTheDocument();
   });
 

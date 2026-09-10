@@ -142,9 +142,10 @@ test.describe("approved Desk states and keyboard semantics", () => {
             {
               key: "candidate_ranker",
               enabled: false,
+              value: null,
               description: "Future ranker consumer",
-              updated_by: null,
-              updated_at: "2026-01-01T00:00:00.000Z",
+              updatedBy: null,
+              updatedAt: "2026-01-01T00:00:00.000Z",
             },
           ],
         },

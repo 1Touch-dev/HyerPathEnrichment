@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { AiActionsTable } from "./AiActionsTable";
@@ -71,7 +71,11 @@ describe("AiActionsTable", () => {
   it("opens the detail sheet with the full record when a row is clicked", () => {
     render(<AiActionsTable />, { wrapper });
     fireEvent.click(screen.getByText("outreach_draft_generated"));
-    expect(screen.getByText("AI action")).toBeInTheDocument();
-    expect(screen.getByText("draft-1")).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "AI action" });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText("Action context")).toBeInTheDocument();
+    expect(within(dialog).getByText("Generated an outreach draft")).toBeInTheDocument();
+    expect(within(dialog).getByText("candidate-1")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("draft-1").length).toBeGreaterThan(0);
   });
 });

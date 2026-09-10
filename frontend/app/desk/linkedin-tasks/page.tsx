@@ -1,10 +1,14 @@
+import { DeskPage } from "@/components/desk/desk-shell";
 import { LinkedInTasksPanel } from "@/features/admin";
 
 export default function AdminLinkedInTasksPage() {
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight">LinkedIn send tasks</h1>
+    <DeskPage
+      eyebrow="Desk execution"
+      title="LinkedIn send tasks"
+      description="Run the human-in-the-loop send queue with manual claim, batch, send, and skip flows while keeping all legal-risk constraints intact."
+    >
       <LinkedInTasksPanel />
-    </div>
+    </DeskPage>
   );
 }

@@ -4,6 +4,19 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ShellPageHeader,
+  ShellPageHeaderActions,
+  ShellPageHeaderContent,
+  ShellPageHeaderDescription,
+  ShellPageHeaderEyebrow,
+  ShellPageHeaderTitle,
+  ShellSection,
+  ShellSectionHeader,
+  ShellSectionHeaderContent,
+  ShellSectionHeaderDescription,
+  ShellSectionHeaderTitle,
+} from "@/components/layout/ShellPage";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,20 +120,19 @@ export default function DocumentDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <Button
-            variant="ghost"
-            onClick={() => router.push("/app/documents")}
-            className="mb-2 w-fit"
-          >
+      <ShellPageHeader>
+        <ShellPageHeaderContent>
+          <Button variant="ghost" onClick={() => router.push("/app/documents")} className="w-fit">
             <ArrowLeft className="mr-2 size-4" />
             Back to Documents
           </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">{doc.originalFilename}</h1>
-          <p className="font-mono text-sm text-muted-foreground">{doc.documentId}</p>
-        </div>
-        <div className="flex gap-2">
+          <ShellPageHeaderEyebrow>Candidate workspace</ShellPageHeaderEyebrow>
+          <ShellPageHeaderTitle>{doc.originalFilename}</ShellPageHeaderTitle>
+          <ShellPageHeaderDescription className="font-mono text-xs sm:text-sm">
+            {doc.documentId}
+          </ShellPageHeaderDescription>
+        </ShellPageHeaderContent>
+        <ShellPageHeaderActions className="items-start sm:items-center">
           <Button
             variant="outline"
             onClick={() => void handleReprocess()}
@@ -137,40 +149,48 @@ export default function DocumentDetailPage() {
             <Trash2 className="mr-2 size-4" />
             Delete
           </Button>
-        </div>
-      </div>
+        </ShellPageHeaderActions>
+      </ShellPageHeader>
 
       <CompletenessBanner documentId={documentId} onStartChat={() => setShowChat(true)} />
 
       {showChat && <CvChatWidget documentId={documentId} onComplete={() => setShowChat(false)} />}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Metadata</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <div>
-              <dt className="text-muted-foreground">Type</dt>
-              <dd>{doc.documentType === "cv" ? "CV" : "Cover letter"}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Status</dt>
-              <dd>
-                <DocumentStatusBadge status={doc.processingStatus} />
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Size</dt>
-              <dd>{formatFileSize(doc.fileSizeBytes)}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Created</dt>
-              <dd>{formatDate(doc.createdAt)}</dd>
-            </div>
-          </dl>
-        </CardContent>
-      </Card>
+      <ShellSection>
+        <ShellSectionHeader>
+          <ShellSectionHeaderContent>
+            <ShellSectionHeaderTitle>Metadata</ShellSectionHeaderTitle>
+            <ShellSectionHeaderDescription>
+              Review processing state, file type, and source details before reprocessing or
+              deleting.
+            </ShellSectionHeaderDescription>
+          </ShellSectionHeaderContent>
+        </ShellSectionHeader>
+        <Card>
+          <CardContent>
+            <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div>
+                <dt className="text-muted-foreground">Type</dt>
+                <dd>{doc.documentType === "cv" ? "CV" : "Cover letter"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Status</dt>
+                <dd>
+                  <DocumentStatusBadge status={doc.processingStatus} />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Size</dt>
+                <dd>{formatFileSize(doc.fileSizeBytes)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Created</dt>
+                <dd>{formatDate(doc.createdAt)}</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+      </ShellSection>
 
       <Tabs defaultValue="feedback">
         <TabsList>
@@ -181,25 +201,39 @@ export default function DocumentDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Raw text</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {doc.rawText ? (
-            <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted/30 p-4 text-xs">
-              {doc.rawText}
-            </pre>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No extracted text is available yet — this appears once processing completes.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <ShellSection surface="muted">
+        <ShellSectionHeader>
+          <ShellSectionHeaderContent>
+            <ShellSectionHeaderTitle>Raw text</ShellSectionHeaderTitle>
+            <ShellSectionHeaderDescription>
+              Inspect the extracted text behind the structured feedback.
+            </ShellSectionHeaderDescription>
+          </ShellSectionHeaderContent>
+        </ShellSectionHeader>
+        <Card>
+          <CardContent>
+            {doc.rawText ? (
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted/30 p-4 text-xs">
+                {doc.rawText}
+              </pre>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No extracted text is available yet — this appears once processing completes.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </ShellSection>
 
-      <div>
-        <h2 className="mb-2 text-lg font-semibold">Extracted CV data</h2>
+      <ShellSection>
+        <ShellSectionHeader>
+          <ShellSectionHeaderContent>
+            <ShellSectionHeaderTitle>Extracted CV data</ShellSectionHeaderTitle>
+            <ShellSectionHeaderDescription>
+              Structured data stays available here for deeper review and debugging.
+            </ShellSectionHeaderDescription>
+          </ShellSectionHeaderContent>
+        </ShellSectionHeader>
         {doc.extractedData ? (
           <RawJsonPanel data={doc.extractedData} triggerLabel="Extracted data (JSON)" defaultOpen />
         ) : (
@@ -208,7 +242,7 @@ export default function DocumentDetailPage() {
             description="Structured CV data appears here once processing completes."
           />
         )}
-      </div>
+      </ShellSection>
     </div>
   );
 }

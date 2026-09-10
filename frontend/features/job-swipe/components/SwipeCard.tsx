@@ -59,7 +59,7 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
 
   return (
     <motion.div
-      className="absolute inset-0 select-none rounded-2xl border bg-card p-6 shadow-lg"
+      className="absolute inset-0 select-none rounded-[1.75rem] border border-border/70 bg-card/95 p-6 shadow-elevated backdrop-blur-sm"
       style={{ x, y, rotate }}
       drag={isTop}
       dragSnapToOrigin
@@ -69,72 +69,77 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
       data-match-id={card.matchId}
     >
       <motion.div
-        className="absolute left-4 top-4 rounded border-4 border-green-500 px-3 py-1 text-xl font-bold text-green-500"
+        className="absolute left-4 top-4 rounded-xl border-2 border-success px-3 py-1 text-base font-semibold text-success bg-background/90"
         style={{ opacity: likeOpacity }}
       >
         INTERESTED
       </motion.div>
       <motion.div
-        className="absolute right-4 top-4 rounded border-4 border-red-500 px-3 py-1 text-xl font-bold text-red-500"
+        className="absolute right-4 top-4 rounded-xl border-2 border-destructive px-3 py-1 text-base font-semibold text-destructive bg-background/90"
         style={{ opacity: passOpacity }}
       >
         PASS
       </motion.div>
       <motion.div
-        className="absolute left-1/2 top-4 -translate-x-1/2 rounded border-4 border-blue-500 px-3 py-1 text-xl font-bold text-blue-500"
+        className="absolute left-1/2 top-4 -translate-x-1/2 rounded-xl border-2 border-info px-3 py-1 text-base font-semibold text-info bg-background/90"
         style={{ opacity: superLikeOpacity }}
       >
         SUPER LIKE
       </motion.div>
 
       <div className="flex h-full flex-col justify-between">
-        <div>
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">{card.title}</h2>
-              <p className="text-muted-foreground">{card.company}</p>
+        <div className="space-y-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant={
+                    card.belowSimilarityThreshold
+                      ? "secondary"
+                      : card.overallScore >= 80
+                        ? "success"
+                        : "warning"
+                  }
+                >
+                  {card.belowSimilarityThreshold
+                    ? "Broader match"
+                    : `${Math.round(card.overallScore)}/100`}
+                </Badge>
+                {card.appliedAt ? <Badge variant="outline">Applied</Badge> : null}
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight">{card.title}</h2>
+                <p className="text-base text-muted-foreground">{card.company}</p>
+              </div>
             </div>
-            <Badge
-              className={
-                card.belowSimilarityThreshold
-                  ? "bg-muted text-muted-foreground"
-                  : card.overallScore >= 80
-                    ? "bg-green-100 text-green-800"
-                    : "bg-yellow-100 text-yellow-800"
-              }
-            >
-              {card.belowSimilarityThreshold
-                ? "Broader match"
-                : `${Math.round(card.overallScore)}/100`}
-            </Badge>
           </div>
           {(card.location || card.remote) && (
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {card.remote ? "Remote" : card.location}
             </p>
           )}
-          {salary && <p className="mt-1 text-sm font-medium">{salary}</p>}
+          {salary && <p className="text-sm font-medium text-foreground">{salary}</p>}
         </div>
 
         {card.explanation && isTop && (
-          <div className="mt-4">
+          <div>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowExplanation((prev) => !prev);
               }}
-              className="rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
+              className="rounded-full border border-border/70 bg-surface px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary/70"
             >
               Why we matched you
             </button>
             {showExplanation && (
-              <div className={card.isBlurred ? "relative mt-2" : "mt-2"}>
+              <div className={card.isBlurred ? "relative mt-3" : "mt-3"}>
                 <p
                   className={
                     card.isBlurred
-                      ? "rounded-lg bg-muted p-3 text-sm text-muted-foreground blur-sm select-none"
-                      : "rounded-lg bg-muted p-3 text-sm text-muted-foreground"
+                      ? "rounded-2xl bg-surface px-4 py-3 text-sm text-muted-foreground blur-sm select-none"
+                      : "rounded-2xl bg-surface px-4 py-3 text-sm text-muted-foreground"
                   }
                 >
                   {card.explanation}
@@ -150,7 +155,7 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
         )}
 
         {isTop && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
             <Button
               size="sm"
               variant="outline"
@@ -172,7 +177,7 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
               </CandidatePolicyLink>
             </Button>
             <div
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 rounded-full bg-surface px-3 py-2"
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >

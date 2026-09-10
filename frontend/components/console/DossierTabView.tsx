@@ -2,12 +2,11 @@
 
 import { useMemo } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { DossierSummary } from "@/components/console/DossierSummary";
+import { Badge } from "@/components/ui/badge";
 import { DossierScanList } from "@/components/console/DossierScanList";
 import { EmptyState } from "@/components/console/EmptyState";
 import { ConfidenceDashboard } from "@/components/dossier/ConfidenceDashboard";
 import { SourceBadges } from "@/components/dossier/SourceBadges";
-import { NetworkGraph } from "@/components/dossier/NetworkGraph";
 import { BusinessProfileCard } from "@/components/dossier/BusinessProfileCard";
 import type { Dossier } from "@/src/lib/types";
 import type { DossierEntity } from "./dossier-entity";
@@ -78,47 +77,47 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
 
       <TabsContent value="overview" className="mt-4">
         <div className="flex flex-col gap-4">
-          <DossierSummary dossier={dossier} loading={loading} />
           {hasFindings ? (
-            <div className="rounded-lg border bg-card p-4">
-              <h3 className="mb-3 text-sm font-semibold">Quick Summary</h3>
-              <div className="grid gap-2 text-sm">
-                {counts.handles > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Social Handles:</span>
-                    <span className="font-medium">{counts.handles}</span>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)]">
+              <div className="rounded-xl border border-border/70 bg-surface p-4">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Evidence snapshot</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Start with the strongest signals, then drill into each tab for details.
+                    </p>
                   </div>
-                )}
-                {counts.emails > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Email Addresses:</span>
-                    <span className="font-medium">{counts.emails}</span>
-                  </div>
-                )}
-                {counts.jobs > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Job Listings:</span>
-                    <span className="font-medium">{counts.jobs}</span>
-                  </div>
-                )}
-                {counts.business > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Business Profile:</span>
-                    <span className="font-medium">✓</span>
-                  </div>
-                )}
-                {counts.confidence > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Confidence Rules:</span>
-                    <span className="font-medium">{counts.confidence}</span>
-                  </div>
-                )}
-                {counts.sources > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Data Sources:</span>
-                    <span className="font-medium">{counts.sources}</span>
-                  </div>
-                )}
+                  {loading ? (
+                    <Badge variant="warning">Updating</Badge>
+                  ) : (
+                    <Badge variant="success">Ready</Badge>
+                  )}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <OverviewMetric label="Handles" value={counts.handles} />
+                  <OverviewMetric label="Emails" value={counts.emails} />
+                  <OverviewMetric label="Professional" value={counts.jobs} />
+                  <OverviewMetric label="Business" value={counts.business} />
+                  <OverviewMetric label="Confidence rules" value={counts.confidence} />
+                  <OverviewMetric label="Sources" value={counts.sources} />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/70 bg-surface p-4">
+                <h3 className="text-sm font-semibold text-foreground">Next best actions</h3>
+                <div className="mt-3 flex flex-col gap-3 text-sm text-muted-foreground">
+                  <p>Open tabbed sections to review findings grouped by category.</p>
+                  <p>Select any row to inspect the supporting detail panel and raw payload.</p>
+                  {hasConnections ? (
+                    <p>
+                      The dossier already has enough connected evidence to review relationships.
+                    </p>
+                  ) : (
+                    <p>
+                      Connection mapping is limited until handles, jobs, or coworkers are found.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -227,5 +226,16 @@ export function DossierTabView({ dossier, selectedId, onSelect, loading }: Dossi
         )}
       </TabsContent> */}
     </Tabs>
+  );
+}
+
+function OverviewMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-background p-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+    </div>
   );
 }

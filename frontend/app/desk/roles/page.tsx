@@ -2,9 +2,16 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { DeskMetricCard, DeskMetricGrid, DeskPage } from "@/components/desk/desk-shell";
 import { EmptyState } from "@/components/console/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  SectionHeader,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import { fetchRoles } from "@/features/admin/api/client";
 import { adminKeys } from "@/features/admin/api/keys";
 import type { AdminRoleWithPermissions } from "@/src/lib/types";
@@ -22,6 +29,8 @@ export default function AdminRolesPage() {
     queryFn: fetchRoles,
   });
   const roles = useMemo(() => (data ?? []) as unknown as AdminRoleWithPermissions[], [data]);
+  const systemRoles = roles.filter((role) => role.isSystem).length;
+  const totalPermissions = roles.reduce((count, role) => count + role.permissions.length, 0);
 
   if (isLoading && !data) {
     return (
@@ -34,13 +43,12 @@ export default function AdminRolesPage() {
   if (isError) {
     const detail = error instanceof Error ? error.message : null;
     return (
-      <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Roles</h1>
-        <div
-          role="alert"
-          aria-label="Could not load roles"
-          aria-description="Access failed or permissions are missing for the roles API."
-        >
+      <DeskPage
+        eyebrow="Desk administration"
+        title="Roles"
+        description="Review system and custom role posture while keeping role mutation explicitly unavailable until the step-up controls land."
+      >
+        <div role="alert" aria-label="Could not load roles">
           <EmptyState
             title="Could not load roles"
             description={
@@ -50,18 +58,44 @@ export default function AdminRolesPage() {
             }
           />
         </div>
-      </div>
+      </DeskPage>
     );
   }
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Roles</h1>
-        <p className="text-sm text-muted-foreground">
-          Role and permission mutations are temporarily unavailable until ADR21 typed confirmation
-          and step-up controls are implemented.
-        </p>
-      </div>
+    <DeskPage
+      eyebrow="Desk administration"
+      title="Roles"
+      description="Read-only role and permission matrix for Desk operators, preserving system-role constraints and current backend data flow."
+    >
+      <DeskMetricGrid className="xl:grid-cols-3">
+        <DeskMetricCard
+          label="Roles loaded"
+          value={roles.length}
+          hint="Current admin role inventory"
+        />
+        <DeskMetricCard
+          label="System roles"
+          value={systemRoles}
+          hint={`${roles.length - systemRoles} custom role(s)`}
+          tone={systemRoles > 0 ? "info" : "default"}
+        />
+        <DeskMetricCard
+          label="Permission entries"
+          value={totalPermissions}
+          hint="Read-only until ADR21 controls land"
+          tone="warning"
+        />
+      </DeskMetricGrid>
+
+      <SectionHeader>
+        <SectionHeaderContent>
+          <SectionHeaderTitle>Role matrix</SectionHeaderTitle>
+          <SectionHeaderDescription>
+            Role and permission mutations are temporarily unavailable until ADR21 typed confirmation
+            and step-up controls are implemented.
+          </SectionHeaderDescription>
+        </SectionHeaderContent>
+      </SectionHeader>
       {!roles.length ? (
         <EmptyState title="No roles configured" description="Roles are seeded via migration." />
       ) : (
@@ -90,6 +124,6 @@ export default function AdminRolesPage() {
           ))}
         </div>
       )}
-    </div>
+    </DeskPage>
   );
 }

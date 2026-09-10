@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { DeskMetricCard, DeskMetricGrid, DeskPage } from "@/components/desk/desk-shell";
 import { EmptyState } from "@/components/console/EmptyState";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +18,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 
 type StaffInvite = {
   id: string;
@@ -61,6 +70,7 @@ async function createStaffInvite(body: { email: string; role_name: string }): Pr
 export default function AdminStaffInvitesPage() {
   const [invites, setInvites] = useState<StaffInvite[]>([]);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const acceptedInvites = invites.filter((invite) => Boolean(invite.acceptedAt)).length;
 
   const createInviteMutation = useMutation({
     mutationFn: createStaffInvite,
@@ -71,36 +81,78 @@ export default function AdminStaffInvitesPage() {
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Staff invites</h1>
-        <Button onClick={() => setCreateDialogOpen(true)}>Invite staff member</Button>
-      </div>
+    <DeskPage
+      eyebrow="Desk administration"
+      title="Staff invites"
+      description="Create staff registration invites with the same session-only roster behavior until a historical list endpoint exists."
+      actions={<Button onClick={() => setCreateDialogOpen(true)}>Invite staff member</Button>}
+    >
+      <Alert variant="info">
+        <AlertTitle>Session-only roster</AlertTitle>
+        <AlertDescription>
+          No historical list endpoint exists yet. This page only shows invites created during the
+          current session.
+        </AlertDescription>
+      </Alert>
+
+      <DeskMetricGrid className="xl:grid-cols-3">
+        <DeskMetricCard
+          label="Invites this session"
+          value={invites.length}
+          hint="Created in this tab"
+        />
+        <DeskMetricCard
+          label="Accepted in this session"
+          value={acceptedInvites}
+          hint={`${invites.length - acceptedInvites} pending invite(s)`}
+          tone={acceptedInvites > 0 ? "success" : "default"}
+        />
+        <DeskMetricCard
+          label="Role assignment"
+          value="Preset on create"
+          hint="Recipients register with the assigned staff role"
+          tone="info"
+        />
+      </DeskMetricGrid>
+
       {!invites.length ? (
         <EmptyState
           title="No invites in this session"
           description="This list is session-only and is not loaded from the server. Invites sent earlier or in another tab will not appear here."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {invites.map((invite) => (
-            <Card key={invite.id}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  {invite.email}
-                  <Badge variant={invite.acceptedAt ? "secondary" : "outline"}>
-                    {invite.acceptedAt ? "Accepted" : "Pending"}
-                  </Badge>
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">Role: {invite.roleName}</p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Expires {new Date(invite.expiresAt).toLocaleString()}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="flex flex-col gap-4">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Invite activity</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Track the invites created during this session and whether they have been accepted.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">Session-local only</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {invites.map((invite) => (
+              <Card key={invite.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    {invite.email}
+                    <Badge variant={invite.acceptedAt ? "secondary" : "outline"}>
+                      {invite.acceptedAt ? "Accepted" : "Pending"}
+                    </Badge>
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">Role: {invite.roleName}</p>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground">
+                    Expires {new Date(invite.expiresAt).toLocaleString()}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -110,7 +162,7 @@ export default function AdminStaffInvitesPage() {
         onOpenChange={setCreateDialogOpen}
         onConfirm={(payload) => createInviteMutation.mutate(payload)}
       />
-    </div>
+    </DeskPage>
   );
 }
 

@@ -69,7 +69,7 @@ describe("OSINT job links", () => {
       "/osint/jobs/job-123",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Show more columns" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show metadata" }));
     for (const link of screen.getAllByRole("link")) {
       expect(link).toHaveAttribute("href", "/osint/jobs/job-123");
     }

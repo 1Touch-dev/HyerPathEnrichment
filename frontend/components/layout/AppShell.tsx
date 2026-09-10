@@ -16,6 +16,7 @@ import { AppBottomNav } from "./AppBottomNav";
 import { AppNavRail } from "./AppNavRail";
 import { AppSidebar } from "./AppSidebar";
 import { AppTopbar } from "./AppTopbar";
+import { ShellPage, ShellViewport } from "./ShellPage";
 import { getNavSections } from "./nav-config";
 
 type AppShellProps = {
@@ -33,8 +34,8 @@ function AppShellChrome({ children, product, matchesUnreadCount, user }: AppShel
   const sections = getNavSections(product, user);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <div className="hidden lg:flex">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+      <div className="hidden lg:flex lg:shrink-0">
         <AppSidebar product={product} sections={sections} matchesUnreadCount={matchesUnreadCount} />
       </div>
       <AppNavRail
@@ -47,12 +48,16 @@ function AppShellChrome({ children, product, matchesUnreadCount, user }: AppShel
         <AppTopbar product={product} sections={sections} />
         <VerificationBanner />
         <ImpersonationBanner />
-        <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
-          {product === "candidate" ? (
-            <CandidateMutationBoundary>{children}</CandidateMutationBoundary>
-          ) : (
-            children
-          )}
+        <main className="min-h-0 flex-1 overflow-y-auto">
+          <ShellViewport product={product}>
+            <ShellPage product={product}>
+              {product === "candidate" ? (
+                <CandidateMutationBoundary>{children}</CandidateMutationBoundary>
+              ) : (
+                children
+              )}
+            </ShellPage>
+          </ShellViewport>
         </main>
         <AppBottomNav
           sections={sections}

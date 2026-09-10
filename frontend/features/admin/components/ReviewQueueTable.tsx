@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid, DeskPagination } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import {
   Select,
   SelectContent,
@@ -11,6 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -76,37 +85,66 @@ export function ReviewQueueTable() {
   }
 
   const items = data?.items ?? [];
+  const pendingReviews = items.filter((item) => item.status === "pending").length;
+  const approvedReviews = items.filter((item) => item.status === "approved").length;
+  const rejectedReviews = items.filter((item) => item.status === "rejected").length;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-4">
-        <Select value={resourceType ?? "all"} onValueChange={handleResourceTypeChange}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All resource types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All resource types</SelectItem>
-            {RESOURCE_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={status ?? "all"} onValueChange={handleStatusChange}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Items on this page"
+          value={items.length}
+          hint="Current cursor slice"
+        />
+        <DeskMetricCard
+          label="Pending reviews"
+          value={pendingReviews}
+          hint={`${approvedReviews} approved / ${rejectedReviews} rejected on this page`}
+          tone={pendingReviews > 0 ? "warning" : "success"}
+        />
+        <DeskMetricCard
+          label="Resource filter"
+          value={resourceType ?? "All resource types"}
+          hint={status ?? "All statuses"}
+        />
+      </DeskMetricGrid>
+
+      <FilterBar>
+        <FilterBarGroup>
+          <Select value={resourceType ?? "all"} onValueChange={handleResourceTypeChange}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All resource types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All resource types</SelectItem>
+              {RESOURCE_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={status ?? "all"} onValueChange={handleStatusChange}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterBarGroup>
+        <FilterBarActions>
+          <div className="text-right text-sm text-muted-foreground">
+            Open a row to review the resolved resource and submit the moderation decision.
+          </div>
+        </FilterBarActions>
+      </FilterBar>
 
       {!items.length && !isLoading ? (
         <EmptyState
@@ -114,7 +152,18 @@ export function ReviewQueueTable() {
           description="Try a different resource type or status filter."
         />
       ) : (
-        <div className="rounded-lg border">
+        <div className="flex flex-col gap-3">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Moderation queue</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Review flagged resources with explicit status, source, and timestamp context.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">Backend-enforced decisions</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
           <Table>
             <TableHeader>
               <TableRow>
@@ -152,24 +201,12 @@ export function ReviewQueueTable() {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={cursorStack.length <= 1 || isLoading}
-          onClick={handlePrevious}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!data?.hasMore || isLoading}
-          onClick={handleNext}
-        >
-          Next page
-        </Button>
-      </div>
+      <DeskPagination
+        canPrevious={cursorStack.length > 1 && !isLoading}
+        canNext={Boolean(data?.hasMore) && !isLoading}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+      />
 
       {selectedId ? (
         <ReviewQueueDetail

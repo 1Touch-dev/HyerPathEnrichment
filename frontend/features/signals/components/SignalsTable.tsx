@@ -2,7 +2,15 @@
 
 import { ExternalLink } from "lucide-react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid } from "@/components/desk/desk-shell";
 import { Button } from "@/components/ui/button";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -34,7 +42,43 @@ export function SignalsTable({ signals, total, loading, onLoadMore }: SignalsTab
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border">
+      <DeskMetricGrid className="xl:grid-cols-3">
+        <DeskMetricCard
+          label="Signals loaded"
+          value={signals.length}
+          hint={`${total} total signal(s)`}
+        />
+        <DeskMetricCard
+          label="Remaining records"
+          value={Math.max(total - signals.length, 0)}
+          hint={hasMore ? "More pages available" : "Current view is complete"}
+          tone={hasMore ? "info" : "success"}
+        />
+        <DeskMetricCard
+          label="Source posture"
+          value={signals[0]?.source ?? "Awaiting signals"}
+          hint="Top row source in the current feed"
+        />
+      </DeskMetricGrid>
+
+      <div className="flex flex-col gap-3">
+        <SectionHeader>
+          <SectionHeaderContent>
+            <SectionHeaderTitle>Change-detection feed</SectionHeaderTitle>
+            <SectionHeaderDescription>
+              External watch alerts presented as a dense desk feed with direct source links.
+            </SectionHeaderDescription>
+          </SectionHeaderContent>
+          <SectionHeaderActions>
+            <Button
+              variant="outline"
+              onClick={onLoadMore}
+              disabled={!hasMore || !onLoadMore || loading}
+            >
+              {loading ? "Loading…" : hasMore ? "Load more" : "All loaded"}
+            </Button>
+          </SectionHeaderActions>
+        </SectionHeader>
         <Table>
           <TableHeader>
             <TableRow>
@@ -70,11 +114,6 @@ export function SignalsTable({ signals, total, loading, onLoadMore }: SignalsTab
           </TableBody>
         </Table>
       </div>
-      {hasMore && onLoadMore ? (
-        <Button variant="outline" onClick={onLoadMore} disabled={loading}>
-          {loading ? "Loading…" : "Load more"}
-        </Button>
-      ) : null}
     </div>
   );
 }

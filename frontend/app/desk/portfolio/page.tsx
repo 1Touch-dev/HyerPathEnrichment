@@ -1,10 +1,14 @@
+import { DeskPage } from "@/components/desk/desk-shell";
 import { PortfolioModerationPanel } from "@/features/admin";
 
 export default function AdminPortfolioPage() {
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Portfolio moderation</h1>
+    <DeskPage
+      eyebrow="Desk moderation"
+      title="Portfolio moderation"
+      description="Control published portfolio visibility with the existing moderation mutations and keep review actions dense, explicit, and reversible."
+    >
       <PortfolioModerationPanel />
-    </div>
+    </DeskPage>
   );
 }

@@ -4,9 +4,23 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, FileText, Sparkles, Target } from "lucide-react";
+import {
+  ShellPageHeader,
+  ShellPageHeaderContent,
+  ShellPageHeaderDescription,
+  ShellPageHeaderEyebrow,
+  ShellPageHeaderTitle,
+  ShellSection,
+  ShellSectionHeader,
+  ShellSectionHeaderContent,
+  ShellSectionHeaderDescription,
+  ShellSectionHeaderTitle,
+} from "@/components/layout/ShellPage";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -195,15 +209,20 @@ export function PracticeLandingView() {
     jdSource === "tracked" ? Boolean(selectedMatchId) : pastedJd.trim().length >= 50;
 
   const canStart = practiceMode === "role" ? true : canStartJd;
+  const readyMatchCount = matchesData?.matches.length ?? 0;
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Interview prep</h1>
-        <p className="text-sm text-muted-foreground">
-          Practice with AI-scored mock interview questions by role or job description.
-        </p>
-      </div>
+      <ShellPageHeader>
+        <ShellPageHeaderContent>
+          <ShellPageHeaderEyebrow>Candidate workspace</ShellPageHeaderEyebrow>
+          <ShellPageHeaderTitle>Interview prep</ShellPageHeaderTitle>
+          <ShellPageHeaderDescription>
+            Pick a role, anchor practice to a tracked job, and keep your resume context close so
+            feedback feels specific instead of generic.
+          </ShellPageHeaderDescription>
+        </ShellPageHeaderContent>
+      </ShellPageHeader>
 
       {error ? (
         <Alert variant="destructive">
@@ -212,257 +231,322 @@ export function PracticeLandingView() {
         </Alert>
       ) : null}
 
-      <div className="space-y-4 rounded-lg border p-4">
-        <div>
-          <Label className="mb-2 block">Practice mode</Label>
-          <RadioGroup
-            value={practiceMode}
-            onValueChange={(value) => setPracticeMode(value as "role" | "jd")}
-            className="grid gap-3 sm:grid-cols-2"
-          >
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
-              <RadioGroupItem value="role" id="mode-role" className="mt-1" />
-              <div>
-                <Label htmlFor="mode-role" className="cursor-pointer">
-                  Role-based
-                </Label>
-                <p className="text-xs text-muted-foreground">Pick a target role from the bank.</p>
-              </div>
-            </label>
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
-              <RadioGroupItem value="jd" id="mode-jd" className="mt-1" />
-              <div>
-                <Label htmlFor="mode-jd" className="cursor-pointer">
-                  Job description
-                </Label>
-                <p className="text-xs text-muted-foreground">Use a tracked job or paste a JD.</p>
-              </div>
-            </label>
-          </RadioGroup>
-        </div>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <ShellSection className="gap-5">
+          <ShellSectionHeader>
+            <ShellSectionHeaderContent>
+              <ShellSectionHeaderTitle>Set up this session</ShellSectionHeaderTitle>
+              <ShellSectionHeaderDescription>
+                Choose the kind of practice you want, then tune category, difficulty, and resume
+                context before you start.
+              </ShellSectionHeaderDescription>
+            </ShellSectionHeaderContent>
+          </ShellSectionHeader>
 
-        {practiceMode === "role" ? (
           <div>
-            <Label htmlFor="jobRole">Job role</Label>
-            <Select value={jobRole} onValueChange={setJobRole}>
-              <SelectTrigger id="jobRole">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {JOB_ROLES.map((role) => (
-                  <SelectItem key={role.value} value={role.value}>
-                    {role.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <Label className="mb-2 block">JD source</Label>
-              <RadioGroup
-                value={jdSource}
-                onValueChange={(value) => setJdSource(value as "tracked" | "paste")}
-                className="grid gap-3 sm:grid-cols-2"
-              >
-                <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                  <RadioGroupItem value="tracked" id="jd-tracked" />
-                  <Label htmlFor="jd-tracked" className="cursor-pointer">
-                    Tracked job
-                  </Label>
-                </label>
-                <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                  <RadioGroupItem value="paste" id="jd-paste" />
-                  <Label htmlFor="jd-paste" className="cursor-pointer">
-                    Paste JD
-                  </Label>
-                </label>
-              </RadioGroup>
-            </div>
-
-            {jdSource === "tracked" ? (
-              <div>
-                <Label htmlFor="trackedJob">Tracked job</Label>
-                {matchesLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading matches…</p>
-                ) : (matchesData?.matches.length ?? 0) === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No tracked jobs yet.{" "}
-                    <Link href="/app/matches" className="underline">
-                      Go to Job matching
-                    </Link>
-                  </p>
-                ) : (
-                  <Select value={selectedMatchId} onValueChange={setSelectedMatchId}>
-                    <SelectTrigger id="trackedJob">
-                      <SelectValue placeholder="Select a job" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {matchesData?.matches.map((match) => (
-                        <SelectItem key={match.matchId} value={match.matchId}>
-                          {match.title} · {match.company}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <Label htmlFor="jobTitle">Job title (optional)</Label>
-                    <Input
-                      id="jobTitle"
-                      value={jobTitle}
-                      onChange={(e) => setJobTitle(e.target.value)}
-                      placeholder="e.g. Backend Engineer"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="company">Company (optional)</Label>
-                    <Input
-                      id="company"
-                      value={company}
-                      onChange={(e) => setCompany(e.target.value)}
-                      placeholder="e.g. Acme"
-                    />
-                  </div>
-                </div>
+            <Label className="mb-2 block">Practice mode</Label>
+            <RadioGroup
+              value={practiceMode}
+              onValueChange={(value) => setPracticeMode(value as "role" | "jd")}
+              className="grid gap-3 sm:grid-cols-2"
+            >
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/70 bg-surface p-4">
+                <RadioGroupItem value="role" id="mode-role" className="mt-1" />
                 <div>
-                  <Label htmlFor="pastedJd">Job description</Label>
-                  <Textarea
-                    id="pastedJd"
-                    value={pastedJd}
-                    onChange={(e) => setPastedJd(e.target.value)}
-                    placeholder="Paste the full job description (at least 50 characters)."
-                    rows={8}
-                  />
-                  {pastedJd.trim().length > 0 && pastedJd.trim().length < 50 ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Need {50 - pastedJd.trim().length} more characters.
-                    </p>
-                  ) : null}
+                  <Label htmlFor="mode-role" className="cursor-pointer">
+                    Role-based
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Pick a target role from the bank.</p>
                 </div>
-              </div>
-            )}
+              </label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/70 bg-surface p-4">
+                <RadioGroupItem value="jd" id="mode-jd" className="mt-1" />
+                <div>
+                  <Label htmlFor="mode-jd" className="cursor-pointer">
+                    Job description
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Use a tracked job or paste a JD.</p>
+                </div>
+              </label>
+            </RadioGroup>
           </div>
-        )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="category">Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger id="category">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="difficulty">Difficulty</Label>
-            <Select value={difficulty} onValueChange={setDifficulty}>
-              <SelectTrigger id="difficulty">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DIFFICULTIES.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <Label htmlFor="questionCount">Question range</Label>
-            <span className="text-sm tabular-nums text-muted-foreground transition-opacity duration-150">
-              {questionCount} questions
-            </span>
-          </div>
-          <RangeSlider
-            id="questionCount"
-            min={QUESTION_COUNT_MIN}
-            max={QUESTION_COUNT_MAX}
-            step={1}
-            value={questionCount}
-            onValueChange={setQuestionCount}
-            aria-valuemin={QUESTION_COUNT_MIN}
-            aria-valuemax={QUESTION_COUNT_MAX}
-            aria-valuenow={questionCount}
-          />
-          <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-            <span>{QUESTION_COUNT_MIN}</span>
-            <span>{QUESTION_COUNT_MAX}</span>
-          </div>
-        </div>
-
-        {practiceMode === "role" ? (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="personalize"
-                checked={personalize}
-                disabled={!hasReadyDocument}
-                onCheckedChange={(checked) => setPersonalize(checked === true)}
-              />
-              <Label htmlFor="personalize">Personalize with my résumé</Label>
+          {practiceMode === "role" ? (
+            <div>
+              <Label htmlFor="jobRole">Job role</Label>
+              <Select value={jobRole} onValueChange={setJobRole}>
+                <SelectTrigger id="jobRole">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {JOB_ROLES.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {!hasReadyDocument ? (
-              <p className="pl-6 text-sm text-muted-foreground">
-                Upload a CV first to personalize your questions.{" "}
-                <Link href="/app/documents" className="underline">
-                  Go to Documents
-                </Link>
-              </p>
-            ) : personalize && selectedDocument ? (
-              <ResumeReference
-                documents={readyDocuments}
-                selectedId={selectedDocument.documentId}
-                onSelect={setDocumentId}
-              />
-            ) : null}
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <Label className="mb-2 block">JD source</Label>
+                <RadioGroup
+                  value={jdSource}
+                  onValueChange={(value) => setJdSource(value as "tracked" | "paste")}
+                  className="grid gap-3 sm:grid-cols-2"
+                >
+                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 bg-surface p-4">
+                    <RadioGroupItem value="tracked" id="jd-tracked" />
+                    <Label htmlFor="jd-tracked" className="cursor-pointer">
+                      Tracked job
+                    </Label>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 bg-surface p-4">
+                    <RadioGroupItem value="paste" id="jd-paste" />
+                    <Label htmlFor="jd-paste" className="cursor-pointer">
+                      Paste JD
+                    </Label>
+                  </label>
+                </RadioGroup>
+              </div>
+
+              {jdSource === "tracked" ? (
+                <div>
+                  <Label htmlFor="trackedJob">Tracked job</Label>
+                  {matchesLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading matches…</p>
+                  ) : readyMatchCount === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No tracked jobs yet.{" "}
+                      <Link href="/app/matches" className="underline">
+                        Go to Job matching
+                      </Link>
+                    </p>
+                  ) : (
+                    <Select value={selectedMatchId} onValueChange={setSelectedMatchId}>
+                      <SelectTrigger id="trackedJob">
+                        <SelectValue placeholder="Select a job" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {matchesData?.matches.map((match) => (
+                          <SelectItem key={match.matchId} value={match.matchId}>
+                            {match.title} · {match.company}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor="jobTitle">Job title (optional)</Label>
+                      <Input
+                        id="jobTitle"
+                        value={jobTitle}
+                        onChange={(e) => setJobTitle(e.target.value)}
+                        placeholder="e.g. Backend Engineer"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="company">Company (optional)</Label>
+                      <Input
+                        id="company"
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                        placeholder="e.g. Acme"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="pastedJd">Job description</Label>
+                    <Textarea
+                      id="pastedJd"
+                      value={pastedJd}
+                      onChange={(e) => setPastedJd(e.target.value)}
+                      placeholder="Paste the full job description (at least 50 characters)."
+                      rows={8}
+                    />
+                    {pastedJd.trim().length > 0 && pastedJd.trim().length < 50 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Need {50 - pastedJd.trim().length} more characters.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="category">Category</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger id="category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="difficulty">Difficulty</Label>
+              <Select value={difficulty} onValueChange={setDifficulty}>
+                <SelectTrigger id="difficulty">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DIFFICULTIES.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {!hasReadyDocument ? (
-              <>
-                <Label>Résumé reference</Label>
-                <p className="text-sm text-muted-foreground">
-                  No processed CV yet — questions will not use résumé context.{" "}
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <Label htmlFor="questionCount">Question range</Label>
+              <span className="text-sm tabular-nums text-muted-foreground transition-opacity duration-150">
+                {questionCount} questions
+              </span>
+            </div>
+            <RangeSlider
+              id="questionCount"
+              min={QUESTION_COUNT_MIN}
+              max={QUESTION_COUNT_MAX}
+              step={1}
+              value={questionCount}
+              onValueChange={setQuestionCount}
+              aria-valuemin={QUESTION_COUNT_MIN}
+              aria-valuemax={QUESTION_COUNT_MAX}
+              aria-valuenow={questionCount}
+            />
+            <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+              <span>{QUESTION_COUNT_MIN}</span>
+              <span>{QUESTION_COUNT_MAX}</span>
+            </div>
+          </div>
+
+          {practiceMode === "role" ? (
+            <div className="space-y-2 rounded-xl border border-border/70 bg-surface p-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="personalize"
+                  checked={personalize}
+                  disabled={!hasReadyDocument}
+                  onCheckedChange={(checked) => setPersonalize(checked === true)}
+                />
+                <Label htmlFor="personalize">Personalize with my résumé</Label>
+              </div>
+              {!hasReadyDocument ? (
+                <p className="pl-6 text-sm text-muted-foreground">
+                  Upload a CV first to personalize your questions.{" "}
                   <Link href="/app/documents" className="underline">
                     Go to Documents
                   </Link>
                 </p>
-              </>
-            ) : selectedDocument ? (
-              <ResumeReference
-                documents={readyDocuments}
-                selectedId={selectedDocument.documentId}
-                onSelect={setDocumentId}
-              />
-            ) : null}
-          </div>
-        )}
+              ) : personalize && selectedDocument ? (
+                <ResumeReference
+                  documents={readyDocuments}
+                  selectedId={selectedDocument.documentId}
+                  onSelect={setDocumentId}
+                />
+              ) : null}
+            </div>
+          ) : (
+            <div className="space-y-2 rounded-xl border border-border/70 bg-surface p-4">
+              {!hasReadyDocument ? (
+                <>
+                  <Label>Résumé reference</Label>
+                  <p className="text-sm text-muted-foreground">
+                    No processed CV yet — questions will not use résumé context.{" "}
+                    <Link href="/app/documents" className="underline">
+                      Go to Documents
+                    </Link>
+                  </p>
+                </>
+              ) : selectedDocument ? (
+                <ResumeReference
+                  documents={readyDocuments}
+                  selectedId={selectedDocument.documentId}
+                  onSelect={setDocumentId}
+                />
+              ) : null}
+            </div>
+          )}
 
-        <Button
-          onClick={handleStart}
-          disabled={isStarting || !canStart}
-          className="w-full"
-          size="lg"
-        >
-          {isStarting ? "Starting..." : "Start practice"}
-        </Button>
+          <Button
+            onClick={handleStart}
+            disabled={isStarting || !canStart}
+            className="w-full"
+            size="lg"
+          >
+            {isStarting ? "Starting..." : "Start practice"}
+          </Button>
+        </ShellSection>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Target className="h-4 w-4 text-primary" />
+                Current setup
+              </div>
+              <CardTitle className="text-xl">
+                {practiceMode === "role" ? "Role-based session" : "JD-tailored session"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Badge variant="outline">{category === "any" ? "Any category" : category}</Badge>
+              <Badge variant="outline">
+                {difficulty === "any" ? "Any difficulty" : difficulty}
+              </Badge>
+              <Badge variant="outline">{questionCount} questions</Badge>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <FileText className="h-4 w-4 text-primary" />
+                Resume context
+              </div>
+              <CardTitle className="text-xl">
+                {hasReadyDocument ? "Ready to personalize" : "No processed CV yet"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {hasReadyDocument
+                ? "You can ground practice in your latest resume and switch sources before you start."
+                : "Upload a CV in Documents whenever you want practice questions to use your actual experience."}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Tracked jobs
+              </div>
+              <CardTitle className="text-xl">{readyMatchCount}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {practiceMode === "jd"
+                ? "Tracked jobs can seed a tailored mock when you do not want to paste a JD."
+                : "Tracked jobs remain available if you switch into JD-tailored practice."}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

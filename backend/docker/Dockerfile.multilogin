@@ -14,12 +14,65 @@ ENV DEBIAN_FRONTEND=noninteractive \
     VNC_PORT=5900 \
     MLX_API_PORT=45001
 
-# ── Block 1: base packages ───────────────────────────────────────────────────
+# ── Block 1: minimal fetch prerequisites ─────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-    wget \
     unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Block 2: AWS CLI (needed to pull mlxapp .deb from S3) ───────────────────
+RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip \
+    && unzip /tmp/awscliv2.zip -d /tmp/awscliv2 \
+    && /tmp/awscliv2/aws/install \
+    && rm -rf /tmp/awscliv2.zip /tmp/awscliv2
+
+# ── Block 3: download mlxapp .deb from S3 ───────────────────────────────────
+# Build-time AWS credentials — Compose passes these from the main
+# `--env-file` (for example `backend/.env.production`) because build-arg
+# interpolation does not read `WORKER_ENV_FILE`. No runtime access to AWS is
+# required by the container after build.
+ARG AWS_ACCESS_KEY_ID
+ARG AWS_SECRET_ACCESS_KEY
+ARG AWS_SESSION_TOKEN
+ARG AWS_DEFAULT_REGION=us-east-1
+
+# Optional local fallback: place mlx-local/mlxdeb.deb in the Docker build
+# context when S3 access is unavailable on the host.
+COPY mlx-local/ /opt/mlx-local/
+
+RUN mkdir -p /opt/mlx && \
+    if [ -f /opt/mlx-local/mlxdeb.deb ]; then \
+        cp /opt/mlx-local/mlxdeb.deb /opt/mlx/mlxdeb.deb; \
+    elif [ -z "$AWS_ACCESS_KEY_ID" ]; then \
+        echo "ERROR: AWS_ACCESS_KEY_ID not set; cannot download the Multilogin installer." >&2; \
+        exit 1; \
+    fi && \
+    if [ ! -f /opt/mlx/mlxdeb.deb ] && ! AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+        AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+        AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+        AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+        aws s3api head-object \
+            --bucket onetouch-sm-automation-logs \
+            --key multilogin_agents/Prod_Working_Multilogin_Ubuntu_24.04_amd64.deb \
+            >/tmp/mlx-head-object.json 2>/tmp/mlx-head-object.err; then \
+        echo "ERROR: unable to access the Multilogin installer in S3; check AWS credentials and object permissions for onetouch-sm-automation-logs/multilogin_agents/Prod_Working_Multilogin_Ubuntu_24.04_amd64.deb." >&2; \
+        cat /tmp/mlx-head-object.err >&2 || true; \
+        exit 1; \
+    fi && \
+    if [ ! -f /opt/mlx/mlxdeb.deb ]; then \
+        AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+        AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+        AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+        AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+        aws s3 cp \
+        "s3://onetouch-sm-automation-logs/multilogin_agents/Prod_Working_Multilogin_Ubuntu_24.04_amd64.deb" \
+        /opt/mlx/mlxdeb.deb; \
+    fi
+
+# ── Block 4: runtime packages ────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
     lsof \
     net-tools \
     procps \
@@ -45,52 +98,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Block 2: AWS CLI (needed to pull mlxapp .deb from S3) ───────────────────
-RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip \
-    && unzip /tmp/awscliv2.zip -d /tmp/awscliv2 \
-    && /tmp/awscliv2/aws/install \
-    && rm -rf /tmp/awscliv2.zip /tmp/awscliv2
-
-# ── Block 3: download mlxapp .deb from S3 ───────────────────────────────────
-# Build-time AWS credentials — Compose passes these from the main
-# `--env-file` (for example `backend/.env.production`) because build-arg
-# interpolation does not read `WORKER_ENV_FILE`. No runtime access to AWS is
-# required by the container after build.
-ARG AWS_ACCESS_KEY_ID
-ARG AWS_SECRET_ACCESS_KEY
-ARG AWS_SESSION_TOKEN
-ARG AWS_DEFAULT_REGION=us-east-1
-
-RUN mkdir -p /opt/mlx && \
-    if [ -n "$AWS_ACCESS_KEY_ID" ]; then \
-        AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
-        AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
-        AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
-        AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
-        aws s3 cp \
-            "s3://onetouch-sm-automation-logs/multilogin_agents/Prod_Working_Multilogin_Ubuntu_24.04_amd64.deb" \
-            /opt/mlx/mlxdeb.deb; \
-    else \
-        echo "WARNING: AWS_ACCESS_KEY_ID not set — mlxapp .deb not downloaded. Build will fail at install step."; \
-        exit 1; \
-    fi
-
-# ── Block 4: install mlxapp + resolve any missing deps ──────────────────────
+# ── Block 5: install mlxapp + resolve any missing deps ──────────────────────
 RUN dpkg -i /opt/mlx/mlxdeb.deb || true \
     && apt-get update \
     && apt-get install -y -f \
     && rm /opt/mlx/mlxdeb.deb
 
-# ── Block 5: symlink mlxapp to PATH ─────────────────────────────────────────
+# ── Block 6: symlink mlxapp to PATH ─────────────────────────────────────────
 RUN MLXAPP_PATH="$(find /opt /usr -name mlxapp -type f -executable 2>/dev/null | head -1)" \
     && echo "Found mlxapp at: $MLXAPP_PATH" \
     && ln -sf "$MLXAPP_PATH" /usr/local/bin/mlxapp \
     && chmod +x "$MLXAPP_PATH"
 
-# ── Block 6: Python Selenium + requests (used by diagnostic scripts) ─────────
+# ── Block 7: Python Selenium + requests (used by diagnostic scripts) ─────────
 RUN pip3 install --break-system-packages selenium requests urllib3
 
-# ── Block 7: non-root user ───────────────────────────────────────────────────
+# ── Block 8: non-root user ───────────────────────────────────────────────────
 # Chrome refuses to run without --no-sandbox when running as root, and
 # Multilogin strips that flag for security. Run everything as mlxuser.
 # UID/GID 1001 avoids collision with the ubuntu default user (1000).
@@ -104,7 +127,7 @@ RUN groupadd -g 1001 mlxuser \
 ENV MLX_DATA_DIR=/home/mlxuser/mlx \
     HOME=/home/mlxuser
 
-# ── Block 8: startup script ──────────────────────────────────────────────────
+# ── Block 9: startup script ──────────────────────────────────────────────────
 # Use printf instead of heredoc for compatibility with classic Docker builder
 RUN printf '#!/bin/bash\n\
 set -e\n\

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+
 from scripts.create_test_user import validate_bootstrap_context
+from scripts import create_test_user
 
 
 def test_regular_bootstrap_allowed_in_test_env(monkeypatch):
@@ -31,3 +34,52 @@ def test_bootstrap_disallowed_in_production_like_env(monkeypatch):
         assert "disabled" in str(exc)
     else:
         raise AssertionError("bootstrap must be disabled in production-like envs")
+
+
+def test_schema_is_initialized_before_user_write(monkeypatch):
+    calls: list[object] = []
+
+    async def fake_init_db() -> None:
+        calls.append("init_db")
+
+    async def fake_create_or_update_user(
+        email: str,
+        password: str,
+        first_name: str,
+        last_name: str,
+        *,
+        is_superuser: bool = False,
+    ) -> None:
+        calls.append(
+            {
+                "email": email,
+                "password": password,
+                "first_name": first_name,
+                "last_name": last_name,
+                "is_superuser": is_superuser,
+            }
+        )
+
+    monkeypatch.setattr(create_test_user, "_create_or_update_user", fake_create_or_update_user)
+
+    asyncio.run(
+        create_test_user._ensure_schema_and_create_user(
+            "fixture@example.com",
+            "FixturePassword123",
+            "Fixture",
+            "User",
+            is_superuser=True,
+            init_db_func=fake_init_db,
+        )
+    )
+
+    assert calls == [
+        "init_db",
+        {
+            "email": "fixture@example.com",
+            "password": "FixturePassword123",
+            "first_name": "Fixture",
+            "last_name": "User",
+            "is_superuser": True,
+        },
+    ]

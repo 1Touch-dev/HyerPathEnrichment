@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { Dossier } from "@/src/lib/types";
 import { RawJsonPanel } from "@/components/console/RawJsonPanel";
+import { Badge } from "@/components/ui/badge";
 import {
   formatPercent,
   copyToClipboard,
@@ -24,11 +25,11 @@ type EntityDetailPanelProps = {
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-start gap-4 mb-3">
-      <div className="w-28 shrink-0 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+    <div className="grid gap-2 border-b border-border/60 pb-3 last:border-0 last:pb-0 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-4">
+      <div className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
         {label}
       </div>
-      <div className="min-w-0 flex-1 text-sm text-foreground break-words">{value}</div>
+      <div className="min-w-0 text-sm text-foreground break-words">{value}</div>
     </div>
   );
 }
@@ -61,12 +62,38 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
 
 export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
   const [metadataOpen, setMetadataOpen] = useState(false);
+  const subtitle = "subtitle" in entity ? entity.subtitle : undefined;
 
   return (
-    <div className="rounded-lg border bg-card p-5">
+    <div className="rounded-xl border border-border/70 bg-card p-5 shadow-panel">
+      <div className="mb-5 space-y-3 border-b border-border/60 pb-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">{detailLabel(entity.kind)}</Badge>
+          {"confidence" in entity && typeof entity.confidence === "number" ? (
+            <Badge
+              variant={
+                entity.confidence >= 0.9
+                  ? "success"
+                  : entity.confidence >= 0.7
+                    ? "warning"
+                    : "outline"
+              }
+            >
+              {formatPercent(entity.confidence)}
+            </Badge>
+          ) : null}
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">{entity.title}</h3>
+          {subtitle ? (
+            <p className="mt-1 break-words text-sm text-muted-foreground">{subtitle}</p>
+          ) : null}
+        </div>
+      </div>
+
       {entity.kind === "handle" ? (
         <>
-          <div className="flex items-center gap-2 mb-4">
+          <div className="mb-4 flex items-center gap-2">
             <PlatformIcon platform={entity.entity.platform} className="w-6 h-6" />
             <h3 className="font-semibold text-lg">{entity.entity.platform}</h3>
           </div>
@@ -96,8 +123,8 @@ export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
               </div>
             }
           />
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-2">
+          <div className="mb-3 mt-3">
+            <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                 Confidence
               </span>
@@ -154,8 +181,8 @@ export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
           />
           <Field label="Status" value={entity.entity.status} />
           <Field label="Source" value={entity.entity.source} />
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-2">
+          <div className="mb-3 mt-3">
+            <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                 Confidence
               </span>
@@ -212,8 +239,8 @@ export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
         <>
           <Field label="Type" value="Confidence Rule" />
           <Field label="Label" value={entity.entity.label} />
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-2">
+          <div className="mb-3 mt-3">
+            <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                 Score
               </span>
@@ -257,8 +284,8 @@ export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
         </>
       ) : null}
 
-      <div className="mt-4 flex flex-col gap-3 pt-4 border-t border-border">
-        <div className="text-sm font-semibold">Job Sources</div>
+      <div className="mt-5 flex flex-col gap-3 border-t border-border pt-5">
+        <div className="text-sm font-semibold">Request sources</div>
         {dossier.sources.length ? (
           <div className="flex flex-wrap gap-2">
             {dossier.sources.map((s) => (
@@ -278,4 +305,23 @@ export function EntityDetailPanel({ dossier, entity }: EntityDetailPanelProps) {
       </div>
     </div>
   );
+}
+
+function detailLabel(kind: DossierEntity["kind"]): string {
+  switch (kind) {
+    case "handle":
+      return "Handle";
+    case "verifiedEmail":
+      return "Verified email";
+    case "email":
+      return "Email";
+    case "job":
+      return "Professional lead";
+    case "confidence":
+      return "Confidence rule";
+    case "source":
+      return "Source";
+    default:
+      return "Detail";
+  }
 }

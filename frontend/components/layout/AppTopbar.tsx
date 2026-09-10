@@ -6,7 +6,8 @@ import { HealthIndicator } from "@/components/console/HealthIndicator";
 import { Button } from "@/components/ui/button";
 import { HyrepathLogo } from "@/components/layout/HyrepathLogo";
 import { UserMenu } from "@/components/auth/user-menu";
-import type { Product } from "@/src/lib/product-doors";
+import { PRODUCT_ROOTS, type Product } from "@/src/lib/product-doors";
+import { SHELL_PRODUCT_META } from "./ShellPage";
 import type { NavSection } from "./nav-config";
 
 type AppTopbarProps = {
@@ -16,6 +17,7 @@ type AppTopbarProps = {
 
 export function AppTopbar({ product, sections }: AppTopbarProps) {
   const pathname = usePathname();
+  const meta = SHELL_PRODUCT_META[product];
   const activeItem = sections
     .flatMap((section) => section.items)
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
@@ -23,35 +25,46 @@ export function AppTopbar({ product, sections }: AppTopbarProps) {
   const sectionLabel =
     activeItem?.label ??
     (product === "candidate" ? "Candidate" : product === "desk" ? "Desk" : "Look up");
-  const productLabel =
-    product === "osint" ? "OSINT" : `${product[0].toUpperCase()}${product.slice(1)}`;
   const settingsHref = product === "osint" ? "/osint/settings" : "/app/settings";
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background/95 px-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-6">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <header
+      data-shell-topbar=""
+      data-shell-product={product}
+      className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between border-b border-border/60 bg-background/92 px-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/72 lg:px-6"
+    >
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+        <Link
+          href={PRODUCT_ROOTS[product]}
+          aria-label={`${meta.label} home`}
+          className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm transition-colors hover:bg-primary/15"
+        >
+          <div className="flex size-8 items-center justify-center rounded-lg">
             <HyrepathLogo className="size-5" />
           </div>
-          <div>
+        </Link>
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <p className="w-fit rounded-md bg-secondary px-2.5 py-1 text-sm font-medium leading-5 text-primary">
-              {productLabel}
+              {meta.label}
             </p>
-            <p className="text-sm font-semibold">{sectionLabel}</p>
+            <p className="hidden text-xs text-subtle-foreground sm:inline">{meta.description}</p>
+          </div>
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-sm font-semibold">{sectionLabel}</p>
+            <div className="hidden items-center gap-2 md:flex">
+              <span className="text-muted-foreground">/</span>
+              <Link
+                href="/"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Marketing hub
+              </Link>
+            </div>
           </div>
         </div>
-        <div className="hidden items-center gap-2 md:flex">
-          <span className="text-muted-foreground">/</span>
-          <Link
-            href="/"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Marketing hub
-          </Link>
-        </div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <HealthIndicator />
         <Button asChild variant="outline" size="sm" className="h-9">
           <Link href="/opt-out">Opt out</Link>
