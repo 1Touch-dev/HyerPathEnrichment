@@ -70,7 +70,7 @@ services:
       # ────────────────────────────────────────────────────────────────────
       # Core services (postgres, redis bind to 0.0.0.0 but accessed via 127.0.0.1)
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@127.0.0.1:5433/hyrepath
-      REDIS_URL: redis://127.0.0.1:6379/0
+      REDIS_URL: redis://127.0.0.1:${REDIS_HOST_PORT:-6379}/0
 
       # Multilogin connection (containerized, host network, same loopback)
       MULTILOGIN_SELENIUM_HOST: "http://127.0.0.1"
@@ -89,7 +89,7 @@ services:
     restart: unless-stopped
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:6379/0'); r.ping()"]
+      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:${REDIS_HOST_PORT:-6379}/0'); r.ping()"]
       interval: 30s
       timeout: 10s
       retries: 3

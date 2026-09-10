@@ -11,7 +11,11 @@ Prerequisites (typically via scripts/e2e_realworld_strict.sh in WSL):
 
 Usage:
   cd backend
-  python scripts/e2e_realworld_strict.py
+  E2E_USER_EMAIL=user@example.com E2E_USER_PASSWORD=... \
+    python scripts/e2e_realworld_strict.py
+
+The configured account must be active, verified, and authorized for staff-only
+enrichment routes.
 """
 
 from __future__ import annotations
@@ -48,6 +52,12 @@ RESULTS_DIR = ROOT / ".e2e-results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _unwrap_data(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return the data object from the shared API envelope."""
+    data = payload.get("data")
+    return data if isinstance(data, dict) else payload
+
+
 @dataclass
 class CheckResult:
     name: str
@@ -60,8 +70,6 @@ class StrictProbe:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.base_url = os.getenv("E2E_BASE_URL", "http://localhost:8000").rstrip("/")
-        self.token = self.settings.api_token
-        self.headers = {"Authorization": f"Bearer {self.token}"}
         self.results: list[CheckResult] = []
 
     def record(self, name: str, ok: bool, detail: str, **data: Any) -> None:
@@ -97,9 +105,10 @@ class StrictProbe:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(f"{self.base_url}/health")
+            payload = _unwrap_data(response.json())
             self.record(
                 "api_health",
-                response.status_code == 200 and response.json().get("status") == "ok",
+                response.status_code == 200 and payload.get("status") == "ok",
                 f"status={response.status_code}",
             )
         except httpx.HTTPError as exc:
@@ -314,20 +323,53 @@ class StrictProbe:
         }
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:
+                email = os.getenv("E2E_USER_EMAIL", "").strip()
+                password = os.getenv("E2E_USER_PASSWORD", "").strip()
+                if not email or not password:
+                    self.record(
+                        "api_cookie_auth",
+                        False,
+                        "E2E_USER_EMAIL and E2E_USER_PASSWORD must identify a verified staff user",
+                    )
+                    self._record_skipped_sync_checks("cookie authentication is not configured")
+                    return
+
+                login = await client.post(
+                    f"{self.base_url}/auth/login",
+                    json={"email": email, "password": password},
+                )
+                access_token = login.cookies.get("access_token")
+                authenticated = login.status_code == 200 and bool(access_token)
+                self.record(
+                    "api_cookie_auth",
+                    authenticated,
+                    f"status={login.status_code} access_cookie={'present' if access_token else 'missing'}",
+                )
+                if not authenticated or access_token is None:
+                    self._record_skipped_sync_checks("login did not return an access cookie")
+                    return
+
+                # Production cookies are Secure and this probe normally runs over the
+                # container's private HTTP loopback. Forward the cookie explicitly;
+                # public browser traffic must still use HTTPS.
                 response = await client.post(
                     f"{self.base_url}/enrich/sync",
-                    headers={**self.headers, "Content-Type": "application/json"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "Cookie": f"access_token={access_token}",
+                    },
                     json=body,
                 )
-            payload = response.json()
+            response_payload = response.json()
             (RESULTS_DIR / "api-sync-dossier.json").write_text(
-                json.dumps(payload, indent=2), encoding="utf-8"
+                json.dumps(response_payload, indent=2), encoding="utf-8"
             )
+            payload = _unwrap_data(response_payload)
             dossier = payload.get("dossier", {})
             self.record(
                 "api_sync_completed",
                 response.status_code == 200 and payload.get("status") == "completed",
-                f"status={payload.get('status')}",
+                f"http={response.status_code} status={payload.get('status')}",
             )
             self.record(
                 "api_sync_has_handles_or_emails",
@@ -345,6 +387,11 @@ class StrictProbe:
             )
         except httpx.HTTPError as exc:
             self.record("api_sync_completed", False, str(exc))
+
+    def _record_skipped_sync_checks(self, reason: str) -> None:
+        self.record("api_sync_completed", False, f"skipped: {reason}")
+        self.record("api_sync_has_handles_or_emails", False, f"skipped: {reason}")
+        self.record("api_sync_business_optional", False, f"skipped: {reason}")
 
 
 def main() -> int:

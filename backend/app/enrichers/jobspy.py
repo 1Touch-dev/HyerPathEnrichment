@@ -529,8 +529,9 @@ class JobSpyEnricher(Enricher):
                 kwargs["location"] = board_query["location"]
 
             # Add board-specific parameters
-            if board_key == "indeed" and "country_indeed" in board_query:
-                kwargs["country_indeed"] = board_query["country_indeed"]
+            country_indeed = board_query.get("country_indeed")
+            if board_key == "indeed" and country_indeed:
+                kwargs["country_indeed"] = country_indeed
 
             if board_key == "google" and "google_search_term" in board_query:
                 kwargs["google_search_term"] = board_query["google_search_term"]

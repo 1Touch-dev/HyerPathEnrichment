@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.database.session import SessionLocal, init_db
+from app.domain.dossier import Dossier
 from app.domain.enrichment import EnrichmentRequest
 from app.domain.enums import RequestedTier
 from app.enrichers import (
@@ -17,6 +18,7 @@ from app.enrichers import (
     SherlockEnricher,
     SocialAnalyzerEnricher,
 )
+from app.enrichers import pipeline as pipeline_mod
 from app.enrichers.base import Enricher
 from app.enrichers.pipeline import Pipeline
 from app.main import app
@@ -118,6 +120,76 @@ class _BoomEnricher(Enricher):
 
     async def _fetch(self, request: EnrichmentRequest) -> dict[str, Any]:
         raise RuntimeError("backend down")
+
+
+@pytest.mark.asyncio
+async def test_sync_run_persists_job_before_external_execution() -> None:
+    events: list[str] = []
+    job = object()
+    pipeline = Pipeline(db=object())  # type: ignore[arg-type]
+
+    async def _create(*_args: Any, **_kwargs: Any) -> object:
+        events.append("create")
+        return job
+
+    async def _mark_status(*_args: Any, **_kwargs: Any) -> object:
+        events.append("mark_status")
+        return job
+
+    async def _execute(*_args: Any, **_kwargs: Any) -> object:
+        events.append("execute")
+        return job
+
+    pipeline.jobs.create = _create  # type: ignore[method-assign]
+    pipeline.jobs.mark_status = _mark_status  # type: ignore[method-assign]
+    pipeline._execute = _execute  # type: ignore[method-assign]
+
+    result = await pipeline.run(
+        EnrichmentRequest(username="pipeline-user", requested_tiers=["tier2"])
+    )
+
+    assert result is job
+    assert events == ["create", "mark_status", "execute"]
+
+
+@pytest.mark.asyncio
+async def test_execute_closes_suppression_read_transaction_before_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    job = object()
+    pipeline = Pipeline(db=object())  # type: ignore[arg-type]
+
+    async def _is_suppressed(*_args: Any, **_kwargs: Any) -> bool:
+        events.append("suppression_check")
+        return False
+
+    async def _commit() -> None:
+        events.append("commit")
+
+    async def _dispatch(*_args: Any, **_kwargs: Any) -> list[dict[str, Any]]:
+        events.append("dispatch")
+        return []
+
+    async def _merge(*_args: Any, **_kwargs: Any) -> Dossier:
+        return Dossier()
+
+    async def _mark_status(*_args: Any, **_kwargs: Any) -> object:
+        return job
+
+    monkeypatch.setattr(pipeline_mod, "is_request_suppressed", _is_suppressed)
+    pipeline.jobs.commit = _commit  # type: ignore[method-assign]
+    pipeline.jobs.mark_status = _mark_status  # type: ignore[method-assign]
+    pipeline._dispatch = _dispatch  # type: ignore[method-assign]
+    pipeline._merge = _merge  # type: ignore[method-assign]
+
+    await pipeline._execute(
+        job,  # type: ignore[arg-type]
+        EnrichmentRequest(username="pipeline-user", requested_tiers=["tier2"]),
+        sync_mode=True,
+    )
+
+    assert events == ["suppression_check", "commit", "dispatch"]
 
 
 @pytest.mark.asyncio
