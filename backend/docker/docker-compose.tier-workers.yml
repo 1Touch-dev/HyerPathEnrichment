@@ -10,6 +10,35 @@
 
 services:
   # ══════════════════════════════════════════════════════════════════════════
+  # Auxiliary worker: non-tier queues that still need a bridge-network consumer
+  # ══════════════════════════════════════════════════════════════════════════
+  # Covers already-built background features that are not routed through the
+  # tier1/tier234 enrichment split (outreach drafts, LinkedIn send batches,
+  # feedback/question generation, and document pipeline queues).
+  worker:
+    extends:
+      file: docker-compose.yml
+      service: worker
+    env_file:
+      - ${WORKER_ENV_FILE:-../.env.production}
+    environment:
+      WORKER_QUEUE_MODE: single
+      ENABLE_TIER1: "false"
+      WORKER_STARTUP_DELAY: ${WORKER_STARTUP_DELAY:-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      email-verifier:
+        condition: service_healthy
+      social-analyzer:
+        condition: service_healthy
+      google-maps-scraper:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════════════════════
   # Tier 1 Worker: Heavy browser automation (1-2 instances)
   # ══════════════════════════════════════════════════════════════════════════
   # REQUIRES: Host network mode to share 127.0.0.1 namespace with Multilogin
@@ -41,17 +70,18 @@ services:
       # ────────────────────────────────────────────────────────────────────
       # Core services (postgres, redis bind to 0.0.0.0 but accessed via 127.0.0.1)
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@127.0.0.1:5433/hyrepath
-      REDIS_URL: redis://127.0.0.1:6379/0
+      REDIS_URL: redis://127.0.0.1:${REDIS_HOST_PORT:-6379}/0
 
       # Multilogin connection (containerized, host network, same loopback)
       MULTILOGIN_SELENIUM_HOST: "http://127.0.0.1"
       MULTILOGIN_LAUNCHER_URL: "https://127.0.0.1:45001/api/v2"
 
-      # Sidecar services - use host-exposed ports (see docker-compose.yml)
+      # Tier 1 work only needs Redis, Postgres, and Multilogin. The other
+      # sidecar URLs stay explicit here only where Tier 1 code might touch them.
       EMAIL_VERIFIER_URL: http://127.0.0.1:8081
       SOCIAL_ANALYZER_URL: http://127.0.0.1:9005
       GMAPS_SCRAPER_URL: http://127.0.0.1:8080
-      REACHER_URL: http://127.0.0.1:8082
+      REACHER_URL: ""
 
       # No staggered startup delay for single tier1 worker
       WORKER_STARTUP_DELAY: "0"
@@ -59,7 +89,7 @@ services:
     restart: unless-stopped
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:6379/0'); r.ping()"]
+      test: ["CMD", "python", "-c", "import redis; r = redis.from_url('redis://127.0.0.1:${REDIS_HOST_PORT:-6379}/0'); r.ping()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -99,13 +129,13 @@ services:
       EMAIL_VERIFIER_URL: http://email-verifier:8080
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
-      REACHER_URL: http://reacher:8082
+      REACHER_URL: http://reacher:8080
 
       # External proxy (Oxylabs) - internet-accessible from bridge network
       SCRAPOXY_URL: ${SCRAPOXY_URL:-http://pr.oxylabs.io:7777}
 
-      # No staggered startup delay
-      WORKER_STARTUP_DELAY: "0"
+      # Optional staggered startup for scaled bridge workers
+      WORKER_STARTUP_DELAY: ${WORKER_STARTUP_DELAY:-0}
 
     # Explicit dependencies for bridge network orchestration
     depends_on:
@@ -134,7 +164,8 @@ services:
 # ══════════════════════════════════════════════════════════════════════════
 # 1. Tier 1 MUST use host network to reach Multilogin's 127.0.0.1 ports
 # 2. Tier 2-4 use bridge network for scalability and isolation
-# 3. Both workers share the same Redis queue but process different tiers
+# 3. `worker` handles non-tier queues on the bridge network; `worker-tier1`
+#    and `worker-tier234` handle enrichment queues only
 # 4. Scale tier 2-4 workers: docker compose up -d --scale worker-tier234=N
 # 5. Cannot scale tier 1 workers with host network (port conflicts)
 # ══════════════════════════════════════════════════════════════════════════

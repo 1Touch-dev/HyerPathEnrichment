@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
-import { getUserHome, safeLocalRedirect } from "@/src/lib/product-doors";
+import { resolvePostLoginPath } from "@/src/lib/product-doors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -26,10 +27,9 @@ export default function LoginPage() {
 
     try {
       const user = await login(email, password);
-      const redirect = safeLocalRedirect(
-        new URLSearchParams(window.location.search).get("redirect"),
+      router.push(
+        resolvePostLoginPath(user, new URLSearchParams(window.location.search).get("redirect")),
       );
-      router.push(redirect ?? getUserHome(user));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -66,9 +66,8 @@ export default function LoginPage() {
 
           <div>
             <Label htmlFor="password">Password</Label>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"

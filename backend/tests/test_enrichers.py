@@ -472,6 +472,33 @@ def test_jobspy_sites_are_all_five_boards() -> None:
     assert JOBSPY_SITES == ("linkedin", "indeed", "glassdoor", "google", "zip_recruiter")
 
 
+def test_jobspy_omits_blank_indeed_country_from_optimized_query() -> None:
+    captured: list[dict[str, Any]] = []
+
+    class _EmptyFrame:
+        empty = True
+
+    def _fake_scrape_jobs(**kwargs: Any) -> _EmptyFrame:
+        captured.append(kwargs)
+        return _EmptyFrame()
+
+    rows = JobSpyEnricher()._scrape_per_board(
+        _fake_scrape_jobs,
+        {
+            "indeed": {
+                "search_term": "Software Engineer",
+                "country_indeed": "",
+            }
+        },
+        "Software Engineer",
+        10,
+    )
+
+    assert rows == []
+    assert len(captured) == 1
+    assert "country_indeed" not in captured[0]
+
+
 async def test_jobspy_passes_all_five_sites_to_scrape_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 

@@ -1138,6 +1138,10 @@ async def test_generate_outreach_draft_job_classifies_and_persists_when_no_tier_
     with (
         _patched_worker_session(db),
         patch("app.workers.tasks.outreach.close_redis", new=AsyncMock()),
+        patch(
+            "app.workers.tasks.outreach.get_redis_connection",
+            return_value=_RaceLockRedis(),
+        ),
         patch("app.workers.tasks.outreach.engine") as mock_engine,
         patch(
             "app.workers.tasks.outreach.PerplexityClient.get_company_context",

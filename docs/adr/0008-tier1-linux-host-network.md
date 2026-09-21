@@ -45,7 +45,8 @@ as a proven reference.
 
 - `network_mode: host` disables Docker's inter-service DNS for affected containers.
   Services must communicate via `localhost` / `127.0.0.1` rather than container names.
-  Only `multilogin` and `worker` use host mode; all other services stay on the default bridge.
+  Only `multilogin` and `worker-tier1` use host mode; the auxiliary `worker` and
+  `worker-tier234` stay on the default bridge.
 - Tier 1 is now **Linux-only** in production.  Running the full stack on Windows/macOS with
   Docker Desktop will not produce a working Tier 1 — the `docker-compose.tier1.yml` comments
   document this limitation for local development.
@@ -62,17 +63,20 @@ as a proven reference.
   - `backend/docker/Dockerfile.multilogin` — Ubuntu 24.04, installs mlxapp, non-root user,
     Xvfb + x11vnc + mlxapp watchdog startup script.
   - `backend/docker/docker-compose.multilogin.yml` — Linux overlay: `multilogin` service +
-    `worker` override (`network_mode: host`, `MULTILOGIN_SELENIUM_HOST=http://127.0.0.1`,
-    `MULTILOGIN_LAUNCHER_URL=https://127.0.0.1:45001/api/v2`).
+    the `worker-tier1` health dependency that only makes sense when
+    `docker-compose.tier-workers.yml` is also loaded.
 - `backend/scripts/start_production.sh` gains `--with-linux-mlx` / `ENABLE_LINUX_MLX=true`
   to load the overlay; the WSL2 host-IP auto-detect block is skipped when this flag is active.
+  The supported production path uses the tier-worker topology so `worker-tier1` keeps
+  host-local dependency URLs and an explicit `WORKER_TARGET_QUEUE`, while the bridge-network
+  `worker` continues to consume already-built non-tier queues.
 - No application code changes — `connect_selenium` in
   `backend/app/integrations/linkedin/login.py` already reads `settings.multilogin_selenium_host`
   whose default is `http://127.0.0.1`, and `MultiloginClient._launcher_client` already uses
   `verify=False` for the self-signed launcher cert.
-- `MULTILOGIN_SELENIUM_HOST` must not be set to anything other than `http://127.0.0.1` when
-  running with this overlay (the `docker-compose.multilogin.yml` override enforces this).
+- `MULTILOGIN_SELENIUM_HOST` must not be set to anything other than `http://127.0.0.1` for
+  `worker-tier1` on the Linux MLX path (the tier-worker overlay sets this explicitly).
 - Production deployment command:
   ```bash
-  bash backend/scripts/start_production.sh --with-tier1 --with-linux-mlx
+  bash backend/scripts/start_production.sh --with-linux-mlx
   ```

@@ -8,6 +8,7 @@ Create Date: 2026-08-17
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "026_add_document_mime_type"

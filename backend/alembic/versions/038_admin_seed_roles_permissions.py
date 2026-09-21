@@ -19,11 +19,16 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 RESOURCE_ACTIONS = [
-    ("users", "read"), ("users", "write"), ("users", "suspend"),
-    ("roles", "read"), ("roles", "write"),
+    ("users", "read"),
+    ("users", "write"),
+    ("users", "suspend"),
+    ("roles", "read"),
+    ("roles", "write"),
     ("audit_logs", "read"),
-    ("feature_flags", "read"), ("feature_flags", "write"),
-    ("queues", "read"), ("queues", "retry"),
+    ("feature_flags", "read"),
+    ("feature_flags", "write"),
+    ("queues", "read"),
+    ("queues", "retry"),
     ("system_health", "read"),
     ("analytics", "read"),
     ("impersonation", "start"),
@@ -35,7 +40,12 @@ ROLES = [
 ]
 
 ROLE_PERMISSIONS = {
-    "support": [("users", "read"), ("users", "suspend"), ("audit_logs", "read"), ("system_health", "read")],
+    "support": [
+        ("users", "read"),
+        ("users", "suspend"),
+        ("audit_logs", "read"),
+        ("system_health", "read"),
+    ],
     "admin": [ra for ra in RESOURCE_ACTIONS if ra not in {("roles", "read"), ("roles", "write")}],
 }
 
@@ -102,5 +112,5 @@ def downgrade() -> None:
     bind = op.get_bind()
     roles_table = sa.table("roles", sa.column("is_system"))
     bind.execute(sa.text("DELETE FROM role_permissions"))
-    bind.execute(roles_table.delete().where(roles_table.c.is_system == True))  # noqa: E712
+    bind.execute(roles_table.delete().where(roles_table.c.is_system == True))
     bind.execute(sa.text("DELETE FROM permissions"))

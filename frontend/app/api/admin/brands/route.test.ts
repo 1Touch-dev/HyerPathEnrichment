@@ -74,6 +74,7 @@ describe("POST /api/admin/brands", () => {
     const response = await POST(
       new NextRequest("http://localhost/api/admin/brands", {
         method: "POST",
+        headers: { "Idempotency-Key": "brand-create-1" },
         body: JSON.stringify({
           name: "Acme",
           slug: "acme",
@@ -84,7 +85,7 @@ describe("POST /api/admin/brands", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/admin/brands", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "brand-create-1" },
       body: JSON.stringify({
         name: "Acme",
         slug: "acme",
@@ -105,6 +106,7 @@ describe("POST /api/admin/brands", () => {
     const response = await POST(
       new NextRequest("http://localhost/api/admin/brands", {
         method: "POST",
+        headers: { "Idempotency-Key": "brand-create-2" },
         body: JSON.stringify({ name: "Acme", slug: "acme" }),
       }),
     );

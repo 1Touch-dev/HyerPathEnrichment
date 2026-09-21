@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { SystemHealthPanel } from "./SystemHealthPanel";
@@ -13,7 +13,6 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 const baseSnapshot: SystemHealthSnapshot = {
-  service: "hyrepath-enrichment-mock",
   databaseOk: true,
   databaseLatencyMs: 5,
   redisOk: true,
@@ -35,6 +34,15 @@ beforeEach(() => {
   mockUseSystemHealth();
 });
 
+function selfChecksSection(): HTMLElement {
+  const heading = screen.getByRole("heading", { name: "Self-checks" });
+  const section = heading.closest("section");
+  if (!section) {
+    throw new Error("Expected Self-checks heading to be inside a section.");
+  }
+  return section;
+}
+
 describe("SystemHealthPanel", () => {
   it("renders a loading message while health data is loading", () => {
     mockUseSystemHealth({ data: undefined, isLoading: true });
@@ -44,18 +52,18 @@ describe("SystemHealthPanel", () => {
 
   it("renders the self-checks section with database and redis latency", () => {
     render(<SystemHealthPanel />, { wrapper });
-    expect(screen.getByText("Self-checks")).toBeInTheDocument();
-    expect(screen.getByText("hyrepath-enrichment-mock")).toBeInTheDocument();
-    expect(screen.getByText("Database")).toBeInTheDocument();
-    expect(screen.getByText("5 ms")).toBeInTheDocument();
-    expect(screen.getByText("Redis")).toBeInTheDocument();
-    expect(screen.getByText("2 ms")).toBeInTheDocument();
+    const selfChecks = within(selfChecksSection());
+    expect(screen.getByRole("heading", { name: "Self-checks" })).toBeInTheDocument();
+    expect(selfChecks.getByText("Database")).toBeInTheDocument();
+    expect(selfChecks.getByText("5 ms")).toBeInTheDocument();
+    expect(selfChecks.getByText("Redis")).toBeInTheDocument();
+    expect(selfChecks.getByText("2 ms")).toBeInTheDocument();
   });
 
   it("shows a Down badge when a self-check fails", () => {
     mockUseSystemHealth({ data: { ...baseSnapshot, databaseOk: false } });
     render(<SystemHealthPanel />, { wrapper });
-    expect(screen.getByText("Down")).toBeInTheDocument();
+    expect(within(selfChecksSection()).getByText("Down")).toBeInTheDocument();
   });
 
   it("shows the fail-soft empty state when prometheus is not configured", () => {

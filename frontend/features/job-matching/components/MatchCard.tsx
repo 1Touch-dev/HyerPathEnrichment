@@ -1,102 +1,61 @@
 "use client";
 
+import { useEffect } from "react";
 import { UpgradeButton } from "@/features/billing";
 import { JobCard } from "@/components/dossier/JobCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
+import { CandidatePolicyLink, useAppShellAccess } from "@/components/layout/app-shell-access";
+import { ThumbsDown, ThumbsUp } from "lucide-react";
 import type { JobMatch } from "@/src/lib/types";
 import { getApplyRedirectUrl } from "../api/client";
 import { useMarkApplied, useMarkMatchViewed, useSubmitFeedback } from "../hooks/useMatches";
-import { useEffect } from "react";
 
 interface MatchCardProps {
   match: JobMatch;
 }
 
-function scoreColor(score: number): string {
-  if (score >= 80) return "bg-green-100 text-green-800";
-  if (score >= 60) return "bg-yellow-100 text-yellow-800";
-  return "bg-gray-100 text-gray-600";
+function scoreBadge(match: JobMatch) {
+  if (match.scoreBreakdown.below_similarity_threshold === true) {
+    return <Badge variant="secondary">Broader match</Badge>;
+  }
+
+  if (match.overallScore >= 80) {
+    return <Badge variant="success">{Math.round(match.overallScore)}/100</Badge>;
+  }
+
+  if (match.overallScore >= 60) {
+    return <Badge variant="warning">{Math.round(match.overallScore)}/100</Badge>;
+  }
+
+  return <Badge variant="outline">{Math.round(match.overallScore)}/100</Badge>;
 }
 
 export function MatchCard({ match }: MatchCardProps) {
+  const { candidateMutationsAllowed } = useAppShellAccess();
   const markViewed = useMarkMatchViewed();
   const submitFeedback = useSubmitFeedback();
   const markApplied = useMarkApplied();
   const belowSimilarityThreshold = match.scoreBreakdown.below_similarity_threshold === true;
 
   useEffect(() => {
-    if (match.isNew) {
+    if (candidateMutationsAllowed && match.isNew) {
       markViewed.mutate(match.matchId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [match.matchId]);
+  }, [candidateMutationsAllowed, match.matchId]);
 
   return (
-    <div className="relative rounded-lg border p-4">
-      <div className="absolute right-4 top-4">
-        {belowSimilarityThreshold ? (
-          <Badge className="bg-muted text-muted-foreground">Broader match</Badge>
-        ) : (
-          <Badge className={scoreColor(match.overallScore)}>
-            {Math.round(match.overallScore)}/100
-          </Badge>
-        )}
-      </div>
-
-      <JobCard
-        job={{
-          title: match.title,
-          company: match.company,
-          location: match.location ?? "",
-          remote: match.remote,
-          source: match.source,
-        }}
-      />
-
-      {match.explanation && (
-        <div className={match.isBlurred ? "relative mt-2" : "mt-2"}>
-          <p
-            className={
-              match.isBlurred
-                ? "text-sm text-muted-foreground blur-sm select-none"
-                : "text-sm text-muted-foreground"
-            }
-          >
-            {match.explanation}
-          </p>
-          {match.isBlurred ? (
-            <div className="mt-2 flex items-center gap-2">
-              <UpgradeButton />
-            </div>
-          ) : null}
+    <div className="app-surface-muted flex flex-col gap-4 rounded-[1.25rem] p-5 transition-colors hover:border-ring/30">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {scoreBadge(match)}
+          {match.isNew ? <Badge variant="info">New</Badge> : null}
+          {match.appliedAt ? <Badge variant="outline">Applied</Badge> : null}
         </div>
-      )}
-
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button size="sm" asChild>
-          <a href={getApplyRedirectUrl(match.matchId)} target="_blank" rel="noopener noreferrer">
-            Apply
-          </a>
-        </Button>
-
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={`applied-${match.matchId}`}
-            checked={match.appliedAt !== null}
-            onCheckedChange={(checked) =>
-              markApplied.mutate({ matchId: match.matchId, applied: checked === true })
-            }
-          />
-          <Label htmlFor={`applied-${match.matchId}`} className="text-sm text-muted-foreground">
-            Mark as applied
-          </Label>
-        </div>
-
-        <div className="ml-auto flex gap-1">
+        <div className="flex items-center gap-1 rounded-full bg-surface px-1 py-1">
           <Button
             size="icon"
             variant={match.feedback === "up" ? "default" : "ghost"}
@@ -114,6 +73,65 @@ export function MatchCard({ match }: MatchCardProps) {
             <ThumbsDown className="h-4 w-4" />
           </Button>
         </div>
+      </div>
+
+      <JobCard
+        job={{
+          title: match.title,
+          company: match.company,
+          location: match.location ?? "",
+          remote: match.remote,
+          source: match.source,
+        }}
+      />
+
+      {match.explanation && (
+        <div className={match.isBlurred ? "relative" : undefined}>
+          <p
+            className={
+              match.isBlurred
+                ? "rounded-xl bg-surface/80 px-4 py-3 text-sm text-muted-foreground blur-sm select-none"
+                : "rounded-xl bg-surface/80 px-4 py-3 text-sm text-muted-foreground"
+            }
+          >
+            {match.explanation}
+          </p>
+          {match.isBlurred ? (
+            <div className="mt-2 flex items-center gap-2">
+              <UpgradeButton />
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-1">
+        <Button size="sm" asChild>
+          <CandidatePolicyLink
+            href={getApplyRedirectUrl(match.matchId)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Apply
+          </CandidatePolicyLink>
+        </Button>
+
+        <div className="flex items-center gap-2 rounded-full bg-surface px-3 py-2">
+          <Checkbox
+            id={`applied-${match.matchId}`}
+            checked={match.appliedAt !== null}
+            onCheckedChange={(checked) =>
+              markApplied.mutate({ matchId: match.matchId, applied: checked === true })
+            }
+          />
+          <Label htmlFor={`applied-${match.matchId}`} className="text-sm text-muted-foreground">
+            Mark as applied
+          </Label>
+        </div>
+        {belowSimilarityThreshold ? (
+          <p className="text-sm text-muted-foreground">
+            Worth a look if you are open to adjacent roles.
+          </p>
+        ) : null}
       </div>
     </div>
   );

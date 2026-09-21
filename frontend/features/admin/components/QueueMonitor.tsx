@@ -2,10 +2,17 @@
 
 import { useState } from "react";
 import { Fragment } from "react";
-import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -14,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useFailedJobs, useQueuesOverview, useRetryFailedJob } from "../hooks/useQueues";
+import { useFailedJobs, useQueuesOverview } from "../hooks/useQueues";
 import type { QueueSnapshot } from "@/src/lib/types";
 
 function formatAge(seconds: number | null): string {
@@ -26,7 +33,6 @@ function formatAge(seconds: number | null): string {
 
 function FailedJobList({ queueName }: { queueName: string }) {
   const { data: failedJobs, isLoading } = useFailedJobs(queueName);
-  const retryJob = useRetryFailedJob(queueName);
 
   if (isLoading) return <p className="p-4 text-sm text-muted-foreground">Loading failed jobs…</p>;
   if (!failedJobs?.length) {
@@ -53,16 +59,8 @@ function FailedJobList({ queueName }: { queueName: string }) {
             <TableCell className="max-w-[280px] truncate text-xs text-muted-foreground">
               {job.excInfo ?? "—"}
             </TableCell>
-            <TableCell>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={retryJob.isPending}
-                onClick={() => retryJob.mutate(job.jobId)}
-              >
-                <RefreshCw className="mr-1 size-3" />
-                Retry
-              </Button>
+            <TableCell className="text-xs text-muted-foreground">
+              Retry unavailable in Wave 2
             </TableCell>
           </TableRow>
         ))}
@@ -80,6 +78,10 @@ function FailedJobList({ queueName }: { queueName: string }) {
 export function QueueMonitor() {
   const { data: queues, isLoading } = useQueuesOverview();
   const [expandedQueue, setExpandedQueue] = useState<string | null>(null);
+  const items = queues ?? [];
+  const failingQueues = items.filter((queue) => queue.failedCount > 0).length;
+  const totalFailedJobs = items.reduce((total, queue) => total + queue.failedCount, 0);
+  const totalWorkers = items.reduce((total, queue) => total + queue.workersListening, 0);
 
   if (!queues?.length && !isLoading) {
     return <EmptyState title="No queues configured" description="No RQ queues were found." />;
@@ -90,7 +92,42 @@ export function QueueMonitor() {
   }
 
   return (
-    <div className="rounded-lg border">
+    <div className="flex flex-col gap-4">
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Queues observed"
+          value={items.length}
+          hint="Current runtime snapshot"
+        />
+        <DeskMetricCard
+          label="Queues with failures"
+          value={failingQueues}
+          hint={`${totalFailedJobs} failed job(s) in total`}
+          tone={failingQueues > 0 ? "warning" : "success"}
+        />
+        <DeskMetricCard
+          label="Workers listening"
+          value={totalWorkers}
+          hint="Across the currently reported queues"
+          tone="info"
+        />
+      </DeskMetricGrid>
+
+      <SectionHeader>
+        <SectionHeaderContent>
+          <SectionHeaderTitle>Queue snapshot</SectionHeaderTitle>
+          <SectionHeaderDescription>
+            Expand a failed count to inspect the queue-local failure list without changing the
+            existing read-only retry posture.
+          </SectionHeaderDescription>
+        </SectionHeaderContent>
+        <SectionHeaderActions>
+          <Badge variant={failingQueues > 0 ? "warning" : "success"}>
+            {failingQueues > 0 ? "Attention needed" : "Healthy"}
+          </Badge>
+        </SectionHeaderActions>
+      </SectionHeader>
+
       <Table>
         <TableHeader>
           <TableRow>

@@ -62,15 +62,19 @@ NEW_PERMISSIONS_OWNED_BY_THIS_MIGRATION = [
 ROLES = [
     (
         "team_owner",
-        "Full read/write across users, outreach, documents, portfolio, "
-        "job_postings, and roles — this platform's own internal owner-level "
-        "operator role.",
+        (
+            "Full read/write across users, outreach, documents, portfolio, "
+            "job_postings, and roles — this platform's own internal owner-level "
+            "operator role."
+        ),
     ),
     (
         "recruiter",
-        "Read/write on outreach, documents, portfolio, job_postings; "
-        "read-only on users; no roles access — this platform's own internal "
-        "recruiter-staff role.",
+        (
+            "Read/write on outreach, documents, portfolio, job_postings; "
+            "read-only on users; no roles access — this platform's own internal "
+            "recruiter-staff role."
+        ),
     ),
 ]
 

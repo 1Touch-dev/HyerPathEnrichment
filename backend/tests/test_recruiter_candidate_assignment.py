@@ -32,8 +32,13 @@ from app.modules.admin.models import Role
 from app.modules.brands import repository as assignment_repository
 from app.modules.brands.models import RecruiterCandidateAssignment
 from app.modules.job_matching.models import JobMatch, JobPosting
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
+from tests.conftest import USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
+
+SQLITE_ROLE_UUID_DASH_BUG_REASON = (
+    "KNOWN BUG (SQLite-only): migration 038 seeds dashed role UUIDs while ORM UUID "
+    "columns store undashed values, so role-permission lookups miss on SQLite TEXT."
+)
 
 # Deliberately reuse conftest.py's default `client` fixture (plain
 # TestClient(app), no lifespan context) -- see test_recruiter_actions.py's own

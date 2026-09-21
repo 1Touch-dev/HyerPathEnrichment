@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import OsintJobDetailPage from "./jobs/[id]/page";
 import OsintJobsPage from "./jobs/page";
 import OsintLayout from "./layout";
 import OsintLookupPage from "./page";
@@ -11,11 +12,22 @@ const mocks = vi.hoisted(() => ({
   dispatch: vi.fn(),
   mutateAsync: vi.fn(),
   push: vi.fn(),
+  trackJobCompletion: vi.fn(),
+  addJob: vi.fn(),
+  updateJobStatus: vi.fn(),
+  searchParams: new URLSearchParams("tiers=tier1%2Ctier3"),
+  intakeState: {
+    draft: { requestedTiers: [] as string[] },
+    enrichMode: "sync" as "sync" | "async",
+  },
+  jobQueryResult: { data: null as { id: string; status: "completed" } | null, isFetching: false },
+  params: { id: "job-123" },
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push }),
-  useSearchParams: () => new URLSearchParams("tiers=tier1%2Ctier3"),
+  useSearchParams: () => mocks.searchParams,
+  useParams: () => mocks.params,
 }));
 
 vi.mock("sonner", () => ({
@@ -72,11 +84,31 @@ vi.mock("@/components/console/IntakeForm", () => ({
 }));
 
 vi.mock("@/components/console/JobQueuePanel", () => ({
-  JobQueuePanel: () => <div>Embedded queue</div>,
+  JobQueuePanel: ({
+    jobsBasePath = "/osint/jobs",
+    queryString = "",
+  }: {
+    jobsBasePath?: string;
+    queryString?: string;
+  }) => (
+    <div data-testid="queue-panel" data-base-path={jobsBasePath} data-query={queryString}>
+      Embedded queue
+    </div>
+  ),
 }));
 
 vi.mock("@/components/console/JobHistoryPanel", () => ({
-  JobHistoryPanel: () => <div>Embedded history</div>,
+  JobHistoryPanel: ({
+    jobsBasePath = "/osint/jobs",
+    queryString = "",
+  }: {
+    jobsBasePath?: string;
+    queryString?: string;
+  }) => (
+    <div data-testid="history-panel" data-base-path={jobsBasePath} data-query={queryString}>
+      Embedded history
+    </div>
+  ),
 }));
 
 vi.mock("@/components/console/JobProgress", () => ({
@@ -89,14 +121,20 @@ vi.mock("@/features/enrich", () => ({
     error: null,
     isPending: false,
   }),
-  useJobCompletionToasts: () => vi.fn(),
-  useJobQuery: () => ({ data: null, isFetching: false }),
+  useJobCompletionToasts: () => mocks.trackJobCompletion,
+  useJobQuery: (jobId?: string) =>
+    jobId ? mocks.jobQueryResult : { data: null, isFetching: false },
+  JobDetailView: ({ jobId, jobsHref }: { jobId: string; jobsHref: string }) => (
+    <div data-testid="job-detail" data-job-id={jobId} data-jobs-href={jobsHref} />
+  ),
 }));
 
 vi.mock("@/hooks/useLocalStorageJobs", () => ({
   useLocalStorageJobs: () => ({
-    addJob: vi.fn(),
-    updateJobStatus: vi.fn(),
+    jobs: [],
+    activeJobs: [],
+    addJob: mocks.addJob,
+    updateJobStatus: mocks.updateJobStatus,
   }),
 }));
 
@@ -105,22 +143,27 @@ vi.mock("@/store/hooks", () => ({
   useAppSelector: (
     selector: (state: {
       intake: {
-        draft: { requestedTiers: [] };
-        enrichMode: "sync";
+        draft: { requestedTiers: string[] };
+        enrichMode: "sync" | "async";
       };
     }) => unknown,
   ) =>
     selector({
-      intake: {
-        draft: { requestedTiers: [] },
-        enrichMode: "sync",
-      },
+      intake: mocks.intakeState,
     }),
 }));
 
 vi.mock("@/features/settings", () => ({
-  SettingsView: ({ securityHref }: { securityHref: string }) => (
-    <a href={securityHref}>OSINT security</a>
+  SettingsView: ({
+    securityHref,
+    showShellHeader = true,
+  }: {
+    securityHref: string;
+    showShellHeader?: boolean;
+  }) => (
+    <div data-testid="settings-view" data-shell-header={String(showShellHeader)}>
+      <a href={securityHref}>OSINT security</a>
+    </div>
   ),
 }));
 
@@ -132,6 +175,16 @@ beforeEach(() => {
   mocks.dispatch.mockReset();
   mocks.mutateAsync.mockReset();
   mocks.push.mockReset();
+  mocks.trackJobCompletion.mockReset();
+  mocks.addJob.mockReset();
+  mocks.updateJobStatus.mockReset();
+  mocks.searchParams = new URLSearchParams("tiers=tier1%2Ctier3");
+  mocks.intakeState = {
+    draft: { requestedTiers: [] },
+    enrichMode: "sync",
+  };
+  mocks.jobQueryResult = { data: null, isFetching: false };
+  mocks.params = { id: "job-123" };
   mocks.mutateAsync.mockResolvedValue({ id: "job-123", status: "completed" });
 });
 
@@ -161,10 +214,40 @@ describe("OSINT route surface", () => {
     );
     expect(screen.getByText("Embedded queue")).toBeInTheDocument();
     expect(screen.getByText("Embedded history")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open jobs" })).toHaveAttribute("href", "/osint/jobs");
+    expect(screen.getByRole("link", { name: "Open jobs" })).toHaveAttribute(
+      "href",
+      "/osint/jobs?tiers=tier1%2Ctier3",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Submit lookup" }));
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/osint/jobs/job-123"));
+    await waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith("/osint/jobs/job-123?tiers=tier1%2Ctier3"),
+    );
+  });
+
+  it("keeps async lookups in-place until the dossier is ready", async () => {
+    mocks.intakeState = {
+      draft: { requestedTiers: [] },
+      enrichMode: "async",
+    };
+    mocks.jobQueryResult = {
+      data: { id: "job-123", status: "completed" },
+      isFetching: false,
+    };
+
+    render(<OsintLookupPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit lookup" }));
+
+    await waitFor(() => expect(mocks.addJob).toHaveBeenCalledWith("job-123", "completed"));
+    expect(mocks.trackJobCompletion).toHaveBeenCalledWith("job-123");
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Open dossier" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open dossier" }));
+    await waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith("/osint/jobs/job-123?tiers=tier1%2Ctier3"),
+    );
   });
 
   it("keeps queue and history behind in-page Jobs access", () => {
@@ -172,11 +255,30 @@ describe("OSINT route surface", () => {
 
     expect(screen.getByText("Embedded queue")).toBeInTheDocument();
     expect(screen.getByText("Embedded history")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to look up" })).toHaveAttribute("href", "/osint");
+    expect(screen.getByRole("link", { name: "Back to workbench" })).toHaveAttribute(
+      "href",
+      "/osint?tiers=tier1%2Ctier3",
+    );
+    expect(screen.getByTestId("queue-panel")).toHaveAttribute("data-query", "tiers=tier1%2Ctier3");
+    expect(screen.getByTestId("history-panel")).toHaveAttribute(
+      "data-query",
+      "tiers=tier1%2Ctier3",
+    );
+  });
+
+  it("preserves query state when opening a dossier detail", () => {
+    render(<OsintJobDetailPage />);
+
+    expect(screen.getByTestId("job-detail")).toHaveAttribute("data-job-id", "job-123");
+    expect(screen.getByTestId("job-detail")).toHaveAttribute(
+      "data-jobs-href",
+      "/osint/jobs?tiers=tier1%2Ctier3",
+    );
   });
 
   it("reuses settings without leaving the OSINT shell", () => {
     const { unmount } = render(<OsintSettingsPage />);
+    expect(screen.getByTestId("settings-view")).toHaveAttribute("data-shell-header", "false");
     expect(screen.getByRole("link", { name: "OSINT security" })).toHaveAttribute(
       "href",
       "/osint/settings/security",
@@ -184,7 +286,7 @@ describe("OSINT route surface", () => {
 
     unmount();
     render(<OsintSecuritySettingsPage />);
-    expect(screen.getByRole("link", { name: "Back to Settings" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Back to settings" })).toHaveAttribute(
       "href",
       "/osint/settings",
     );

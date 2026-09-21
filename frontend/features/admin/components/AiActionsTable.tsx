@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { EmptyState } from "@/components/console/EmptyState";
-import { Button } from "@/components/ui/button";
+import { DeskMetricCard, DeskMetricGrid, DeskPagination } from "@/components/desk/desk-shell";
+import { Badge } from "@/components/ui/badge";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -11,6 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Sheet,
   SheetContent,
@@ -58,6 +67,7 @@ export function AiActionsTable() {
   });
 
   const items = data?.items ?? [];
+  const reviewedActions = items.filter((item) => item.summary).length;
 
   function handleActionTypeChange(value: string) {
     setActionType(value === "all" ? null : value);
@@ -84,38 +94,79 @@ export function AiActionsTable() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <Select value={actionType ?? "all"} onValueChange={handleActionTypeChange}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="All action types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All action types</SelectItem>
-            {ACTION_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          placeholder="Filter by candidate ID"
-          className="w-[220px]"
-          value={candidateId}
-          onChange={(event) => handleCandidateIdChange(event.target.value)}
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Actions on this page"
+          value={items.length}
+          hint="Current cursor slice"
         />
-        <Input
-          placeholder="Filter by recruiter ID"
-          className="w-[220px]"
-          value={recruiterId}
-          onChange={(event) => handleRecruiterIdChange(event.target.value)}
+        <DeskMetricCard
+          label="Rows with summaries"
+          value={reviewedActions}
+          hint="Human-readable action context"
+          tone={reviewedActions > 0 ? "info" : "default"}
         />
-      </div>
+        <DeskMetricCard
+          label="Action type filter"
+          value={actionType ?? "All action types"}
+          hint="Stable action vocabulary"
+        />
+      </DeskMetricGrid>
+
+      <FilterBar>
+        <FilterBarGroup>
+          <div className="flex flex-1 flex-wrap items-end gap-3 sm:gap-4">
+            <div className="space-y-2">
+              <Select value={actionType ?? "all"} onValueChange={handleActionTypeChange}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="All action types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All action types</SelectItem>
+                  {ACTION_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Input
+              placeholder="Filter by candidate ID"
+              className="w-[220px]"
+              value={candidateId}
+              onChange={(event) => handleCandidateIdChange(event.target.value)}
+            />
+            <Input
+              placeholder="Filter by recruiter ID"
+              className="w-[220px]"
+              value={recruiterId}
+              onChange={(event) => handleRecruiterIdChange(event.target.value)}
+            />
+          </div>
+        </FilterBarGroup>
+        <FilterBarActions>
+          <div className="text-right text-sm text-muted-foreground">
+            Select a row to inspect the AI action detail sheet.
+          </div>
+        </FilterBarActions>
+      </FilterBar>
 
       {!items.length && !isLoading ? (
         <EmptyState title="No AI actions" description="Nothing matches this filter yet." />
       ) : (
-        <div className="rounded-lg border">
+        <div className="flex flex-col gap-3">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Oversight feed</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Dense action feed for oversight, scoped by candidate, recruiter, and action type.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">Click row for detail</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
           <Table>
             <TableHeader>
               <TableRow>
@@ -149,24 +200,12 @@ export function AiActionsTable() {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={cursorStack.length <= 1 || isLoading}
-          onClick={handlePrevious}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!data?.hasMore || isLoading}
-          onClick={handleNext}
-        >
-          Next page
-        </Button>
-      </div>
+      <DeskPagination
+        canPrevious={cursorStack.length > 1 && !isLoading}
+        canNext={Boolean(data?.hasMore) && !isLoading}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+      />
 
       {selectedId ? (
         <AiActionDetail
@@ -201,28 +240,54 @@ function AiActionDetail({ actionId, open, onOpenChange }: AiActionDetailProps) {
         {isLoading || !data ? (
           <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
         ) : (
-          <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
-            <div className="col-span-2">
-              <dt className="text-muted-foreground">Summary</dt>
-              <dd>{data.summary ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Candidate</dt>
-              <dd className="break-all font-mono text-xs">{data.candidateUserId ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Triggered by</dt>
-              <dd className="break-all font-mono text-xs">{data.triggeredByUserId ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Related record</dt>
-              <dd className="break-all font-mono text-xs">{data.relatedId ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Created at</dt>
-              <dd>{formatDate(data.createdAt)}</dd>
-            </div>
-          </dl>
+          <div className="mt-6 flex flex-col gap-6">
+            <DeskMetricGrid className="grid-cols-1 sm:grid-cols-2 xl:grid-cols-2">
+              <DeskMetricCard
+                label="Action type"
+                value={data.actionType}
+                hint={formatDate(data.createdAt)}
+                tone="info"
+              />
+              <DeskMetricCard
+                label="Related record"
+                value={<span className="break-all font-mono text-xs">{data.relatedId ?? "—"}</span>}
+                hint="Best-effort linked record"
+              />
+            </DeskMetricGrid>
+
+            <section className="rounded-lg border border-border/70 bg-surface p-4">
+              <SectionHeader>
+                <SectionHeaderContent>
+                  <SectionHeaderTitle>Action context</SectionHeaderTitle>
+                  <SectionHeaderDescription>
+                    Operator-facing details for the recorded AI action.
+                  </SectionHeaderDescription>
+                </SectionHeaderContent>
+              </SectionHeader>
+              <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                <div className="col-span-2">
+                  <dt className="text-muted-foreground">Summary</dt>
+                  <dd>{data.summary ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Candidate</dt>
+                  <dd className="break-all font-mono text-xs">{data.candidateUserId ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Triggered by</dt>
+                  <dd className="break-all font-mono text-xs">{data.triggeredByUserId ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Created at</dt>
+                  <dd>{formatDate(data.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Related record</dt>
+                  <dd className="break-all font-mono text-xs">{data.relatedId ?? "—"}</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
         )}
       </SheetContent>
     </Sheet>

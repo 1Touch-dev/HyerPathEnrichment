@@ -391,7 +391,9 @@ class TestJobMatchRepository:
         assert real_row[1] is not None
         assert real_row[2] is None
 
-        title, company, _, _ = repository.resolve_match_display_fields(manual_row[1], manual_row[2])
+        title, company, _location, _source_url = repository.resolve_match_display_fields(
+            manual_row[1], manual_row[2]
+        )
         assert title == "Self-Sourced Role"
         assert company == "Referral Co"
 

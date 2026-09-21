@@ -6,15 +6,30 @@ No-op when ``SENTRY_DSN`` is unset — same opt-in pattern as Langfuse.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from fastapi import Request
+from sentry_sdk.types import Breadcrumb, BreadcrumbHint, Event, Hint
 
 from app.core.config import Settings, get_settings
+from app.core.logging import sanitize_path, scrub_sensitive_data
 
 logger = logging.getLogger(__name__)
 
 _initialized = False
+
+
+def scrub_sentry_event(event: Event, _hint: Hint | None = None) -> Event:
+    """Sentry ``before_send`` hook; scrub events after all integrations enrich them."""
+    return cast(Event, scrub_sensitive_data(event))
+
+
+def scrub_sentry_breadcrumb(
+    breadcrumb: Breadcrumb,
+    _hint: BreadcrumbHint | None = None,
+) -> Breadcrumb:
+    """Scrub logging/HTTP breadcrumbs before they enter the Sentry scope."""
+    return cast(Breadcrumb, scrub_sensitive_data(breadcrumb))
 
 
 def is_enabled() -> bool:
@@ -50,7 +65,9 @@ def init_error_tracking(settings: Settings | None = None) -> None:
         environment=environment,
         release=release,
         traces_sample_rate=cfg.sentry_traces_sample_rate,
-        send_default_pii=cfg.sentry_send_default_pii,
+        send_default_pii=False,
+        before_send=scrub_sentry_event,
+        before_breadcrumb=scrub_sentry_breadcrumb,
         integrations=[
             FastApiIntegration(transaction_style="endpoint"),
             LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
@@ -63,7 +80,12 @@ def _attach_request(scope: Any, request: Request | None) -> None:
     if request is None:
         return
     scope.set_tag("http.method", request.method)
-    scope.set_tag("http.path", request.url.path)
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", None)
+    scope.set_tag(
+        "http.path",
+        sanitize_path(route_path if isinstance(route_path, str) else request.url.path),
+    )
 
 
 def capture_exception(

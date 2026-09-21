@@ -7,10 +7,10 @@ restore toggle on `ManualJobEntry.deleted_at`, mirroring
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,12 @@ from app.dependencies.rate_limit import enforce_admin_moderation_rate_limit
 from app.modules.admin.audit import record_admin_action
 from app.modules.admin.pagination import decode_cursor, encode_cursor
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import (
+    begin_idempotent_operation,
+    canonical_payload_hash,
+    complete_idempotent_operation,
+    require_idempotency_key,
+)
 from app.modules.manual_jobs.models import ManualJobEntry
 
 router = APIRouter(
@@ -134,9 +140,23 @@ async def moderate_manual_job_entry(
     entry_id: UUID,
     payload: ModerateManualJobEntryRequest,
     request: Request,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     current_user: User = Depends(require_permission("manual_job_entries", "moderate")),
     db: AsyncSession = Depends(get_db_session),
 ) -> AdminManualJobEntryResponse:
+    normalized_key = require_idempotency_key("manual_job_entries.moderate", idempotency_key)
+    state, replay = await begin_idempotent_operation(
+        db,
+        caller_user_id=current_user.id,
+        operation_id="manual_job_entries.moderate",
+        idempotency_key=normalized_key,
+        request_hash=canonical_payload_hash(
+            {"entry_id": entry_id, "action": payload.action, "reason": payload.reason}
+        ),
+    )
+    if replay is not None:
+        return AdminManualJobEntryResponse.model_validate(replay.response_body["entry"])
+
     entry = await _get_entry_or_404(db, entry_id)
 
     before = {"deleted_at": entry.deleted_at.isoformat() if entry.deleted_at else None}
@@ -160,5 +180,13 @@ async def moderate_manual_job_entry(
         after=after,
         ip_address=get_client_ip(request),
     )
+    response = _to_response(entry)
+    if state is not None:
+        await complete_idempotent_operation(
+            db,
+            state,
+            response_status=200,
+            response_body={"entry": response.model_dump(mode="json")},
+        )
     await db.commit()
-    return _to_response(entry)
+    return response

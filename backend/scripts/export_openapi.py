@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Export FastAPI OpenAPI schema to a JSON file (offline, no running server)."""
 
 from __future__ import annotations
@@ -24,10 +23,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    from app.core.openapi import apply_envelope_openapi
     from app.main import app
 
-    schema = apply_envelope_openapi(app.openapi())
+    schema = app.openapi()
     payload = json.dumps(schema, indent=2, sort_keys=True)
     payload = f"{payload}\n"
 

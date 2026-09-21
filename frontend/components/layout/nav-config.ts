@@ -193,8 +193,18 @@ const deskNav: NavSection = {
       icon: Bot,
       permission: { resource: "ai_supervision", action: "read" },
     },
-    { href: "/desk/demand-intelligence", label: "Demand intelligence", icon: Globe },
-    { href: "/desk/signals", label: "Signals", icon: Bell },
+    {
+      href: "/desk/demand-intelligence",
+      label: "Demand intelligence",
+      icon: Globe,
+      permission: { resource: "analytics", action: "read" },
+    },
+    {
+      href: "/desk/signals",
+      label: "Signals",
+      icon: Bell,
+      permission: { resource: "system_health", action: "read" },
+    },
   ],
 };
 

@@ -139,7 +139,7 @@ def test_json_line_includes_custom_extra_fields() -> None:
 
     payload = json.loads(stream.getvalue().strip())
     assert payload["status_code"] == 429
-    assert payload["response"] == '{"error": {"code": "credit_balance_exhausted"}}'
+    assert payload["response"] == "[REDACTED]"
 
 
 def test_text_mode_includes_custom_extra_fields() -> None:
@@ -161,7 +161,8 @@ def test_text_mode_includes_custom_extra_fields() -> None:
     rendered = stream.getvalue()
     assert "status_code" in rendered
     assert "429" in rendered
-    assert "quota exceeded" in rendered
+    assert "quota exceeded" not in rendered
+    assert "[REDACTED]" in rendered
 
 
 def test_lifespan_configures_logging_without_error() -> None:

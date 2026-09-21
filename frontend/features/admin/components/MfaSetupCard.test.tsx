@@ -111,15 +111,27 @@ describe("MfaSetupCard", () => {
 
   it("calls disable MFA after the user confirms the window.confirm prompt", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.spyOn(window, "prompt").mockReturnValue("123456");
     mockUseMfaStatus({ data: enabledStatus });
     render(<MfaSetupCard />, { wrapper });
 
     fireEvent.click(screen.getByText("Disable 2FA"));
-    await waitFor(() => expect(disableMutateAsync).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(disableMutateAsync).toHaveBeenCalledWith("123456"));
   });
 
   it("does not disable MFA when the user declines the confirmation", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
+    mockUseMfaStatus({ data: enabledStatus });
+    render(<MfaSetupCard />, { wrapper });
+
+    fireEvent.click(screen.getByText("Disable 2FA"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(disableMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("does not disable MFA when no TOTP code is provided", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.spyOn(window, "prompt").mockReturnValue("");
     mockUseMfaStatus({ data: enabledStatus });
     render(<MfaSetupCard />, { wrapper });
 

@@ -116,7 +116,7 @@ Both containers:
 **Service Resolution in Host Network:**
 ```bash
 # Tier 1 worker must use 127.0.0.1
-DATABASE_URL=postgresql+asyncpg://hyrepath:password@127.0.0.1:5432/hyrepath
+DATABASE_URL=postgresql+asyncpg://hyrepath:password@127.0.0.1:5433/hyrepath
 REDIS_URL=redis://127.0.0.1:6379/0
 MULTILOGIN_SELENIUM_HOST=http://127.0.0.1
 ```
@@ -141,7 +141,7 @@ SOCIAL_ANALYZER_URL=http://social-analyzer:9005
 worker-tier1:
   network_mode: host
   environment:
-    DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@127.0.0.1:5432/hyrepath
+    DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@127.0.0.1:5433/hyrepath
     REDIS_URL: redis://127.0.0.1:6379/0
     # ... overrides all URLs to 127.0.0.1
 ```
@@ -159,15 +159,17 @@ worker-tier1:
 **`docker-compose.foundation.yml`** (foundation week 1 workers):
 - `worker-document`: **No `network_mode` (bridge by default)**
 - `worker-embedding`: **No `network_mode` (bridge by default)**
-- Both workers use `networks: [default]` to explicitly join the default bridge network
+- `worker-job-matching`: **No `network_mode` (bridge by default)**, dedicated `job_matching` consumer
+- All three workers use bridge networking
 
 **`docker-compose.tier-workers.yml`** (tier-specific workers):
+- `worker`: **Bridge auxiliary worker** for non-tier queues
 - `worker-tier1`: **Explicit `network_mode: host`**
 - `worker-tier234`: **No `network_mode` (bridge by default)**
 
 **`docker-compose.multilogin.yml`** (Linux containerized Multilogin):
 - `multilogin`: **`network_mode: host`**
-- `worker`: **Overridden to `network_mode: host`** (if using this overlay)
+- Adds only the Linux Multilogin service plus the `worker-tier1` dependency on it
 
 ## Scaling Workers
 
@@ -199,6 +201,7 @@ cd backend/docker
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
+  -f docker-compose.foundation.yml \
   -f docker-compose.tier-workers.yml \
   --env-file ../.env.production \
   up -d --scale worker-tier234=5
@@ -358,7 +361,7 @@ For more context on why these networking decisions were made:
 | Foundation Workers | Bridge | `postgres:5432` | ✅ Yes |
 | Tier 2-4 Workers | Bridge | `postgres:5432` | ✅ Yes |
 | Email Worker | Bridge | `redis:6379` | ✅ Yes |
-| Tier 1 Worker | Host | `127.0.0.1:5432` | ❌ No |
+| Tier 1 Worker | Host | `127.0.0.1:5433` | ❌ No |
 | PostgreSQL | Bridge | N/A | ❌ No (stateful) |
 | Redis | Bridge | N/A | ❌ No (stateful) |
 | Sidecars | Bridge | N/A | ✅ Yes |
@@ -377,12 +380,13 @@ The hybrid networking approach:
 
 ## Foundation Workers
 
-Foundation workers (`worker-document` and `worker-embedding`) use the default bridge network and connect to Redis and PostgreSQL using service names:
+Foundation workers (`worker-document`, `worker-embedding`, and `worker-job-matching`) use the default bridge network and connect to Redis and PostgreSQL using service names:
 
 - **Document Processing Worker**: Handles PDF/DOCX parsing, uploads to R2/local cache
 - **Embedding Generation Worker**: Creates OpenAI embeddings for vector search
+- **Job Matching Worker**: Handles the dedicated `job_matching` queue
 
-Both workers:
+All three workers:
 - Connect to `redis://redis:6379/0` for RQ job queue
 - Connect to `postgresql+asyncpg://hyrepath:password@postgres:5432/hyrepath` for database
 - Explicitly join the default network with `networks: [default]` in `docker-compose.foundation.yml`

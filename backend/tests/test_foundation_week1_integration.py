@@ -273,7 +273,7 @@ class TestVectorSearch:
                 headers=auth_headers,
             )
 
-            results = response.json()["results"]
+            results = unwrap_envelope(response)["results"]
             if len(results) >= 2:
                 # Scores should be in descending order
                 scores = [r["similarity_score"] for r in results]

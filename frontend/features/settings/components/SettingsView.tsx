@@ -5,6 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { SubscriptionCard } from "@/features/billing";
+import {
+  ShellPageHeader,
+  ShellPageHeaderActions,
+  ShellPageHeaderContent,
+  ShellPageHeaderDescription,
+  ShellPageHeaderEyebrow,
+  ShellPageHeaderTitle,
+} from "@/components/layout/ShellPage";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,9 +30,13 @@ import {
 
 type SettingsViewProps = {
   securityHref?: string;
+  showShellHeader?: boolean;
 };
 
-export function SettingsView({ securityHref = "/app/settings/security" }: SettingsViewProps) {
+export function SettingsView({
+  securityHref = "/app/settings/security",
+  showShellHeader = true,
+}: SettingsViewProps) {
   const router = useRouter();
   const { user, logout, deleteAccount } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -51,120 +63,133 @@ export function SettingsView({ securityHref = "/app/settings/security" }: Settin
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Manage your account and preferences.</p>
+      {showShellHeader ? (
+        <ShellPageHeader>
+          <ShellPageHeaderContent>
+            <ShellPageHeaderEyebrow>Candidate workspace</ShellPageHeaderEyebrow>
+            <ShellPageHeaderTitle>Settings</ShellPageHeaderTitle>
+            <ShellPageHeaderDescription>
+              Manage your account, security setup, and subscription details without drifting into
+              staff-only controls.
+            </ShellPageHeaderDescription>
+          </ShellPageHeaderContent>
+          <ShellPageHeaderActions className="items-start sm:items-center">
+            <Badge variant={user?.is_verified ? "success" : "warning"}>
+              {user?.is_verified ? "Email verified" : "Verification pending"}
+            </Badge>
+          </ShellPageHeaderActions>
+        </ShellPageHeader>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile</CardTitle>
+              <CardDescription>Your account information</CardDescription>
+            </CardHeader>
+            <CardContent className="grid max-w-md gap-4">
+              <div className="flex flex-col gap-2">
+                <Label>Name</Label>
+                <Input disabled value={user ? `${user.first_name} ${user.last_name}` : ""} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>Email</Label>
+                <div className="flex items-center gap-2">
+                  <Input disabled value={user?.email || ""} />
+                  {user?.is_verified ? (
+                    <Badge variant="success" className="shrink-0">
+                      Verified
+                    </Badge>
+                  ) : (
+                    <Badge variant="warning" className="shrink-0">
+                      Unverified
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <SubscriptionCard />
+
+          <Card>
+            <CardHeader>
+              <CardTitle>General</CardTitle>
+              <CardDescription>Default mode and integration base.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid max-w-md gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="default-mode">Default enrich mode</Label>
+                <Input id="default-mode" disabled value="async (coming soon)" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="api-base">API base</Label>
+                <Input
+                  id="api-base"
+                  disabled
+                  value="BFF /api/* (configured server-side)"
+                  className="font-mono text-xs"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Security</CardTitle>
+              <CardDescription>Two-factor authentication and account security.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline" className="w-fit">
+                <Link href={securityHref}>
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Manage two-factor authentication
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Session</CardTitle>
+              <CardDescription>Manage your current session</CardDescription>
+            </CardHeader>
+            <CardContent className="max-w-md space-y-4">
+              <Button onClick={handleLogout} variant="outline" className="w-full justify-start">
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                End your current session. You can login again anytime.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-destructive/30">
+            <CardHeader>
+              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+              <CardDescription>Irreversible and destructive actions</CardDescription>
+            </CardHeader>
+            <CardContent className="max-w-md space-y-4">
+              <Button
+                onClick={() => setShowDeleteDialog(true)}
+                variant="destructive"
+                className="w-full justify-start"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Account
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                Permanently delete your account. This cannot be undone without contacting support.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Profile Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>Your account information</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 max-w-md">
-          <div className="flex flex-col gap-2">
-            <Label>Name</Label>
-            <Input disabled value={user ? `${user.first_name} ${user.last_name}` : ""} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label>Email</Label>
-            <div className="flex items-center gap-2">
-              <Input disabled value={user?.email || ""} />
-              {user?.is_verified ? (
-                <Badge variant="default" className="shrink-0">
-                  Verified
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="shrink-0">
-                  Unverified
-                </Badge>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <SubscriptionCard />
-
-      {/* General Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>General</CardTitle>
-          <CardDescription>Default mode and integration base.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 max-w-md">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="default-mode">Default enrich mode</Label>
-            <Input id="default-mode" disabled value="async (coming soon)" />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="api-base">API base</Label>
-            <Input
-              id="api-base"
-              disabled
-              value="BFF /api/* (configured server-side)"
-              className="font-mono text-xs"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Security Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Security</CardTitle>
-          <CardDescription>Two-factor authentication and account security.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild variant="outline" className="w-fit">
-            <Link href={securityHref}>
-              <ShieldCheck className="mr-2 h-4 w-4" />
-              Manage two-factor authentication
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Session Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Session</CardTitle>
-          <CardDescription>Manage your current session</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 max-w-md">
-          <Button onClick={handleLogout} variant="outline" className="w-full justify-start">
-            <LogOut className="mr-2 h-4 w-4" />
-            Logout
-          </Button>
-          <p className="text-sm text-gray-600">
-            End your current session. You can login again anytime.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Danger Zone */}
-      <Card className="border-red-200">
-        <CardHeader>
-          <CardTitle className="text-red-600">Danger Zone</CardTitle>
-          <CardDescription>Irreversible and destructive actions</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 max-w-md">
-          <Button
-            onClick={() => setShowDeleteDialog(true)}
-            variant="destructive"
-            className="w-full justify-start"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Account
-          </Button>
-          <p className="text-sm text-gray-600">
-            Permanently delete your account. This cannot be undone without contacting support.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>

@@ -80,6 +80,20 @@ Use **FastAPI-Users** with cookie transport, JWT strategy, and custom extensions
 - 15-minute expiry
 - Contains user ID, email, JTI (unique token ID)
 - Checked against Redis blacklist on every request
+- User activity and database-backed RBAC are resolved on every request; role
+  and permission changes therefore take effect on the next request without
+  waiting for token expiry.
+
+**Impersonation extension:**
+- Impersonation tokens retain `sub` (effective candidate), `jti` (session
+  token), and `imp` (real actor).
+- Every impersonated request validates the JTI against
+  `impersonation_sessions`, including active/unexpired/unrevoked state, the
+  real actor's active state, and the real actor's current permission.
+- Only roleless, non-superuser candidates may be targets. Scope is
+  `view_only`; all mutations except ending impersonation are denied.
+- Revocation or session end invalidates the impersonation JTI immediately.
+  Ordinary authenticated requests do not query this table.
 
 **Refresh Token:**
 - 7-day expiry
@@ -119,6 +133,9 @@ Unverified users: Allowed only opt-out API (public). All other endpoints require
 
 - **Rate limiting**: `slowapi` on `/auth/login`, `/auth/register` (5 req/min)
 - **Audit logging**: All auth events → `auth_audit_logs` table
+- **Permission freshness**: RBAC grants are database-resolved per request;
+  frontend identity caches are advisory and refresh after role changes or an
+  authorization failure.
 - **Security headers**: CSP, HSTS, X-Frame-Options
 - **CORS**: `credentials=true` for cookies, restrict origins
 - **Refresh token rotation**: Each refresh invalidates old token

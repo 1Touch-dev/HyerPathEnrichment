@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { HyrepathLogo } from "@/components/layout/HyrepathLogo";
 import { cn } from "@/src/lib/utils";
 import { PRODUCT_ROOTS, type Product } from "@/src/lib/product-doors";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleSidebar } from "@/store/slices/uiSlice";
+import { SHELL_PRODUCT_META } from "./ShellPage";
 import type { NavSection } from "./nav-config";
 
 type AppSidebarProps = {
@@ -17,16 +19,14 @@ type AppSidebarProps = {
   matchesUnreadCount?: number;
 };
 
-const PRODUCT_DESCRIPTION: Record<Product, string> = {
-  candidate: "Candidate workspace",
-  desk: "Staff operations",
-  osint: "Public-only lookup",
-};
+const NAV_FOCUS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSidebarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const sidebarOpen = useAppSelector((state) => state.ui.sidebarOpen);
+  const meta = SHELL_PRODUCT_META[product];
 
   const isActive = (href: string) => {
     return pathname === href || pathname.startsWith(`${href}/`);
@@ -34,44 +34,84 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
 
   return (
     <aside
+      data-shell-sidebar=""
+      data-shell-product={product}
       className={cn(
-        "flex h-full flex-col border-r border-border bg-card transition-all duration-200",
-        sidebarOpen ? "w-60" : "w-16",
+        "flex h-full flex-col border-r border-border/70 bg-surface-elevated/80 shadow-panel backdrop-blur supports-[backdrop-filter]:bg-surface-elevated/70 transition-[width] duration-200",
+        sidebarOpen ? "w-72" : "w-[78px]",
       )}
     >
-      <div className="flex items-center justify-between border-b border-border px-3 py-4">
+      <div className="border-b border-border/70 px-3 py-4">
         {sidebarOpen ? (
-          <Link href={PRODUCT_ROOTS[product]} className="flex flex-col items-start gap-1 px-1">
-            <span className="text-sm font-semibold tracking-tight text-primary">Hyrepath</span>
-            <span className="rounded-md bg-secondary px-2.5 py-1 text-sm font-medium leading-5 text-primary">
-              {product === "osint" ? "OSINT" : `${product[0].toUpperCase()}${product.slice(1)}`}
-            </span>
-          </Link>
+          <div className="flex items-start justify-between gap-3">
+            <Link
+              href={PRODUCT_ROOTS[product]}
+              aria-label="Hyrepath home"
+              className={cn("flex min-w-0 flex-1 items-start gap-3 rounded-xl p-1", NAV_FOCUS)}
+            >
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm">
+                <HyrepathLogo className="size-5" />
+              </span>
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/80">
+                  Hyrepath
+                </span>
+                <span className="w-fit rounded-md bg-secondary px-2.5 py-1 text-sm font-medium leading-5 text-primary">
+                  {meta.label}
+                </span>
+                <span className="text-xs text-subtle-foreground">{meta.description}</span>
+              </span>
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="mt-1 h-8 w-8 shrink-0"
+              onClick={() => dispatch(toggleSidebar())}
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {sidebarOpen ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         ) : (
-          <Link href={PRODUCT_ROOTS[product]} className="mx-auto text-xs font-bold text-primary">
-            H
-          </Link>
+          <div className="flex flex-col items-center gap-4">
+            <Link
+              href={PRODUCT_ROOTS[product]}
+              aria-label="Hyrepath home"
+              className={cn(
+                "flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm",
+                NAV_FOCUS,
+              )}
+            >
+              <HyrepathLogo className="size-5" />
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => dispatch(toggleSidebar())}
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {sidebarOpen ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          onClick={() => dispatch(toggleSidebar())}
-          aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-        >
-          {sidebarOpen ? (
-            <PanelLeftClose className="h-4 w-4" />
-          ) : (
-            <PanelLeftOpen className="h-4 w-4" />
-          )}
-        </Button>
       </div>
 
-      <nav className="flex-1 space-y-6 overflow-y-auto px-2 py-4">
+      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
         {sections.map((section) => (
           <div key={section.title}>
             {sidebarOpen ? (
-              <p className="mb-2 px-2 text-xs font-medium text-muted-foreground">{section.title}</p>
+              <p className="mb-2 px-3 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+                {section.title}
+              </p>
             ) : null}
             <ul className="space-y-1">
               {section.items.map((item) => {
@@ -82,17 +122,20 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      aria-label={item.label}
+                      aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
+                        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                        NAV_FOCUS,
                         active
-                          ? "bg-secondary text-primary"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                          ? "border border-border/70 bg-secondary/90 text-primary shadow-sm"
+                          : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
                         !sidebarOpen && "justify-center px-0",
                       )}
                       title={!sidebarOpen ? item.label : undefined}
                     >
                       <span className="relative shrink-0">
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-4 w-4" aria-hidden="true" />
                         {showUnreadBadge && !sidebarOpen ? (
                           <span className="absolute -right-1 -top-1 size-2 rounded-full bg-destructive" />
                         ) : null}
@@ -112,10 +155,8 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
         ))}
       </nav>
 
-      <div className="border-t border-border px-3 py-4">
-        {sidebarOpen ? (
-          <p className="text-xs text-subtle-foreground">{PRODUCT_DESCRIPTION[product]}</p>
-        ) : null}
+      <div className="border-t border-border/70 px-3 py-4">
+        {sidebarOpen ? <p className="text-xs text-subtle-foreground">{meta.description}</p> : null}
       </div>
     </aside>
   );

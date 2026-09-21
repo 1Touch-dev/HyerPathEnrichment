@@ -5,7 +5,7 @@ This configuration uses:
 - Real Redis (not FakeRedis)
 - Real RQ workers
 - Real OpenAI API (costs money!)
-- Real R2 storage
+- The configured document storage backend (R2 if credentials are present, local cache otherwise)
 
 DO NOT run this in CI - only for local/staging testing with real services.
 """
@@ -23,18 +23,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import User
 from app.core.config import get_settings
 from app.database.session import get_db_session
+from app.storage.r2 import r2_is_configured
 
-# Use REAL PostgreSQL from Docker Compose
-os.environ["DATABASE_URL"] = get_settings().database_url
-os.environ["REDIS_URL"] = get_settings().redis_url
-os.environ["API_TOKEN"] = "change-me"
+# Load this module as a pytest plugin (`-p tests.conftest_real_infrastructure`)
+# with PYTEST_USE_REAL_INFRA=true and TEST_DATABASE_URL exported before pytest
+# starts. Root tests/conftest.py honors those selectors during import.
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "").strip()
+TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "").strip()
+
+if not TEST_DATABASE_URL:
+    pytest.exit(
+        "ERROR: TEST_DATABASE_URL not set. Export it before pytest startup for real-infra runs."
+    )
+
+# Use REAL PostgreSQL/Redis selected before pytest startup.
+os.environ["PYTEST_USE_REAL_INFRA"] = "true"
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+if TEST_REDIS_URL:
+    os.environ["REDIS_URL"] = TEST_REDIS_URL
+get_settings.cache_clear()
 
 # Ensure we're using production config
 print(f"[TEST CONFIG] Database: {get_settings().database_url}")
 print(f"[TEST CONFIG] Redis: {get_settings().redis_url}")
-print(f"[TEST CONFIG] R2 Enabled: {get_settings().r2_enabled}")
 print(f"[TEST CONFIG] Embeddings Enabled: {get_settings().enable_embeddings}")
-print(f"[TEST CONFIG] OpenAI Model: {get_settings().openai_embedding_model}")
+print(
+    "[TEST CONFIG] Document Storage Backend: "
+    + ("R2" if r2_is_configured(get_settings()) else "local-cache")
+)
+print(f"[TEST CONFIG] OpenAI Configured: {bool(get_settings().openai_api_key)}")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -44,13 +61,17 @@ def verify_real_infrastructure():
 
     # 1. Check PostgreSQL with pgvector
     db_url = get_settings().database_url
+    if db_url != TEST_DATABASE_URL:
+        pytest.exit("ERROR: real-infra plugin did not activate TEST_DATABASE_URL as DATABASE_URL")
     if "postgresql" not in db_url:
-        pytest.exit("ERROR: Not using PostgreSQL! Set DATABASE_URL in .env.production")
+        pytest.exit("ERROR: Not using PostgreSQL! Set TEST_DATABASE_URL to a PostgreSQL DSN")
 
     # 2. Check Redis URL
     redis_url = get_settings().redis_url
     if "redis:" not in redis_url:
-        pytest.exit("ERROR: Not using real Redis! Set REDIS_URL in .env.production")
+        pytest.exit(
+            "ERROR: Not using real Redis! Set TEST_REDIS_URL or REDIS_URL to a real Redis DSN"
+        )
 
     # 3. Check OpenAI API key
     if not get_settings().openai_api_key:
@@ -59,7 +80,7 @@ def verify_real_infrastructure():
     # 4. Warn about costs
     print("\n⚠️  WARNING: These tests will incur real costs:")
     print("   - OpenAI API calls (~$0.01 per test run)")
-    print("   - R2 storage usage")
+    print("   - Document storage usage (R2 if configured, local cache otherwise)")
     print("   - PostgreSQL resources")
     print("\n✓ All infrastructure checks passed")
     print("=" * 50 + "\n")

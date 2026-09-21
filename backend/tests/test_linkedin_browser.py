@@ -14,6 +14,7 @@ from app.integrations.linkedin.browser_facade import (
     _type_into_login_field,
     _wait_for_enabled_sign_in_button,
     _wait_for_profile_photo_ready,
+    connect_selenium,
     detect_page_state,
     extract_photo_url,
     login_linkedin,
@@ -124,6 +125,27 @@ def test_extract_photo_url_prefers_og_image() -> None:
     assert state == LinkedInPhotoError.SUCCESS
     assert method == ExtractionMethod.OG_IMAGE
     assert url is not None and "photo.jpg" in url
+
+
+def test_connect_selenium_rewrites_docker_host_on_native_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "multilogin_selenium_host", "http://host.docker.internal")
+    monkeypatch.setattr("app.clients.multilogin._running_on_native_windows", lambda: True)
+
+    fake_driver = MagicMock()
+    with patch(
+        "app.integrations.linkedin.login.webdriver.Remote", return_value=fake_driver
+    ) as remote:
+        connect_selenium(45678)
+
+    assert remote.call_args.kwargs["command_executor"] == "http://127.0.0.1:45678"
+    fake_driver.set_page_load_timeout.assert_called_once_with(
+        settings.tier1_browser_timeout_seconds
+    )
 
 
 def test_extract_photo_url_skips_placeholder_og_and_uses_dom() -> None:

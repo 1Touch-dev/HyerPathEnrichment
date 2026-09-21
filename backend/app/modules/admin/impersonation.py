@@ -15,7 +15,7 @@ from app.auth.models import User
 from app.core.config import get_settings
 from app.modules.admin import repository
 from app.modules.admin.audit import record_admin_action
-from app.modules.admin.mfa import verify_mfa_code
+from app.modules.admin.mfa import revoke_refresh_sessions, verify_mfa_code
 from app.modules.admin.models import ImpersonationSession
 from app.modules.admin.schemas import ImpersonationStartResponse
 
@@ -44,9 +44,16 @@ async def start_impersonation(
     if target.id == admin.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot impersonate yourself")
     if target.is_superuser:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot impersonate a superuser")
+    if (
+        target.role_id is not None
+        or not target.is_verified
+        or not target.is_active
+        or target.deleted_at is not None
+    ):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            "Cannot impersonate a superuser",
+            "Only an active, verified candidate can be impersonated",
         )
 
     settings = get_settings()
@@ -62,13 +69,20 @@ async def start_impersonation(
         "exp": expires_at,
     }
     token = encode_access_token(payload, settings.SECRET_KEY)
+    response.delete_cookie(
+        "refresh_token",
+        domain=settings.COOKIE_DOMAIN,
+        path="/",
+    )
     response.set_cookie(
-        "access_token",
-        token,
+        key="access_token",
+        value=token,
         httponly=True,
         secure=settings.COOKIE_SECURE,
         samesite="lax",
-        expires=int(expires_at.timestamp()),
+        max_age=settings.admin_impersonation_max_duration_minutes * 60,
+        domain=settings.COOKIE_DOMAIN,
+        path="/",
     )
 
     session = ImpersonationSession(
@@ -80,6 +94,7 @@ async def start_impersonation(
     )
     db.add(session)
     await db.flush()
+    await revoke_refresh_sessions(db, admin.id)
 
     await record_admin_action(
         db,
@@ -89,6 +104,7 @@ async def start_impersonation(
         target_id=str(target.id),
         after={"reason": reason, "expires_at": expires_at.isoformat()},
         ip_address=ip_address,
+        impersonation_session_id=session.id,
     )
     await db.commit()
 
@@ -106,42 +122,26 @@ async def end_impersonation(
     session = result.scalar_one_or_none()
     if session is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Impersonation session not found")
+    if session.admin_user_id != admin_user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Impersonation actor mismatch")
+    if session.ended_at is not None or session.revoked_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Impersonation session is not active")
 
     admin = await repository.get_user_by_id(db, admin_user_id)
-    if admin is None:
+    if admin is None or not admin.is_active or admin.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Admin user not found")
 
     session.ended_at = datetime.now(UTC)
 
-    from app.auth.logged_out_tokens import LoggedOutTokenService
-    from app.infrastructure.redis import get_redis_client
-
-    # ✅ DIRECT (verified against backend/app/auth/logged_out_tokens.py, and how
-    # backend/app/auth/router.py's own logout/delete-account flows call it):
-    # there is no `blacklist_token(reason=...)` method as the plan assumed.
-    # The real method is `add_logout_token(db, user_id, token_jti, expires_at)`
-    # — no `reason` kwarg, and it needs the token's expiry (not a reason string)
-    # to size the Redis TTL. `expires_at` is normalized to tz-aware UTC first:
-    # SQLite reads datetimes back naive even though they were stored as UTC
-    # (the same caveat `logged_out_tokens.py`'s own `_ensure_utc` helper guards
-    # against), and `add_logout_token` would raise on a naive/aware subtraction
-    # otherwise.
-    expires_at = session.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=UTC)
-
-    blacklist_service = LoggedOutTokenService(get_redis_client())
-    await blacklist_service.add_logout_token(
-        db=db, user_id=session.target_user_id, token_jti=jti, expires_at=expires_at
-    )
-
     await record_admin_action(
         db,
-        actor_user_id=admin_user_id,
+        actor_user_id=session.target_user_id,
         action="impersonation.ended",
         target_type="user",
         target_id=str(session.target_user_id),
         ip_address=ip_address,
+        impersonated_by=admin_user_id,
+        impersonation_session_id=session.id,
     )
     await db.commit()
 

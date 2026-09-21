@@ -9,6 +9,7 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 import httpx
+from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -278,8 +279,20 @@ async def _classify_and_persist_company_tier(
     now-existing row instead of letting the draft job crash.
     """
     lock_key = f"company-tier-classify-lock:{company_name.strip().lower()}"
-    redis_conn = get_redis_connection()
-    lock_acquired = redis_conn.set(lock_key, "1", nx=True, ex=_COMPANY_TIER_LOCK_TTL_SECONDS)
+    redis_conn = None
+    lock_acquired = False
+    try:
+        redis_conn = get_redis_connection()
+        lock_acquired = bool(
+            redis_conn.set(lock_key, "1", nx=True, ex=_COMPANY_TIER_LOCK_TTL_SECONDS)
+        )
+    except RedisError:
+        # Lock is only a race guard. If Redis is down (CI, outage), classify
+        # locally rather than crashing the draft — IntegrityError below is the
+        # remaining backstop for a duplicate insert.
+        logger.warning("company-tier classify lock unavailable; classifying locally")
+        lock_acquired = True
+        redis_conn = None
 
     if not lock_acquired:
         for _ in range(_COMPANY_TIER_LOCK_POLL_MAX_ATTEMPTS):
@@ -301,8 +314,11 @@ async def _classify_and_persist_company_tier(
                 return existing
             raise
     finally:
-        if lock_acquired:
-            redis_conn.delete(lock_key)
+        if lock_acquired and redis_conn is not None:
+            try:
+                redis_conn.delete(lock_key)
+            except RedisError:
+                logger.warning("company-tier classify lock release failed")
 
 
 def generate_outreach_draft_job(

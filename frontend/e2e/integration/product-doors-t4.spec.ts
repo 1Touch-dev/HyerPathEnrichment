@@ -1,6 +1,9 @@
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
+const BACKEND_ROOT = path.resolve(__dirname, "../../../backend");
 const CANDIDATE_EMAIL = "e2e-t4-candidate@example.com";
 const CANDIDATE_PASSWORD = "IntegrationCandidate123";
 const AUTHENTICATED_SHELL_TIMEOUT = 30_000;
@@ -28,16 +31,22 @@ const deskRoutes = [
   "/desk/users",
 ] as const;
 
+/** Align with `next.config.js` + `e2e/redirects.spec.ts` (Candidate keep-under-/app). */
 const redirects = [
+  ["/app", "/app/matches"],
+  ["/app?tab=matches", "/app/matches?tab=matches"],
   ["/app/enrich?tiers=tier1", "/osint?tiers=tier1"],
-  ["/app/history?cursor=next", "/osint/jobs?cursor=next"],
-  ["/app/jobs?state=queued", "/osint/jobs?state=queued"],
-  ["/app/jobs/dossier-123?tiers=tier2&view=raw", "/osint/jobs/dossier-123?tiers=tier2&view=raw"],
   ["/app/signals?source=webhook", "/desk/signals?source=webhook"],
-  ["/app/dashboard?tab=lookup", "/osint?tab=lookup"],
-  ["/app/health?probe=redis", "/desk/system-health?probe=redis"],
   ["/app/admin?from=legacy", "/desk?from=legacy"],
   ["/app/admin/users/user-123?tab=audit", "/desk/users/user-123?tab=audit"],
+] as const;
+
+const directCandidateCases = [
+  "/app/jobs?state=queued",
+  "/app/history?cursor=next",
+  "/app/jobs/dossier-123?tiers=tier2&view=raw",
+  "/app/dashboard?tab=lookup",
+  "/app/health?probe=redis",
 ] as const;
 
 type DoorUser = {
@@ -54,7 +63,18 @@ type DoorUser = {
   created_at: string;
 };
 
-function user(roleName: string | null, isSuperuser = false): DoorUser {
+function pythonExecutable(): string {
+  if (process.platform === "win32") return "python";
+  const venvPython = path.join(BACKEND_ROOT, ".venv", "bin", "python");
+  if (fs.existsSync(venvPython)) return venvPython;
+  return "python3";
+}
+
+function user(
+  roleName: string | null,
+  isSuperuser = false,
+  permissions: DoorUser["permissions"] = [],
+): DoorUser {
   return {
     id: `t4-${roleName ?? "candidate"}`,
     email: `${roleName ?? "candidate"}@example.com`,
@@ -65,7 +85,7 @@ function user(roleName: string | null, isSuperuser = false): DoorUser {
     is_superuser: isSuperuser,
     role_id: roleName ? `role-${roleName}` : null,
     role_name: roleName,
-    permissions: [],
+    permissions,
     created_at: "2026-01-01T00:00:00.000Z",
   };
 }
@@ -92,7 +112,7 @@ test.setTimeout(180_000);
 
 test.beforeAll(() => {
   execFileSync(
-    "python3",
+    pythonExecutable(),
     [
       "scripts/create_test_user.py",
       "--email",
@@ -104,11 +124,19 @@ test.beforeAll(() => {
       "--last-name",
       "Candidate",
     ],
-    { cwd: "../backend", stdio: ["ignore", "pipe", "inherit"] },
+    {
+      cwd: BACKEND_ROOT,
+      stdio: ["ignore", "pipe", "inherit"],
+      env: {
+        ...process.env,
+        APP_ENV: "development",
+        COOKIE_SECURE: "false",
+      },
+    },
   );
 });
 
-test("all nine compatibility redirects preserve IDs and queries", async ({ request }) => {
+test("compatibility redirects preserve IDs and queries", async ({ request }) => {
   for (const [source, target] of redirects) {
     const response = await request.get(source, { maxRedirects: 0 });
     expect(response.status(), source).toBe(307);
@@ -118,23 +146,55 @@ test("all nine compatibility redirects preserve IDs and queries", async ({ reque
   }
 });
 
+test("Candidate jobs/history/dashboard/health remain direct pages", async ({ request }) => {
+  for (const source of directCandidateCases) {
+    const response = await request.get(source, { maxRedirects: 0 });
+    const current = new URL(response.url());
+    const expected = new URL(source, "http://127.0.0.1:3000");
+
+    expect(response.status(), source).toBe(200);
+    expect(current.pathname, source).toBe(expected.pathname);
+    expect(current.search, source).toBe(expected.search);
+  }
+});
+
 test("role homes and direct-route guards choose the correct door", async ({ browser }) => {
   const cases = [
     [user(null), "/osint", /\/app\/matches$/, "Candidate"],
-    [user("recruiter"), "/desk", /\/desk\/sourcing-leads$/, "Desk"],
-    [user("support"), "/desk", /\/desk\/users$/, "Desk"],
-    [user("admin"), "/desk", /\/desk$/, "Desk"],
-    [user("team_owner"), "/desk", /\/desk$/, "Desk"],
+    [
+      user("recruiter", false, [{ resource: "linkedin_sourcing", action: "write" }]),
+      "/desk",
+      /\/desk\/sourcing-leads$/,
+      "Desk",
+    ],
+    [
+      user("support", false, [{ resource: "users", action: "read" }]),
+      "/desk",
+      /\/desk\/users$/,
+      "Desk",
+    ],
+    [
+      user("admin", false, [{ resource: "system_health", action: "read" }]),
+      "/desk",
+      /\/desk$/,
+      "Desk",
+    ],
+    [user("team_owner"), "/desk", /\/osint$/, "OSINT"],
     [user(null, true), "/desk", /\/desk$/, "Desk"],
     [user("custom_staff"), "/desk", /\/osint$/, "OSINT"],
-    [user("recruiter"), "/desk/roles", /\/desk\/sourcing-leads$/, "Desk"],
+    [
+      user("recruiter", false, [{ resource: "linkedin_sourcing", action: "write" }]),
+      "/desk/roles",
+      /\/desk\/sourcing-leads$/,
+      "Desk",
+    ],
   ] as const;
 
   for (const [identity, source, expected, product] of cases) {
     const context = await browser.newContext();
     const page = await context.newPage();
     await mockIdentity(page, identity);
-    await page.goto(source);
+    await page.goto(source, { waitUntil: "domcontentloaded" });
     await expect(page, `${identity.role_name ?? "candidate"} from ${source}`).toHaveURL(expected, {
       timeout: AUTHENTICATED_SHELL_TIMEOUT,
     });
@@ -246,7 +306,14 @@ test("MFA and impersonation complete a full start/status/end lifecycle", async (
   impersonation = unwrap<{ isImpersonating: boolean; targetUserId: string }>(endedStatusBody);
   expect(impersonation.isImpersonating).toBe(false);
 
-  const disableResponse = await page.request.post("/api/admin/mfa/disable");
+  const disableCode = execFileSync(
+    "python3",
+    ["-c", "import pyotp,sys; print(pyotp.TOTP(sys.argv[1]).now())", enrollment.secret],
+    { encoding: "utf8" },
+  ).trim();
+  const disableResponse = await page.request.post("/api/admin/mfa/disable", {
+    data: { code: disableCode },
+  });
   expect(disableResponse.status()).toBe(200);
   status = unwrap<{ mfaEnabled: boolean }>(
     await (await page.request.get("/api/admin/mfa/status")).json(),

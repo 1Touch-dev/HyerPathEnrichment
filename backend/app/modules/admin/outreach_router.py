@@ -13,9 +13,10 @@ attempts to send a message an admin has blocked here.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +29,12 @@ from app.dependencies.rate_limit import enforce_admin_moderation_rate_limit
 from app.modules.admin.audit import record_admin_action
 from app.modules.admin.pagination import decode_cursor, encode_cursor
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import (
+    begin_idempotent_operation,
+    canonical_payload_hash,
+    complete_idempotent_operation,
+    require_idempotency_key,
+)
 from app.modules.outreach.models import OutreachMessage
 
 router = APIRouter(prefix="/api/admin/outreach", tags=["admin"], route_class=EnvelopeAPIRoute)
@@ -133,9 +140,27 @@ async def moderate_outreach_message(
     message_id: UUID,
     payload: ModerateOutreachMessageRequest,
     request: Request,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     current_user: User = Depends(require_permission("outreach", "moderate")),
     db: AsyncSession = Depends(get_db_session),
 ) -> AdminOutreachMessageResponse:
+    normalized_key = require_idempotency_key("outreach.moderate", idempotency_key)
+    state, replay = await begin_idempotent_operation(
+        db,
+        caller_user_id=current_user.id,
+        operation_id="outreach.moderate",
+        idempotency_key=normalized_key,
+        request_hash=canonical_payload_hash(
+            {
+                "message_id": message_id,
+                "admin_blocked": payload.admin_blocked,
+                "reason": payload.reason,
+            }
+        ),
+    )
+    if replay is not None:
+        return AdminOutreachMessageResponse.model_validate(replay.response_body["message"])
+
     message = await db.get(OutreachMessage, message_id)
     if message is None:
         raise HTTPException(
@@ -157,6 +182,14 @@ async def moderate_outreach_message(
         after=after,
         ip_address=get_client_ip(request),
     )
+    response = _to_response(message)
+    if state is not None:
+        await complete_idempotent_operation(
+            db,
+            state,
+            response_status=200,
+            response_body={"message": response.model_dump(mode="json")},
+        )
     await db.commit()
     await db.refresh(message)
-    return _to_response(message)
+    return response

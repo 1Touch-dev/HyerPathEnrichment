@@ -53,6 +53,7 @@ describe("POST /api/admin/brands/[brandId]/deactivate", () => {
     const response = await POST(
       new NextRequest("http://localhost/api/admin/brands/b1/deactivate", {
         method: "POST",
+        headers: { "Idempotency-Key": "brand-deactivate-1" },
         body: JSON.stringify({}),
       }),
       { params: Promise.resolve({ brandId: "b1" }) },
@@ -60,7 +61,7 @@ describe("POST /api/admin/brands/[brandId]/deactivate", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/admin/brands/b1/deactivate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "brand-deactivate-1" },
       body: JSON.stringify({}),
     });
     expect(vi.mocked(backendFetch).mock.calls[0][0]).not.toContain("/api/orgs");
@@ -92,6 +93,7 @@ describe("POST /api/admin/brands/[brandId]/deactivate", () => {
     const emptyReason = await POST(
       new NextRequest("http://localhost/api/admin/brands/b1/deactivate", {
         method: "POST",
+        headers: { "Idempotency-Key": "brand-deactivate-2" },
         body: JSON.stringify({ reason: "   " }),
       }),
       { params: Promise.resolve({ brandId: "b1" }) },
@@ -100,7 +102,7 @@ describe("POST /api/admin/brands/[brandId]/deactivate", () => {
     expect(emptyReason.status).toBe(200);
     expect(backendFetch).toHaveBeenCalledWith("/api/admin/brands/b1/deactivate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "brand-deactivate-2" },
       body: JSON.stringify({}),
     });
     expect(forwardedBody()).toEqual({});
@@ -112,6 +114,7 @@ describe("POST /api/admin/brands/[brandId]/deactivate", () => {
     const response = await POST(
       new NextRequest("http://localhost/api/admin/brands/b1/deactivate", {
         method: "POST",
+        headers: { "Idempotency-Key": "brand-deactivate-3" },
         body: JSON.stringify({ reason: "  sunset  " }),
       }),
       { params: Promise.resolve({ brandId: "b1" }) },
@@ -119,7 +122,7 @@ describe("POST /api/admin/brands/[brandId]/deactivate", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/admin/brands/b1/deactivate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "brand-deactivate-3" },
       body: JSON.stringify({ reason: "sunset" }),
     });
     expect(vi.mocked(backendFetch).mock.calls[0][0]).not.toContain("/api/orgs");
@@ -137,6 +140,7 @@ describe("POST /api/admin/brands/[brandId]/deactivate", () => {
     const response = await POST(
       new NextRequest("http://localhost/api/admin/brands/b1/deactivate", {
         method: "POST",
+        headers: { "Idempotency-Key": "brand-deactivate-4" },
         body: JSON.stringify({}),
       }),
       { params: Promise.resolve({ brandId: "b1" }) },

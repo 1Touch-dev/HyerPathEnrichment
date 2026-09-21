@@ -5,6 +5,7 @@ from redis import Redis
 from rq import Queue
 
 from app.core.config import get_settings
+from app.core.logging import get_request_id, scrub_identifier
 from app.domain.enums import RequestedTier
 
 # Phase 1 queues (existing)
@@ -38,20 +39,38 @@ QUEUE_LINKEDIN_SEND_BATCH = "linkedin_send_batch"
 # Module 4, Module D: interview scheduling reminders
 QUEUE_INTERVIEW_REMINDERS = "interview_reminders"
 
-# Queue priorities (higher = processed first)
+# Queues served by the bridge-network auxiliary worker in production.
+# Order matters: RQ checks the queue list from left to right, so this tuple is
+# the actual starvation/priority model for the generic worker. Keep it aligned
+# with QUEUE_PRIORITIES below and with the operator docs.
+AUXILIARY_WORKER_QUEUES = (
+    QUEUE_FEEDBACK,
+    QUEUE_INTERVIEW_REMINDERS,
+    QUEUE_OUTREACH,
+    QUEUE_LINKEDIN_SEND_BATCH,
+    QUEUE_DOCUMENT,
+    QUEUE_CV_EXTRACTION,
+    QUEUE_QUESTION_GENERATION,
+    QUEUE_EMBEDDING,
+    QUEUE_AUDIO_CLEANUP,
+)
+
+# Queue priorities for admin/ops visibility. Higher = processed first, and the
+# auxiliary tuple above is kept in this same order.
 QUEUE_PRIORITIES = {
     QUEUE_EMAIL: 10,  # Highest (user-facing)
-    QUEUE_CV_EXTRACTION: 8,  # High (user-facing)
-    QUEUE_FEEDBACK: 7,  # High (user-facing feedback)
-    QUEUE_INTERVIEW_REMINDERS: 7,  # NEW — same tier as QUEUE_FEEDBACK: user-facing, time-sensitive
-    QUEUE_JOB_MATCHING: 6,  # Between feedback (7) and document (5) — user-facing but async
-    QUEUE_OUTREACH: 6,  # NEW — user-facing but not time-critical; below feedback, above document/embedding
-    QUEUE_DOCUMENT: 5,  # Medium (async)
-    QUEUE_QUESTION_GENERATION: 4,  # Below feedback: not user-blocking, above batch embedding
-    QUEUE_EMBEDDING: 3,  # Low (batch)
-    QUEUE_NAME: 2,  # Low (existing enrichment)
-    QUEUE_CLEANUP: 1,  # Lowest (maintenance)
-    QUEUE_AUDIO_CLEANUP: 1,  # Lowest (maintenance)
+    QUEUE_FEEDBACK: 9,  # Highest auxiliary queue: user is actively waiting
+    QUEUE_INTERVIEW_REMINDERS: 8,  # Time-sensitive user-facing delivery
+    QUEUE_JOB_MATCHING: 7,  # Dedicated worker-job-matching queue
+    QUEUE_OUTREACH: 6,  # User-facing drafting job
+    QUEUE_LINKEDIN_SEND_BATCH: 5,  # Operator-triggered send-batch orchestration
+    QUEUE_DOCUMENT: 4,  # Async upload processing
+    QUEUE_CV_EXTRACTION: 3,  # Follows document processing for uploaded CVs
+    QUEUE_QUESTION_GENERATION: 2,  # Background pre-generation
+    QUEUE_EMBEDDING: 1,  # Batch/background work
+    QUEUE_NAME: 0,  # Legacy single-queue enrichment fallback
+    QUEUE_CLEANUP: -1,  # Maintenance
+    QUEUE_AUDIO_CLEANUP: -1,  # Maintenance
 }
 
 logger = logging.getLogger(__name__)
@@ -119,6 +138,27 @@ def get_worker_queue() -> Queue:
     return Queue(queue_name, connection=get_redis_connection())
 
 
+def get_worker_queue_names() -> list[str]:
+    """Return the ordered queue list for the current worker configuration."""
+    settings = get_settings()
+
+    if settings.worker_queue_mode == "single":
+        return [*AUXILIARY_WORKER_QUEUES, QUEUE_NAME]
+
+    if not settings.worker_target_queue:
+        raise ValueError("WORKER_TARGET_QUEUE required when WORKER_QUEUE_MODE=per_tier")
+
+    if settings.worker_target_queue == "tier1":
+        return ["tier1"]
+
+    return [settings.worker_target_queue]
+
+
+def _request_context_meta() -> dict[str, str]:
+    request_id = get_request_id()
+    return {"request_id": scrub_identifier(request_id)} if request_id else {}
+
+
 def enqueue_enrichment(
     job_id: str,
     requested_tiers: list[RequestedTier] | None = None,
@@ -142,12 +182,18 @@ def enqueue_enrichment(
     settings = get_settings()
     connection = get_redis_connection()
     timeout_seconds = settings.rq_job_timeout_seconds
+    request_meta = _request_context_meta()
 
     try:
         if settings.worker_queue_mode == "single":
             # Single queue mode: all tiers go to one queue
             queue = Queue("enrichment", connection=connection)
-            queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+            queue.enqueue(
+                run_enrichment_job,
+                job_id,
+                job_timeout=timeout_seconds,
+                meta=request_meta,
+            )
             logger.info(f"Enqueued job {job_id} to queue: enrichment")
         else:
             # Per-tier mode
@@ -155,7 +201,12 @@ def enqueue_enrichment(
                 # Child job: enqueue to its assigned tier queue
                 queue_name = get_queue_name_for_tiers(tiers)
                 queue = Queue(queue_name, connection=connection)
-                queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+                queue.enqueue(
+                    run_enrichment_job,
+                    job_id,
+                    job_timeout=timeout_seconds,
+                    meta=request_meta,
+                )
                 logger.info(f"Enqueued child job {job_id} to queue: {queue_name}")
             else:
                 # Parent job or simple job
@@ -165,7 +216,12 @@ def enqueue_enrichment(
                     # Simple job with single tier group - enqueue normally
                     queue_name = get_queue_name_for_tiers(tiers)
                     queue = Queue(queue_name, connection=connection)
-                    queue.enqueue(run_enrichment_job, job_id, job_timeout=timeout_seconds)
+                    queue.enqueue(
+                        run_enrichment_job,
+                        job_id,
+                        job_timeout=timeout_seconds,
+                        meta=request_meta,
+                    )
                     logger.info(f"Enqueued job {job_id} to queue: {queue_name}")
     except Exception as e:
         logger.error(
@@ -408,7 +464,11 @@ def register_scheduled_jobs() -> None:
 
         logger.info(
             "Registered scheduled jobs",
-            extra={"jobs": ["audio_cleanup_daily", "job_matching_fan_out_daily"]},
+            extra={
+                "jobs": ["audio_cleanup_daily", "job_matching_fan_out_daily"],
+                "audio_cleanup_consumer": "worker",
+                "job_matching_consumer": "worker-job-matching",
+            },
         )
 
     except ImportError:

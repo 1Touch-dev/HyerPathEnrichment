@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid, DeskPagination } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import {
   Select,
   SelectContent,
@@ -11,6 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -87,11 +96,32 @@ export function OutreachModerationPanel() {
   }
 
   const items = data?.items ?? [];
+  const blockedMessages = items.filter((message) => message.adminBlocked).length;
+  const sentMessages = items.filter((message) => message.status === "sent").length;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Messages on this page"
+          value={items.length}
+          hint="Current cursor slice"
+        />
+        <DeskMetricCard
+          label="Sent on page"
+          value={sentMessages}
+          hint={`${blockedMessages} blocked by moderation`}
+          tone={blockedMessages > 0 ? "warning" : "success"}
+        />
+        <DeskMetricCard
+          label="Current filters"
+          value={statusFilter === "all" ? "All statuses" : statusFilter}
+          hint={blockedFilter === "all" ? "All messages" : blockedFilter}
+        />
+      </DeskMetricGrid>
+
+      <FilterBar>
+        <FilterBarGroup>
           <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
             <SelectTrigger className="w-[160px]">
               <SelectValue />
@@ -112,8 +142,13 @@ export function OutreachModerationPanel() {
               <SelectItem value="unblocked">Not blocked</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-      </div>
+        </FilterBarGroup>
+        <FilterBarActions>
+          <div className="text-right text-sm text-muted-foreground">
+            Message blocking stays reversible and backend-authorized.
+          </div>
+        </FilterBarActions>
+      </FilterBar>
 
       {!items.length && !isLoading ? (
         <EmptyState
@@ -121,7 +156,19 @@ export function OutreachModerationPanel() {
           description="Try a different status or block filter."
         />
       ) : (
-        <div className="rounded-lg border">
+        <div className="flex flex-col gap-3">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Outreach moderation queue</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Scan company, subject, recipient role, delivery status, and block posture without
+                changing send semantics.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">Human review preserved</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
           <Table>
             <TableHeader>
               <TableRow>
@@ -166,24 +213,12 @@ export function OutreachModerationPanel() {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={cursorStack.length <= 1 || isLoading}
-          onClick={handlePrevious}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!data?.hasMore || isLoading}
-          onClick={handleNext}
-        >
-          Next page
-        </Button>
-      </div>
+      <DeskPagination
+        canPrevious={cursorStack.length > 1 && !isLoading}
+        canNext={Boolean(data?.hasMore) && !isLoading}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+      />
     </div>
   );
 }

@@ -9,7 +9,6 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from redis import Redis
-from rq import Queue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError
@@ -26,7 +25,7 @@ from app.modules.job_matching.schemas import (
     ScanTriggerResponse,
 )
 from app.observability.job_matching_metrics import job_matching_apply_clicks_total
-from app.workers.queue import QUEUE_JOB_MATCHING, get_redis_connection
+from app.workers.queue import enqueue_job_matching_scan, get_redis_connection
 
 
 def _validate_redirect_scheme(url: str) -> None:
@@ -175,12 +174,7 @@ class JobMatchingService:
     async def trigger_scan(self, user_id: UUID) -> ScanTriggerResponse:
         """Manual on-demand scan trigger (in addition to the daily cron, §7.7)."""
         try:
-            queue = Queue(QUEUE_JOB_MATCHING, connection=self.redis_conn)
-            queue.enqueue(
-                "app.workers.tasks.job_matching.scan_jobs_for_candidate",
-                str(user_id),
-                job_timeout=120,
-            )
+            enqueue_job_matching_scan(str(user_id))
             return ScanTriggerResponse(message="Scan enqueued", scan_enqueued=True)
         except Exception as exc:
             raise HTTPException(

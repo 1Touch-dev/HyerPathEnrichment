@@ -23,6 +23,7 @@ from app.modules.admin.models import (
     FeatureFlag,
     ImpersonationSession,
     Permission,
+    PrivilegedIdempotencyRecord,
     Role,
     RolePermission,
 )
@@ -70,6 +71,7 @@ _ = (
     AdminAuditLog,
     FeatureFlag,
     ImpersonationSession,
+    PrivilegedIdempotencyRecord,
     InterviewSchedule,
     ManualJobEntry,
     Brand,
@@ -102,6 +104,7 @@ __all__ = [
     "Permission",
     "PhotoCacheRecord",
     "PracticeSession",
+    "PrivilegedIdempotencyRecord",
     "PushSubscription",
     "QuestionAttempt",
     "RecruiterCandidateAssignment",

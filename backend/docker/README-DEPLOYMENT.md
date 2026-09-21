@@ -5,26 +5,28 @@
 To avoid proxy rate limiting, workers start sequentially with a configurable delay:
 
 ```bash
-cd backend/docker
-
-# Build worker image with entrypoint
-docker compose --env-file ../.env.production build worker
-
-# Start all services with scaled tier234 workers
-docker compose --env-file ../.env.production \
-  -f docker-compose.yml \
-  -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
-  -f docker-compose.tier-workers.yml \
-  up -d --scale worker-tier234=${WORKER_TIER234_COUNT:-6}
+bash backend/scripts/start_production.sh --with-linux-mlx
 ```
+
+That supported Linux MLX path starts:
+- `worker` for auxiliary queues (`outreach_generation`, `linkedin_send_batch`, `audio_cleanup`, feedback/question generation, document queues)
+- `worker-email` for the `email` queue
+- `worker-cleanup` for orphan-job maintenance
+- `worker-job-matching` for the dedicated `job_matching` queue and scheduler seeding
+- `worker-tier234` for `tier234`
+- `worker-tier1` plus `multilogin` for Tier 1
+
+Do **not** reconstruct the old `docker-compose.tier1.yml + docker-compose.multilogin.yml`
+family directly. The supported Linux path is `docker-compose.prod.yml +
+docker-compose.foundation.yml + docker-compose.tier-workers.yml +
+docker-compose.multilogin.yml`, or the script above.
 
 ## Configuration
 
 Edit `.env.production`:
 
 - `WORKER_TIER234_COUNT=6` - Number of tier234 workers (adjust based on load)
-- `WORKER_STARTUP_DELAY=10` - Seconds between worker startups (increase if proxy still rate limits)
+- `WORKER_STARTUP_DELAY=10` - Optional seconds between startup of bridge-network workers that use `entrypoint-worker.sh` (`worker`, scaled `worker-tier234`, `worker-email` if scaled)
 
 ## Monitoring Startup
 
@@ -74,11 +76,10 @@ Try increasing the delay:
 WORKER_STARTUP_DELAY=15  # or 20
 ```
 
-Then rebuild and restart:
+Then restart with the supported script:
 
 ```bash
-docker compose build --no-cache worker
-docker compose up -d --scale worker-tier234=6
+bash backend/scripts/start_production.sh --with-linux-mlx
 ```
 
 ## Full Restart
@@ -89,21 +90,11 @@ To completely restart the backend with fresh containers:
 cd backend/docker
 
 # Stop and remove all containers
-docker compose --env-file ../.env.production \
-  -f docker-compose.yml \
-  -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
-  -f docker-compose.tier-workers.yml \
-  down
+bash backend/scripts/start_production.sh --down --with-linux-mlx
 
 # Rebuild worker image
 docker compose --env-file ../.env.production build --no-cache worker
 
 # Start everything
-docker compose --env-file ../.env.production \
-  -f docker-compose.yml \
-  -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
-  -f docker-compose.tier-workers.yml \
-  up -d --scale worker-tier234=${WORKER_TIER234_COUNT:-6}
+bash backend/scripts/start_production.sh --with-linux-mlx
 ```

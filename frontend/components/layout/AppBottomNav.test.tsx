@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AppBottomNav } from "./AppBottomNav";
 import { getNavSections } from "./nav-config";
 
@@ -39,5 +39,16 @@ describe("AppBottomNav unread match indicator", () => {
 
     const cvLink = screen.getByText("My CV").closest("a");
     expect(cvLink?.querySelector("span.bg-destructive")).toBeNull();
+  });
+
+  it("restores focus to More after the mobile sheet closes", async () => {
+    render(<AppBottomNav sections={candidateSections} pathname="/app/matches" />);
+
+    const trigger = screen.getByRole("button", { name: "More" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole("button", { name: "Close" }));
+
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 });

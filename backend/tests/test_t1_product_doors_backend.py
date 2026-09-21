@@ -159,6 +159,7 @@ async def test_impersonation_start_status_end_http_lifecycle(db: AsyncSession) -
                 "reason": "T1 impersonation lifecycle",
                 "mfa_code": pyotp.TOTP(secret).now(),
             },
+            headers={"Idempotency-Key": "t1-impersonation-start"},
         )
         assert start.status_code == 200
         assert start.json()["data"]["target_user_id"] == str(candidate.id)
@@ -174,7 +175,10 @@ async def test_impersonation_start_status_end_http_lifecycle(db: AsyncSession) -
             "expires_at": status.json()["data"]["expires_at"],
         }
 
-        end = await client.post("/api/admin/impersonation/end")
+        end = await client.post(
+            "/api/admin/impersonation/end",
+            headers={"Idempotency-Key": "t1-impersonation-end"},
+        )
         assert end.status_code == 204
         assert end.content == b""
 

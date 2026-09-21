@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { TrackedMatchRow } from "./TrackedMatchRow";
+import { AppShellAccessProvider } from "@/components/layout/app-shell-access";
 import * as trackerClient from "../api/client";
 import * as matchingClient from "@/features/job-matching/api/client";
 import * as useInterviewScheduleHooks from "@/features/interview-scheduling/hooks/useInterviewSchedule";
@@ -10,7 +11,20 @@ import type { TrackedMatch } from "@/src/lib/types";
 
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <AppShellAccessProvider candidateMutationAccess="allowed">
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </AppShellAccessProvider>
+  );
+}
+
+function restrictedWrapper({ children }: { children: ReactNode }) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return (
+    <AppShellAccessProvider candidateMutationAccess="impersonating">
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </AppShellAccessProvider>
+  );
 }
 
 const baseMatch: TrackedMatch = {
@@ -58,18 +72,18 @@ describe("TrackedMatchRow", () => {
   });
 
   it.each([
-    ["new", "New", "bg-gray-100"],
-    ["applied", "Applied", "bg-blue-100"],
-    ["replied", "Replied", "bg-purple-100"],
-    ["interview", "Interview", "bg-amber-100"],
-    ["offer", "Offer", "bg-green-100"],
-    ["rejected", "Rejected", "bg-red-100"],
+    ["new", "New", "bg-surface"],
+    ["applied", "Applied", "bg-info/10"],
+    ["replied", "Replied", "bg-secondary"],
+    ["interview", "Interview", "bg-warning/10"],
+    ["offer", "Offer", "bg-success/10"],
+    ["rejected", "Rejected", "bg-destructive/10"],
   ] as const)(
-    "renders the %s status badge with label %s and color class %s",
-    (status, label, colorClass) => {
+    "renders the %s status badge with label %s and semantic class %s",
+    (status, label, semanticClass) => {
       render(<TrackedMatchRow match={{ ...baseMatch, applicationStatus: status }} />, { wrapper });
       const badges = screen.getAllByText(label);
-      expect(badges.some((el) => el.className.includes(colorClass))).toBe(true);
+      expect(badges.some((el) => el.className.includes(semanticClass))).toBe(true);
     },
   );
 
@@ -77,6 +91,14 @@ describe("TrackedMatchRow", () => {
     render(<TrackedMatchRow match={baseMatch} />, { wrapper });
     const applyLink = screen.getByRole("link", { name: "Apply" });
     expect(applyLink).toHaveAttribute("href", "/api/matches/m1/apply-redirect");
+  });
+
+  it("does not expose the tracked Apply destination during restricted Candidate access", () => {
+    render(<TrackedMatchRow match={baseMatch} />, { wrapper: restrictedWrapper });
+
+    const applyLink = screen.getByRole("link", { name: "Apply" });
+    expect(applyLink).toHaveAttribute("aria-disabled", "true");
+    expect(applyLink).not.toHaveAttribute("href");
   });
 
   describe("manual-entry Apply affordance degradation (Module F, §10.7-8)", () => {

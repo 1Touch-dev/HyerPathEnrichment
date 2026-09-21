@@ -15,13 +15,38 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
+import os
 import sys
+import tempfile
+import time
+from collections.abc import Awaitable, Callable
+from contextlib import contextmanager
 from pathlib import Path
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
+
+
+_PROD_LIKE_ENVS = frozenset({"production", "staging"})
+_SUPERUSER_ALLOW_ENV = "ALLOW_E2E_SUPERUSER_BOOTSTRAP"
+_SCHEMA_LOCK_TIMEOUT_SECONDS = 120.0
+
+
+def validate_bootstrap_context(*, app_env: str, is_superuser: bool) -> None:
+    normalized_env = app_env.strip().lower()
+    if normalized_env in _PROD_LIKE_ENVS:
+        raise RuntimeError("create_test_user.py is disabled when APP_ENV is staging or production")
+    if is_superuser and os.getenv(_SUPERUSER_ALLOW_ENV, "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
+        raise RuntimeError(
+            f"--is-superuser requires {_SUPERUSER_ALLOW_ENV}=1 so the non-production exception is explicit"
+        )
 
 
 async def _create_or_update_user(
@@ -61,8 +86,72 @@ async def _create_or_update_user(
         await session.commit()
 
 
+def _schema_lock_path() -> Path:
+    from app.core.config import get_settings
+
+    digest = hashlib.sha256(get_settings().database_url.encode("utf-8")).hexdigest()[:16]
+    return Path(tempfile.gettempdir()) / f"hyrepath-create-test-user-{digest}.lock"
+
+
+@contextmanager
+def _schema_init_lock():
+    lock_path = _schema_lock_path()
+    lock_fd: int | None = None
+    deadline = time.monotonic() + _SCHEMA_LOCK_TIMEOUT_SECONDS
+
+    while True:
+        try:
+            lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(lock_fd, f"{os.getpid()}\n".encode("utf-8"))
+            break
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"timed out waiting for schema bootstrap lock: {lock_path}")
+            time.sleep(0.1)
+
+    try:
+        yield
+    finally:
+        if lock_fd is not None:
+            os.close(lock_fd)
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+async def _ensure_schema_and_create_user(
+    email: str,
+    password: str,
+    first_name: str,
+    last_name: str,
+    *,
+    is_superuser: bool = False,
+    init_db_func: Callable[[], Awaitable[None]] | None = None,
+) -> None:
+    if init_db_func is None:
+        from app.database.session import init_db
+
+        with _schema_init_lock():
+            await init_db()
+    else:
+        await init_db_func()
+
+    await _create_or_update_user(
+        email,
+        password,
+        first_name,
+        last_name,
+        is_superuser=is_superuser,
+    )
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create a verified test user for e2e integration tests")
+    from app.core.config import get_settings
+
+    parser = argparse.ArgumentParser(
+        description="Create a verified test user for e2e integration tests"
+    )
     parser.add_argument("--email", default="e2e-integration@example.com")
     parser.add_argument("--password", default="IntegrationTest123")
     parser.add_argument("--first-name", default="E2E")
@@ -74,9 +163,13 @@ def main() -> int:
         help="Create/update the user as a superuser (grants all admin RBAC permissions).",
     )
     args = parser.parse_args()
+    validate_bootstrap_context(
+        app_env=get_settings().app_env,
+        is_superuser=args.is_superuser,
+    )
 
     asyncio.run(
-        _create_or_update_user(
+        _ensure_schema_and_create_user(
             args.email,
             args.password,
             args.first_name,

@@ -4,15 +4,18 @@ Revision ID: 027_portfolio_profiles
 Revises: 026_cv_feedback_reports
 Create Date: 2026-08-08
 """
-from typing import Sequence, Union
-from alembic import op
+
+from collections.abc import Sequence
+
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
+
 revision: str = "027_portfolio_profiles"
-down_revision: Union[str, Sequence[str], None] = "026_cv_feedback_reports"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "026_cv_feedback_reports"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -23,7 +26,13 @@ def upgrade() -> None:
     op.create_table(
         "portfolio_profiles",
         sa.Column("id", uuid_type, primary_key=True),
-        sa.Column("user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True),
+        sa.Column(
+            "user_id",
+            uuid_type,
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+            unique=True,
+        ),
         sa.Column("slug", sa.String(64), nullable=False),  # DNS-safe charset, per Decision 4
         sa.Column("display_name", sa.String(255), nullable=True),
         sa.Column("headline", sa.String(255), nullable=True),

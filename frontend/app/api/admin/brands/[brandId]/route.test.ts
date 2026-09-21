@@ -93,6 +93,7 @@ describe("PATCH /api/admin/brands/[brandId]", () => {
     const response = await PATCH(
       new NextRequest("http://localhost/api/admin/brands/b1", {
         method: "PATCH",
+        headers: { "Idempotency-Key": "brand-update-1" },
         body: JSON.stringify({
           name: "Acme",
           isActive: false,
@@ -104,7 +105,7 @@ describe("PATCH /api/admin/brands/[brandId]", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/admin/brands/b1", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": "brand-update-1" },
       body: JSON.stringify({ name: "Acme" }),
     });
     const forwarded = JSON.parse(
@@ -125,6 +126,7 @@ describe("PATCH /api/admin/brands/[brandId]", () => {
     const response = await PATCH(
       new NextRequest("http://localhost/api/admin/brands/b1", {
         method: "PATCH",
+        headers: { "Idempotency-Key": "brand-update-2" },
         body: JSON.stringify({ name: "Acme" }),
       }),
       { params: Promise.resolve({ brandId: "b1" }) },

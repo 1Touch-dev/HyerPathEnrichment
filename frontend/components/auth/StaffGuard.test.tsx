@@ -33,6 +33,17 @@ beforeEach(() => {
 });
 
 describe("StaffGuard", () => {
+  it("announces account loading as a status", () => {
+    mockUseAuth({ user: null, loading: true });
+    render(
+      <StaffGuard>
+        <div>Staff content</div>
+      </StaffGuard>,
+    );
+
+    expect(screen.getByRole("status", { name: "Loading account" })).toBeInTheDocument();
+  });
+
   it("preserves the local destination for unauthenticated login", () => {
     mockUseAuth({ user: null });
     render(
@@ -41,6 +52,7 @@ describe("StaffGuard", () => {
       </StaffGuard>,
     );
     expect(replaceMock).toHaveBeenCalledWith("/login?redirect=%2Fosint");
+    expect(screen.getByRole("status", { name: "Redirecting to login" })).toBeInTheDocument();
   });
 
   it("round-trips the OSINT tiers query through StaffGuard and login", async () => {
@@ -105,6 +117,9 @@ describe("StaffGuard", () => {
     );
     expect(replaceMock).toHaveBeenCalledWith("/app/matches");
     expect(screen.queryByText("Staff content")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "You don't have access to this page" }),
+    ).toBeInTheDocument();
   });
 
   it.each([
@@ -124,6 +139,58 @@ describe("StaffGuard", () => {
         role_id: roleId,
         role_name: roleId ? "recruiter" : null,
         permissions: [],
+      },
+    });
+    render(
+      <StaffGuard>
+        <div>Staff content</div>
+      </StaffGuard>,
+    );
+    expect(screen.getByText("Staff content")).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("redirects desk users without the route permission to their allowed home", () => {
+    window.history.replaceState({}, "", "/desk/users");
+    mockUseAuth({
+      user: {
+        id: "u1",
+        email: "staff@example.com",
+        first_name: "Staff",
+        last_name: "User",
+        is_verified: true,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        is_superuser: false,
+        role_id: "role-1",
+        role_name: "recruiter",
+        permissions: [{ resource: "linkedin_sourcing", action: "write" }],
+      },
+    });
+    render(
+      <StaffGuard>
+        <div>Staff content</div>
+      </StaffGuard>,
+    );
+    expect(replaceMock).toHaveBeenCalledWith("/desk/sourcing-leads");
+    expect(screen.queryByText("Staff content")).not.toBeInTheDocument();
+  });
+
+  it("renders desk content when the route permission is present", () => {
+    window.history.replaceState({}, "", "/desk/users");
+    mockUseAuth({
+      user: {
+        id: "u1",
+        email: "staff@example.com",
+        first_name: "Staff",
+        last_name: "User",
+        is_verified: true,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        is_superuser: false,
+        role_id: "role-1",
+        role_name: "support",
+        permissions: [{ resource: "users", action: "read" }],
       },
     });
     render(

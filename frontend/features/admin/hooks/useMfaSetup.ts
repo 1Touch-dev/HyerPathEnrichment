@@ -21,7 +21,7 @@ export function useConfirmMfaEnrollment() {
 export function useDisableMfa() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: disableMfa,
+    mutationFn: (code: string) => disableMfa(code),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.mfaStatus() }),
   });
 }

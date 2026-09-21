@@ -1,4 +1,4 @@
-# Docker Stack Rebuild Instructions
+# Docker Stack Rebuild Instructions For Supported Linux MLX
 
 ## Configuration Changes Applied
 
@@ -15,7 +15,7 @@ The following files have been updated on branch `feature/selective-proxy-multi-w
 
 ## Rebuild Command
 
-Execute this command in your WSL terminal:
+Execute this on the supported Linux MLX host:
 
 ```bash
 cd /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/docker
@@ -24,9 +24,9 @@ cd /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/docker
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
-  -f docker-compose.multilogin.yml \
+  -f docker-compose.foundation.yml \
   -f docker-compose.tier-workers.yml \
+  -f docker-compose.multilogin.yml \
   --env-file ../.env.production \
   down
 
@@ -34,9 +34,9 @@ docker compose \
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
-  -f docker-compose.multilogin.yml \
+  -f docker-compose.foundation.yml \
   -f docker-compose.tier-workers.yml \
+  -f docker-compose.multilogin.yml \
   --env-file ../.env.production \
   up -d --build
 ```
@@ -59,9 +59,9 @@ docker logs hyrepath-worker-tier234-1 2>&1 | head -50
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
-  -f docker-compose.multilogin.yml \
+  -f docker-compose.foundation.yml \
   -f docker-compose.tier-workers.yml \
+  -f docker-compose.multilogin.yml \
   --env-file ../.env.production \
   ps
 ```

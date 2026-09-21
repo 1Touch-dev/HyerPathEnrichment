@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DeskMetricCard, DeskMetricGrid, DeskPage } from "@/components/desk/desk-shell";
 import { EmptyState } from "@/components/console/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/providers/auth-provider";
 import { parseResponseEnvelopeError, unwrapEnvelopeData } from "@/src/lib/api-envelope";
 import {
   parseBrandLandingConfig,
@@ -25,6 +34,8 @@ import {
   type BrandLandingCopy,
   type ParsedBrandLandingConfig,
 } from "@/src/lib/brand-landing-config";
+import { withIdempotencyHeaders } from "@/src/lib/idempotency";
+import { hasPermission } from "@/src/lib/product-doors";
 import type { AdminBrand, AdminBrandCreate, AdminBrandUpdate } from "@/src/lib/types";
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
@@ -131,6 +142,10 @@ async function readBrandResponse(res: Response): Promise<AdminBrand> {
 
 export default function AdminBrandsPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canWriteBrands = hasPermission(user, { resource: "brands", action: "write" });
+  const canDeleteBrands = hasPermission(user, { resource: "brands", action: "delete" });
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-brands"],
     queryFn: async () => {
@@ -141,6 +156,8 @@ export default function AdminBrandsPage() {
     },
   });
   const brands = data ?? [];
+  const activeBrandCount = brands.filter((brand) => brand.isActive).length;
+  const customDomainCount = brands.filter((brand) => Boolean(brand.customDomain)).length;
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<AdminBrand | null>(null);
@@ -150,7 +167,9 @@ export default function AdminBrandsPage() {
     mutationFn: async (payload: AdminBrandCreate) => {
       const res = await fetch("/api/admin/brands", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withIdempotencyHeaders("admin-brand-create", {
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify(payload),
       });
       return readBrandResponse(res);
@@ -165,7 +184,9 @@ export default function AdminBrandsPage() {
     mutationFn: async ({ brandId, payload }: { brandId: string; payload: AdminBrandUpdate }) => {
       const res = await fetch(`/api/admin/brands/${brandId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: withIdempotencyHeaders("admin-brand-update", {
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify(payload),
       });
       return readBrandResponse(res);
@@ -180,7 +201,9 @@ export default function AdminBrandsPage() {
     mutationFn: async ({ brandId, reason }: { brandId: string; reason?: string }) => {
       const res = await fetch(`/api/admin/brands/${brandId}/deactivate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withIdempotencyHeaders("admin-brand-deactivate", {
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify(reason ? { reason } : {}),
       });
       return readBrandResponse(res);
@@ -195,6 +218,7 @@ export default function AdminBrandsPage() {
     mutationFn: async (brandId: string) => {
       const res = await fetch(`/api/admin/brands/${brandId}/reactivate`, {
         method: "POST",
+        headers: withIdempotencyHeaders("admin-brand-reactivate"),
       });
       return readBrandResponse(res);
     },
@@ -209,155 +233,216 @@ export default function AdminBrandsPage() {
 
   if (error) {
     return (
-      <p className="text-sm text-destructive">
-        {error instanceof Error ? error.message : "Failed to load brands"}
-      </p>
+      <DeskPage
+        eyebrow="Desk administration"
+        title="Brands"
+        description="Manage hiring-brand configuration, landing page posture, and activation state without changing idempotent mutations or permission gates."
+      >
+        <p className="text-sm text-destructive">
+          {error instanceof Error ? error.message : "Failed to load brands"}
+        </p>
+      </DeskPage>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Brands</h1>
-        <Button
-          onClick={() => {
-            createMutation.reset();
-            setCreateOpen(true);
-          }}
-        >
-          Create brand
-        </Button>
-      </div>
+    <DeskPage
+      eyebrow="Desk administration"
+      title="Brands"
+      description="Manage hiring-brand configuration, landing page posture, and activation state without changing idempotent mutations or permission gates."
+      actions={
+        canWriteBrands ? (
+          <Button
+            onClick={() => {
+              createMutation.reset();
+              setCreateOpen(true);
+            }}
+          >
+            Create brand
+          </Button>
+        ) : null
+      }
+    >
+      <DeskMetricGrid className="xl:grid-cols-3">
+        <DeskMetricCard
+          label="Brands loaded"
+          value={brands.length}
+          hint="Current administration scope"
+        />
+        <DeskMetricCard
+          label="Active brands"
+          value={activeBrandCount}
+          hint={`${brands.length - activeBrandCount} inactive brand(s)`}
+          tone={activeBrandCount > 0 ? "success" : "default"}
+        />
+        <DeskMetricCard
+          label="Custom domains"
+          value={customDomainCount}
+          hint="Configured per-brand public landing domains"
+          tone={customDomainCount > 0 ? "info" : "default"}
+        />
+      </DeskMetricGrid>
+
       {!brands.length ? (
         <EmptyState
           title="No brands yet"
-          description="Create a brand to publish a landing page and manage its config."
+          description={
+            canWriteBrands
+              ? "Create a brand to publish a landing page and manage its config."
+              : "Brands available to your account will appear here."
+          }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {brands.map((brand) => (
-            <Card key={brand.id}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  {brand.name}
-                  <Badge variant={brand.isActive ? "success" : "outline"}>
-                    {brand.isActive ? "Active" : "Inactive"}
-                  </Badge>
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">/{brand.slug}</p>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                {brand.customDomain ? (
-                  <p className="text-sm text-muted-foreground">{brand.customDomain}</p>
-                ) : null}
-                <p className="text-xs text-muted-foreground">
-                  Created {new Date(brand.createdAt).toLocaleString()}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      updateMutation.reset();
-                      setEditing(brand);
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  {brand.isActive ? (
-                    <Button asChild size="sm" variant="outline">
-                      <a href={`/b/${brand.slug}`} target="_blank" rel="noreferrer">
-                        View landing page
-                      </a>
-                    </Button>
+        <div className="flex flex-col gap-4">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Brand roster</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Structured view of active state, public landing links, and edit/deactivate actions.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">Idempotent mutations preserved</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {brands.map((brand) => (
+              <Card key={brand.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    {brand.name}
+                    <Badge variant={brand.isActive ? "success" : "outline"}>
+                      {brand.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">/{brand.slug}</p>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  {brand.customDomain ? (
+                    <p className="text-sm text-muted-foreground">{brand.customDomain}</p>
                   ) : null}
-                  {brand.isActive ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        deactivateMutation.reset();
-                        setDeactivating(brand);
-                      }}
-                    >
-                      Deactivate
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={reactivateMutation.isPending}
-                      onClick={() => reactivateMutation.mutate(brand.id)}
-                    >
-                      {reactivateMutation.isPending ? "Reactivating..." : "Reactivate"}
-                    </Button>
-                  )}
-                </div>
-                {reactivateMutation.isError && reactivateMutation.variables === brand.id ? (
-                  <p className="text-sm text-destructive">
-                    {reactivateMutation.error instanceof Error
-                      ? reactivateMutation.error.message
-                      : "Reactivate failed"}
+                  <p className="text-xs text-muted-foreground">
+                    Created {new Date(brand.createdAt).toLocaleString()}
                   </p>
-                ) : null}
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="flex flex-wrap gap-2">
+                    {canWriteBrands ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          updateMutation.reset();
+                          setEditing(brand);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    ) : null}
+                    {brand.isActive ? (
+                      <Button asChild size="sm" variant="outline">
+                        <a href={`/b/${brand.slug}`} target="_blank" rel="noreferrer">
+                          View landing page
+                        </a>
+                      </Button>
+                    ) : null}
+                    {canDeleteBrands && brand.isActive ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          deactivateMutation.reset();
+                          setDeactivating(brand);
+                        }}
+                      >
+                        Deactivate
+                      </Button>
+                    ) : null}
+                    {canDeleteBrands && !brand.isActive ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={reactivateMutation.isPending}
+                        onClick={() => reactivateMutation.mutate(brand.id)}
+                      >
+                        {reactivateMutation.isPending ? "Reactivating..." : "Reactivate"}
+                      </Button>
+                    ) : null}
+                  </div>
+                  {reactivateMutation.isError && reactivateMutation.variables === brand.id ? (
+                    <p className="text-sm text-destructive">
+                      {reactivateMutation.error instanceof Error
+                        ? reactivateMutation.error.message
+                        : "Reactivate failed"}
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
-      <BrandFormDialog
-        mode="create"
-        open={createOpen}
-        isPending={createMutation.isPending}
-        submitError={createMutation.error instanceof Error ? createMutation.error.message : null}
-        onOpenChange={(open) => {
-          if (!open) createMutation.reset();
-          setCreateOpen(open);
-        }}
-        onSubmit={(payload) => createMutation.mutate(payload as AdminBrandCreate)}
-      />
+      {canWriteBrands ? (
+        <>
+          <BrandFormDialog
+            mode="create"
+            open={createOpen}
+            isPending={createMutation.isPending}
+            submitError={
+              createMutation.error instanceof Error ? createMutation.error.message : null
+            }
+            onOpenChange={(open) => {
+              if (!open) createMutation.reset();
+              setCreateOpen(open);
+            }}
+            onSubmit={(payload) => createMutation.mutate(payload as AdminBrandCreate)}
+          />
 
-      <BrandFormDialog
-        mode="edit"
-        brand={editing}
-        open={editing !== null}
-        isPending={updateMutation.isPending}
-        submitError={updateMutation.error instanceof Error ? updateMutation.error.message : null}
-        onOpenChange={(open) => {
-          if (!open) {
-            updateMutation.reset();
-            setEditing(null);
-          }
-        }}
-        onSubmit={(payload) => {
-          if (!editing) return;
-          updateMutation.mutate({ brandId: editing.id, payload });
-        }}
-      />
+          <BrandFormDialog
+            mode="edit"
+            brand={editing}
+            open={editing !== null}
+            isPending={updateMutation.isPending}
+            submitError={
+              updateMutation.error instanceof Error ? updateMutation.error.message : null
+            }
+            onOpenChange={(open) => {
+              if (!open) {
+                updateMutation.reset();
+                setEditing(null);
+              }
+            }}
+            onSubmit={(payload) => {
+              if (!editing) return;
+              updateMutation.mutate({ brandId: editing.id, payload });
+            }}
+          />
+        </>
+      ) : null}
 
-      <DeactivateBrandDialog
-        brand={deactivating}
-        open={deactivating !== null}
-        isPending={deactivateMutation.isPending}
-        submitError={
-          deactivateMutation.error instanceof Error ? deactivateMutation.error.message : null
-        }
-        onOpenChange={(open) => {
-          if (!open) {
-            deactivateMutation.reset();
-            setDeactivating(null);
+      {canDeleteBrands ? (
+        <DeactivateBrandDialog
+          brand={deactivating}
+          open={deactivating !== null}
+          isPending={deactivateMutation.isPending}
+          submitError={
+            deactivateMutation.error instanceof Error ? deactivateMutation.error.message : null
           }
-        }}
-        onConfirm={(reason) => {
-          if (!deactivating) return;
-          deactivateMutation.mutate({
-            brandId: deactivating.id,
-            reason: reason || undefined,
-          });
-        }}
-      />
-    </div>
+          onOpenChange={(open) => {
+            if (!open) {
+              deactivateMutation.reset();
+              setDeactivating(null);
+            }
+          }}
+          onConfirm={(reason) => {
+            if (!deactivating) return;
+            deactivateMutation.mutate({
+              brandId: deactivating.id,
+              reason: reason || undefined,
+            });
+          }}
+        />
+      ) : null}
+    </DeskPage>
   );
 }
 

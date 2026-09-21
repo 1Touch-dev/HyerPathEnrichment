@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_client_ip
 from app.auth.models import User
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
 from app.modules.admin import repository, service
 from app.modules.admin.models import FeatureFlag
 from app.modules.admin.permissions import require_permission
-from app.modules.admin.schemas import FeatureFlagResponse, UpsertFeatureFlagRequest
+from app.modules.admin.privileged_operations import assert_operation_available
+from app.modules.admin.schemas import FeatureFlagResponse
 
 router = APIRouter(prefix="/api/admin/feature-flags", tags=["admin"], route_class=EnvelopeAPIRoute)
 
@@ -37,19 +37,67 @@ async def list_feature_flags(
     return [_to_response(flag) for flag in flags]
 
 
-@router.put("/{key}", response_model=FeatureFlagResponse)
+@router.put(
+    "/{key}",
+    response_model=None,
+    status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+    responses={
+        status.HTTP_405_METHOD_NOT_ALLOWED: {"description": "Feature flag mutations are disabled"}
+    },
+)
 async def upsert_feature_flag(
     key: str,
-    payload: UpsertFeatureFlagRequest,
-    request: Request,
-    current_user: User = Depends(require_permission("feature_flags", "write")),
-    db: AsyncSession = Depends(get_db_session),
-) -> FeatureFlagResponse:
-    flag = await service.upsert_feature_flag(
-        db,
-        actor_id=current_user.id,
-        key=key,
-        payload=payload,
-        ip_address=get_client_ip(request),
-    )
-    return _to_response(flag)
+    _user: User = Depends(require_permission("feature_flags", "write")),
+) -> None:
+    del key
+    assert_operation_available("feature_flags.mutate")
+    await service.reject_feature_flag_mutation()
+
+
+@router.post(
+    "",
+    response_model=None,
+    status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+    responses={
+        status.HTTP_405_METHOD_NOT_ALLOWED: {"description": "Feature flag mutations are disabled"}
+    },
+)
+async def create_feature_flag(
+    _user: User = Depends(require_permission("feature_flags", "write")),
+) -> None:
+    assert_operation_available("feature_flags.mutate")
+    await service.reject_feature_flag_mutation()
+
+
+@router.patch(
+    "/{key}",
+    response_model=None,
+    status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+    responses={
+        status.HTTP_405_METHOD_NOT_ALLOWED: {"description": "Feature flag mutations are disabled"}
+    },
+)
+async def toggle_feature_flag(
+    key: str,
+    _user: User = Depends(require_permission("feature_flags", "write")),
+) -> None:
+    del key
+    assert_operation_available("feature_flags.mutate")
+    await service.reject_feature_flag_mutation()
+
+
+@router.delete(
+    "/{key}",
+    response_model=None,
+    status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+    responses={
+        status.HTTP_405_METHOD_NOT_ALLOWED: {"description": "Feature flag mutations are disabled"}
+    },
+)
+async def delete_feature_flag(
+    key: str,
+    _user: User = Depends(require_permission("feature_flags", "write")),
+) -> None:
+    del key
+    assert_operation_available("feature_flags.mutate")
+    await service.reject_feature_flag_mutation()

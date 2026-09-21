@@ -5,6 +5,20 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import {
+  ShellPageHeader,
+  ShellPageHeaderActions,
+  ShellPageHeaderContent,
+  ShellPageHeaderDescription,
+  ShellPageHeaderEyebrow,
+  ShellPageHeaderTitle,
+  ShellSection,
+  ShellSectionHeader,
+  ShellSectionHeaderActions,
+  ShellSectionHeaderContent,
+  ShellSectionHeaderDescription,
+  ShellSectionHeaderTitle,
+} from "@/components/layout/ShellPage";
+import {
   TrackerFilterBar,
   TrackedMatchRow,
   useTrackedMatches,
@@ -12,6 +26,7 @@ import {
 import { AddManualJobDialog } from "@/features/manual-jobs";
 import { EmptyState } from "@/components/console/EmptyState";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ApplicationStatus } from "@/src/lib/types";
 
 const VALID_STATUSES: ApplicationStatus[] = [
@@ -47,20 +62,41 @@ export function TrackerView() {
     <AddManualJobDialog open={addJobDialogOpen} onOpenChange={setAddJobDialogOpen} />
   );
 
+  const matches = data?.matches ?? [];
+  const activeCount = matches.filter((match) =>
+    ["new", "applied", "replied", "interview"].includes(match.applicationStatus),
+  ).length;
+  const interviewCount = matches.filter((match) => match.applicationStatus === "interview").length;
+  const manualCount = matches.filter((match) => match.overallScore === null).length;
+
   const header = (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-2xl font-semibold">Applications</h1>
-      <Button variant="outline" size="sm" onClick={() => setAddJobDialogOpen(true)}>
-        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-        Add a job manually
-      </Button>
-    </div>
+    <ShellPageHeader>
+      <ShellPageHeaderContent>
+        <ShellPageHeaderEyebrow>Candidate workspace</ShellPageHeaderEyebrow>
+        <ShellPageHeaderTitle>Applications</ShellPageHeaderTitle>
+        <ShellPageHeaderDescription>
+          Keep every lead moving with one clean tracker for statuses, interviews, and manually added
+          roles.
+        </ShellPageHeaderDescription>
+      </ShellPageHeaderContent>
+      <ShellPageHeaderActions className="items-start sm:items-center">
+        <Button variant="outline" size="sm" onClick={() => setAddJobDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+          Add a job manually
+        </Button>
+      </ShellPageHeaderActions>
+    </ShellPageHeader>
   );
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         {header}
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="animate-pulse rounded-lg bg-muted h-28" />
+          <div className="animate-pulse rounded-lg bg-muted h-28" />
+          <div className="animate-pulse rounded-lg bg-muted h-28" />
+        </div>
         <div className="animate-pulse h-96 rounded-lg bg-muted" />
         {addJobDialog}
       </div>
@@ -69,7 +105,7 @@ export function TrackerView() {
 
   if (isError) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         {header}
         <EmptyState
           title="Couldn't load your applications"
@@ -86,7 +122,7 @@ export function TrackerView() {
     // reads very differently to a user than a genuinely empty tracker (§15.5).
     if (status) {
       return (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {header}
           <TrackerFilterBar />
           <EmptyState title={`No applications with status '${status}' yet`} />
@@ -96,7 +132,7 @@ export function TrackerView() {
     }
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         {header}
         <EmptyState
           title="No applications tracked yet"
@@ -113,32 +149,82 @@ export function TrackerView() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {header}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <p className="text-sm text-muted-foreground">Active applications</p>
+            <CardTitle className="text-3xl text-primary">{activeCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Roles still moving through your funnel.
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <p className="text-sm text-muted-foreground">Interviews</p>
+            <CardTitle className="text-3xl text-primary">{interviewCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Open roles currently in an interview stage.
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <p className="text-sm text-muted-foreground">Manual entries</p>
+            <CardTitle className="text-3xl text-primary">{manualCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Roles you added yourself outside the scan flow.
+          </CardContent>
+        </Card>
+      </div>
+
       <TrackerFilterBar />
 
-      <div className="grid gap-3">
-        {data.matches.map((match) => (
-          <TrackedMatchRow key={match.matchId} match={match} />
-        ))}
-      </div>
+      <ShellSection>
+        <ShellSectionHeader>
+          <ShellSectionHeaderContent>
+            <ShellSectionHeaderTitle>Tracked roles</ShellSectionHeaderTitle>
+            <ShellSectionHeaderDescription>
+              Keep statuses current so practice, outreach, and interview flows stay in sync.
+            </ShellSectionHeaderDescription>
+          </ShellSectionHeaderContent>
+          <ShellSectionHeaderActions className="text-sm text-muted-foreground">
+            Page {offset / limit + 1} of {Math.max(1, Math.ceil(data.total / limit))}
+          </ShellSectionHeaderActions>
+        </ShellSectionHeader>
 
-      <div className="flex justify-center gap-2 pt-4">
-        <Button
-          variant="ghost"
-          disabled={offset === 0}
-          onClick={() => setOffset(Math.max(0, offset - limit))}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="ghost"
-          disabled={offset + limit >= data.total}
-          onClick={() => setOffset(offset + limit)}
-        >
-          Next
-        </Button>
-      </div>
+        <div className="grid gap-3">
+          {data.matches.map((match) => (
+            <TrackedMatchRow key={match.matchId} match={match} />
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4 text-sm text-muted-foreground">
+          <span>
+            Showing {offset + 1}-{Math.min(offset + limit, data.total)} of {data.total} tracked
+            roles
+          </span>
+          <div className="flex justify-center gap-2">
+            <Button
+              variant="ghost"
+              disabled={offset === 0}
+              onClick={() => setOffset(Math.max(0, offset - limit))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={offset + limit >= data.total}
+              onClick={() => setOffset(offset + limit)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      </ShellSection>
       {addJobDialog}
     </div>
   );

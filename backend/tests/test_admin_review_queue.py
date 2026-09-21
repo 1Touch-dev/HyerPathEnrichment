@@ -15,7 +15,6 @@ import pytest
 import sqlalchemy as sa
 
 from app.modules.admin.models import AdminReviewQueueItem
-from tests.conftest import SQLITE_ROLE_UUID_DASH_BUG_REASON, USING_POSTGRES
 
 pytestmark = pytest.mark.asyncio
 
@@ -26,6 +25,10 @@ pytestmark = pytest.mark.asyncio
 # of each test in this module and unmount it afterwards — same pattern
 # test_api_envelopes.py already uses for a temporary test-only router.
 _REVIEW_QUEUE_PREFIX = "/api/admin/review-queue"
+
+
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
 
 
 @pytest.fixture(autouse=True)
@@ -248,9 +251,6 @@ async def test_detail_missing_resource_resolves_to_none(
     assert body["resolved_resource"] is None
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_decide_requires_content_review_read_for_list(client, support_user, auth_headers):
     response = client.get("/api/admin/review-queue", headers=auth_headers(support_user.id))
     assert response.status_code == 200
@@ -262,7 +262,7 @@ async def test_decide_forbidden_for_support_role(client, support_user, db_sessio
     response = client.post(
         f"/api/admin/review-queue/{item.id}/decide",
         json={"status": "approved", "review_notes": None},
-        headers=auth_headers(support_user.id),
+        headers=_idempotency_headers(auth_headers, support_user.id, "review-queue-forbidden"),
     )
     assert response.status_code == 403
 
@@ -276,7 +276,7 @@ async def test_decide_approve_does_not_touch_domain_column(
     response = client.post(
         f"/api/admin/review-queue/{item.id}/decide",
         json={"status": "approved", "review_notes": "looks fine"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"review-queue-approve-{item.id}"),
     )
     assert response.status_code == 200
 
@@ -296,7 +296,9 @@ async def test_decide_reject_job_posting_sets_moderation_status_removed(
     response = client.post(
         f"/api/admin/review-queue/{item.id}/decide",
         json={"status": "rejected", "review_notes": "spam"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(
+            auth_headers, superuser.id, f"review-queue-reject-posting-{item.id}"
+        ),
     )
     assert response.status_code == 200
 
@@ -316,7 +318,9 @@ async def test_decide_reject_document_sets_deleted_at(
     response = client.post(
         f"/api/admin/review-queue/{item.id}/decide",
         json={"status": "rejected", "review_notes": "policy violation"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(
+            auth_headers, superuser.id, f"review-queue-reject-document-{item.id}"
+        ),
     )
     assert response.status_code == 200
 
@@ -338,7 +342,9 @@ async def test_decide_reject_outreach_message_sets_admin_blocked(
     response = client.post(
         f"/api/admin/review-queue/{item.id}/decide",
         json={"status": "rejected", "review_notes": "harassment"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(
+            auth_headers, superuser.id, f"review-queue-reject-outreach-{item.id}"
+        ),
     )
     assert response.status_code == 200
 
@@ -357,6 +363,18 @@ async def test_decide_module3_placeholder_does_not_raise(
     response = client.post(
         f"/api/admin/review-queue/{item.id}/decide",
         json={"status": "rejected", "review_notes": "n/a"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(
+            auth_headers, superuser.id, f"review-queue-placeholder-{item.id}"
+        ),
     )
     assert response.status_code == 200
+
+
+async def test_decide_requires_idempotency_key(client, superuser, db_session, auth_headers):
+    item = await _make_queue_item(db_session, resource_type="job_posting", resource_id=uuid4())
+    response = client.post(
+        f"/api/admin/review-queue/{item.id}/decide",
+        json={"status": "approved", "review_notes": "looks fine"},
+        headers=auth_headers(superuser.id),
+    )
+    assert response.status_code == 400

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { mapBackendAdminBrand } from "@/src/lib/api-adapter";
 import { backendFetch } from "@/src/lib/backend-client";
 import { bffServiceUnavailable, handleBackendJson } from "@/src/lib/bff-response";
+import { forwardIdempotencyHeader } from "@/src/lib/idempotency";
 
 export async function POST(
   request: NextRequest,
@@ -32,7 +33,7 @@ export async function POST(
   try {
     backendResponse = await backendFetch(`/api/admin/brands/${brandId}/deactivate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: forwardIdempotencyHeader(request, { "Content-Type": "application/json" }),
       body: JSON.stringify(body ?? {}),
     });
   } catch {

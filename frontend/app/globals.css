@@ -5,38 +5,66 @@
 @layer base {
   :root {
     --background: 80 9% 95%;
-    --foreground: 0 0% 8%;
+    --foreground: 152 16% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    --card-foreground: 152 16% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
+    --popover-foreground: 152 16% 11%;
     --primary: 151 42% 21%;
     --primary-foreground: 0 0% 100%;
+    --primary-soft: 148 29% 88%;
     --secondary: 140 25% 92%;
     --secondary-foreground: 151 42% 21%;
     --muted: 80 8% 92%;
     --muted-foreground: 96 2% 37%;
-    --accent: 140 25% 92%;
+    --accent: 143 24% 90%;
     --accent-foreground: 151 42% 21%;
     --destructive: 7 55% 41%;
     --destructive-foreground: 0 0% 100%;
     --border: 90 10% 84%;
-    --input: 90 10% 84%;
+    --border-strong: 96 6% 70%;
+    --input: 90 8% 79%;
     --ring: 151 30% 34%;
-    --radius: 0.375rem;
+    --radius: 0.875rem;
+    --surface: 0 0% 100%;
+    --surface-foreground: 152 16% 11%;
+    --surface-muted: 90 20% 97%;
+    --surface-muted-foreground: 152 10% 28%;
+    --surface-elevated: 0 0% 100%;
+    --surface-elevated-foreground: 152 16% 11%;
     --success: 144 39% 30%;
     --success-foreground: 0 0% 100%;
+    --warning: 36 88% 46%;
+    --warning-foreground: 29 94% 14%;
+    --info: 188 57% 35%;
+    --info-foreground: 0 0% 100%;
     --subtle-foreground: 80 2% 54%;
+    --selection: 148 32% 86%;
+    --shadow-color: 154 34% 18%;
   }
 }
 
 @layer base {
+  html {
+    color-scheme: light;
+  }
+
   * {
     border-color: hsl(var(--border));
   }
 
   body {
     @apply bg-background text-foreground antialiased;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at top, hsl(var(--primary-soft) / 0.65), transparent 32%),
+      linear-gradient(180deg, hsl(var(--background)), hsl(var(--secondary) / 0.35) 100%);
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: hsl(var(--selection));
+    color: hsl(var(--foreground));
   }
 
   code,
@@ -47,6 +75,18 @@
 }
 
 @layer components {
+  .app-surface {
+    @apply rounded-lg border border-border/70 bg-surface text-surface-foreground shadow-panel;
+  }
+
+  .app-surface-muted {
+    @apply rounded-lg border border-border/60 bg-surface-muted text-surface-muted-foreground;
+  }
+
+  .app-surface-elevated {
+    @apply rounded-lg border border-border/70 bg-surface-elevated text-surface-elevated-foreground shadow-elevated;
+  }
+
   .range-slider {
     -webkit-appearance: none;
     appearance: none;

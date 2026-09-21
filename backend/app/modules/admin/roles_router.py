@@ -14,6 +14,7 @@ from app.database.session import get_db_session
 from app.modules.admin import repository, roles_service
 from app.modules.admin.models import Role
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import assert_operation_available
 from app.modules.admin.schemas import (
     AttachPermissionRequest,
     CreateRoleRequest,
@@ -57,6 +58,7 @@ async def create_role(
     user: User = Depends(require_permission("roles", "write")),
     db: AsyncSession = Depends(get_db_session),
 ) -> RoleWithPermissionsResponse:
+    assert_operation_available("role.create")
     role = await roles_service.create_role(
         db, actor_id=user.id, name=body.name, description=body.description
     )
@@ -76,6 +78,7 @@ async def attach_permission(
     user: User = Depends(require_permission("roles", "write")),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
+    assert_operation_available("role.attach_permission")
     await roles_service.attach_permission_to_role(
         db, actor_id=user.id, role_id=role_id, permission_id=body.permission_id
     )
@@ -92,6 +95,7 @@ async def detach_permission(
     user: User = Depends(require_permission("roles", "write")),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
+    assert_operation_available("role.detach_permission")
     await roles_service.detach_permission_from_role(
         db, actor_id=user.id, role_id=role_id, permission_id=permission_id
     )

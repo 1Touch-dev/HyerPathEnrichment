@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/console/EmptyState";
 import {
@@ -95,22 +96,37 @@ export function SwipeDeckView() {
   }
 
   return (
-    <div className="relative mx-auto h-[32rem] w-full max-w-sm">
-      {visibleCards
-        .slice()
-        .reverse()
-        .map((card, reverseIndex) => {
-          const index = visibleCards.length - 1 - reverseIndex;
-          return (
-            <SwipeCard
-              key={card.matchId}
-              card={card}
-              isTop={index === 0}
-              onSwiped={(direction) => handleSwipe(card.matchId, direction)}
-              onDraftOutreach={handleDraftOutreach}
-            />
-          );
-        })}
+    <div className="flex flex-col items-center gap-4">
+      <div className="flex flex-wrap items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+        <Badge variant="success">Interested</Badge>
+        <Badge variant="outline">Pass</Badge>
+        <Badge variant="info">Super like</Badge>
+        <span>Draft outreach from the top card any time.</span>
+      </div>
+
+      <div className="relative mx-auto h-[32rem] w-full max-w-sm">
+        {visibleCards
+          .slice()
+          .reverse()
+          .map((card, reverseIndex) => {
+            const index = visibleCards.length - 1 - reverseIndex;
+            return (
+              <SwipeCard
+                key={card.matchId}
+                card={card}
+                isTop={index === 0}
+                onSwiped={(direction) => handleSwipe(card.matchId, direction)}
+                onDraftOutreach={handleDraftOutreach}
+              />
+            );
+          })}
+      </div>
+
+      <p className="max-w-md text-center text-sm text-muted-foreground">
+        The swipe order stays connected to your real match data, so you can jump back to the list
+        view or outreach queue without losing state.
+      </p>
+
       <DraftOutreachDialog
         open={draftTarget !== null}
         companyName={draftTarget?.companyName ?? null}

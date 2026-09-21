@@ -8,8 +8,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import VerifiedUser
+from app.auth.models import User
 from app.core.api_route import EnvelopeAPIRoute
 from app.database.session import get_db_session
+from app.modules.admin.permissions import require_permission
 from app.modules.demand_intelligence import repository, service
 from app.modules.demand_intelligence.schemas import CountryDemandRow, TopCountriesResponse
 
@@ -22,9 +24,11 @@ router = APIRouter(
 async def get_top_countries(
     role: str,
     user: VerifiedUser,
+    _permission_ok: User = Depends(require_permission("analytics", "read")),
     limit: int = Query(default=10, ge=1, le=100),
     db: AsyncSession = Depends(get_db_session),
 ) -> TopCountriesResponse:
+    del user
     top_snapshots = await service.get_top_countries_for_role(db, role, limit)
     if not top_snapshots:
         return TopCountriesResponse(role=role, results=[], generated_at=datetime.now(UTC))

@@ -37,7 +37,9 @@ def upgrade() -> None:
         sa.Column(
             "invited_by",
             uuid_type,
-            sa.ForeignKey("users.id", ondelete="SET NULL", name="fk_staff_invites_invited_by_users"),
+            sa.ForeignKey(
+                "users.id", ondelete="SET NULL", name="fk_staff_invites_invited_by_users"
+            ),
             nullable=True,
         ),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),

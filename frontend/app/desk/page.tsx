@@ -2,25 +2,38 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { DeskPage } from "@/components/desk/desk-shell";
+import { RouteGuardStatus } from "@/components/auth/route-guard-status";
 import { SystemHealthPanel } from "@/features/admin";
 import { useAuth } from "@/providers/auth-provider";
-import { getUserHome } from "@/src/lib/product-doors";
+import { canAccessDeskHome, getUserHome } from "@/src/lib/product-doors";
 
 export default function DeskIndexPage() {
   const router = useRouter();
-  const { user } = useAuth();
-  const isOwner =
-    !!user && (user.is_superuser || user.role_name === "admin" || user.role_name === "team_owner");
+  const { user, loading } = useAuth();
+  const canAccess = canAccessDeskHome(user);
 
   useEffect(() => {
-    if (user && !isOwner) {
+    if (!loading && user && !canAccess) {
       router.replace(getUserHome(user));
     }
-  }, [isOwner, router, user]);
+  }, [canAccess, loading, router, user]);
 
-  if (!isOwner) {
-    return null;
+  if (loading) {
+    return <RouteGuardStatus message="Loading account" />;
   }
 
-  return <SystemHealthPanel />;
+  if (!user || !canAccess) {
+    return <RouteGuardStatus message="You don't have access to this page" />;
+  }
+
+  return (
+    <DeskPage
+      eyebrow="Desk overview"
+      title="Operations home"
+      description="Start from system health, service posture, and the latest operational signals without changing Desk routing or access rules."
+    >
+      <SystemHealthPanel />
+    </DeskPage>
+  );
 }

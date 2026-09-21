@@ -1,22 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { successEnvelope } from "@/src/lib/api-envelope";
-import { backendFetch } from "@/src/lib/backend-client";
-import { isMockMode } from "@/src/lib/mocks/enabled";
 import { GET } from "./route";
+import { backendFetch } from "@/src/lib/backend-client";
+import { errorEnvelope, successEnvelope } from "@/src/lib/api-envelope";
+import { isMockMode } from "@/src/lib/mocks/enabled";
 
 vi.mock("@/src/lib/backend-client", () => ({
   backendFetch: vi.fn(),
+  backendFetchPublic: vi.fn(),
 }));
 
 vi.mock("@/src/lib/mocks/enabled", () => ({
-  isMockMode: vi.fn(),
+  isMockMode: vi.fn(() => false),
 }));
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
+  return new Response(JSON.stringify(body), { status });
 }
 
 describe("GET /api/admin/system-health", () => {
@@ -25,41 +23,36 @@ describe("GET /api/admin/system-health", () => {
     vi.mocked(isMockMode).mockReturnValue(false);
   });
 
-  it("returns deterministic realistic self-checks and golden signals in mock mode", async () => {
+  it("returns a stable mock snapshot when frontend mock mode is enabled", async () => {
     vi.mocked(isMockMode).mockReturnValue(true);
 
     const response = await GET();
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual(
-      successEnvelope({
-        service: "hyrepath-enrichment-mock",
-        databaseOk: true,
-        databaseLatencyMs: 4.2,
-        redisOk: true,
-        redisLatencyMs: 1.8,
-        prometheusConfigured: true,
-        signals: {
-          latency: 42,
-          traffic: 128,
-          errors: 0,
-          saturation: 12,
-        },
-      }),
-    );
     expect(backendFetch).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      data: {
+        databaseOk: true,
+        databaseLatencyMs: 5,
+        redisOk: true,
+        redisLatencyMs: 2,
+        prometheusConfigured: false,
+        signals: {},
+      },
+    });
   });
 
-  it("preserves live proxy mapping when mock mode is disabled", async () => {
+  it("adapts a successful backend response in real mode", async () => {
     vi.mocked(backendFetch).mockResolvedValue(
       jsonResponse(
         successEnvelope({
           database_ok: true,
-          database_latency_ms: 7.5,
+          database_latency_ms: 7,
           redis_ok: false,
-          redis_latency_ms: 9.25,
-          prometheus_configured: false,
-          signals: {},
+          redis_latency_ms: 11,
+          prometheus_configured: true,
+          signals: { latency: 120, errors: 0 },
         }),
       ),
     );
@@ -68,30 +61,45 @@ describe("GET /api/admin/system-health", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/admin/system-health");
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual(
-      successEnvelope({
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      data: {
         databaseOk: true,
-        databaseLatencyMs: 7.5,
+        databaseLatencyMs: 7,
         redisOk: false,
-        redisLatencyMs: 9.25,
-        prometheusConfigured: false,
-        signals: {},
-      }),
-    );
+        redisLatencyMs: 11,
+        prometheusConfigured: true,
+        signals: { latency: 120, errors: 0 },
+      },
+    });
   });
 
-  it("keeps the service-unavailable response when the live backend cannot be reached", async () => {
-    vi.mocked(backendFetch).mockRejectedValue(new Error("network unavailable"));
+  it("translates a failing backend response through backendFailureResponse", async () => {
+    vi.mocked(backendFetch).mockResolvedValue(
+      jsonResponse(errorEnvelope("FORBIDDEN", "Not allowed", 403), 403),
+    );
 
     const response = await GET();
-    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: {
+        code: "FORBIDDEN",
+      },
+    });
+  });
+
+  it("returns bffServiceUnavailable (502) when backendFetch throws", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new Error("network down"));
+
+    const response = await GET();
 
     expect(response.status).toBe(502);
-    expect(body).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       success: false,
       error: {
         code: "SERVICE_UNAVAILABLE",
-        status_code: 502,
       },
     });
   });

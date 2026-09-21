@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { DeskMetricCard, DeskMetricGrid } from "@/components/desk/desk-shell";
 import {
   Sheet,
   SheetContent,
@@ -11,15 +10,11 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { fetchRoles } from "../api/client";
-import { adminKeys } from "../api/keys";
-import { useAssignUserRole } from "../hooks/useAdminUsers";
+  SectionHeader,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import { AuditLogTable } from "./AuditLogTable";
 import { RoleBadge } from "./RoleBadge";
 import type { AdminUser } from "@/src/lib/types";
@@ -33,10 +28,6 @@ type UserDetailDrawerProps = {
 /** Sheet-based full profile view, with role assignment and a mini audit-log
  * scoped to this user (reuses AuditLogTable filtered by targetId, §12.4). */
 export function UserDetailDrawer({ user, open, onOpenChange }: UserDetailDrawerProps) {
-  const rolesQuery = useQuery({ queryKey: adminKeys.roles(), queryFn: fetchRoles });
-  const assignRole = useAssignUserRole();
-  const [editingRole, setEditingRole] = useState(false);
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -47,66 +38,80 @@ export function UserDetailDrawer({ user, open, onOpenChange }: UserDetailDrawerP
           </SheetDescription>
         </SheetHeader>
 
-        <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <dt className="text-muted-foreground">Status</dt>
-            <dd>
-              <Badge variant={user.isActive ? "success" : "warning"}>
-                {user.isActive ? "Active" : "Suspended"}
-              </Badge>
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Verified</dt>
-            <dd>{user.isVerified ? "Yes" : "No"}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">MFA</dt>
-            <dd>
-              <Badge variant={user.mfaEnabled ? "success" : "outline"}>
-                {user.mfaEnabled ? "Enabled" : "Off"}
-              </Badge>
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Created</dt>
-            <dd>{formatDate(user.createdAt)}</dd>
-          </div>
-          <div className="col-span-2">
-            <dt className="text-muted-foreground">Role</dt>
-            <dd className="mt-1">
-              {editingRole ? (
-                <Select
-                  defaultValue={user.roleId ?? "none"}
-                  onValueChange={(value) => {
-                    assignRole.mutate({ userId: user.id, roleId: value === "none" ? null : value });
-                    setEditingRole(false);
-                  }}
-                >
-                  <SelectTrigger className="w-[180px]" aria-label="Select role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No role</SelectItem>
-                    {(rolesQuery.data ?? []).map((role) => (
-                      <SelectItem key={role.id} value={role.id}>
-                        {role.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <button type="button" onClick={() => setEditingRole(true)} className="inline-block">
-                  <RoleBadge isSuperuser={user.isSuperuser} roleName={user.roleName} />
-                </button>
-              )}
-            </dd>
-          </div>
-        </dl>
+        <div className="mt-6 flex flex-col gap-6">
+          <DeskMetricGrid className="grid-cols-1 sm:grid-cols-2">
+            <DeskMetricCard
+              label="Account status"
+              value={
+                <Badge variant={user.isActive ? "success" : "warning"}>
+                  {user.isActive ? "Active" : "Suspended"}
+                </Badge>
+              }
+              hint={`Created ${formatDate(user.createdAt)}`}
+              tone={user.isActive ? "success" : "warning"}
+            />
+            <DeskMetricCard
+              label="Verification and MFA"
+              value={
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={user.isVerified ? "success" : "outline"}>
+                    {user.isVerified ? "Verified" : "Unverified"}
+                  </Badge>
+                  <Badge variant={user.mfaEnabled ? "success" : "outline"}>
+                    {user.mfaEnabled ? "MFA enabled" : "MFA off"}
+                  </Badge>
+                </div>
+              }
+              hint="Security posture for this account"
+              tone={user.mfaEnabled ? "info" : "default"}
+            />
+          </DeskMetricGrid>
 
-        <div className="mt-8">
-          <h3 className="mb-2 text-sm font-semibold">Recent admin actions on this user</h3>
-          <AuditLogTable targetId={user.id} />
+          <section className="rounded-lg border border-border/70 bg-surface p-4">
+            <SectionHeader>
+              <SectionHeaderContent>
+                <SectionHeaderTitle>Account details</SectionHeaderTitle>
+                <SectionHeaderDescription>
+                  Read-only identity and role posture for this user. Mutating role assignment stays
+                  disabled until ADR21 controls land.
+                </SectionHeaderDescription>
+              </SectionHeaderContent>
+            </SectionHeader>
+            <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <dt className="text-muted-foreground">Full name</dt>
+                <dd>
+                  {user.firstName} {user.lastName}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Created</dt>
+                <dd>{formatDate(user.createdAt)}</dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-muted-foreground">Role</dt>
+                <dd className="mt-1">
+                  <RoleBadge isSuperuser={user.isSuperuser} roleName={user.roleName} />
+                </dd>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Role assignment is unavailable in Wave 2 until ADR21 `P3` controls are
+                  implemented.
+                </p>
+              </div>
+            </dl>
+          </section>
+
+          <div>
+            <SectionHeader className="mb-3">
+              <SectionHeaderContent>
+                <SectionHeaderTitle>Recent admin actions on this user</SectionHeaderTitle>
+                <SectionHeaderDescription>
+                  Page-scoped audit entries resolved from the current audit feed.
+                </SectionHeaderDescription>
+              </SectionHeaderContent>
+            </SectionHeader>
+            <AuditLogTable targetId={user.id} />
+          </div>
         </div>
       </SheetContent>
     </Sheet>

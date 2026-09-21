@@ -32,10 +32,16 @@ def upgrade() -> None:
         "impersonation_sessions",
         sa.Column("id", uuid_type, primary_key=True),
         sa.Column(
-            "admin_user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+            "admin_user_id",
+            uuid_type,
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column(
-            "target_user_id", uuid_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+            "target_user_id",
+            uuid_type,
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column("token_jti", sa.String(64), nullable=False, unique=True),
         sa.Column("reason", sa.Text(), nullable=True),
@@ -43,8 +49,12 @@ def upgrade() -> None:
         sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
     )
-    op.create_index("ix_impersonation_sessions_admin_user_id", "impersonation_sessions", ["admin_user_id"])
-    op.create_index("ix_impersonation_sessions_target_user_id", "impersonation_sessions", ["target_user_id"])
+    op.create_index(
+        "ix_impersonation_sessions_admin_user_id", "impersonation_sessions", ["admin_user_id"]
+    )
+    op.create_index(
+        "ix_impersonation_sessions_target_user_id", "impersonation_sessions", ["target_user_id"]
+    )
 
 
 def downgrade() -> None:

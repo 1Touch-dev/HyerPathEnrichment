@@ -18,7 +18,7 @@ beforeEach(() => {
     is_superuser: false,
     role_id: "role-1",
     role_name: "recruiter",
-    permissions: [],
+    permissions: [{ resource: "linkedin_sourcing", action: "write" }],
   });
   window.history.replaceState({}, "", "/login");
 });
@@ -40,6 +40,19 @@ describe("login navigation", () => {
     render(<LoginPage />);
     await submitLogin();
     expect(pushMock).toHaveBeenCalledWith("/osint/jobs?state=done");
+  });
+
+  it("sends staff to desk home when redirect points at Candidate /app", async () => {
+    loginMock.mockResolvedValue({
+      is_superuser: true,
+      role_id: "role-admin",
+      role_name: "admin",
+      permissions: [{ resource: "system_health", action: "read" }],
+    });
+    window.history.replaceState({}, "", "/login?redirect=%2Fapp");
+    render(<LoginPage />);
+    await submitLogin();
+    expect(pushMock).toHaveBeenCalledWith("/desk");
   });
 
   it("falls back to the role home for an unsafe redirect", async () => {

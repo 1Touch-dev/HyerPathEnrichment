@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { mapBackendAdminOutreachMessage } from "@/src/lib/api-adapter";
 import { backendFetch } from "@/src/lib/backend-client";
 import { bffServiceUnavailable, handleBackendJson } from "@/src/lib/bff-response";
+import { forwardIdempotencyHeader } from "@/src/lib/idempotency";
 
 type ModerateOutreachMessageRequestBody = {
   admin_blocked: boolean;
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     backendResponse = await backendFetch(`/api/admin/outreach/${id}/moderate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: forwardIdempotencyHeader(request, { "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     });
   } catch {

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { BackendUpdateUserStatusRequest, mapBackendAdminUser } from "@/src/lib/api-adapter";
 import { backendFetch } from "@/src/lib/backend-client";
 import { bffServiceUnavailable, handleBackendJson } from "@/src/lib/bff-response";
+import { forwardIdempotencyHeader } from "@/src/lib/idempotency";
 
 export async function PATCH(
   request: NextRequest,
@@ -14,7 +15,7 @@ export async function PATCH(
   try {
     backendResponse = await backendFetch(`/api/admin/users/${userId}/status`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: forwardIdempotencyHeader(request, { "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     });
   } catch {

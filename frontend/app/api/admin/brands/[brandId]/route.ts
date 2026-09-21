@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { mapBackendAdminBrand, toBackendBrandUpdate } from "@/src/lib/api-adapter";
 import { backendFetch } from "@/src/lib/backend-client";
 import { bffServiceUnavailable, handleBackendJson } from "@/src/lib/bff-response";
+import { forwardIdempotencyHeader } from "@/src/lib/idempotency";
 import type { AdminBrandUpdate } from "@/src/lib/types";
 
 export async function GET(
@@ -31,7 +32,7 @@ export async function PATCH(
   try {
     backendResponse = await backendFetch(`/api/admin/brands/${brandId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: forwardIdempotencyHeader(request, { "Content-Type": "application/json" }),
       body: JSON.stringify(toBackendBrandUpdate(body)),
     });
   } catch {

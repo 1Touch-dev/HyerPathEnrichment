@@ -162,11 +162,15 @@ curl -X POST http://localhost:8000/api/enrich \
 
 ## Production path (Linux / EC2)
 
-On a bare Linux server use `network_mode: host` — both the Multilogin container and the worker
-container share the host's loopback, so `127.0.0.1` is the same socket for both:
+On a bare Linux server use the supported tier-worker topology with `network_mode: host` only for
+`worker-tier1` and `multilogin`. Those two containers share the host's loopback, so `127.0.0.1`
+is the same socket for both while the bridge-network `worker` still consumes the non-tier queues
+(including `audio_cleanup`). In that supported Linux path, `worker-tier1` reaches Postgres via
+`127.0.0.1:5433` and Redis via `127.0.0.1:6379`, while the bridge-network services continue using
+Docker DNS (`postgres:5432`, `redis:6379`):
 
 ```bash
-bash backend/scripts/start_production.sh --with-tier1 --with-linux-mlx
+bash backend/scripts/start_production.sh --with-linux-mlx
 ```
 
 See [`backend/docker/docker-compose.multilogin.yml`](../backend/docker/docker-compose.multilogin.yml)

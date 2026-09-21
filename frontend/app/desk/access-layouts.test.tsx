@@ -4,26 +4,31 @@ import FeatureFlagsLayout from "./feature-flags/layout";
 import QueuesLayout from "./queues/layout";
 import RolesLayout from "./roles/layout";
 
+// Structural wiring only — owner/permission semantics live in AdminGuard.test.tsx
+// (and product-doors unit coverage). Do not treat this mock as AuthZ proof.
 vi.mock("@/components/auth/admin-guard", () => ({
   AdminGuard: ({
     children,
     permission,
   }: {
     children: React.ReactNode;
-    permission: { resource: string; action: string };
+    permission?: { resource: string; action: string };
   }) => (
-    <div data-testid="admin-guard" data-permission={`${permission.resource}:${permission.action}`}>
+    <div
+      data-testid="admin-guard"
+      data-permission={permission ? `${permission.resource}:${permission.action}` : undefined}
+    >
       {children}
     </div>
   ),
 }));
 
-describe("Desk owner-only route layouts", () => {
+describe("Desk privileged route layouts", () => {
   it.each([
     [RolesLayout, "roles:read"],
     [FeatureFlagsLayout, "feature_flags:read"],
     [QueuesLayout, "queues:read"],
-  ])("applies AdminGuard with %s", (Layout, permission) => {
+  ] as const)("wraps the page in AdminGuard with %s permission wiring", (Layout, permission) => {
     const { unmount } = render(
       <Layout>
         <div>Protected content</div>

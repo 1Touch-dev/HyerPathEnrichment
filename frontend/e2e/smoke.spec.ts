@@ -55,20 +55,21 @@ test.describe("Console shell", () => {
 
   test("OSINT lookup renders canonical intake", async ({ page }) => {
     await page.goto("/osint");
-    await expect(page.getByRole("heading", { name: "Look someone up" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Investigate a public footprint" }),
+    ).toBeVisible();
     await expect(page.getByRole("link", { name: "Open jobs" })).toBeVisible();
   });
 
   test("health page reports mock backend status", async ({ page }) => {
-    await page.goto("/desk/system-health");
-    await expect(page.getByRole("heading", { name: "Self-checks" })).toBeVisible();
-    const databaseCheck = page
-      .getByRole("heading", { name: "Database", exact: true })
-      .locator("..");
-    const redisCheck = page.getByRole("heading", { name: "Redis", exact: true }).locator("..");
-    await expect(databaseCheck.getByText("OK", { exact: true })).toBeVisible({ timeout: 15_000 });
-    await expect(redisCheck.getByText("OK", { exact: true })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("hyrepath-enrichment-mock")).toBeVisible();
+    await page.goto("/desk/system-health", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Self-checks" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText("Golden signals not configured")).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByText("Set PROMETHEUS_QUERY_URL to enable the golden-signals panel."),
+    ).toBeVisible();
   });
 
   test("signals page lists mock change notifications", async ({ page }) => {

@@ -19,11 +19,11 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,6 +37,12 @@ from app.modules.admin.audit import record_admin_action
 from app.modules.admin.models import AdminReviewQueueItem
 from app.modules.admin.pagination import decode_cursor, encode_cursor
 from app.modules.admin.permissions import require_permission
+from app.modules.admin.privileged_operations import (
+    begin_idempotent_operation,
+    canonical_payload_hash,
+    complete_idempotent_operation,
+    require_idempotency_key,
+)
 from app.workers.queue import enqueue_email
 
 logger = logging.getLogger(__name__)
@@ -297,9 +303,23 @@ async def decide_review_queue_item(
     item_id: UUID,
     payload: ReviewQueueDecideRequest,
     request: Request,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     current_user: User = Depends(require_permission("content_review", "decide")),
     db: AsyncSession = Depends(get_db_session),
 ) -> ReviewQueueItemResponse:
+    normalized_key = require_idempotency_key("review_queue.decide", idempotency_key)
+    state, replay = await begin_idempotent_operation(
+        db,
+        caller_user_id=current_user.id,
+        operation_id="review_queue.decide",
+        idempotency_key=normalized_key,
+        request_hash=canonical_payload_hash(
+            {"item_id": item_id, "status": payload.status, "review_notes": payload.review_notes}
+        ),
+    )
+    if replay is not None:
+        return ReviewQueueItemResponse.model_validate(replay.response_body["item"])
+
     item = await db.get(AdminReviewQueueItem, item_id)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Review queue item not found")
@@ -327,6 +347,14 @@ async def decide_review_queue_item(
         after={"status": payload.status, "review_notes": payload.review_notes},
         ip_address=get_client_ip(request),
     )
+    response = ReviewQueueItemResponse.from_model(item)
+    if state is not None:
+        await complete_idempotent_operation(
+            db,
+            state,
+            response_status=200,
+            response_body={"item": response.model_dump(mode="json")},
+        )
     await db.commit()
     await db.refresh(item)
 
@@ -347,4 +375,4 @@ async def decide_review_queue_item(
                 exc_info=True,
             )
 
-    return ReviewQueueItemResponse.from_model(item)
+    return response

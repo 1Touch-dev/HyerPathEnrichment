@@ -2,8 +2,8 @@
 
 Hyrepath Enrichment backend — architecture reference for the FastAPI service under `backend/`.
 
-**Version:** 0.4 (August 2026)
-**Last verified against code:** 2026-09-01
+**Version:** 0.5 (September 2026)
+**Last verified against code:** 2026-09-03
 **Repo layout:** `HyerEnrichment/backend/` (split from the Next.js frontend in `frontend/`)
 
 ---
@@ -57,15 +57,18 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | Sidecars are real services | Compose uses **real images**; free-mode ones default-on, paid/heavy ones behind `profiles:` |
 | SMS notification channel | Job-matching preferences accept `"sms"` but no Twilio client exists; selecting it is a UI-disabled no-op. |
 | CV chat runs on a worker queue | It does not — synchronous on the `api` container per Decision 2 (`phase2_module2.md` §3). There is no `cv_chat` RQ queue; `documents/cv_chat_service.py` calls OpenAI inline within the request. |
-| Outreach has its own dedicated worker container | It does not — shares the generic `worker` container's `QUEUE_OUTREACH` (`outreach_generation`, added to the existing fixed-priority list in `rq_worker.py` right after `QUEUE_FEEDBACK`), unlike Module 1's `job_matching`, which does have a dedicated container. See `phase2_module2.md` §10 and ADR 0014 for why these two decisions differ. |
+| Outreach has its own dedicated worker container | It does not — shares the generic `worker` container's auxiliary fixed-priority queue list (`QUEUE_FEEDBACK` → `QUEUE_INTERVIEW_REMINDERS` → `QUEUE_OUTREACH` → `QUEUE_LINKEDIN_SEND_BATCH` → document/CV/AI background queues), unlike Module 1's `job_matching`, which does have a dedicated container. See `phase2_module2.md` §10 and ADR 0014 for why these two decisions differ. |
 | Portfolio pages are all behind auth | `GET /api/portfolio/public/{slug}` (and its frontend counterpart `/p/[slug]`) are deliberately public — see ADR 0014. Every other portfolio/outreach/CV-chat/swipe route requires an authenticated, verified user (`Depends(current_verified_user)` at the `app.include_router` call in `main.py`). |
 | "Send" on an outreach message actually emails the recipient | It does not, in v1 — `send_message()` in `app/modules/outreach/service.py` appends the mandatory CAN-SPAM disclosure footer and marks the message `sent`, but never transmits over SMTP; the candidate copies/sends the drafted text themselves. Real outbound send-as-the-candidate infrastructure (deliverability, SPF/DKIM) is explicitly out of scope for v1. |
 | Module 2 shipped a CV upload widget | It did not — `frontend/app/app/documents/DocumentsView.tsx` only lists and links into existing documents; it explicitly assumes a generic upload widget that, as of this writing, still does not exist anywhere in `frontend/` (same gap `phase2_module1.md` §11.10 already flagged, still open after Module 2 and Module 3). |
 | Admin RBAC replaces `is_superuser` | It does not. `is_superuser` remains the highest-privilege override; `Role`/`Permission` only add narrower grants for non-superuser admins (ADR 0015, Decision 1). |
 | Admin audit log and compliance audit log are the same table | They are not. `admin_audit_logs` (admin-write trail) is distinct from `compliance.models.AuditLog` (candidate compliance/DSAR trail) — see `phase2_admin_module.md` §5. |
+| Fallback admin audit rows satisfy privileged-mutation evidence | They do not. The frozen contract requires exactly one explicit row in the mutation transaction, with `request_id` and `outcome`; fallback capture is anomaly detection only. Default retention is 1,825 days (ADR 0021). |
+| Impersonation JWT claims are sufficient authorization | They are not. The frozen contract is candidate-only and `view_only`; every impersonated request must validate the session/JTI, expiry/revocation, real actor, and current permission (ADR 0021). Request-path enforcement exists in `get_current_user_from_cookie` / `_validate_impersonation_request` and the impersonation start/end service (candidate-only, MFA, allowlisted read-only operations). Residual gap: `ImpersonationSession.revoked_at` is checked on the request path but no production writer sets it yet (end uses `ended_at`). |
+| Feature flags can safely be mutated today | They cannot. No business consumer exists, so mutations remain disabled pending an implemented evaluator and rollback owner (ADR 0015). |
 | Prometheus golden-signals panel always populated | Only when `PROMETHEUS_QUERY_URL` is set; otherwise the System Health page shows self-checks only and an explanatory empty state (§8.12, §12.4). |
 | `LLM_MODE=stub` silences all LLM spend | It does not, for every caller — `question_generator.py` and `feedback_generator.py` (Module 3, like Module 2's `cv_chat_service.py`/`generate_cv_improvement()` before them) call `api.openai.com` directly via raw `httpx`, bypassing `LLM_MODE`/LiteLLM entirely. They require `OPENAI_API_KEY` to be genuinely unset to produce no spend, not `LLM_MODE=stub` — see `.env.example`'s "Direct OpenAI usage" block. |
-| Interview practice has a dedicated worker container by default | It does not — `feedback`/`question_generation` run on the existing generic `worker` container's fixed-priority queue list by default (`rq_worker.py`), same as Module 2's `outreach_generation`. An optional `worker-interview-ai` overlay (`docker-compose.week2-ai.yml`) isolates them, but requires an operator to explicitly add that compose file — see ADR 0017 Decision 4. |
+| Interview practice has a dedicated worker container by default | It does not — `feedback`/`question_generation` run on the existing generic `worker` container's ordered auxiliary queue list by default (`rq_worker.py`), alongside outreach/document/CV tasks. An optional `worker-interview-ai` overlay (`docker-compose.week2-ai.yml`) isolates them, but requires an operator to explicitly add that compose file — see ADR 0017 Decision 4. |
 | `InterviewAttempt` (`app/models.py`) is the source of truth for question recency | It is not, and never was — no code path writes to it. `question_selector.py`'s recency-exclusion query now reads `question_attempts` (populated by `session_manager.add_attempt()`) instead. `InterviewAttempt` is deprecated dead code, kept for now rather than dropped in this PR (see ADR 0017 Consequences). |
 | Voice-tone analysis produces a hire/no-hire or "confidence" signal | It does not, by design — `voice_tone_signals` (nullable, `HUME_API_KEY`-gated, off by default) is surfaced only as coaching-framed descriptive text, never a numeric score, never fed into `ai_score` or any ranking (ADR 0017 Decision 2). |
 
@@ -256,9 +259,10 @@ Each tier maps to enricher modules in `app/enrichers/`. The orchestrator registe
 | `linkedin_photo.py` | `joeyism/linkedin_scraper` + Playwright | Multilogin X stealth browser over CDP; photo uploaded to R2 |
 
 - One browser session per profile lookup — no bulk scraping
-- Multilogin runs on the host; launcher API is hostname-locked to `launcher.mlx.yt:45001` (Docker maps that name via `extra_hosts`). Host-native Windows Tier 1 uses Selenium at `127.0.0.1`; Docker Tier 1 uses `MULTILOGIN_SELENIUM_HOST=http://launcher.mlx.yt`
-- **Linux production** (`--with-linux-mlx`): Multilogin runs in a container with `network_mode: host`; the worker container also uses `network_mode: host`. Both share the Linux loopback, so the per-profile Selenium debug port (`127.0.0.1:PORT`) is reachable directly. `MULTILOGIN_SELENIUM_HOST=http://127.0.0.1` (the `config.py` default). See [ADR 0008](../docs/adr/0008-tier1-linux-host-network.md).
-- **WSL2 / Windows**: Multilogin's per-profile Selenium debug port is bound to Windows `127.0.0.1`, which is unreachable from any WSL2 container namespace regardless of host-IP routing. Use the Linux production path for real Tier 1 scraping.
+- Host-native Windows / WSL-native worker Tier 1 uses Selenium at `http://127.0.0.1`.
+- **Legacy WSL2/Windows Docker diagnostic path** (`docker-compose.tier1.yml`): launcher API is hostname-locked to `launcher.mlx.yt:45001` (Docker maps that name via `extra_hosts`), and the worker override uses `MULTILOGIN_SELENIUM_HOST=http://launcher.mlx.yt`. This path is useful for launcher/connectivity diagnostics, but not the supported Linux MLX production topology.
+- **Supported Linux production target** (`--with-linux-mlx`): Multilogin runs in a container with `network_mode: host`; `worker-tier1` also uses `network_mode: host`. Both share the Linux loopback, so the per-profile Selenium debug port (`127.0.0.1:PORT`) is reachable directly. `MULTILOGIN_SELENIUM_HOST=http://127.0.0.1` (the `config.py` default). See [ADR 0008](../docs/adr/0008-tier1-linux-host-network.md).
+- **Proof boundary:** this repo currently proves the supported Linux MLX topology at the compose/config/healthcheck level on Windows/WSL, but a real Linux-host end-to-end Tier 1 proof run is still required before claiming operational proof for `worker-tier1 -> multilogin -> LinkedIn`.
 - Launcher HTTPS skips TLS verify (self-signed local cert); cloud API (`api.multilogin.com`) does not
 - Only the profile picture is captured, not full profile export
 
@@ -510,11 +514,11 @@ Copy `backend/.env.example` → `backend/.env`.
 | `MULTILOGIN_WORKSPACE_ID` | Workspace for `/user/refresh_token` after sign-in (needed for multi-workspace accounts) |
 | `MULTILOGIN_PROFILE_ID` | Fixed profile id; when set, skips `/profile/search` (local probe / single-profile) |
 | `MULTILOGIN_LAUNCHER_URL` | MLX launcher base (`/api/v2` for start, `/api/v1` derived for stop); start/stop skip TLS verify |
-| `MULTILOGIN_SELENIUM_HOST` | Selenium Remote host (host-native: `http://127.0.0.1`; Docker Tier 1: `http://launcher.mlx.yt`) |
+| `MULTILOGIN_SELENIUM_HOST` | Selenium Remote host (host-native/real Linux target: `http://127.0.0.1`; legacy WSL2 Docker diagnostic path: `http://launcher.mlx.yt`) |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | R2 credentials |
 | `LINKEDIN_BOT_EMAIL`, `LINKEDIN_BOT_PASSWORD` | Dummy LinkedIn account for Selenium login |
 
-**Docker Tier 1:** use `-f docker-compose.tier1.yml`. That override loads secrets from `env_file` (`../.env` or `WORKER_ENV_FILE`) into the **worker only**, forces `MULTILOGIN_SELENIUM_HOST=http://launcher.mlx.yt`, maps `launcher.mlx.yt` and `host.docker.internal` → `host-gateway` (or `MULTILOGIN_HOST_IP` on WSL2 + Docker Engine so traffic reaches Windows), and the worker exits on boot if Multilogin/bot (and staging/production R2) settings are missing (`validate_tier1_settings`). On Windows, prefer a host-native RQ worker with `MULTILOGIN_SELENIUM_HOST=http://127.0.0.1` when ChromeDriver rejects non-localhost Host headers.
+**Docker Tier 1:** `docker-compose.tier1.yml` is the legacy single-worker / WSL2-Windows diagnostic path only. The supported Linux production target uses `bash backend/scripts/start_production.sh --with-linux-mlx`, which resolves `docker-compose.yml + docker-compose.prod.yml + docker-compose.foundation.yml + docker-compose.tier-workers.yml + docker-compose.multilogin.yml` and starts `worker`, `worker-email`, `worker-cleanup`, `worker-job-matching`, `worker-tier234`, and `worker-tier1`. That keeps the `email`, `job_matching`, `audio_cleanup`, auxiliary, and per-tier enrichment queues covered together. On this Windows/WSL host the repo proves that topology at the config/healthcheck level; a real Linux-host end-to-end Tier 1 run is still required before claiming operational proof.
 
 ### Tier 3 (email) — target
 
@@ -706,7 +710,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | LinkedIn photo cache | Redis + Postgres by slug hash | `storage/photo_cache.py` + `PhotoCacheRecord`; slug-keyed TTL; cache-before-browser in `linkedin_photo.py` |
 | Multilogin + Selenium | MLX launcher + Selenium Remote | `clients/multilogin.py`, `integrations/multilogin/profile_pool.py`, `integrations/linkedin/`; worker-only `ENABLE_TIER1`; `/enrich/sync` skips tier1 |
 | Tier 1 pipeline dispatch | Tier 1 serial, tiers 2–4 parallel | `runner.py` `_dispatch(sync_mode=...)`; see `docs/TESTING_TIER1.md` |
-| Tier 1 Docker ops | Worker image + compose override | `Dockerfile.worker` (Chromium + `.[enrichers]`); `docker-compose.tier1.yml` injects secrets via `env_file` (`WORKER_ENV_FILE` or `../.env`), forces `MULTILOGIN_SELENIUM_HOST`, maps `launcher.mlx.yt`/`host.docker.internal` → `host-gateway` or `MULTILOGIN_HOST_IP` (WSL2); `validate_tier1_settings()` fail-fast on worker boot; `tier1_*` Prometheus counters |
+| Tier 1 Docker ops | Worker image + compose override | `Dockerfile.worker` (Chromium + `.[enrichers]`); `docker-compose.tier1.yml` remains the legacy single-worker / WSL2-Windows diagnostic path, while the supported Linux production target is `start_production.sh --with-linux-mlx` → `docker-compose.foundation.yml + docker-compose.tier-workers.yml + docker-compose.multilogin.yml` with `worker`, `worker-email`, `worker-cleanup`, `worker-job-matching`, `worker-tier234`, and `worker-tier1`; `validate_tier1_settings()` fail-fast on worker boot; end-to-end Linux-host proof still requires a real Linux run; `tier1_*` Prometheus counters |
 | Tier 1 hardening (3.7) | Session reuse, denylist, rate limits | `TIER1_SKIP_LOGIN_IF_SESSION_VALID`; `profile_pool.refund_view()`; `probe_tier1_canary.py`; configurable cooldowns |
 | Tier 2 CLIs + scores | Sherlock/Maigret/SA in Docker | `sherlock-project` + `maigret` in `.[enrichers]`; bases 0.75/0.85; merge prefer-max; `e2e_tier2.sh` |
 | Tier 3 CLIs + email verify | gitrecon/Harvester/sleuth/CrossLinked + AfterShip | CLIs in worker/api images; `email-verifier` sidecar; two-phase verify in `runner.py`; `EMAIL_VERIFY_LEVEL=basic\|smtp`; `e2e_tier3.sh` |
@@ -727,7 +731,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Candidate portfolio (Module 2) | `app/modules/portfolio/` | Real, implemented per `phase2_module2.md`. Only Module 2 feature with an unauthenticated public route (`GET /api/portfolio/public/{slug}`, ADR 0014) — served by a separate `public_router` with no auth dependency, and a distinct `PublicPortfolioResponse` schema with no `user_id` field. |
 | Job swipe deck (Module 2) | `app/modules/job_swipe/` | Real, implemented per `phase2_module2.md`. Read-only against Module 1's `job_matches`/`job_postings` (joined in `repository.py`) — never writes to either table; only writes its own `job_swipe_actions`. Depends on Module 1 shipping first. |
 | Personalized outreach (Module 2) | `app/modules/outreach/`, `app/clients/perplexity.py` | Real, implemented per `phase2_module2.md`. New external dependency: Perplexity Sonar API (ADR 0014), degrades to a generic draft on failure. Every message starts `status="draft"`; "send" appends the mandatory CAN-SPAM disclosure footer and marks `sent`, but does not transmit email itself — the candidate copies/sends it externally (v1 scope; see `outreach/service.py`). |
-| Admin Module (RBAC, audit, flags, impersonation) | `app/modules/admin/`, 4 new `users` columns | Real, scaffolded per `phase2_admin_module.md` (ADR 0015). `is_superuser` unchanged and still authoritative; `Role`-based permissions are an additive, narrower grant checked only when `is_superuser` is false. No new Docker service or queue — runs inside `api`, reads existing Redis/RQ queues read-only. |
+| Admin Module (RBAC, audit, flags, impersonation) | `app/modules/admin/`, 4 new `users` columns | Real, scaffolded per `phase2_admin_module.md` (ADR 0015). `is_superuser` remains authoritative and RBAC is database-resolved per request. Revisions 063–066 add contract storage for request-correlated audit outcomes, candidate-only view-only impersonation revocation, secure staff-invite transition fields, and privileged idempotency. Request-path enforcement for candidate-only `view_only` impersonation exists (ADR 0021): start requires MFA + candidate eligibility; `_validate_impersonation_request` re-checks session/JTI, expiry, actor permission, and allowlisted GETs on every impersonated request. Residual: `revoked_at` column is enforced on read but unused as a writer (session end sets `ended_at`). Feature-flag mutations remain disabled pending a consumer; P4/four-eyes operations are unavailable (ADR 0021). |
 | Billing (Stripe, candidate freemium) | `app/modules/billing/`, `app/integrations/stripe/` | Implemented (ADR 0020). Default `ENABLE_BILLING=false` (everyone premium — not free-tier). `STRIPE_MODE=live\|mock`; mock allowed only outside staging/production. Mock checkout/portal post signed webhooks through the real `/api/billing/webhooks/stripe` handler. `current_period_end` prefers Basil `items.data[0]`. |
 | Interview question bank + selection (Module 3) | `app/modules/questions/`, `app/services/question_selector.py`, `app/services/question_generator.py` | Real, implemented per `phase2_module3.md`. `question_selector.py`'s recency-exclusion query now reads `question_attempts` (the table `session_manager.add_attempt()` actually writes), not the never-populated `interview_attempts` table it read before — see `InterviewAttempt` deprecation note below. Personalized questions (`InterviewQuestion.personalized_for_user_id`) are excluded from every other user's rotation (ADR 0017). |
 | Interview feedback question-text lookup fix (Module 3) | `app/workers/tasks/feedback.py` | Real, implemented per `phase2_module3.md`. Previously read a nonexistent `attempt_metadata["question_text"]` key and always silently got `None`; now looks up `InterviewQuestion.question_text` via `question_attempts.question_id`'s new FK constraint (migration `033`). |
@@ -738,6 +742,62 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Admin surfaces for Module 4 (`applications`, `interview_schedules`, `manual_job_entries`) | `app/modules/admin/applications_router.py`, `app/modules/admin/interview_schedules_router.py`, `app/modules/admin/manual_job_entries_router.py` | Implemented — `applications` is read-only visibility into the application tracker; `interview_schedules` and `manual_job_entries` add moderate actions; permissions seeded by migration `046`. |
 
 Use this table when reviewing PRs, running `GRILLME.md` sessions, or planning the next delivery slice.
+
+### Staff-invite digest rollout
+
+Revisions 065–066 require a stop-the-world maintenance window for API traffic.
+Mixed API versions are unsupported. `INT-RELEASE` owns execution and evidence
+for this handoff; schema/application owners provide the checks but do not
+generalize this exception into the repository-wide deployment workflow.
+
+Invite-issuance idempotency records retain a Fernet-sealed response token for
+their 24-hour replay window, keyed by the application `SECRET_KEY`. A
+`SECRET_KEY` rotation must retain the old key or be coordinated only after that
+24-hour window has expired. The current application does not implement
+multi-key decrypt overlap; rotating sooner makes outstanding response replays
+fail closed.
+
+Release gate (all boxes are mandatory and ordered):
+
+- [ ] Stop every old API instance. Invite creation, public invite lookup, and
+      invite redemption are unavailable for the maintenance window.
+- [ ] Verify at the load balancer and process/container layer that no old API
+      process serves traffic; record the API-drain acknowledgement.
+- [ ] Apply revisions 065 then 066 while API traffic remains stopped.
+- [ ] Start only the digest-first/new-redemption application version.
+- [ ] Pass health checks plus security smoke: new issuance stores only a
+      digest, digest lookup succeeds, revoked/unsafe-role redemption fails,
+      email binding holds, and successful legacy redemption clears plaintext.
+- [ ] Run acknowledged cleanup from `backend/`:
+      `python scripts/cleanup_staff_invite_plaintext.py
+      --api-drain-acknowledged --new-code-smoke-passed`.
+
+Rollback gate:
+
+- [ ] Stop and drain API/invite traffic before changing artifact or schema.
+- [ ] Never start a pre-hardening/old API binary for staff-invite creation,
+      public lookup, or redemption against revision 065 or any restored
+      schema.
+- [ ] Resume traffic only with a prebuilt artifact verified against the target
+      schema to retain this hardened digest-first, recruiter-only,
+      email-bound, revocation-aware implementation.
+- [ ] Run health and invite-security smoke before reopening traffic.
+- [ ] If no verified compatible artifact exists, keep API/invite paths stopped
+      and roll forward.
+
+The repository cannot verify the deployed artifact, load-balancer drain, or
+traffic reopening. `INT-RELEASE` must record those three external controls as
+mandatory evidence. A schema downgrade alone is never approval to run an old
+binary.
+
+The default cleanup clears accepted/expired/revoked legacy plaintext. Safe
+active legacy plaintext is retained only for restored-schema recovery by the
+verified hardened compatibility artifact. It is cleared on redemption, after
+expiry by a later cleanup, or explicitly with
+`--include-active --schema-recovery-window-closed` once recovery closes. The
+cleanup command refuses to run without the drain and smoke acknowledgements,
+and refuses active cleanup without schema-recovery acknowledgement. Do not add
+cleanup to an automatically applied migration.
 
 ---
 

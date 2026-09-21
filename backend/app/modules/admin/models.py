@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, JsonDoc
@@ -79,7 +79,7 @@ class AdminAuditLog(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     actor_user_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True, index=True
     )
     # Set only when the actor was impersonating another user at the time of this
     # action (Decision 6) — the *real* admin identity, kept distinct from actor_user_id
@@ -94,6 +94,14 @@ class AdminAuditLog(Base):
     # "explicit" (a router/service called record_admin_action) or "fallback"
     # (AdminAuditFallbackMiddleware caught an un-audited mutation) — see Decision 2.
     captured_by: Mapped[str] = mapped_column(String(16), default="explicit", nullable=False)
+    # Historical rows are nullable at the database layer. The frozen audit
+    # contract requires both fields for every newly captured privileged action.
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    impersonation_session_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("impersonation_sessions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
     )
@@ -131,18 +139,60 @@ class ImpersonationSession(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     admin_user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     target_user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     token_jti: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scope: Mapped[str] = mapped_column(
+        String(16), default="view_only", server_default="view_only", nullable=False
+    )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    revoked_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+    revocation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class PrivilegedIdempotencyRecord(Base):
+    """Atomic replay record for one caller, privileged operation, and key."""
+
+    __tablename__ = "privileged_idempotency_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "caller_user_id",
+            "operation",
+            "idempotency_key",
+            name="uq_privileged_idempotency_caller_operation_key",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    caller_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    operation: Mapped[str] = mapped_column(String(128), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_body: Mapped[dict[str, Any] | None] = mapped_column(JsonDoc, nullable=True)
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
 
 
 class AdminReviewQueueItem(Base):

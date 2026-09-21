@@ -121,6 +121,4 @@ def downgrade() -> None:
         {"pid": permission_id},
     ).fetchone()
     if still_referenced is None:
-        bind.execute(
-            sa.text("DELETE FROM permissions WHERE id = :pid"), {"pid": permission_id}
-        )
+        bind.execute(sa.text("DELETE FROM permissions WHERE id = :pid"), {"pid": permission_id})

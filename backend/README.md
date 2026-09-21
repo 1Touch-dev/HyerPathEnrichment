@@ -15,13 +15,20 @@ uvicorn app.main:app --reload --app-dir backend
 API and worker images build from the `backend/` directory (not the repo root), so
 local virtualenvs and frontend assets are not sent to Docker.
 
-API and worker share one Postgres instance so async `POST /enrich` jobs can be
-polled across processes. Job data survives restarts via the `postgres_data` volume.
+API and worker share one Postgres instance, and job data survives restarts via
+the `postgres_data` volume. Supported async `POST /enrich` routing under the
+shipped per-tier contract uses the tier-worker family described below.
 
 ```bash
 cd backend/docker
 docker compose up --build api worker redis postgres
 ```
+
+This base compose shape is a quick local smoke path. Under the shipped
+`WORKER_QUEUE_MODE=per_tier` contract it is not the supported async enrichment
+topology; use `docker-compose.tier-workers.yml` (or
+`bash backend/scripts/start_production.sh --with-linux-mlx` on real Linux) when
+you need the production-style worker family.
 
 ## Fast local dev (full stack)
 
@@ -39,10 +46,13 @@ Scrapoxy, Langfuse, changedetection.io, GlitchTip) — using your existing
   `Dockerfile.*`, `.env`, `.env.production` — and re-runs `up -d --build`
   (cheap, Docker-layer-cached) when one of those changes.
 
-Multilogin / Tier 1 are never started by this workflow — no
-`docker-compose.tier1.yml` / `docker-compose.multilogin.yml` overlay is
-included, and `.env.production` is expected to already have
-`ENABLE_TIER1=false` (see `scripts/validate_env.sh`).
+Multilogin / Tier 1 are never started by this workflow. The supported real-Linux
+Tier 1 path is `bash backend/scripts/start_production.sh --with-linux-mlx`,
+which resolves the full required family (`docker-compose.prod.yml` +
+`docker-compose.foundation.yml` + `docker-compose.tier-workers.yml` +
+`docker-compose.multilogin.yml`). The legacy `docker-compose.tier1.yml` path is
+diagnostic-only for WSL2/Windows and is rejected for effective Tier 1 on real
+Linux.
 
 **Prerequisites:**
 
@@ -90,7 +100,7 @@ cgroup limits on native Linux.
 
 ### Worker Scaling
 
-**Single-queue mode (default):** All workers process jobs from one shared queue.
+**Single-queue mode (legacy/local override):** All workers process jobs from one shared queue when you explicitly run with `WORKER_QUEUE_MODE=single`.
 
 ```bash
 # Scale workers horizontally (4 workers processing any tier)
@@ -100,21 +110,23 @@ docker compose up -d --scale worker=4
 **Tier-specific workers:** Dedicated worker pools per tier with separate concurrency levels.
 
 ```bash
-# Deploy with tier-specific workers
+# Deploy with tier-specific workers for the supported auxiliary + tier234 path
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
+  -f docker-compose.foundation.yml \
   -f docker-compose.tier-workers.yml \
-  up -d
+  up -d api worker worker-email worker-cleanup worker-job-matching worker-tier234
 
-# Tier 1 (browser): 2 workers
-# Tier 2-4 (API): 6 workers (configurable via deploy.replicas)
+# Tier 1 on real Linux is single-instance and must use:
+#   bash backend/scripts/start_production.sh --with-linux-mlx
+# Tier 2-4 (API): N workers via --scale worker-tier234=N
 ```
 
 **Environment variables for tier-specific routing:**
 
 ```bash
-# Queue routing mode (default: single)
+# Queue routing mode (settings default: single; shipped Docker contract: per_tier)
 WORKER_QUEUE_MODE=per_tier  # or "single"
 
 # For per_tier mode, each worker specifies its queue
@@ -122,6 +134,8 @@ WORKER_TARGET_QUEUE=tier1    # or "tier234"
 ```
 
 See `docker-compose.tier-workers.yml` for the tier-specific worker configuration.
+Do not scale `worker-tier1`; host networking plus Multilogin loopback sharing
+make the supported Linux Tier 1 path single-instance only.
 
 Then:
 

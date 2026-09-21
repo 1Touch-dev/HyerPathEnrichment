@@ -1,10 +1,14 @@
+import { DeskPage } from "@/components/desk/desk-shell";
 import { AiActionsTable } from "@/features/admin";
 
 export default function AdminAiActionsPage() {
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight">AI actions</h1>
+    <DeskPage
+      eyebrow="Desk observability"
+      title="AI actions"
+      description="Oversight view for generated actions, drill-down detail, and operator filters without changing action audit semantics or pagination."
+    >
       <AiActionsTable />
-    </div>
+    </DeskPage>
   );
 }

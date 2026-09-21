@@ -3,12 +3,26 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { MatchCard } from "./MatchCard";
+import { AppShellAccessProvider } from "@/components/layout/app-shell-access";
 import * as client from "../api/client";
 import type { JobMatch } from "@/src/lib/types";
 
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <AppShellAccessProvider candidateMutationAccess="allowed">
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </AppShellAccessProvider>
+  );
+}
+
+function restrictedWrapper({ children }: { children: ReactNode }) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return (
+    <AppShellAccessProvider candidateMutationAccess="impersonating">
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </AppShellAccessProvider>
+  );
 }
 
 const baseMatch: JobMatch = {
@@ -88,6 +102,16 @@ describe("MatchCard", () => {
     expect(applyLink).toHaveAttribute("href", "/api/matches/m1/apply-redirect");
     expect(applyLink).toHaveAttribute("target", "_blank");
     expect(applyLink).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("does not expose Apply or mark viewed during restricted Candidate access", async () => {
+    render(<MatchCard match={baseMatch} />, { wrapper: restrictedWrapper });
+
+    const applyLink = screen.getByRole("link", { name: "Apply" });
+    expect(applyLink).toHaveAttribute("aria-disabled", "true");
+    expect(applyLink).not.toHaveAttribute("href");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(client.markMatchViewed).not.toHaveBeenCalled();
   });
 
   it("Mark-as-applied checkbox is unchecked when appliedAt is null", () => {

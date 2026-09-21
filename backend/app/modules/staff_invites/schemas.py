@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr
 
 
 class StaffInviteCreate(BaseModel):
     email: EmailStr
-    role_name: str = Field(default="recruiter", max_length=64)
+    role_name: Literal["recruiter"] = Field(default="recruiter")
+    confirmation_email: EmailStr
+    mfa_code: SecretStr = Field(min_length=6, max_length=8)
 
 
 class StaffInviteResponse(BaseModel):
@@ -21,6 +24,9 @@ class StaffInviteResponse(BaseModel):
     role_name: str
     expires_at: datetime
     accepted_at: datetime | None
+    # Returned only by the creation call for a newly issued invite. Stored
+    # invite reads and idempotent reuse never expose the bearer credential.
+    invite_token: str | None = None
 
 
 class PublicStaffInviteResponse(BaseModel):

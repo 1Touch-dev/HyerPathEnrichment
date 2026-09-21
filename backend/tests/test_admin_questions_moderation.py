@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
+from app.core.logging import scrub_sensitive_data
 from app.models import InterviewQuestion
 from app.modules.admin.models import AdminAuditLog
 from tests.envelope_helpers import assert_error, assert_success
@@ -22,6 +23,10 @@ from tests.envelope_helpers import assert_error, assert_success
 # NOTE: no module-level `pytestmark = pytest.mark.asyncio` — see
 # test_admin_rbac.py's comment; this repo's pyproject.toml sets
 # asyncio_mode = "auto" already, and every test here is `async def`.
+
+
+def _idempotency_headers(auth_headers, user_id, key: str):
+    return {**auth_headers(user_id), "Idempotency-Key": key}
 
 
 async def _make_question(db_session, /, **overrides) -> InterviewQuestion:
@@ -95,7 +100,7 @@ async def test_moderate_question_happy_path(client, superuser, auth_headers, db_
     response = client.post(
         f"/api/admin/questions/{question.id}/moderate",
         json={"moderation_status": "hidden", "reason": "Low quality"},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, f"question-hide-{question.id}"),
     )
     body = assert_success(response)
     assert body["moderation_status"] == "hidden"
@@ -116,16 +121,17 @@ async def test_moderate_question_happy_path(client, superuser, auth_headers, db_
     entry = result.scalar_one()
     assert entry.actor_user_id == superuser.id
     assert entry.target_type == "interview_question"
-    assert entry.before["moderation_status"] == "active"
-    assert entry.after["moderation_status"] == "hidden"
-    assert entry.after["reason"] == "Low quality"
+    assert entry.before == scrub_sensitive_data({"moderation_status": "active"})
+    assert entry.after == scrub_sensitive_data(
+        {"moderation_status": "hidden", "reason": "Low quality"}
+    )
 
 
 async def test_moderate_question_404(client, superuser, auth_headers):
     response = client.post(
         f"/api/admin/questions/{uuid4()}/moderate",
         json={"moderation_status": "hidden", "reason": None},
-        headers=auth_headers(superuser.id),
+        headers=_idempotency_headers(auth_headers, superuser.id, "question-missing"),
     )
     assert_error(response, 404)
 
@@ -137,6 +143,18 @@ async def test_moderate_question_requires_moderate_permission_for_regular_user(
     response = client.post(
         f"/api/admin/questions/{question.id}/moderate",
         json={"moderation_status": "hidden", "reason": None},
-        headers=auth_headers(regular_user.id),
+        headers=_idempotency_headers(auth_headers, regular_user.id, "question-forbidden"),
     )
     assert_error(response, 403)
+
+
+async def test_moderate_question_requires_idempotency_key(
+    client, superuser, auth_headers, db_session
+):
+    question = await _make_question(db_session)
+    response = client.post(
+        f"/api/admin/questions/{question.id}/moderate",
+        json={"moderation_status": "hidden", "reason": "Low quality"},
+        headers=auth_headers(superuser.id),
+    )
+    assert_error(response, 400)

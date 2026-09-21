@@ -42,12 +42,12 @@ def _post_signal(client: TestClient, watch_id: str, title: str, url: str) -> Non
     assert response.status_code == 202
 
 
-def test_list_signals_pagination(client: TestClient, support_user, auth_headers) -> None:
+def test_list_signals_pagination(client: TestClient, superuser, auth_headers) -> None:
     _post_signal(client, "watch-a", "Alpha", "https://alpha.example")
     _post_signal(client, "watch-b", "Beta", "https://beta.example")
     _post_signal(client, "watch-c", "Gamma", "https://gamma.example")
 
-    staff_headers = auth_headers(support_user.id)
+    staff_headers = auth_headers(superuser.id)
     page_one = client.get("/api/signals?limit=2&offset=0", headers=staff_headers)
     assert page_one.status_code == 200
     payload = page_one.json()["data"]
@@ -85,7 +85,7 @@ def test_list_signals_rejects_roleless_verified_user(
 def test_webhook_persists_before_notify(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
-    support_user,
+    superuser,
     auth_headers,
 ) -> None:
     from app.core.config import get_settings
@@ -110,7 +110,7 @@ def test_webhook_persists_before_notify(
 
     listing = client.get(
         "/api/signals?limit=10&offset=0",
-        headers=auth_headers(support_user.id),
+        headers=auth_headers(superuser.id),
     )
     assert listing.status_code == 200
     signals = listing.json()["data"]["signals"]

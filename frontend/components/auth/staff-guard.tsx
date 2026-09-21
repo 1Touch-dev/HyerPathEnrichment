@@ -1,16 +1,26 @@
 "use client";
 
 import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
-import { isStaffUser } from "@/src/lib/product-doors";
+import {
+  getRequiredDeskPermission,
+  getUserHome,
+  hasPermission,
+  isStaffUser,
+} from "@/src/lib/product-doors";
+import { RouteGuardStatus } from "./route-guard-status";
+import { redirectAfterDomContentLoaded } from "./route-guard-utils";
 
 export function StaffGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useAuth();
   const isStaff = isStaffUser(user);
+  const requiredPermission = pathname.startsWith("/desk")
+    ? getRequiredDeskPermission(pathname)
+    : null;
+  const canAccess = isStaff && (!requiredPermission || hasPermission(user, requiredPermission));
 
   useEffect(() => {
     if (!loading && !user) {
@@ -18,17 +28,19 @@ export function StaffGuard({ children }: { children: React.ReactNode }) {
       router.replace(`/login?redirect=${encodeURIComponent(destination)}`);
       return;
     }
-    if (!loading && user && !isStaff) {
-      router.replace("/app/matches");
+    if (!loading && user && !canAccess) {
+      const destination = isStaff ? getUserHome(user) : "/app/matches";
+      return redirectAfterDomContentLoaded(() => router.replace(destination));
     }
-  }, [isStaff, loading, pathname, router, user]);
+  }, [canAccess, isStaff, loading, pathname, router, user]);
 
-  if (loading || !user || !isStaff) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+  if (loading || !user || !canAccess) {
+    const message = loading
+      ? "Loading account"
+      : !user
+        ? "Redirecting to login"
+        : "You don't have access to this page";
+    return <RouteGuardStatus message={message} />;
   }
 
   return <>{children}</>;

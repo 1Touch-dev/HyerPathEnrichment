@@ -1,10 +1,14 @@
+import { DeskPage } from "@/components/desk/desk-shell";
 import { JobPostingsModerationPanel } from "@/features/admin";
 
 export default function AdminJobPostingsPage() {
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Job Postings</h1>
+    <DeskPage
+      eyebrow="Desk moderation"
+      title="Job postings"
+      description="Moderate listing visibility and removals with the same status transitions, reasons, and audit capture already defined in the admin API."
+    >
       <JobPostingsModerationPanel />
-    </div>
+    </DeskPage>
   );
 }

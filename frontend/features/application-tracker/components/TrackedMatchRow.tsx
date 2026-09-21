@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { CandidatePolicyLink } from "@/components/layout/app-shell-access";
 import {
   Select,
   SelectContent,
@@ -42,10 +43,10 @@ export function TrackedMatchRow({ match }: TrackedMatchRowProps) {
   const isManualEntry = match.overallScore === null;
 
   return (
-    <div className="space-y-3 rounded-lg border p-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="min-w-[12rem] flex-1">
-          <div className="flex items-center gap-2">
+    <div className="app-surface-muted space-y-4 rounded-[1.25rem] p-5">
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="min-w-[12rem] flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium">{match.title}</p>
             {isManualEntry && (
               <Badge variant="secondary" title="Added manually — not from an automated scan">
@@ -61,7 +62,10 @@ export function TrackedMatchRow({ match }: TrackedMatchRowProps) {
           )}
         </div>
 
-        <div className="w-16 text-center">
+        <div className="min-w-[5rem] rounded-xl bg-surface px-3 py-2 text-center">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+            Score
+          </p>
           {match.overallScore === null ? (
             <span className="text-sm text-muted-foreground" title="Manually added — no match score">
               —
@@ -94,7 +98,7 @@ export function TrackedMatchRow({ match }: TrackedMatchRowProps) {
           </SelectContent>
         </Select>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-3">
           {isManualEntry ? (
             // Module B's apply-redirect endpoint is job_posting_id-keyed and manual
             // entries have none — a manual row gets a plain link to whatever URL the
@@ -109,17 +113,17 @@ export function TrackedMatchRow({ match }: TrackedMatchRowProps) {
             )
           ) : (
             <Button size="sm" asChild>
-              <a
+              <CandidatePolicyLink
                 href={getApplyRedirectUrl(match.matchId)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 Apply
-              </a>
+              </CandidatePolicyLink>
             </Button>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-full bg-surface px-3 py-2">
             <Checkbox
               id={`applied-${match.matchId}`}
               checked={match.appliedAt !== null}

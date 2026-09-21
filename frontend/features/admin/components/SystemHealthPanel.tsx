@@ -1,8 +1,14 @@
 "use client";
 
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  SectionHeader,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import { useSystemHealth } from "../hooks/useSystemHealth";
 
 function StatusBadge({ ok }: { ok: boolean }) {
@@ -36,55 +42,82 @@ export function SystemHealthPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="mb-3 text-lg font-semibold">Self-checks</h2>
-        {data.service ? (
-          <p className="mb-3 font-mono text-sm text-muted-foreground">{data.service}</p>
-        ) : null}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Database</CardTitle>
-              <StatusBadge ok={data.databaseOk} />
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{data.databaseLatencyMs} ms</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Redis</CardTitle>
-              <StatusBadge ok={data.redisOk} />
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{data.redisLatencyMs} ms</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <DeskMetricGrid className="lg:grid-cols-3">
+        <DeskMetricCard
+          label="Database latency"
+          value={`${data.databaseLatencyMs} ms`}
+          hint={<StatusBadge ok={data.databaseOk} />}
+          tone={data.databaseOk ? "success" : "danger"}
+        />
+        <DeskMetricCard
+          label="Redis latency"
+          value={`${data.redisLatencyMs} ms`}
+          hint={<StatusBadge ok={data.redisOk} />}
+          tone={data.redisOk ? "success" : "danger"}
+        />
+        <DeskMetricCard
+          label="Prometheus source"
+          value={data.prometheusConfigured ? "Configured" : "Unavailable"}
+          hint="Golden signals degrade gracefully when the query source is not configured."
+          tone={data.prometheusConfigured ? "info" : "warning"}
+        />
+      </DeskMetricGrid>
 
-      <div>
-        <h2 className="mb-3 text-lg font-semibold">Golden signals</h2>
+      <section className="flex flex-col gap-4">
+        <SectionHeader>
+          <SectionHeaderContent>
+            <SectionHeaderTitle>Self-checks</SectionHeaderTitle>
+            <SectionHeaderDescription>
+              Core service checks that should always report, even when the observability stack is
+              only partially configured.
+            </SectionHeaderDescription>
+          </SectionHeaderContent>
+        </SectionHeader>
+        <DeskMetricGrid className="lg:grid-cols-2">
+          <DeskMetricCard
+            label="Database"
+            value={`${data.databaseLatencyMs} ms`}
+            hint={<StatusBadge ok={data.databaseOk} />}
+            tone={data.databaseOk ? "success" : "danger"}
+          />
+          <DeskMetricCard
+            label="Redis"
+            value={`${data.redisLatencyMs} ms`}
+            hint={<StatusBadge ok={data.redisOk} />}
+            tone={data.redisOk ? "success" : "danger"}
+          />
+        </DeskMetricGrid>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionHeader>
+          <SectionHeaderContent>
+            <SectionHeaderTitle>Golden signals</SectionHeaderTitle>
+            <SectionHeaderDescription>
+              High-level demand and reliability indicators shown only when Prometheus wiring is
+              available.
+            </SectionHeaderDescription>
+          </SectionHeaderContent>
+        </SectionHeader>
         {data.prometheusConfigured ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <DeskMetricGrid>
             {Object.entries(data.signals).map(([key, value]) => (
-              <Card key={key}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">{SIGNAL_LABELS[key] ?? key}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-semibold">{value ?? "—"}</p>
-                </CardContent>
-              </Card>
+              <DeskMetricCard
+                key={key}
+                label={SIGNAL_LABELS[key] ?? key}
+                value={value ?? "—"}
+                hint="Prometheus-backed metric"
+                tone="info"
+              />
             ))}
-          </div>
+          </DeskMetricGrid>
         ) : (
           <EmptyState
             title="Golden signals not configured"
             description="Set PROMETHEUS_QUERY_URL to enable the golden-signals panel."
           />
         )}
-      </div>
+      </section>
     </div>
   );
 }

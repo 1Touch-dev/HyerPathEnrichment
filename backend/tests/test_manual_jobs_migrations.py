@@ -26,6 +26,7 @@ from tests.migration_helpers import (
 REV_INTERVIEW_SCHEDULES = "042_interview_schedules"
 REV_MANUAL_JOB_ENTRIES = "043_manual_job_entries"
 REV_MERGE_ADMIN_AND_MODULE4_HEADS = "044_merge_admin_and_module4_heads"
+REV_CURRENT_SINGLE_HEAD = "066_privileged_idempotency_records"
 
 
 @pytest.fixture
@@ -267,7 +268,7 @@ class TestDowngrade:
         """§10.3's data-safety note: downgrading after real manual entries exist
         must fail loudly (job_posting_id NOT NULL can't hold), not silently drop
         or corrupt data."""
-        command.upgrade(alembic_config(sqlite_url), REV_MANUAL_JOB_ENTRIES)
+        upgrade_head(sqlite_url)
         engine = sync_engine_for(sqlite_url)
         try:
             with engine.begin() as conn:
@@ -321,13 +322,17 @@ class TestDowngrade:
 
 
 def test_043_is_in_the_migration_chain_and_is_the_single_head(sqlite_url: str) -> None:
-    """Confirm 043/042 remain ancestors as the single Alembic head advances."""
+    """Named after 043 (this module's own migration). The Alembic single head
+    advances with later revisions (currently ``REV_CURRENT_SINGLE_HEAD``);
+    this test confirms 043/042 remain ancestors of that head.
+    """
     from alembic.script import ScriptDirectory
 
     upgrade_head(sqlite_url)
     script_dir = ScriptDirectory.from_config(alembic_config(sqlite_url))
     heads = script_dir.get_heads()
     assert len(heads) == 1
+    assert heads[0] == REV_CURRENT_SINGLE_HEAD
 
     ancestor_revisions = {
         rev.revision for rev in script_dir.walk_revisions(base="base", head=heads)
