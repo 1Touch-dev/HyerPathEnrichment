@@ -5,6 +5,8 @@
 **Plan date:** 2026-09-21
 **Scope:** Visual / layout / component migration only — **no** business-logic rewrite, **no** API contract changes unless explicitly flagged below.
 
+**Completeness note:** This revision fills prior gaps: §5.1 token table, §5.2 chrome decision, full §8 (61 routes), Batch 5 sequencing, §13 acceptance rubric, §14 dialog map, §15 orphan features, §16 motion, §17 screenshot method. Merge/PR mechanics intentionally omitted.
+
 ---
 
 ## 1. Executive Summary
@@ -260,26 +262,80 @@ Inspected via Figma MCP (2026-09-21). Status on `00 System`: **pastel-mosaic com
 
 | Item | Existing | Figma ref | Required change | Blocks screens? |
 |------|----------|-----------|-----------------|-----------------|
-| Typography | IBM Plex in layout; Inter in Figma | Foundations | Prefer **keep IBM Plex in app** (brand); match sizes/weights from Figma | Soft block |
-| Spacing | Tailwind defaults + ad hoc | `spacing/*` | Document 4/8/12/16/24 scale; use in shells | Yes |
-| Colors | `globals.css` sage/forest | Door + pastel + status | Add CSS vars for door/pastel/status-soft; map Tailwind | **Yes** |
-| Radius | `--radius: 0.875rem` | `radius/md|lg|xl` | Align shell `rounded-2xl`, cards `rounded-xl` | Yes |
-| Shadows | `shadow-panel` | Float shell shadow | Add float-sidebar shadow token | Yes |
-| Buttons | [`ui/button.tsx`](frontend/components/ui/button.tsx) | Components | Ensure primary → `primary-foreground`; destructive; outline | **Yes** |
-| Inputs | [`ui/input.tsx`](frontend/components/ui/input.tsx) | Auth/forms | Soft border, page fill | Yes |
+| Typography | IBM Plex in layout; Inter in Figma | Foundations | **Keep IBM Plex** in app; match Figma sizes/weights | Soft block |
+| Spacing | Tailwind + ad hoc | `spacing/*` | Prefer 4/8/12/16/24/32 | Yes |
+| Colors | `globals.css` sage/forest | Door + pastel + status | Add CSS vars; map Tailwind (§5.1) | **Yes** |
+| Radius | `--radius: 0.875rem` | `radius/md|lg|xl` | Shell `rounded-2xl`, cards `rounded-xl` | Yes |
+| Shadows | `shadow-panel` | Float shell | Add `--shadow-float-sidebar` | Yes |
+| Buttons | `ui/button.tsx` | Components | Primary → `primary-foreground` only | **Yes** |
+| Inputs | `ui/input.tsx` | Auth/forms | Soft border, page fill | Yes |
 | Selects / checkbox / radio | `ui/*` | Forms | Visual only | Soft |
-| Tabs | [`ui/tabs.tsx`](frontend/components/ui/tabs.tsx) | Active door-soft | Active = door/primary-soft | Yes |
-| Tables | [`ui/table.tsx`](frontend/components/ui/table.tsx) | Desk tables | Header text door accent; row hover | Yes |
-| Cards | [`ui/card.tsx`](frontend/components/ui/card.tsx) | KPI mosaic | Optional `variant="pastel-{mint|sky|peach|sand}"` | Yes |
-| Badges | [`ui/badge.tsx`](frontend/components/ui/badge.tsx) | Status chips | Status soft/solid variants | Yes |
-| Modals | [`ui/dialog.tsx`](frontend/components/ui/dialog.tsx) | Dialog artboards | Surface card; danger CTAs | Soft |
-| Toasts | Sonner | — | Keep; match primary colors | No |
-| Empty / loading | Skeleton + ad hoc copy | Empty copy in frames | Shared `EmptyState` if missing | Soft |
-| Page headers | [`ui/page-header.tsx`](frontend/components/ui/page-header.tsx) | H1 patterns | Match Figma title/description | Soft |
-| Sidebar / nav | `AppSidebar` etc. | `12 Shells` | **Float shell** — largest shell change | **Yes** |
-| Containers | `ShellPage` | Main surface card | Outer page padding + rounded Main | **Yes** |
+| Tabs | `ui/tabs.tsx` | Active door-soft | Active = door/primary-soft | Yes |
+| Tables | `ui/table.tsx` | Desk tables | Header door accent; row hover | Yes |
+| Cards | `ui/card.tsx` | KPI mosaic | Pastel utilities or variants | Yes |
+| Badges | `ui/badge.tsx` | Status chips | Status soft/solid variants | Yes |
+| Modals / sheets | `ui/dialog.tsx`, `ui/sheet.tsx` | Dialog artboards | Surface card; danger CTAs | Soft |
+| Toasts | Sonner | — | Keep; align primary colors | No |
+| Empty / loading | Skeleton + ad hoc | Empty copy | Prefer shared empty pattern | Soft |
+| Page headers | `ui/page-header.tsx` | H1 patterns | Match title/description | Soft |
+| Sidebar / nav | `AppSidebar` etc. | `12 Shells` | Float shell (§5.2 chrome decision) | **Yes** |
+| Containers | `ShellPage` | Main surface | Outer padding + rounded Main | **Yes** |
 
-**Hard rule for agents:** Never put pastel-deep / ink text on `bg-primary` or `bg-destructive`. Use `text-primary-foreground`.
+**Hard rule:** Never put pastel-deep / ink text on `bg-primary` or `bg-destructive`. Use `*-foreground`.
+
+### 5.1 Concrete token mapping (Batch 1 deliverable)
+
+Implement these in [`globals.css`](frontend/app/globals.css) + [`tailwind.config.ts`](frontend/tailwind.config.ts). HSL values are approximate from Figma primitives (refine from Foundations swatches if needed).
+
+| Figma variable | CSS variable | Approx HSL | Tailwind key | Usage |
+|----------------|--------------|------------|--------------|-------|
+| `color/bg/page` | `--background` (exists) | `80 9% 95%` | `background` | Page canvas |
+| `color/bg/surface` | `--surface` (exists) | `0 0% 100%` | `surface` | Cards / Main |
+| `color/bg/soft` | `--primary-soft` (exists) | `148 29% 88%` | `primary-soft` | Soft fills |
+| `color/bg/primary` | `--primary` (exists) | `151 42% 21%` | `primary` | CTA fill |
+| `color/text/on-primary` | `--primary-foreground` | `0 0% 100%` | `primary-foreground` | CTA text |
+| `color/text/primary` | `--foreground` | `152 16% 11%` | `foreground` | Body |
+| `color/text/muted` | `--muted-foreground` | `96 2% 37%` | `muted-foreground` | Secondary |
+| `color/border/default` | `--border` | `90 10% 84%` | `border` | Borders |
+| `color/door/candidate` | `--door-candidate` | `151 42% 21%` | `door-candidate` | Candidate nav |
+| `color/door/candidate-soft` | `--door-candidate-soft` | `148 35% 88%` | `door-candidate-soft` | Active nav fill |
+| `color/door/desk` | `--door-desk` | `189 45% 28%` | `door-desk` | Desk nav |
+| `color/door/desk-soft` | `--door-desk-soft` | `189 40% 90%` | `door-desk-soft` | Desk active |
+| `color/door/osint` | `--door-osint` | `192 35% 30%` | `door-osint` | OSINT nav |
+| `color/door/osint-soft` | `--door-osint-soft` | `192 25% 90%` | `door-osint-soft` | OSINT active |
+| `color/status/success` | `--success` (exists) | `144 39% 30%` | `success` | Done chips |
+| `color/status/success-soft` | `--success-soft` | `144 35% 92%` | `success-soft` | Chip bg |
+| `color/status/info` | `--info` (exists) | `188 57% 35%` | `info` | Live chips |
+| `color/status/info-soft` | `--info-soft` | `188 45% 92%` | `info-soft` | Chip bg |
+| `color/status/warning` | `--warning` (exists) | `36 88% 46%` | `warning` | Review chips |
+| `color/status/warning-soft` | `--warning-soft` | `40 80% 92%` | `warning-soft` | Chip bg |
+| `color/status/danger` | `--destructive` (exists) | `7 55% 41%` | `destructive` | Failed / delete |
+| `color/status/danger-soft` | `--destructive-soft` | `7 45% 93%` | `destructive-soft` | Chip bg |
+| `color/pastel/mint` | `--pastel-mint` | `150 40% 90%` | `pastel-mint` | KPI 1 |
+| `color/pastel/mint-deep` | `--pastel-mint-deep` | `152 45% 28%` | `pastel-mint-deep` | KPI 1 text |
+| `color/pastel/sky` | `--pastel-sky` | `200 55% 90%` | `pastel-sky` | KPI 2 |
+| `color/pastel/sky-deep` | `--pastel-sky-deep` | `198 50% 32%` | `pastel-sky-deep` | KPI 2 text |
+| `color/pastel/peach` | `--pastel-peach` | `22 70% 90%` | `pastel-peach` | KPI 3 |
+| `color/pastel/peach-deep` | `--pastel-peach-deep` | `22 55% 38%` | `pastel-peach-deep` | KPI 3 text |
+| `color/pastel/sand` | `--pastel-sand` | `44 45% 90%` | `pastel-sand` | KPI 4 |
+| `color/pastel/sand-deep` | `--pastel-sand-deep` | `42 40% 35%` | `pastel-sand-deep` | KPI 4 text |
+| `color/chart/1..4` | `--chart-1` … `--chart-4` | align to pastel deeps | `chart-1`…`4` | Analytics legends |
+| Float shadow | `--shadow-float-sidebar` | soft sage drop | `shadow-float-sidebar` | Sidebar |
+
+**Pastel KPI rule:** Cycle mint→sky→peach→sand on decorative metric strips. If label/value implies Failed/Blocked/Error → use `destructive` / `destructive-soft` instead.
+
+### 5.2 App chrome decision vs Figma (locked for Batch 2)
+
+Figma shells show **float sidebar + Main card** only. The app also has topbar, nav rail, and bottom nav.
+
+| Chrome | Figma | Decision for migration |
+|--------|-------|------------------------|
+| `AppSidebar` | Yes (float) | **Restyle** to float + door accents |
+| `ShellPage` / Main | Yes | **Restyle** rounded surface on padded canvas |
+| `AppTopbar` | Not in Figma float twin | **Keep** on tablet/mobile breakpoints; on `lg+` slim or absorb into Main header — do **not** delete (search/user menu live here) |
+| `AppNavRail` | Not in Figma | **Keep** for mid breakpoints (`md`–`lg`); restyle active color to door tokens |
+| `AppBottomNav` | Not in Figma | **Keep** for `<lg`; restyle active to door; no new mobile inventing |
+| Marketing / Auth | Dedicated Figma layouts | Match Figma; no AppShell |
 
 ---
 
@@ -292,131 +348,134 @@ Inspected via Figma MCP (2026-09-21). Status on `00 System`: **pastel-mosaic com
 **Deliverables:**
 
 - [ ] `FRONTEND_USE_MOCKS=true npm run dev` healthy on `:3000`
-- [ ] Route inventory (this plan §2 / §4) checked into branch
-- [ ] Screenshot baseline folder (local/gitignored or CI artifact): `/`, `/login`, `/app/matches`, `/desk`, `/osint`, `/app/documents`
-- [ ] `npm run lint` + `npm run typecheck` + `npm run test:unit` green on branch tip
-- [ ] Known-risk list (§9) acknowledged by implementers
+- [ ] Route inventory (§2 / §4 / §8) acknowledged
+- [ ] Screenshot baseline: `/`, `/login`, `/app/matches`, `/desk`, `/osint`, `/app/documents`
+- [ ] `npm run lint` + `typecheck` + `test:unit` green
+- [ ] Risk list (§9) acknowledged
 
-**Owner:** Agent G (QA) + Agent H (integrator)
+**Owner:** Agent G + H
 
 ---
 
 ### Batch 1 — Design Tokens and Global Styling
 
-**Purpose:** Land Figma tokens in CSS/Tailwind without changing layouts yet.
-
-**Files:**
-
-- [`frontend/app/globals.css`](frontend/app/globals.css)
-- [`frontend/tailwind.config.ts`](frontend/tailwind.config.ts)
+**Files:** `frontend/app/globals.css`, `frontend/tailwind.config.ts`
 
 **Deliverables:**
 
-- [ ] Door, status-soft, pastel, chart CSS variables
-- [ ] Tailwind color keys (`door-candidate`, `pastel-mint`, etc.)
-- [ ] Shadow token for float sidebar
-- [ ] Story/demo optional: temporary `/dev/tokens` **not required** — Components page in Figma is enough
-- [ ] Document token ↔ Figma variable mapping in PR description
-
-**Do not:** Change `AppShell` structure in this batch.
+- [ ] All §5.1 variables landed
+- [ ] Tailwind keys wired
+- [ ] `shadow-float-sidebar` utility
+- [ ] No shell structure changes yet
 
 ---
 
 ### Batch 2 — Layout Shells
 
-**Purpose:** Float shell + door nav before screens.
-
-**Files:**
-
-- [`AppShell.tsx`](frontend/components/layout/AppShell.tsx)
-- [`AppSidebar.tsx`](frontend/components/layout/AppSidebar.tsx)
-- [`AppNavRail.tsx`](frontend/components/layout/AppNavRail.tsx)
-- [`AppTopbar.tsx`](frontend/components/layout/AppTopbar.tsx)
-- [`ShellPage.tsx`](frontend/components/layout/ShellPage.tsx)
-- [`MarketingShell.tsx`](frontend/components/layout/MarketingShell.tsx)
-- [`(auth)/layout.tsx`](frontend/app/(auth)/layout.tsx)
+**Files:** `AppShell.tsx`, `AppSidebar.tsx`, `AppNavRail.tsx`, `AppTopbar.tsx`, `AppBottomNav.tsx`, `ShellPage.tsx`, `MarketingShell.tsx`, `(auth)/layout.tsx`
 
 **Deliverables:**
 
-- [ ] Page canvas = `bg-background` with outer padding; sidebar float + shadow
-- [ ] Main = rounded surface card
-- [ ] Active nav = door-soft + door text (product-specific)
-- [ ] Auth layout = centered white card + optional pastel side panel (match Figma `21 Auth`)
-- [ ] Preserve `StaffGuard` / `AuthGuard` / bottom nav behavior
-- [ ] Unit tests for shell still pass (`AppShell.test.tsx`, etc.)
+- [ ] Float sidebar + door active states per §5.2
+- [ ] Main rounded surface
+- [ ] Auth pastel side panel + white card
+- [ ] Guards unchanged; shell unit tests pass
 
-**Figma refs:** `12 Shells`, `21 Auth`
+**Figma:** `12 Shells`, `21 Auth`
 
 ---
 
 ### Batch 3 — Core Reusable Components
 
-**Purpose:** Update primitives used everywhere.
-
-**Files:** `frontend/components/ui/*` (button, badge, card, table, tabs, dialog, input, page-header, skeleton)
+**Files:** `frontend/components/ui/*`
 
 **Deliverables:**
 
-- [ ] Button contrast lock (primary/destructive)
-- [ ] Badge status variants
-- [ ] Card pastel variants **or** utility classes `bg-pastel-mint` etc.
-- [ ] Table header styling
-- [ ] Tabs active state
-- [ ] Dialog surface + footer actions
-- [ ] Component unit tests updated for classNames only
-
-**Do not:** Edit feature business logic under `features/**` except className props.
+- [ ] Button contrast lock
+- [ ] Badge status + Card pastel utilities
+- [ ] Table header / Tabs active / Dialog+Sheet chrome
+- [ ] ClassName-only unit test updates
 
 ---
 
 ### Batch 4 — High-Traffic Screens
 
-| Screen | Files (entry) | Risk |
-|--------|---------------|------|
-| Marketing `/` | `app/page.tsx`, `features/marketing/**` | Med |
-| Auth login/register/invite | `app/(auth)/**`, `app/invite/**` | Med |
-| Candidate matches / `/app` | `app/app/page.tsx`, `app/matches/**`, `features/job-matching/**`, `features/job-swipe/**` | **High** |
-| Documents | `app/documents/**`, `features/documents/**`, `features/cv-management/**` | **High** |
-| Dashboard | `app/dashboard/**`, `features/dashboard/**` | Med |
-| OSINT intake | `app/osint/page.tsx`, `features/enrich/**` / dossier | **High** |
-| Desk home + users + review-queue | `app/desk/**`, `features/admin/**` | **High** |
+| Order | Screen | Primary feature files | Owner | Risk |
+|-------|--------|----------------------|-------|------|
+| 4.1 | Marketing `/` | `features/marketing/**`, `app/page.tsx` | E | Med |
+| 4.2 | Auth ×5 | `(auth)/**`, `invite/**` | E | Med |
+| 4.3 | `/app` + `/app/matches` | `features/job-matching/**`, `job-swipe/**` | E | High |
+| 4.4 | `/app/documents` | `features/documents/**`, `cv-management/**` | E | High |
+| 4.5 | `/app/dashboard` | `features/dashboard/**` | E | Med |
+| 4.6 | `/osint` | `features/enrich/**`, dossier components | F | High |
+| 4.7 | `/desk` + system-health | `features/admin` SystemHealthPanel | F | Med |
+| 4.8 | `/desk/users` + detail | `UsersTable`, `UserDetailDrawer`, Impersonate | F | High |
+| 4.9 | `/desk/review-queue` | `ReviewQueueTable`, `ReviewQueueDetail` | F | High |
 
-**Deliverables:** Visual parity with Figma frames; behavior unchanged; Apply/CTA contrast verified.
+**DoD:** §13 acceptance rubric pass for each.
 
 ---
 
-### Batch 5 — Secondary Screens
+### Batch 5 — Secondary Screens (sequenced)
 
-- Remaining Candidate: practice, tracker, outreach, portfolio, settings, privacy, jobs, history, health
-- Remaining Desk: brands, sourcing-leads, linkedin-tasks, roles, invites, flags, analytics, demand, signals, queues, audit, job-postings, documents, portfolio, outreach, ai-actions, system-health
-- OSINT jobs/detail/settings
-- Public `/b/*`, `/p/*`
-- Marketing personas + opt-out
+Work **after** Batch 3. Within Batch 5, order by shared dependency (tables/forms first where possible). E and F stay door-split.
 
-**Deliverables:** Same as Batch 4 for lower-traffic routes.
+#### 5A — Candidate secondary (Agent E) — order
+
+1. `/app/matches/settings` → `features/job-matching` PreferencesForm
+2. `/app/matches/swipe` → `features/job-swipe` (preserve Framer Motion; skin cards only — §16)
+3. `/app/tracker` + Add job dialog → `TrackerView`, `AddManualJobDialog`
+4. `/app/outreach` + Draft dialog → `OutreachView`, `DraftOutreachDialog`
+5. `/app/practice` → session → report → `features/practice`, `jd-practice`
+6. `/app/portfolio` → `features/portfolio`
+7. `/app/settings` + Delete dialog → `SettingsView`
+8. `/app/settings/security` + MFA → `MfaSetupCard`
+9. `/app/privacy`, `/app/jobs`, `/app/jobs/[id]`, `/app/history`, `/app/health`
+10. Marketing personas + `/opt-out` (if not done in 4.1)
+
+#### 5B — Desk secondary (Agent F) — order
+
+1. Shared moderation table chrome already from Batch 3 — then:
+2. `/desk/queues` → `QueueMonitor`
+3. `/desk/signals` → `features/signals`
+4. `/desk/job-postings` (+ hide reason) → `JobPostingsModerationPanel`
+5. `/desk/documents` → `DocumentsModerationPanel`
+6. `/desk/portfolio` → `PortfolioModerationPanel`
+7. `/desk/outreach` → `OutreachModerationPanel`
+8. `/desk/ai-actions` → `AiActionsTable`
+9. `/desk/audit-logs` → `AuditLogTable`
+10. `/desk/brands` (+ Create/Edit dialog inline) → `desk/brands/page.tsx`
+11. `/desk/sourcing-leads` → `SourcingLeadsPanel`
+12. `/desk/linkedin-tasks` (+ Create batch) → `LinkedInTasksPanel`
+13. `/desk/roles`, `/desk/staff-invites`, `/desk/feature-flags`
+14. `/desk/analytics`, `/desk/demand-intelligence` → admin Analytics + DemandIntelligencePanel
+
+#### 5C — OSINT + Public (Agent F) — order
+
+1. `/osint/jobs` → list
+2. `/osint/jobs/[id]` → dossier detail
+3. `/osint/settings` + `/osint/settings/security`
+4. `/b/[slug]`, `/b/[slug]/[tier]` → `features/brand-pages`
+5. `/p/[slug]` → `PublicPortfolioPage`
 
 ---
 
 ### Batch 6 — Edge States and Responsive QA
 
-**Deliverables:**
-
-- [ ] Empty / loading / error checklist per high-traffic screen
-- [ ] Permission: candidate cannot open `/desk`; staff can
-- [ ] MFA / impersonation dialogs still function
-- [ ] Mobile: bottom nav still usable after float shell
-- [ ] Visual bug list filed
+- [ ] Empty / loading / error for all High + Med screens in §8
+- [ ] Permission: candidate blocked from `/desk`/`/osint`
+- [ ] All §14 dialogs open/submit/cancel
+- [ ] `<lg`: bottom nav + rail still work after float shell
+- [ ] Visual bug list
 
 ---
 
 ### Batch 7 — Final Integration and Release Gate
 
-**Deliverables:**
-
-- [ ] Screenshot comparison vs Figma `20–25` (desktop)
-- [ ] `lint` / `typecheck` / `test:unit` / `test:smoke`
-- [ ] Remaining gap list (mobile, hover)
-- [ ] Release recommendation (merge `migrate/frontend` → `main` when gate green)
+- [ ] Desktop screenshot vs Figma for all §8 routes (or sampled High+Med with Low spot-check)
+- [ ] lint / typecheck / unit / smoke green
+- [ ] Remaining gaps listed (mobile Figma, hover)
+- [ ] Release recommendation when gate green
 
 ---
 
@@ -424,81 +483,94 @@ Inspected via Figma MCP (2026-09-21). Status on `00 System`: **pastel-mosaic com
 
 | Agent | Scope | Owns | Must not touch | Inputs | Output | DoD |
 |-------|-------|------|----------------|--------|--------|-----|
-| **A — Mapper** | Keep mapping current | This plan updates | App code | Figma + routes | Mapping PR comments | §4 accurate |
-| **B — Tokens** | Batch 1 | `globals.css`, `tailwind.config.ts` | Shells/screens | Figma Foundations | Token PR | Tokens usable in Tailwind |
-| **C — Shells** | Batch 2 | `components/layout/**`, auth/marketing layouts | Feature pages | Tokens merged | Shell PR | Float shell on all doors |
-| **D — Components** | Batch 3 | `components/ui/**` | Features | Tokens merged | UI PR | Contrast tests / visual check |
-| **E — Screens G1** | Batch 4 Marketing+Auth+Candidate dense | `(marketing)`, `(auth)`, `app/app/**` matches/docs/dashboard | Desk/OSINT | Shells+UI merged | Screen PRs | Figma parity + smoke |
-| **F — Screens G2** | Batch 4–5 Desk+OSINT+Public | `app/desk/**`, `app/osint/**`, `b/**`, `p/**` | Candidate features | Shells+UI merged | Screen PRs | Figma parity + staff smoke |
-| **G — QA** | Batches 0, 6, 7 | e2e / screenshots | Product logic | All PRs | Bug list + gate | Smoke green |
-| **H — Integrator** | Sequencing / conflicts | Merge order | Drive-by refactors | All agents | Integration PR | Release gate |
+| **A — Mapper** | Keep §4/§8/§14 current | Plan docs | App code | Figma + routes | Mapping updates | Tables accurate |
+| **B — Tokens** | Batch 1 | `globals.css`, `tailwind.config.ts` | Shells/screens | §5.1 | Token PR | Keys usable |
+| **C — Shells** | Batch 2 | `components/layout/**`, auth/marketing layouts | Feature pages | Tokens | Shell PR | §5.2 done |
+| **D — Components** | Batch 3 | `components/ui/**` | Features | Tokens | UI PR | Contrast lock |
+| **E — Screens G1** | 4.1–4.5 + 5A | marketing, auth, `app/app/**`, listed features | Desk/OSINT | Shells+UI | Screen PRs | §13 pass |
+| **F — Screens G2** | 4.6–4.9 + 5B + 5C | desk, osint, public, admin/signals/enrich | Candidate features | Shells+UI | Screen PRs | §13 pass |
+| **G — QA** | 0, 6, 7 | e2e / screenshots | Product logic | All PRs | Bug list | Smoke green |
+| **H — Integrator** | Sequencing | Conflicts / order | Drive-by refactors | All agents | Integration | Gate |
 
-**Conflict rule:** Only **one** agent edits `AppShell` / `globals.css` / `button.tsx` at a time (B → C → D sequence). E and F may run in parallel after D merges.
+**Conflict rule:** Serialize B → C → D. Then E ∥ F.
+
+**Feature-layer rule:** Prefer editing `features/**` components over `page.tsx` when the page only composes a panel (most Desk routes).
 
 ---
 
-## 8. Screen-by-Screen Implementation Checklist
+## 8. Screen-by-Screen Implementation Checklist (all 61)
 
-Use this template per screen (agents copy into PR):
+**Status column:** update during work (`todo` default).
 
-```text
-- Route:
-- Current files:
-- Figma frame: (e.g. 22 /app/matches)
-- Components used:
-- API/data dependencies: (hooks — do not change)
-- Auth/permission dependencies:
-- Required UI changes:
-- Required responsive changes: (desktop first; preserve mobile nav)
-- Loading state:
-- Empty state:
-- Error state:
-- Form validation: (unchanged unless Figma adds fields — flag §11)
-- Risk level: Low | Med | High
-- QA checklist: [ ] screenshot [ ] primary CTA contrast [ ] nav active [ ] empty copy
-- Owner: Agent E | F
-- Status: todo | in_progress | done
-```
+**QA mini-check (every row):** [ ] desktop screenshot vs Figma [ ] CTA contrast [ ] nav/door (if shelled) [ ] empty/loading if shown in Figma [ ] no API/hook signature change
 
-### Priority checklist seeds (High)
+| Route | Figma frame | Page file | Primary feature / UI files | Auth | Risk | Owner | Status |
+|-------|-------------|-----------|---------------------------|------|------|-------|--------|
+| `/` | `20 /` | `app/page.tsx` | `features/marketing/**` | Public | Med | E | todo |
+| `/recruiters` | `20 /recruiters` | `(marketing)/recruiters/page.tsx` | marketing persona | Public | Low | E | todo |
+| `/candidates` | `20 /candidates` | `(marketing)/candidates/page.tsx` | marketing persona | Public | Low | E | todo |
+| `/journalists` | `20 /journalists` | `(marketing)/journalists/page.tsx` | marketing persona | Public | Low | E | todo |
+| `/investors` | `20 /investors` | `(marketing)/investors/page.tsx` | marketing persona | Public | Low | E | todo |
+| `/sales` | `20 /sales` | `(marketing)/sales/page.tsx` | marketing persona | Public | Low | E | todo |
+| `/opt-out` | `20 /opt-out` | `opt-out/page.tsx` | `features/compliance` / opt-out UI | Public | Med | E | todo |
+| `/login` | `21 /login` | `(auth)/login/page.tsx` | auth form | Public | Med | E | todo |
+| `/register` | `21 /register` | `(auth)/register/page.tsx` | auth form | Public | Med | E | todo |
+| `/verify-email` | `21 /verify-email` | `(auth)/verify-email/page.tsx` | verify UI | Public | Low | E | todo |
+| `/verify-email-pending` | `21 /verify-email-pending` | `(auth)/verify-email-pending/page.tsx` | pending UI | Public | Low | E | todo |
+| `/invite/[token]` | `21 /invite/[token]` | `invite/[token]/page.tsx` | invite accept form | Public | Med | E | todo |
+| `/app` | `22 /app` | `app/app/page.tsx` | job-matching / matches hub | AuthGuard | High | E | todo |
+| `/app/dashboard` | `22 /app/dashboard` | `app/dashboard/page.tsx` | `features/dashboard/**` | AuthGuard | Med | E | todo |
+| `/app/matches` | `22 /app/matches` | `app/matches/page.tsx` | `job-matching`, MatchCard | AuthGuard | High | E | todo |
+| `/app/matches/swipe` | `22 /app/matches/swipe` | `app/matches/swipe/page.tsx` | `job-swipe` SwipeDeckView | AuthGuard | Med | E | todo |
+| `/app/matches/settings` | `22 /app/matches/settings` | `app/matches/settings/page.tsx` | PreferencesForm | AuthGuard | Low | E | todo |
+| `/app/documents` | `22 /app/documents` | `app/documents/page.tsx` | documents, cv-management | AuthGuard | High | E | todo |
+| `/app/documents/[documentId]` | `22 /app/documents/[documentId]` | `app/documents/[documentId]/page.tsx` | document detail, CvFeedbackPanel | AuthGuard | Med | E | todo |
+| `/app/practice` | `22 /app/practice` | `app/practice/page.tsx` | `practice`, `jd-practice` | AuthGuard | Med | E | todo |
+| `/app/practice/[sessionId]` | `22 /app/practice/[sessionId]` | `app/practice/[sessionId]/page.tsx` | session views | AuthGuard | Med | E | todo |
+| `/app/practice/[sessionId]/report` | `22 /app/practice/[sessionId]/report` | `.../report/page.tsx` | report view | AuthGuard | Low | E | todo |
+| `/app/tracker` | `22 /app/tracker` | `app/tracker/page.tsx` | TrackerView, application-tracker, AddManualJobDialog | AuthGuard | Med | E | todo |
+| `/app/outreach` | `22 /app/outreach` | `app/outreach/page.tsx` | OutreachView, DraftOutreachDialog | AuthGuard | Med | E | todo |
+| `/app/portfolio` | `22 /app/portfolio` | `app/portfolio/page.tsx` | PortfolioEditor | AuthGuard | Low | E | todo |
+| `/app/settings` | `22 /app/settings` | `app/settings/page.tsx` | SettingsView (+ delete dialog) | AuthGuard | Med | E | todo |
+| `/app/settings/security` | `22 /app/settings/security` | `app/settings/security/page.tsx` | MfaSetupCard | AuthGuard | Med | E | todo |
+| `/app/privacy` | `22 /app/privacy` | `app/privacy/page.tsx` | compliance/privacy UI | AuthGuard | Low | E | todo |
+| `/app/jobs` | `22 /app/jobs` | `app/jobs/page.tsx` | jobs list features | AuthGuard | Med | E | todo |
+| `/app/jobs/[id]` | `22 /app/jobs/[id]` | `app/jobs/[id]/page.tsx` | job detail | AuthGuard | Med | E | todo |
+| `/app/history` | `22 /app/history` | `app/history/page.tsx` | `features/history/**` | AuthGuard | Low | E | todo |
+| `/app/health` | `22 /app/health` | `app/health/page.tsx` | HealthView | AuthGuard | Low | E | todo |
+| `/desk` | `23 /desk` | `desk/page.tsx` | SystemHealthPanel | StaffGuard | Med | F | todo |
+| `/desk/system-health` | `23 /desk/system-health` | `desk/system-health/page.tsx` | SystemHealthPanel | StaffGuard | Med | F | todo |
+| `/desk/sourcing-leads` | `23 /desk/sourcing-leads` | `desk/sourcing-leads/page.tsx` | SourcingLeadsPanel | Staff+perm | High | F | todo |
+| `/desk/linkedin-tasks` | `23 /desk/linkedin-tasks` | `desk/linkedin-tasks/page.tsx` | LinkedInTasksPanel | Staff+perm | Med | F | todo |
+| `/desk/brands` | `23 /desk/brands` | `desk/brands/page.tsx` | inline Create/Edit Dialog | Staff+perm | Med | F | todo |
+| `/desk/roles` | `23 /desk/roles` | `desk/roles/page.tsx` | admin roles API UI | Staff+perm | Med | F | todo |
+| `/desk/staff-invites` | `23 /desk/staff-invites` | `desk/staff-invites/page.tsx` | invites UI | Staff+perm | Low | F | todo |
+| `/desk/feature-flags` | `23 /desk/feature-flags` | `desk/feature-flags/page.tsx` | FeatureFlagsPanel | Staff+perm | Low | F | todo |
+| `/desk/analytics` | `23 /desk/analytics` | `desk/analytics/page.tsx` | AnalyticsPanel | Staff+perm | Med | F | todo |
+| `/desk/demand-intelligence` | `23 /desk/demand-intelligence` | `desk/demand-intelligence/page.tsx` | DemandIntelligencePanel | Staff+perm | Med | F | todo |
+| `/desk/signals` | `23 /desk/signals` | `desk/signals/page.tsx` | `features/signals` | Staff+perm | Med | F | todo |
+| `/desk/queues` | `23 /desk/queues` | `desk/queues/page.tsx` | QueueMonitor | Staff+perm | Med | F | todo |
+| `/desk/users` | `23 /desk/users` | `desk/users/page.tsx` | UsersTable, ImpersonateUserDialog | Staff+perm | High | F | todo |
+| `/desk/users/[userId]` | `23 /desk/users/[userId]` | `desk/users/[userId]/page.tsx` | UserDetailDrawer | Staff+perm | Med | F | todo |
+| `/desk/audit-logs` | `23 /desk/audit-logs` | `desk/audit-logs/page.tsx` | AuditLogTable | Staff+perm | Low | F | todo |
+| `/desk/review-queue` | `23 /desk/review-queue` | `desk/review-queue/page.tsx` | ReviewQueueTable, ReviewQueueDetail | Staff+perm | High | F | todo |
+| `/desk/job-postings` | `23 /desk/job-postings` | `desk/job-postings/page.tsx` | JobPostingsModerationPanel | Staff+perm | Med | F | todo |
+| `/desk/documents` | `23 /desk/documents` | `desk/documents/page.tsx` | DocumentsModerationPanel | Staff+perm | Med | F | todo |
+| `/desk/portfolio` | `23 /desk/portfolio` | `desk/portfolio/page.tsx` | PortfolioModerationPanel | Staff+perm | Low | F | todo |
+| `/desk/outreach` | `23 /desk/outreach` | `desk/outreach/page.tsx` | OutreachModerationPanel | Staff+perm | Low | F | todo |
+| `/desk/ai-actions` | `23 /desk/ai-actions` | `desk/ai-actions/page.tsx` | AiActionsTable | Staff+perm | Low | F | todo |
+| `/osint` | `24 /osint` | `osint/page.tsx` | enrich intake + queues | StaffGuard | High | F | todo |
+| `/osint/jobs` | `24 /osint/jobs` | `osint/jobs/page.tsx` | jobs history | StaffGuard | Med | F | todo |
+| `/osint/jobs/[id]` | `24 /osint/jobs/[id]` | `osint/jobs/[id]/page.tsx` | dossier views | StaffGuard | High | F | todo |
+| `/osint/settings` | `24 /osint/settings` | `osint/settings/page.tsx` | settings cards | StaffGuard | Low | F | todo |
+| `/osint/settings/security` | `24 /osint/settings/security` | `osint/settings/security/page.tsx` | MfaSetupCard | StaffGuard | Med | F | todo |
+| `/b/[slug]` | `25 /b/[slug]` | `b/[slug]/page.tsx` | BrandLandingPage | Public | Low | F | todo |
+| `/b/[slug]/[tier]` | `25 /b/[slug]/[tier]` | `b/[slug]/[tier]/page.tsx` | BrandLandingPage + tier | Public | Low | F | todo |
+| `/p/[slug]` | `25 /p/[slug]` | `p/[slug]/page.tsx` | PublicPortfolioPage | Public | Low | F | todo |
 
-#### `/app/matches` (+ `/app`)
+**Per-screen loading / empty / error:** Prefer existing query `isLoading` / empty copy already in UI; restyle only. If Figma shows empty copy, match string. Do not invent new error UX.
 
-- Route: `/app/matches`, `/app`
-- Files: `app/app/matches/page.tsx`, `app/app/page.tsx`, `features/job-matching/**`, `features/job-swipe/**`
-- Figma: `22 /app/matches`, `22 /app`
-- UI: KPI mosaic, job cards, **Apply = bg-primary + text-primary-foreground**
-- Risk: **High**
-- Owner: E
-
-#### `/app/documents`
-
-- Route: `/app/documents`
-- Files: `app/app/documents/**`, `features/documents/**`, `features/cv-management/**`
-- Figma: `22 /app/documents`
-- UI: Upload well pastel, tabs, table headers
-- Risk: **High**
-- Owner: E
-
-#### `/osint`
-
-- Route: `/osint`
-- Files: `app/osint/page.tsx`, enrich/dossier features
-- Figma: `24 /osint`
-- UI: Mode/tier controls, fields, queues, KPI mosaic — **no field removal**
-- Risk: **High**
-- Owner: F
-
-#### `/desk/users`, `/desk/review-queue`
-
-- Routes: `/desk/users`, `/desk/review-queue`
-- Files: `features/admin/**`
-- Figma: `23 /desk/users`, `23 /desk/review-queue` + dialogs
-- UI: Table + Impersonate / Review dialogs
-- Risk: **High**
-- Owner: F
-
-*(Remaining screens follow the same template using §4 mapping — agents fill during Batch 4–5.)*
+**Form validation:** Unchanged unless Figma adds a field (escalate §11).
 
 ---
 
@@ -506,16 +578,18 @@ Use this template per screen (agents copy into PR):
 
 | Risk | Area | Impact | Likelihood | Mitigation | Owner |
 |------|------|--------|------------|------------|-------|
-| Many screens at once | Process | High | High | Batches + parallel only after shells | H |
-| Shared component break | `ui/*` | High | Med | Snapshot tests; small PRs; contrast checklist | D, G |
-| Figma missing mobile | Responsive | Med | High | Preserve bottom nav; no invented mobile chrome | C, G |
+| Many screens at once | Process | High | High | Batches; E∥F only after D | H |
+| Shared component break | `ui/*` | High | Med | Small PRs; contrast checklist | D, G |
+| Figma missing mobile | Responsive | Med | High | §5.2 keep bottom nav/rail | C, G |
 | Figma missing hover/focus | A11y | Med | Med | Keep Radix focus rings | D |
-| Pastel on primary CTA | Contrast | High | Med | Lint rule / PR checklist; button API | D, E |
-| Permission UI break | Desk/OSINT | High | Low | StaffGuard untouched; e2e desk smoke | F, G |
-| Table/form regression | Desk | High | Med | Behavior-only className diffs | F |
+| Pastel on primary CTA | Contrast | High | Med | Button API + §13 | D, E |
+| Permission UI break | Desk/OSINT | High | Low | StaffGuard untouched | F, G |
+| Table/form regression | Desk | High | Med | ClassName-only in panels | F |
 | Agent conflicts on shell | Git | Med | High | Serialize B→C→D | H |
-| API assumptions in UI | Features | Med | Low | No API changes without ADR | H |
-| Auth layout break | Auth | Med | Med | Keep form fields; skin only | E |
+| API assumptions in UI | Features | Med | Low | No API changes | H |
+| Auth layout break | Auth | Med | Med | Skin only; keep fields | E |
+| Framer Motion swipe break | Swipe | Med | Med | Skin cards; don't rewrite drag | E |
+| Orphan feature UI drift | billing etc. | Low | Med | §15: restyle only if reachable | H |
 
 ---
 
@@ -526,31 +600,31 @@ Use this template per screen (agents copy into PR):
 - [ ] `npm run lint`
 - [ ] `npm run typecheck`
 - [ ] `npm run test:unit`
-- [ ] `npm run test:smoke` (Playwright mocks)
-- [ ] Desk/OSINT smoke with temporary superuser mock **only in local QA**, revert after
+- [ ] `npm run test:smoke`
+- [ ] Desk/OSINT smoke with temporary superuser mock **local QA only**, revert after
 
 ### Manual (per batch)
 
-- [ ] Route loads 200
-- [ ] Screenshot vs Figma frame (desktop)
-- [ ] Primary / destructive CTA readable
-- [ ] Active nav door color correct
-- [ ] Forms still submit
-- [ ] Dialogs open/close
-- [ ] Empty / loading visible where applicable
+- [ ] Route 200
+- [ ] Screenshot vs Figma (§13)
+- [ ] CTA contrast
+- [ ] Door nav color
+- [ ] Forms submit
+- [ ] Dialogs (§14)
+- [ ] Empty/loading
 
 ### Accessibility basics
 
-- [ ] Focus visible on inputs/buttons
-- [ ] Contrast ≥ WCAG AA for text on pastel and primary
-- [ ] Dialogs trap focus (Radix)
+- [ ] Focus visible
+- [ ] Contrast AA on pastel + primary
+- [ ] Dialog/sheet focus trap
 
 ### Release gate
 
-- [ ] Batches 1–5 complete or explicitly deferred
+- [ ] Batches 1–5 done or deferred with note
 - [ ] No open High bugs
 - [ ] Smoke + unit green
-- [ ] `MOCK_USER.is_superuser` is `false` on mainline
+- [ ] `MOCK_USER.is_superuser` false on mainline
 - [ ] Integrator sign-off
 
 ---
@@ -559,29 +633,33 @@ Use this template per screen (agents copy into PR):
 
 ### Missing screens / states
 
-1. Are **mobile** shells intended to match float desktop, or keep current bottom-nav-only pattern?
-2. Do we need dedicated Figma frames for **loading skeletons** and **API error** toasts?
+1. Mobile shells: float desktop vs keep bottom-nav? (**Assumption until answered:** §5.2 keep current mobile chrome.)
+2. Dedicated Figma loading/error frames?
 
 ### Conflicting layouts
 
-3. Figma uses **Inter**; app uses **IBM Plex** — confirm keep Plex in production.
-4. `/app` and `/app/matches` both show Job matches in Figma — should `/app` redirect to `/matches` long-term, or stay duplicate hub? (**Assumption:** keep both routes; shared visual.)
+3. Keep IBM Plex vs switch to Inter? (**Assumption:** keep Plex.)
+4. `/app` vs `/app/matches` duplicate? (**Assumption:** both stay; shared visual.)
 
 ### Responsive
 
-5. Tablet breakpoint for float sidebar collapse — keep `lg` as today?
+5. Keep `lg` sidebar breakpoint?
 
 ### Component behavior
 
-6. Pastel KPI cycling — fixed order mint→sky→peach→sand, or meaning-based (Failed always danger)? (**Assumption:** meaning wins for Failed/Blocked; else cycle.)
+6. Pastel cycle vs meaning-based KPIs? (**Assumption:** Failed/Blocked → danger; else cycle.)
 
 ### Data / API
 
-7. Any Figma field on OSINT/Desk **not** in current forms? (**Assumption:** content-parity already matched — no new fields.)
+7. New fields in Figma not in forms? (**Assumption:** none.)
 
 ### Auth / permissions
 
-8. Should non-staff seeing Desk nav items ever appear in Figma? (**Assumption:** no — permission filter stays.)
+8. Show Desk nav to non-staff in UI? (**Assumption:** no.)
+
+### Orphan features
+
+9. Should `billing` / `interview-scheduling` get Figma frames? (**Assumption:** out of scope until designed; if UI reachable, light-token restyle only — §15.)
 
 *Unanswered items do not block Batches 0–3.*
 
@@ -595,9 +673,9 @@ flowchart TD
   b1[Batch1 Tokens]
   b2[Batch2 Shells]
   b3[Batch3 UI Components]
-  b4[Batch4 High-traffic screens]
-  b5[Batch5 Secondary screens]
-  b6[Batch6 States and responsive QA]
+  b4[Batch4 High-traffic]
+  b5[Batch5 Secondary sequenced]
+  b6[Batch6 States QA]
   b7[Batch7 Release gate]
   b0 --> b1 --> b2 --> b3
   b3 --> b4
@@ -609,43 +687,118 @@ flowchart TD
 
 | Step | Sequential? | Parallel? |
 |------|-------------|-----------|
-| 1. Inventory / mapping | Done (this doc) | A maintains |
-| 2. Tokens | After 0 | Alone |
-| 3. Shells | After tokens | Alone |
-| 4. Shared components | After shells | Alone |
-| 5. Screen batches | After components | **E ∥ F** by door |
-| 6. Responsive / state QA | After screens | G |
-| 7. Integration review | Last | H |
+| Inventory | Done | A maintains |
+| Tokens | After 0 | Alone |
+| Shells | After tokens | Alone |
+| Components | After shells | Alone |
+| Screens | After components | **E ∥ F** |
+| QA | After screens | G |
+| Gate | Last | H |
 
-### Must be sequential
+---
 
-Tokens → Shells → Core UI components
+## 13. Visual acceptance rubric (Definition of Done)
 
-### Can be parallel
+A screen/dialog is **done** when all apply:
 
-- Candidate screens (E) ∥ Desk/OSINT/Public screens (F) after Batch 3
-- QA smoke can run continuously after Batch 2
+1. **Structure:** Same routes, fields, buttons, tables, permissions as before (no removed controls).
+2. **Desktop look:** Side-by-side with Figma frame at ~1440 width — float shell (if shelled), door/pastel/status colors, typography scale in family.
+3. **Contrast:** Primary/destructive buttons use `*-foreground` white (or AA) text. No pastel-deep on forest fill.
+4. **KPI/cards:** Decorative strips use pastel cycle; Failed/Blocked use danger.
+5. **States:** Loading/empty/error still work; empty copy matches Figma when present.
+6. **Motion:** Existing motion still works (§16); no new motion required.
+7. **Tests:** Affected unit tests pass; smoke still green after High screens.
+8. **Evidence:** Before/after screenshot attached to work item (local or PR).
+
+**Not required for DoD:** Pixel-perfect Inter metrics; mobile Figma parity; hover variants missing from Figma.
+
+---
+
+## 14. Dialog / sheet inventory (Figma ↔ code)
+
+| Figma artboard | Code location | Type | Owner | Notes |
+|----------------|---------------|------|-------|-------|
+| `22 /app/tracker · Dialog: Add a job` | `features/manual-jobs/components/AddManualJobDialog.tsx` | Dialog | E | Restyle chrome |
+| `22 /app/outreach · Dialog: Draft outreach` | `features/outreach/components/DraftOutreachDialog.tsx` | Dialog | E | |
+| `22 /app/settings · Dialog: Delete account` | `features/settings/components/SettingsView.tsx` (inline Dialog) | Dialog | E | Title may differ — keep confirm flow |
+| `22 /app/settings/security · Dialog: Disable 2FA` | `features/admin/components/MfaSetupCard.tsx` | `window.confirm` + prompt today | E | **Gap:** Figma is a Dialog; code uses browser confirm. Restyle path: either skin confirm UX as-is **or** promote to Dialog matching Figma (behavior-preserving). Prefer Dialog for parity. |
+| `24 /osint/settings/security · Dialog: Disable 2FA` | Same `MfaSetupCard` | same | F | Shared component — one change |
+| `23 /desk/linkedin-tasks · Dialog: Create batch` | `features/admin/components/LinkedInTasksPanel.tsx` | inline Dialog | F | |
+| `23 /desk/brands · Dialog: Create brand` | `app/desk/brands/page.tsx` | inline Dialog create/edit | F | |
+| `23 /desk/users · Dialog: Impersonate` | `features/admin/components/ImpersonateUserDialog.tsx` | Dialog | F | |
+| `23 /desk/review-queue · Dialog: Review decision` | `features/admin/components/ReviewQueueDetail.tsx` | **Sheet** (drawer) | F | Figma says Dialog; **keep Sheet** behavior; match visual density/colors |
+| `23 /desk/job-postings · Dialog: Hide/Remove reason` | `JobPostingsModerationPanel.tsx` | often `window.confirm` today | F | Same as MFA: prefer Dialog for reason field if product already collects reason in UI; else restyle confirm |
+
+**Also in app, not in Figma dialog list:**
+
+| Code | Figma | Action |
+|------|-------|--------|
+| `ScheduleInterviewDialog` | Missing | §15 orphan — no redesign required |
+| Various `window.confirm` destructives | Missing | Keep; optional later Dialog |
+
+---
+
+## 15. Feature modules without dedicated Figma routes (orphan UI)
+
+These live under `frontend/features/` but have **no** matching Figma route frame:
+
+| Feature | Typical surface | Migration action |
+|---------|-----------------|------------------|
+| `billing` | SubscriptionCard (if mounted) | Token-level only if reachable; else skip |
+| `interview-scheduling` | ScheduleInterviewDialog | Skip visual redesign until Figma exists |
+| Console-only helpers under `components/console/**` | Legacy console | Out of scope unless linked from `/app` |
+| `components/dossier/**` | Used by OSINT job detail | Restyle with `/osint/jobs/[id]` (Batch 5C) — **in scope** as dependency |
+
+**Rule:** Do not invent Figma for orphans. If a High screen imports them, apply shared tokens only.
+
+---
+
+## 16. Motion / Framer Motion
+
+| Area | Today | Figma | Decision |
+|------|-------|-------|----------|
+| Job swipe | `framer-motion` drag in `SwipeCard.tsx` | Static cards | **Keep motion**; only restyle card colors/type |
+| Page transitions | Minimal | None | Do not add |
+| Sidebar | CSS | None | No animation requirement |
+
+**Do not** rewrite swipe physics during visual migration.
+
+---
+
+## 17. Screenshot / comparison method (Batch 0 + 6–7)
+
+Without mandating a specific CI product:
+
+1. Capture desktop screenshots at 1440×900 (or device-scale equivalent) for routes in §8 High+Med.
+2. Open matching Figma frame (`20–25`) beside screenshot.
+3. Check §13 rubric (not pixel-diff mandatory).
+4. Store baselines under a **gitignored** local folder e.g. `frontend/.design-baseline/` (do not commit binaries unless team agrees).
+5. Optional later: Playwright screenshot asserts — not a Batch 0 blocker.
 
 ---
 
 ## Assumptions (explicit)
 
-1. Figma file `8x0vctnbpqr6WAF7ACyG7I` is the visual source of truth for this migration.
-2. `90 Archive Twin` is reference only — not a shipping target.
-3. No API / OpenAPI / backend changes in this program.
-4. IBM Plex remains the production font unless Product overrides §11.3.
-5. Content-parity field inventory already matches product — migration is **skin + layout**, not new features.
-6. Desktop-first; mobile keeps existing patterns until design delivers frames.
+1. Figma `8x0vctnbpqr6WAF7ACyG7I` is visual source of truth.
+2. `90 Archive Twin` is reference only.
+3. No API / OpenAPI / backend changes.
+4. IBM Plex stays unless §11.3 overrides.
+5. Content-parity fields already match — skin/layout only.
+6. Desktop-first; mobile chrome per §5.2 until design delivers.
+7. Review queue stays a **Sheet** even if Figma labels it Dialog.
+8. MFA disable may be upgraded to Dialog for parity (same confirm semantics).
 
 ---
 
 ## Out of scope
 
 - Rewriting feature business logic
-- Implementing float shell as a separate product
+- New product features / routes
 - Dark mode
 - Deleting routes or Archive Twin
 - Changing permission models
+- Pixel-perfect Inter typography swap
+- Inventing mobile Figma
 
 ---
 
