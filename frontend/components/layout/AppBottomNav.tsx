@@ -31,9 +31,9 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
 
   return (
     <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-      <nav className="border-t border-border bg-card px-2 py-2 md:hidden">
+      <nav className="border-t border-border/70 bg-background/80 px-3 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
         <ul
-          className="grid gap-1"
+          className="mx-auto grid max-w-xl gap-1 rounded-[1.25rem] border border-border/70 bg-surface-elevated/95 p-1.5 shadow-panel"
           style={{ gridTemplateColumns: `repeat(${primaryItems.length + 1}, minmax(0, 1fr))` }}
         >
           {primaryItems.map((item) => {
@@ -46,9 +46,11 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative flex flex-col items-center gap-1 rounded-md px-2 py-2 text-xs",
+                    "relative flex flex-col items-center gap-1 rounded-xl px-2 py-2.5 text-xs",
                     NAV_FOCUS,
-                    active ? "bg-secondary text-primary" : "text-muted-foreground",
+                    active
+                      ? "border border-border/70 bg-secondary/90 text-primary shadow-sm"
+                      : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
                   )}
                 >
                   <span className="relative">
@@ -68,9 +70,11 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
                 ref={moreTriggerRef}
                 type="button"
                 className={cn(
-                  "flex w-full flex-col items-center gap-1 rounded-md px-2 py-2 text-xs",
+                  "flex w-full flex-col items-center gap-1 rounded-xl px-2 py-2.5 text-xs",
                   NAV_FOCUS,
-                  moreActive ? "bg-secondary text-primary" : "text-muted-foreground",
+                  moreActive
+                    ? "border border-border/70 bg-secondary/90 text-primary shadow-sm"
+                    : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
                 )}
                 aria-expanded={moreOpen}
               >
@@ -84,7 +88,7 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
 
       <SheetContent
         side="bottom"
-        className="rounded-t-xl pb-8 md:hidden"
+        className="rounded-t-[1.75rem] border-border/70 bg-surface-elevated px-4 pb-8 shadow-overlay md:hidden"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           moreTriggerRef.current?.focus();

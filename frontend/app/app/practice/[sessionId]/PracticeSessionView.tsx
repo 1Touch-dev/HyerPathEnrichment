@@ -3,8 +3,23 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AlertCircle } from "lucide-react";
+import {
+  ShellPageHeader,
+  ShellPageHeaderActions,
+  ShellPageHeaderContent,
+  ShellPageHeaderDescription,
+  ShellPageHeaderEyebrow,
+  ShellPageHeaderTitle,
+  ShellSection,
+  ShellSectionHeader,
+  ShellSectionHeaderContent,
+  ShellSectionHeaderDescription,
+  ShellSectionHeaderTitle,
+} from "@/components/layout/ShellPage";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/console/EmptyState";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -65,6 +80,8 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
 
   const mutationError =
     questionsMutation.error ?? audioUploadMutation.error ?? addAttemptMutation.error;
+  const answeredCount = session.attempts.length;
+  const totalCount = questions.length || answeredCount;
 
   async function handleGenerateQuestions() {
     const result = await questionsMutation.mutateAsync({ jobRole: "software_engineer" });
@@ -100,16 +117,57 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Practice session</h1>
-          <p className="text-sm text-muted-foreground">
-            {session.attempts.length} of {questions.length || session.attempts.length} answered
-          </p>
-        </div>
-        <Button variant="outline" asChild>
-          <Link href={`/app/practice/${sessionId}/report`}>View report</Link>
-        </Button>
+      <ShellPageHeader>
+        <ShellPageHeaderContent>
+          <ShellPageHeaderEyebrow>Candidate workspace</ShellPageHeaderEyebrow>
+          <ShellPageHeaderTitle>Practice session</ShellPageHeaderTitle>
+          <ShellPageHeaderDescription>
+            Keep moving through the current question set with either typed or recorded answers.
+          </ShellPageHeaderDescription>
+        </ShellPageHeaderContent>
+        <ShellPageHeaderActions className="items-start sm:items-center">
+          <Badge variant={isJdTailored ? "info" : "outline"}>
+            {isJdTailored ? "JD-tailored" : "Role-based"}
+          </Badge>
+          <Badge variant="outline">
+            {answeredCount} of {totalCount} answered
+          </Badge>
+          <Button variant="outline" asChild>
+            <Link href={`/app/practice/${sessionId}/report`}>View report</Link>
+          </Button>
+        </ShellPageHeaderActions>
+      </ShellPageHeader>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <p className="text-sm text-muted-foreground">Answered</p>
+            <CardTitle className="text-3xl text-primary">{answeredCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Completed responses in this session so far.
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <p className="text-sm text-muted-foreground">Remaining</p>
+            <CardTitle className="text-3xl text-primary">
+              {Math.max(totalCount - answeredCount, 0)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Questions left before the report is complete.
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <p className="text-sm text-muted-foreground">Response mode</p>
+            <CardTitle className="text-3xl text-primary capitalize">{responseType}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Switch between text and audio whenever you want.
+          </CardContent>
+        </Card>
       </div>
 
       {mutationError ? (
@@ -142,7 +200,17 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
           />
         )
       ) : (
-        <>
+        <ShellSection>
+          <ShellSectionHeader>
+            <ShellSectionHeaderContent>
+              <ShellSectionHeaderTitle>Current question</ShellSectionHeaderTitle>
+              <ShellSectionHeaderDescription>
+                Answer in the format that feels most natural, then review the feedback before moving
+                on.
+              </ShellSectionHeaderDescription>
+            </ShellSectionHeaderContent>
+          </ShellSectionHeader>
+
           <QuestionCard question={currentQuestion} />
 
           <Tabs
@@ -175,7 +243,7 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
           )}
 
           {currentAttempt && <FeedbackPanel attempt={currentAttempt} />}
-        </>
+        </ShellSection>
       )}
     </div>
   );

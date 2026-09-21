@@ -2,6 +2,8 @@
 
 import { useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -58,38 +60,55 @@ export function TrackerFilterBar() {
   );
 
   return (
-    <div className="flex flex-wrap items-end gap-4">
-      <div>
-        <Label htmlFor="tracker-status-filter">Status</Label>
-        <Select value={status} onValueChange={(value) => setParam("status", value)}>
-          <SelectTrigger id="tracker-status-filter" className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+    <FilterBar>
+      <FilterBarGroup>
+        <div className="min-w-[180px] flex-1">
+          <Label htmlFor="tracker-status-filter">Status</Label>
+          <Select value={status} onValueChange={(value) => setParam("status", value)}>
+            <SelectTrigger id="tracker-status-filter" className="w-full sm:w-[220px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-      <div>
-        <Label htmlFor="tracker-sort">Sort</Label>
-        <Select value={sort} onValueChange={(value) => setParam("sort", value)}>
-          <SelectTrigger id="tracker-sort" className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+        <div className="min-w-[180px] flex-1">
+          <Label htmlFor="tracker-sort">Sort</Label>
+          <Select value={sort} onValueChange={(value) => setParam("sort", value)}>
+            <SelectTrigger id="tracker-sort" className="w-full sm:w-[220px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </FilterBarGroup>
+      <FilterBarActions>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete("status");
+            params.delete("sort");
+            router.replace(pathname);
+          }}
+          disabled={!searchParams.toString()}
+        >
+          Reset filters
+        </Button>
+      </FilterBarActions>
+    </FilterBar>
   );
 }

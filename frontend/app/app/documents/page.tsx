@@ -1,5 +1,17 @@
 "use client";
 
+import {
+  ShellPageHeader,
+  ShellPageHeaderContent,
+  ShellPageHeaderDescription,
+  ShellPageHeaderEyebrow,
+  ShellPageHeaderTitle,
+  ShellSection,
+  ShellSectionHeader,
+  ShellSectionHeaderContent,
+  ShellSectionHeaderDescription,
+  ShellSectionHeaderTitle,
+} from "@/components/layout/ShellPage";
 import { DocumentUploadCard } from "@/components/console/DocumentUploadCard";
 import { DocumentList } from "@/components/console/DocumentList";
 import { DocumentSearchPanel } from "@/components/console/DocumentSearchPanel";
@@ -11,28 +23,44 @@ export default function DocumentsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
-        <p className="text-sm text-muted-foreground">
-          Upload your CV or cover letter to power job matching, then browse and search your
-          documents below.
-        </p>
-      </div>
+      <ShellPageHeader>
+        <ShellPageHeaderContent>
+          <ShellPageHeaderEyebrow>Candidate workspace</ShellPageHeaderEyebrow>
+          <ShellPageHeaderTitle>Documents</ShellPageHeaderTitle>
+          <ShellPageHeaderDescription>
+            Upload your CV or cover letter to power job matching, then browse and search your
+            documents below.
+          </ShellPageHeaderDescription>
+        </ShellPageHeaderContent>
+      </ShellPageHeader>
 
-      <DocumentUploadCard />
+      <ShellSection surface="muted">
+        <DocumentUploadCard />
+      </ShellSection>
 
-      <Tabs defaultValue="documents">
-        <TabsList>
-          <TabsTrigger value="documents">Your documents</TabsTrigger>
-          <TabsTrigger value="search">Search</TabsTrigger>
-        </TabsList>
-        <TabsContent value="documents">
-          <DocumentList documents={documents ?? []} loading={isLoading} />
-        </TabsContent>
-        <TabsContent value="search">
-          <DocumentSearchPanel />
-        </TabsContent>
-      </Tabs>
+      <ShellSection>
+        <ShellSectionHeader>
+          <ShellSectionHeaderContent>
+            <ShellSectionHeaderTitle>Your document workspace</ShellSectionHeaderTitle>
+            <ShellSectionHeaderDescription>
+              Switch between the full list and document search without leaving the candidate shell.
+            </ShellSectionHeaderDescription>
+          </ShellSectionHeaderContent>
+        </ShellSectionHeader>
+
+        <Tabs defaultValue="documents">
+          <TabsList>
+            <TabsTrigger value="documents">Your documents</TabsTrigger>
+            <TabsTrigger value="search">Search</TabsTrigger>
+          </TabsList>
+          <TabsContent value="documents">
+            <DocumentList documents={documents ?? []} loading={isLoading} />
+          </TabsContent>
+          <TabsContent value="search">
+            <DocumentSearchPanel />
+          </TabsContent>
+        </Tabs>
+      </ShellSection>
     </div>
   );
 }

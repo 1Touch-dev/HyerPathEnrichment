@@ -7,8 +7,15 @@ import { RawJsonPanel } from "@/components/console/RawJsonPanel";
 import { EmptyState } from "@/components/console/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import { DossierTabView } from "./DossierTabView";
 import { EntityDetailPanel } from "./EntityDetailPanel";
 import type { DossierEntity } from "./dossier-entity";
@@ -22,15 +29,6 @@ type DossierViewProps = {
   job: EnrichmentJob;
 };
 
-function SectionSkeleton() {
-  return (
-    <div className="flex flex-col gap-2">
-      <Skeleton className="h-4 w-1/3" />
-      <Skeleton className="h-20 w-full" />
-    </div>
-  );
-}
-
 function EmptyMessage({ message }: { message: string }) {
   return <p className="text-sm text-muted-foreground">{message}</p>;
 }
@@ -39,6 +37,12 @@ export function DossierView({ job }: DossierViewProps) {
   const { dossier, status } = job;
   const loading = status === "running" || status === "queued";
   const suppressed = status === "suppressed";
+  const evidenceCount =
+    dossier.handles.length +
+    dossier.emails.length +
+    dossier.verifiedEmails.length +
+    dossier.jobs.length +
+    dossier.confidence.length;
 
   // Legacy helpers below are kept temporarily during the refactor.
   // Referencing them prevents TS noUnusedLocals errors while the codebase migrates.
@@ -108,21 +112,52 @@ export function DossierView({ job }: DossierViewProps) {
       )}
 
       {status === "completed" && (
-        <Alert className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20">
-          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-          <AlertTitle className="text-green-900 dark:text-green-100">Complete</AlertTitle>
-          <AlertDescription className="text-green-800 dark:text-green-200">
+        <Alert className="border-success/20 bg-success/10 text-success">
+          <CheckCircle className="h-4 w-4" />
+          <AlertTitle className="text-foreground">Complete</AlertTitle>
+          <AlertDescription className="text-foreground/80">
             Enrichment completed at {new Date(job.updatedAt).toLocaleTimeString()}
           </AlertDescription>
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">Merged dossier</p>
+      <Card className="overflow-hidden">
+        <CardHeader className="gap-5 border-b border-border/60 bg-surface-muted/40">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{job.input.requestedTiers.length} requested tiers</Badge>
+            <Badge variant="info">{evidenceCount} evidence points</Badge>
+            <Badge variant="secondary">{dossier.sources.length} sources</Badge>
+          </div>
           <DossierSummary dossier={dossier} loading={loading} />
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5 pt-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryMetric label="Handles" value={dossier.handles.length} />
+            <SummaryMetric
+              label="Emails"
+              value={dossier.emails.length + dossier.verifiedEmails.length}
+            />
+            <SummaryMetric label="Professional leads" value={dossier.jobs.length} />
+            <SummaryMetric label="Confidence rules" value={dossier.confidence.length} />
+          </div>
+
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Evidence review</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Work through the tabs on the left, then inspect the selected item in the detail
+                panel.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              {selectedEntity ? (
+                <Badge variant="success">Detail selected</Badge>
+              ) : (
+                <Badge variant="outline">Pick a finding</Badge>
+              )}
+            </SectionHeaderActions>
+          </SectionHeader>
+
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
             <div className="min-w-0">
               <DossierTabView
@@ -137,7 +172,9 @@ export function DossierView({ job }: DossierViewProps) {
               {selectedEntity ? (
                 <EntityDetailPanel dossier={dossier} entity={selectedEntity} />
               ) : (
-                <EmptyMessage message="Select a finding to view details." />
+                <div className="rounded-xl border border-dashed border-border/70 bg-surface p-6 text-sm text-muted-foreground">
+                  Select a finding to view its details, supporting evidence, and raw payload.
+                </div>
               )}
             </div>
           </div>
@@ -159,6 +196,17 @@ export function DossierView({ job }: DossierViewProps) {
         </CardContent>
       </Card>
       <RawJsonPanel job={job} />
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-border/70 bg-surface p-4">
+      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
     </div>
   );
 }

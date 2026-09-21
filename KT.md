@@ -503,9 +503,9 @@ The project uses multiple Docker Compose files for different environments and co
 |------|---------|-------|
 | [`docker-compose.yml`](backend/docker/docker-compose.yml) | Base services (API, worker, postgres, redis, sidecars) | Default stack |
 | [`docker-compose.prod.yml`](backend/docker/docker-compose.prod.yml) | Production overrides (port bindings, replicas) | Production deployment |
-| [`docker-compose.tier1.yml`](backend/docker/docker-compose.tier1.yml) | Tier 1 worker with Multilogin secrets | When LinkedIn photo scraping needed |
-| [`docker-compose.tier-workers.yml`](backend/docker/docker-compose.tier-workers.yml) | Separate tier workers (tier1, tier234) | Horizontal scaling |
-| [`docker-compose.multilogin.yml`](backend/docker/docker-compose.multilogin.yml) | Linux containerized Multilogin | Production Tier 1 on Linux |
+| [`docker-compose.tier1.yml`](backend/docker/docker-compose.tier1.yml) | Legacy Tier 1 diagnostic override | WSL2/Windows launcher diagnostics only; not the supported Linux Tier 1 path |
+| [`docker-compose.tier-workers.yml`](backend/docker/docker-compose.tier-workers.yml) | Separate tier workers (tier1, tier234) | Supported worker split / horizontal scaling |
+| [`docker-compose.multilogin.yml`](backend/docker/docker-compose.multilogin.yml) | Linux containerized Multilogin | Supported Linux Tier 1 when paired with `tier-workers.yml` |
 | [`docker-compose.fake-sidecars.yml`](backend/docker/docker-compose.fake-sidecars.yml) | Fake sidecars for testing | CI/CD integration tests |
 | [`docker-compose.loadtest.yml`](backend/docker/docker-compose.loadtest.yml) | Load testing configuration | Performance testing |
 | [`docker-compose.staging.yml`](backend/docker/docker-compose.staging.yml) | Staging environment overrides | Staging deployment |
@@ -546,27 +546,18 @@ make up
 - google-maps-scraper (Tier 4)
 - email-verifier (Tier 3 basic)
 
-#### With Tier 1 (LinkedIn Photo)
+#### Supported Tier 1 on Linux (LinkedIn Photo)
 
 **Requirements:**
-- Multilogin X running on host
+- Real Linux host
 - LinkedIn bot credentials
 - R2 credentials (or local cache)
 
 ```bash
-cd backend/docker
-
-# Load secrets from backend/.env
-docker compose -f docker-compose.yml -f docker-compose.tier1.yml up -d
-
-# Or specify custom env file:
-docker compose --env-file /path/to/tier1-secrets.env \
-  -f docker-compose.yml \
-  -f docker-compose.tier1.yml \
-  up -d
+bash backend/scripts/start_production.sh --with-linux-mlx
 ```
 
-**Note:** Tier 1 requires special network configuration. See [Section 7](#7-multilogin-setup--issues) and [Section 14](#14-docker-network-configuration).
+**Note:** This is the supported Linux MLX production path (`docker-compose.yml + docker-compose.prod.yml + docker-compose.foundation.yml + docker-compose.tier-workers.yml + docker-compose.multilogin.yml`). The legacy `docker-compose.tier1.yml` flow is still useful for WSL2/Windows launcher diagnostics, but it is not the supported Linux Tier 1 path.
 
 #### Production with Scaled Workers
 
@@ -581,8 +572,8 @@ docker compose --env-file ../.env.production \
 ```
 
 **Configuration:**
-- `worker-tier1`: 1 instance (cannot scale due to host network)
 - `worker-tier234`: 6 instances (scalable, bridge network)
+- `worker-tier1`: add only when the Linux MLX family is also enabled for Tier 1
 
 See [`README-DEPLOYMENT.md`](backend/docker/README-DEPLOYMENT.md) for production deployment guide.
 
@@ -832,7 +823,6 @@ cd backend/docker
 docker compose --env-file ../.env.production \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.multilogin.yml \
   -f docker-compose.foundation.yml \
@@ -845,15 +835,14 @@ docker compose --env-file ../.env.production \
 # 1. Loads production environment variables
 # 2. Uses base services (docker-compose.yml)
 # 3. Applies production overrides (docker-compose.prod.yml)
-# 4. Adds Tier 1 worker (docker-compose.tier1.yml) - 1 instance
-# 5. Adds tier workers (docker-compose.tier-workers.yml) - 1 worker-tier234
-# 6. Adds Multilogin container (docker-compose.multilogin.yml)
-# 7. Adds Foundation Week 1 workers (docker-compose.foundation.yml)
-# 8. Enables paid services profile (reacher, scrapoxy)
-# 9. Enables LLM services profile (litellm, ollama)
-# 10. Enables observability profile (langfuse, glitchtip, changedetection)
-# 11. Builds all images fresh (--build)
-# 12. Runs in background (-d)
+# 4. Adds tier workers (docker-compose.tier-workers.yml) - worker-tier1 + worker-tier234
+# 5. Adds Multilogin container (docker-compose.multilogin.yml)
+# 6. Adds Foundation Week 1 workers (docker-compose.foundation.yml)
+# 7. Enables paid services profile (reacher, scrapoxy)
+# 8. Enables LLM services profile (litellm, ollama)
+# 9. Enables observability profile (langfuse, glitchtip, changedetection)
+# 10. Builds all images fresh (--build)
+# 11. Runs in background (-d)
 ```
 
 **Production (Scaled Workers):**
@@ -865,7 +854,6 @@ cd backend/docker
 docker compose --env-file ../.env.production \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.multilogin.yml \
   -f docker-compose.foundation.yml \
@@ -908,11 +896,7 @@ docker compose --env-file ../.env.production \
   up -d --build --scale worker-tier234=6
 
 # Or use the production script (recommended for Linux)
-bash ../scripts/start_production.sh \
-  --env-file ../.env.production \
-  --with-tier1 \
-  --with-observability \
-  --with-llm
+bash ../scripts/start_production.sh --with-linux-mlx
 ```
 
 **Stop Everything:**
@@ -924,7 +908,6 @@ cd backend/docker
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.foundation.yml \
   --profile paid \
@@ -936,7 +919,6 @@ docker compose \
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.foundation.yml \
   --profile paid \
@@ -954,7 +936,6 @@ cd backend/docker
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.foundation.yml \
   build --no-cache
@@ -963,7 +944,6 @@ docker compose \
 docker compose --env-file ../.env.production \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.foundation.yml \
   --profile paid \
@@ -1228,9 +1208,9 @@ python -m app.workers.rq_worker
 
 **Linux Production:**
 ```bash
-# Use host network mode for both Multilogin and worker
-docker compose -f docker-compose.yml -f docker-compose.tier1.yml up -d
-# Both share the host's 127.0.0.1
+# Use the supported Linux MLX production family
+bash backend/scripts/start_production.sh --with-linux-mlx
+# This starts worker-tier1 + worker-tier234 + multilogin with the supported Linux topology
 ```
 
 See [Section 7](#7-multilogin-setup--issues) and [`docs/DEV_SETUP_WSL.md`](docs/DEV_SETUP_WSL.md).
@@ -1395,8 +1375,8 @@ python -m app.workers.rq_worker
 
 **Fix (Linux Production):**
 ```bash
-# Use host network mode
-docker compose -f docker-compose.yml -f docker-compose.tier1.yml up -d
+# Use the supported Linux MLX production family
+bash backend/scripts/start_production.sh --with-linux-mlx
 ```
 
 See [`docs/DEV_SETUP_WSL.md`](docs/DEV_SETUP_WSL.md) for detailed WSL2 setup.
@@ -1709,12 +1689,9 @@ graph TB
 **Production Deployment:**
 ```bash
 # Via production script
-bash backend/scripts/start_production.sh --env-file .env.production
+bash backend/scripts/start_production.sh
 
-# With Tier 1
-bash backend/scripts/start_production.sh --with-tier1
-
-# With Linux Multilogin
+# Supported Tier 1 on Linux
 bash backend/scripts/start_production.sh --with-linux-mlx
 ```
 
@@ -2140,7 +2117,7 @@ docker compose --env-file /path/to/.env.production up
 
 # Worker-specific secrets (Tier 1)
 export WORKER_ENV_FILE=/path/to/tier1-secrets.env
-docker compose -f docker-compose.tier1.yml up
+bash backend/scripts/start_production.sh --with-linux-mlx
 ```
 
 ### 13.2 Critical Production Variables
@@ -2203,8 +2180,8 @@ LINKEDIN_BOT_PASSWORD=                # Bot account password
 
 **Tier 1 Worker (host network):**
 ```bash
-# docker-compose.tier1.yml overrides these:
-DATABASE_URL=postgresql+asyncpg://...@127.0.0.1:5432/...
+# Supported Linux MLX runtime (`start_production.sh --with-linux-mlx`) overrides these:
+DATABASE_URL=postgresql+asyncpg://...@127.0.0.1:5433/...
 REDIS_URL=redis://127.0.0.1:6379/0
 MULTILOGIN_SELENIUM_HOST=http://127.0.0.1
 ```
@@ -2971,8 +2948,7 @@ npm run build                            # Production build
 
 ```bash
 # Deployment
-bash backend/scripts/start_production.sh --env-file .env.production
-bash backend/scripts/start_production.sh --with-tier1
+bash backend/scripts/start_production.sh
 bash backend/scripts/start_production.sh --with-linux-mlx
 
 # Production smoke
@@ -3050,7 +3026,6 @@ cd backend/docker
 docker compose --env-file ../.env.production \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.multilogin.yml \
   -f docker-compose.foundation.yml \
@@ -3067,7 +3042,6 @@ docker compose --env-file ../.env.production \
 docker compose --env-file ../.env.production \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.multilogin.yml \
   -f docker-compose.foundation.yml \
@@ -3095,7 +3069,6 @@ docker compose --env-file ../.env.production \
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.foundation.yml \
   --profile paid \
@@ -3109,7 +3082,6 @@ docker compose \
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.foundation.yml \
   ps

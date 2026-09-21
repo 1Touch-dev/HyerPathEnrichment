@@ -5,11 +5,20 @@ import { useEffect, useRef } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DossierView } from "@/components/console/DossierView";
 import { EmptyState } from "@/components/console/EmptyState";
 import { JobProgress } from "@/components/console/JobProgress";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  PageHeader,
+  PageHeaderActions,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderEyebrow,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
 import { useJobQuery } from "@/features/enrich/hooks/useJobQuery";
 import { isTerminalStatus } from "@/src/lib/enrich-poll";
 import { formatApiErrorMessage } from "@/src/lib/format-api-error";
@@ -22,7 +31,7 @@ type JobDetailViewProps = {
 function LoadingSkeleton() {
   return (
     <div className="flex flex-col gap-6">
-      <div>
+      <div className="space-y-2">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="mt-2 h-4 w-96" />
       </div>
@@ -123,18 +132,30 @@ export function JobDetailView({ jobId, jobsHref }: JobDetailViewProps) {
         <ArrowLeft className="mr-2 size-4" />
         Back to Jobs
       </Button>
-      <div className="flex items-center gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Job dossier</h1>
-          <p className="font-mono text-sm text-muted-foreground">{job.id}</p>
-        </div>
-        {isPolling ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            <span>Checking for updates...</span>
-          </div>
-        ) : null}
-      </div>
+      <PageHeader>
+        <PageHeaderContent>
+          <PageHeaderEyebrow>Dossier detail</PageHeaderEyebrow>
+          <PageHeaderTitle>Job dossier</PageHeaderTitle>
+          <PageHeaderDescription className="space-y-2">
+            <span className="block font-mono text-xs text-muted-foreground sm:text-sm">
+              {job.id}
+            </span>
+            <span className="block">
+              Review live progress, merged findings, and the request payload without leaving the
+              shared workflow surface.
+            </span>
+          </PageHeaderDescription>
+        </PageHeaderContent>
+        <PageHeaderActions className="items-start sm:items-center">
+          <Badge variant={isTerminalStatus(job.status) ? "success" : "warning"}>{job.status}</Badge>
+          {isPolling ? (
+            <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Checking for updates...
+            </span>
+          ) : null}
+        </PageHeaderActions>
+      </PageHeader>
       <JobProgress job={job} polling={isPolling} pollTimedOut={false} onRefresh={() => refetch()} />
       <DossierView job={job} />
     </div>

@@ -334,9 +334,10 @@ export function DsarOpsForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>DSAR operations</CardTitle>
+        <CardTitle>Privacy request</CardTitle>
         <CardDescription>
-          Internal access and deletion requests. Public opt-out is at /opt-out.
+          Request a copy of your data or ask us to delete it. Public opt-out stays available at
+          `/opt-out`.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -63,6 +63,7 @@ setup("authenticate against live backend", async ({ page }) => {
         ...process.env,
         APP_ENV: "development",
         COOKIE_SECURE: "false",
+        ALLOW_E2E_SUPERUSER_BOOTSTRAP: "1",
       },
     },
   );

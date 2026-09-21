@@ -40,6 +40,10 @@ from app.core.config import get_settings
 from app.database.session import init_db
 from app.domain.dossier import PhotoAsset
 from app.infrastructure.redis import get_redis_client
+from app.clients.multilogin import (
+    normalize_multilogin_launcher_url,
+    normalize_multilogin_selenium_host,
+)
 from app.integrations.linkedin.browser_facade import LinkedInBrowserClient, LinkedInPhotoError
 from app.integrations.linkedin.urls import extract_linkedin_slug
 from app.storage.photo_cache import PhotoCache, _redis_key, slug_hash
@@ -56,10 +60,11 @@ OUT_DIR = ROOT / "artifacts" / "tier1"
 
 async def check_launcher(settings) -> int:
     """Return 0 if Multilogin launcher answers on the configured URL."""
-    base = settings.multilogin_launcher_url.rstrip("/")
+    base = normalize_multilogin_launcher_url(settings.multilogin_launcher_url)
+    selenium_host = normalize_multilogin_selenium_host(settings.multilogin_selenium_host)
     url = f"{base}/"
     print(f"Checking launcher: {url}")
-    print(f"Selenium host:     {settings.multilogin_selenium_host}")
+    print(f"Selenium host:     {selenium_host}")
     try:
         async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
             response = await client.get(url)

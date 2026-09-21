@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid } from "@/components/desk/desk-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,6 +25,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -119,37 +129,71 @@ export function LinkedInTasksPanel() {
   const unbatchedPendingTasks = tasks.filter(
     (task) => task.batchId === null && task.status === "pending",
   );
+  const claimedTasks = tasks.filter((task) => task.status === "claimed").length;
+  const completedTasks = tasks.filter((task) => task.status === "completed").length;
+  const skippedTasks = tasks.filter((task) => task.status === "skipped").length;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <Select
-          value={statusFilter}
-          onValueChange={(value) => setStatusFilter(value as StatusFilter)}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="claimed">Claimed</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="skipped">Skipped</SelectItem>
-          </SelectContent>
-        </Select>
+      <Alert variant="info">
+        <AlertTitle>Human-in-the-loop execution only</AlertTitle>
+        <AlertDescription>
+          Operators still perform every LinkedIn action manually in their own session. This Desk
+          surface only manages task state, batching, and outcome notes.
+        </AlertDescription>
+      </Alert>
 
-        <Button
-          variant="outline"
-          disabled={selectedTaskIds.size === 0}
-          onClick={() => setBatchDialogOpen(true)}
-        >
-          Create batch from selected ({selectedTaskIds.size})
-        </Button>
-      </div>
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Tasks in current view"
+          value={tasks.length}
+          hint={`${unbatchedPendingTasks.length} unbatched pending task(s)`}
+        />
+        <DeskMetricCard
+          label="Claimed tasks on page"
+          value={claimedTasks}
+          hint={`${completedTasks} completed / ${skippedTasks} skipped`}
+          tone={claimedTasks > 0 ? "info" : "default"}
+        />
+        <DeskMetricCard
+          label="Selected for batching"
+          value={selectedTaskIds.size}
+          hint="Only pending unbatched tasks are selectable"
+          tone={selectedTaskIds.size > 0 ? "warning" : "default"}
+        />
+      </DeskMetricGrid>
+
+      <FilterBar>
+        <FilterBarGroup>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+          >
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="claimed">Claimed</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="skipped">Skipped</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterBarGroup>
+        <FilterBarActions>
+          <Button
+            variant="outline"
+            disabled={selectedTaskIds.size === 0}
+            onClick={() => setBatchDialogOpen(true)}
+          >
+            Create batch from selected ({selectedTaskIds.size})
+          </Button>
+        </FilterBarActions>
+      </FilterBar>
 
       {lastCreatedBatch ? (
-        <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium">
               Batch {lastCreatedBatch.id.slice(0, 8)} — profile{" "}
@@ -177,7 +221,19 @@ export function LinkedInTasksPanel() {
           description="Try a different status filter, or wait for candidates to request LinkedIn outreach."
         />
       ) : (
-        <div className="rounded-lg border">
+        <div className="flex flex-col gap-3">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Send queue</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Claim, complete, or skip tasks after the operator performs the action manually on
+                LinkedIn.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">No LinkedIn automation</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
           <Table>
             <TableHeader>
               <TableRow>

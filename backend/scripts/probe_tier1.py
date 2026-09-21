@@ -25,6 +25,7 @@ if str(ROOT) not in sys.path:
 from app.clients.multilogin import MultiloginClient, MultiloginError
 from app.core.config import get_settings
 from app.integrations.linkedin.browser_facade import LinkedInBrowserClient, LinkedInPhotoError
+from app.integrations.linkedin.login import connect_selenium
 from app.integrations.multilogin.profile_pool import ProfilePool
 
 LINKEDIN_LOGIN_URL = "https://www.linkedin.com/login"
@@ -111,19 +112,7 @@ async def connect_test(*, linkedin_url: str) -> int:
 
         port = await mlx.start_profile(profile_id, token)
         print(f"Profile started on Selenium port: {port}")
-
-        try:
-            from selenium import webdriver
-            from selenium.webdriver.chromium.options import ChromiumOptions
-        except ImportError:
-            print("selenium not installed — cannot complete browser connect test")
-            return 1
-
-        host = settings.multilogin_selenium_host.rstrip("/")
-        options = ChromiumOptions()
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        driver = webdriver.Remote(command_executor=f"{host}:{port}", options=options)
+        driver = connect_selenium(port)
         driver.set_page_load_timeout(settings.tier1_browser_timeout_seconds)
         driver.get(linkedin_url)
         title = driver.title or "(no title)"
@@ -143,7 +132,7 @@ async def connect_test(*, linkedin_url: str) -> int:
             try:
                 await mlx.stop_profile(profile_id)
                 print(f"Stopped profile: {profile_id}")
-            except MultiloginError as exc:
+            except Exception as exc:
                 print(f"Warning: stop_profile failed: {exc}")
 
 

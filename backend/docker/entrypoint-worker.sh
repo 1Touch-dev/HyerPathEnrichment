@@ -5,6 +5,7 @@ echo "=== Worker Startup Coordinator ==="
 
 # Get delay from environment (default 10 seconds)
 DELAY_PER_WORKER=${WORKER_STARTUP_DELAY:-10}
+WORKER_INDEX=1
 
 # Skip staggered startup if delay is 0 or not set
 if [ "$DELAY_PER_WORKER" = "0" ] || [ -z "$DELAY_PER_WORKER" ]; then

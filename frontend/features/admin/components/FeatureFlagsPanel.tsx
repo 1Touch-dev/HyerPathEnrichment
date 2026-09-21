@@ -2,9 +2,17 @@
 
 import { Info } from "lucide-react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid } from "@/components/desk/desk-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import { Switch } from "@/components/ui/switch";
 import { useFeatureFlags } from "../hooks/useFeatureFlags";
 
@@ -26,6 +34,8 @@ function AsyncState({
 
 export function FeatureFlagsPanel() {
   const { data: flags, isLoading, isError } = useFeatureFlags();
+  const enabledFlags = (flags ?? []).filter((flag) => flag.enabled).length;
+  const disabledFlags = (flags ?? []).length - enabledFlags;
 
   return (
     <div className="flex flex-col gap-4">
@@ -38,12 +48,39 @@ export function FeatureFlagsPanel() {
         </AlertDescription>
       </Alert>
 
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">Read-only stored flag records</p>
-        <Button disabled aria-describedby="feature-flags-status-description">
-          Create flag
-        </Button>
-      </div>
+      <DeskMetricGrid className="xl:grid-cols-3">
+        <DeskMetricCard
+          label="Stored records"
+          value={(flags ?? []).length}
+          hint="Visible administration-only records"
+        />
+        <DeskMetricCard
+          label="Enabled records"
+          value={enabledFlags}
+          hint="Set in storage, not yet consumed by an app service"
+          tone={enabledFlags > 0 ? "info" : "default"}
+        />
+        <DeskMetricCard
+          label="Disabled records"
+          value={disabledFlags}
+          hint="Mutation remains unavailable"
+          tone={disabledFlags > 0 ? "warning" : "default"}
+        />
+      </DeskMetricGrid>
+
+      <SectionHeader>
+        <SectionHeaderContent>
+          <SectionHeaderTitle>Stored flag records</SectionHeaderTitle>
+          <SectionHeaderDescription>
+            Read-only operational visibility into persisted feature flag values and ownership.
+          </SectionHeaderDescription>
+        </SectionHeaderContent>
+        <SectionHeaderActions>
+          <Button disabled aria-describedby="feature-flags-status-description">
+            Create flag
+          </Button>
+        </SectionHeaderActions>
+      </SectionHeader>
 
       {isLoading && !flags ? (
         <p role="status" className="text-sm text-muted-foreground">
@@ -64,10 +101,16 @@ export function FeatureFlagsPanel() {
       ) : (
         <div className="flex flex-col gap-2">
           {(flags ?? []).map((flag) => (
-            <div key={flag.key} className="flex items-center justify-between rounded-lg border p-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
+            <div
+              key={flag.key}
+              className="flex flex-col gap-3 rounded-lg border border-border/70 bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-medium">{flag.key}</span>
+                  <Badge variant={flag.enabled ? "success" : "outline"}>
+                    {flag.enabled ? "Stored as enabled" : "Stored as disabled"}
+                  </Badge>
                   {flag.updatedBy ? (
                     <Badge variant="outline" className="text-[10px]">
                       updated by {flag.updatedBy}
@@ -77,6 +120,9 @@ export function FeatureFlagsPanel() {
                 {flag.description ? (
                   <p className="text-sm text-muted-foreground">{flag.description}</p>
                 ) : null}
+                <p className="text-xs text-muted-foreground">
+                  Last updated {flag.updatedAt.replace("T", " ").slice(0, 19)}
+                </p>
               </div>
               <Switch
                 checked={flag.enabled}

@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid, DeskPagination } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import {
   Select,
   SelectContent,
@@ -11,6 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -78,26 +87,65 @@ export function DocumentsModerationPanel() {
   }
 
   const items = data?.items ?? [];
+  const activeDocuments = items.filter((document) => !document.deletedAt).length;
+  const deletedDocuments = items.length - activeDocuments;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <Select value={deletedFilter} onValueChange={handleFilterChange}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All documents</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="deleted">Deleted</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Documents on this page"
+          value={items.length}
+          hint="Current cursor slice"
+        />
+        <DeskMetricCard
+          label="Active on page"
+          value={activeDocuments}
+          hint={`${deletedDocuments} soft-deleted`}
+          tone={deletedDocuments > 0 ? "warning" : "success"}
+        />
+        <DeskMetricCard
+          label="Moderation filter"
+          value={deletedFilter === "all" ? "All documents" : deletedFilter}
+          hint="Soft-delete posture only"
+        />
+      </DeskMetricGrid>
+
+      <FilterBar>
+        <FilterBarGroup>
+          <Select value={deletedFilter} onValueChange={handleFilterChange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All documents</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="deleted">Deleted</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterBarGroup>
+        <FilterBarActions>
+          <div className="text-right text-sm text-muted-foreground">
+            Soft-delete remains reversible and uses the existing moderation mutation.
+          </div>
+        </FilterBarActions>
+      </FilterBar>
 
       {!items.length && !isLoading ? (
         <EmptyState title="No documents found" description="Try a different status filter." />
       ) : (
-        <div className="rounded-lg border">
+        <div className="flex flex-col gap-3">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Document moderation roster</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Scan processing state, moderation posture, and restore availability at a glance.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">Reversible moderation</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
           <Table>
             <TableHeader>
               <TableRow>
@@ -138,24 +186,12 @@ export function DocumentsModerationPanel() {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={cursorStack.length <= 1 || isLoading}
-          onClick={handlePrevious}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!data?.hasMore || isLoading}
-          onClick={handleNext}
-        >
-          Next page
-        </Button>
-      </div>
+      <DeskPagination
+        canPrevious={cursorStack.length > 1 && !isLoading}
+        canNext={Boolean(data?.hasMore) && !isLoading}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+      />
     </div>
   );
 }

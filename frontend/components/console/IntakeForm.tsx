@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  SectionHeader,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import { useHealth } from "@/hooks/useHealth";
 import { tierDescriptions } from "@/src/lib/landing-content";
 import {
@@ -89,6 +96,14 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
   const tier4Unsatisfied =
     requirements.businessOrJobSearch && !business.trim() && !jobTitle.trim() && !jobLocation.trim();
 
+  const selectedTierCount = normalizedTiers.length;
+  const requirementHints = [
+    requirements.linkedinUrl && !linkedinUrl.trim() ? "Tier 1 needs a LinkedIn URL." : null,
+    requirements.username && !username.trim() ? "Tier 2 needs a username." : null,
+    tier3Unsatisfied ? "Tier 3 needs username, email, or company." : null,
+    tier4Unsatisfied ? "Tier 4 needs business or job search." : null,
+  ].filter((hint): hint is string => Boolean(hint));
+
   const toggleTier = (tier: RequestedTier, checked: boolean) => {
     if (mode === "sync" && tier === "tier1") {
       return;
@@ -146,28 +161,67 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">Request intake</p>
-        <CardTitle className="text-2xl">Look up a person</CardTitle>
-        <CardDescription>
-          Choose tiers, then fill the fields they require. Unselected tiers leave their fields
-          optional.
-        </CardDescription>
+    <Card className="overflow-hidden">
+      <CardHeader className="gap-4 border-b border-border/60 bg-surface-muted/40">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">
+              Request intake
+            </p>
+            <CardTitle className="text-2xl">Prepare a lookup</CardTitle>
+            <CardDescription>
+              Choose the tiers you want, then add the strongest identifiers you have. Blank optional
+              fields stay out of the request.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={online ? "success" : "destructive"}>
+              {online ? "API reachable" : "API offline"}
+            </Badge>
+            <Badge variant="outline">
+              {selectedTierCount} tier{selectedTierCount === 1 ? "" : "s"} selected
+            </Badge>
+            <Badge variant={mode === "async" ? "info" : "secondary"}>
+              {mode === "async" ? "Async request" : "Sync request"}
+            </Badge>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {mode === "sync" ? (
-          <Alert className="mb-4">
+          <Alert className="mb-6">
             <AlertDescription>
-              Tier 1 is disabled in sync mode — browser pipeline excluded.
+              Tier 1 is disabled in sync mode because the browser pipeline only runs in async.
             </AlertDescription>
           </Alert>
         ) : null}
 
-        <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-          <fieldset className="flex flex-col gap-3 rounded-lg border p-4">
-            <legend className="px-1 text-sm font-medium">Tiers</legend>
-            <div className="grid gap-3 sm:grid-cols-2">
+        {requirementHints.length > 0 ? (
+          <Alert className="mb-6 border-warning/20 bg-warning/10 text-warning">
+            <AlertDescription className="space-y-1">
+              <p className="font-medium text-foreground">Missing fields for the selected tiers</p>
+              <ul className="list-disc pl-5 text-sm">
+                {requirementHints.map((hint) => (
+                  <li key={hint}>{hint}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        <form className="flex flex-col gap-8" onSubmit={handleSubmit}>
+          <fieldset className="flex flex-col gap-4 rounded-xl border border-border/70 bg-surface p-4 sm:p-5">
+            <SectionHeader>
+              <SectionHeaderContent>
+                <SectionHeaderTitle>Requested tiers</SectionHeaderTitle>
+                <SectionHeaderDescription>
+                  Unselected tiers keep their related fields optional.
+                </SectionHeaderDescription>
+              </SectionHeaderContent>
+            </SectionHeader>
+
+            <legend className="sr-only">Requested tiers</legend>
+            <div className="grid gap-3 xl:grid-cols-2">
               {ALL_TIERS.map((tier) => {
                 const disabled = mode === "sync" && tier === "tier1";
                 const checked = requestedTiers.includes(tier);
@@ -177,9 +231,9 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
                   <label
                     key={tier}
                     htmlFor={id}
-                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${
-                      disabled ? "cursor-not-allowed opacity-50" : ""
-                    }`}
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border border-border/70 bg-background p-4 transition-colors hover:bg-surface-muted/50 ${
+                      checked ? "border-primary/40 bg-primary/5" : ""
+                    } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
                   >
                     <Checkbox
                       id={id}
@@ -188,9 +242,13 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
                       onCheckedChange={(value) => toggleTier(tier, value === true)}
                       className="mt-1"
                     />
-                    <div>
-                      <span className="block text-sm font-medium">{getTierLabel(tier)}</span>
-                      <span className="block text-xs text-muted-foreground">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="block text-sm font-medium">{getTierLabel(tier)}</span>
+                        {checked ? <Badge variant="success">Selected</Badge> : null}
+                        {disabled ? <Badge variant="outline">Async only</Badge> : null}
+                      </div>
+                      <span className="block text-sm text-muted-foreground">
                         {tierDescriptions[tier]}
                       </span>
                     </div>
@@ -200,109 +258,132 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
             </div>
           </fieldset>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="linkedinUrl">
-                LinkedIn URL {fieldSuffix(requirements.linkedinUrl)}
-              </Label>
-              <Input
-                id="linkedinUrl"
-                value={linkedinUrl}
-                onChange={(e) => setLinkedinUrl(e.target.value)}
-                placeholder="https://linkedin.com/in/jane"
-                aria-required={requirements.linkedinUrl}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="username">Username {fieldSuffix(requirements.username)}</Label>
-              <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="jane"
-                aria-required={requirements.username}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Email {fieldSuffix(false)}</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="jane@example.com"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="company">Company {fieldSuffix(false)}</Label>
-              <Input
-                id="company"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                placeholder="Acme"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="business">Business {fieldSuffix(false)}</Label>
-              <Input
-                id="business"
-                value={business}
-                onChange={(e) => setBusiness(e.target.value)}
-                placeholder="Coffee roasters near SoMa"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="jobTitle">Job title {fieldSuffix(false)}</Label>
-              <Input
-                id="jobTitle"
-                value={jobTitle}
-                onChange={(e) => setJobTitle(e.target.value)}
-                placeholder="e.g., Senior Backend Engineer"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="jobLocation">Job location {fieldSuffix(false)}</Label>
-              <Input
-                id="jobLocation"
-                value={jobLocation}
-                onChange={(e) => setJobLocation(e.target.value)}
-                placeholder="e.g., Remote, San Francisco, Berlin"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="jobCountry">Job country {fieldSuffix(false)}</Label>
-              <Input
-                id="jobCountry"
-                value={jobCountry}
-                onChange={(e) => setJobCountry(e.target.value)}
-                placeholder="e.g., USA, Germany, Canada"
-              />
-            </div>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <section className="rounded-xl border border-border/70 bg-surface p-4 sm:p-5">
+              <SectionHeader className="mb-4">
+                <SectionHeaderContent>
+                  <SectionHeaderTitle>Identity signals</SectionHeaderTitle>
+                  <SectionHeaderDescription>
+                    These clues help the lookup land on the right person quickly.
+                  </SectionHeaderDescription>
+                </SectionHeaderContent>
+              </SectionHeader>
+
+              <div className="grid gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="linkedinUrl">
+                    LinkedIn URL {fieldSuffix(requirements.linkedinUrl)}
+                  </Label>
+                  <Input
+                    id="linkedinUrl"
+                    value={linkedinUrl}
+                    onChange={(e) => setLinkedinUrl(e.target.value)}
+                    placeholder="https://linkedin.com/in/jane"
+                    aria-required={requirements.linkedinUrl}
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="username">Username {fieldSuffix(requirements.username)}</Label>
+                    <Input
+                      id="username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="jane"
+                      aria-required={requirements.username}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="email">Email {fieldSuffix(false)}</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="jane@example.com"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="company">Company {fieldSuffix(false)}</Label>
+                  <Input
+                    id="company"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder="Acme"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-border/70 bg-surface p-4 sm:p-5">
+              <SectionHeader className="mb-4">
+                <SectionHeaderContent>
+                  <SectionHeaderTitle>Search context</SectionHeaderTitle>
+                  <SectionHeaderDescription>
+                    Add business or role context when you want deeper public-web and job-market
+                    evidence.
+                  </SectionHeaderDescription>
+                </SectionHeaderContent>
+              </SectionHeader>
+
+              <div className="grid gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="business">Business {fieldSuffix(false)}</Label>
+                  <Input
+                    id="business"
+                    value={business}
+                    onChange={(e) => setBusiness(e.target.value)}
+                    placeholder="Coffee roasters near SoMa"
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="jobTitle">Job title {fieldSuffix(false)}</Label>
+                    <Input
+                      id="jobTitle"
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      placeholder="e.g., Senior Backend Engineer"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="jobLocation">Job location {fieldSuffix(false)}</Label>
+                    <Input
+                      id="jobLocation"
+                      value={jobLocation}
+                      onChange={(e) => setJobLocation(e.target.value)}
+                      placeholder="e.g., Remote, San Francisco, Berlin"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="jobCountry">Job country {fieldSuffix(false)}</Label>
+                  <Input
+                    id="jobCountry"
+                    value={jobCountry}
+                    onChange={(e) => setJobCountry(e.target.value)}
+                    placeholder="e.g., USA, Germany, Canada"
+                  />
+                </div>
+              </div>
+            </section>
           </div>
 
-          {tier3Unsatisfied ? (
-            <p className="text-sm text-muted-foreground">
-              Tier 3 needs username, email, or company.
-            </p>
-          ) : null}
-          {tier4Unsatisfied ? (
-            <p className="text-sm text-muted-foreground">Tier 4 needs business or job search.</p>
-          ) : null}
-          {requirements.linkedinUrl && !linkedinUrl.trim() ? (
-            <p className="text-sm text-muted-foreground">Tier 1 needs a LinkedIn URL.</p>
-          ) : null}
-          {requirements.username && !username.trim() ? (
-            <p className="text-sm text-muted-foreground">Tier 2 needs a username.</p>
-          ) : null}
-
-          <div className="flex flex-col gap-2">
-            <Button type="submit" disabled={!canSubmit}>
-              {loading ? "Looking up…" : "Look up"}
+          <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">Ready to submit</p>
+              <p className="text-sm text-muted-foreground">
+                The request stays read-only until the selected tiers have the fields they need.
+              </p>
+              {!online ? (
+                <p className="text-sm text-destructive">Backend unreachable. Submit is disabled.</p>
+              ) : null}
+              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            </div>
+            <Button type="submit" disabled={!canSubmit} className="sm:min-w-40">
+              {loading ? "Starting lookup…" : "Start lookup"}
             </Button>
-            {!online ? (
-              <p className="text-sm text-destructive">Backend unreachable — submit disabled.</p>
-            ) : null}
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </div>
         </form>
       </CardContent>

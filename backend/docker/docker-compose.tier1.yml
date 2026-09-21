@@ -13,21 +13,20 @@
 #
 # PATH B — Bare Linux / cloud server (production)
 # ────────────────────────────────────────────────
-# Also add -f docker-compose.multilogin.yml as the final overlay.
-# That file adds a containerised Multilogin service and overrides the worker
-# with network_mode: host + MULTILOGIN_SELENIUM_HOST=http://127.0.0.1.
-# Both containers share the Linux host's 127.0.0.1 loopback — the Selenium
-# debug port is reachable directly. See ADR 0008
-# (docs/adr/0008-tier1-linux-host-network.md).
+# Do NOT use this file for the supported Linux MLX path. Use
+# docker-compose.tier-workers.yml + docker-compose.multilogin.yml instead, so:
+# - `worker-tier1` is the only host-network Tier 1 worker
+# - the bridge-network `worker` still consumes non-tier queues
+# - `worker-tier234` keeps the tier234 enrichment queue
 #
-# Usage (Linux production):
+# Supported Linux production usage:
 #   cd backend/docker
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-#                  -f docker-compose.tier1.yml \
+#                  -f docker-compose.tier-workers.yml \
 #                  -f docker-compose.multilogin.yml \
 #                  --env-file ../.env.production up -d
 #
-# Or: bash backend/scripts/start_production.sh --with-tier1 --with-linux-mlx
+# Or: bash backend/scripts/start_production.sh --with-linux-mlx
 #
 # ── WSL2 / Windows path notes ─────────────────────────────────────────────
 # Secrets (MULTILOGIN_*, LINKEDIN_BOT_*, R2_*) are injected via env_file —

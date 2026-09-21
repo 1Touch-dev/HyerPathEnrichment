@@ -2,7 +2,7 @@
 
 **HyerEnrichment Platform - Docker Container Inventory**
 
-**Total Container Count:** 27 containers (varies by profile)
+**Total Container Count:** 28 containers (varies by profile)
 
 ---
 
@@ -15,7 +15,7 @@
 | Free Sidecars | 3 | Always |
 | Tier-Specific Workers | 2 | Optional (`tier-workers.yml`) |
 | Multilogin | 1 | Optional (Linux production) |
-| Foundation Workers | 2 | Optional (`foundation.yml`) |
+| Foundation Workers | 3 | Optional (`foundation.yml`) |
 | Paid Services | 2 | Optional (`--profile paid`) |
 | LLM Services | 2 | Optional (`--profile llm`) |
 | Observability | 5 | Optional (`--profile observability`) |
@@ -45,10 +45,12 @@
 - **Purpose:** Job queue (RQ) + cache + token blacklist + rate limiting
 - **Port:** 6379
 - **Queues:**
-  - `default` - General enrichment jobs
+  - `enrichment` - General enrichment jobs
   - `tier1` - LinkedIn photo jobs (per_tier mode)
   - `tier234` - API enrichers (per_tier mode)
   - `email` - Email verification jobs
+  - `job_matching` - Candidate scan + digest jobs
+  - `audio_cleanup` - Practice-audio retention cleanup
   - `document_processing` - PDF/DOCX parsing
   - `embedding_generation` - Vector embeddings
 - **Data Flow:**
@@ -67,9 +69,9 @@
 - **Purpose:** FastAPI REST API server
 - **Port:** 8000
 - **Endpoints:**
-  - `POST /api/enrich` - Enqueue async job
-  - `POST /api/enrich/sync` - Inline enrichment
-  - `GET /api/jobs/{id}` - Poll job status
+  - `POST /enrich` - Enqueue async job
+  - `POST /enrich/sync` - Inline enrichment
+  - `GET /enrich/{job_id}` - Poll job status
   - `POST /auth/login` - Cookie auth + refresh tokens
   - `POST /auth/refresh` - Token rotation
   - `POST /auth/logout` - Token blacklist
@@ -85,8 +87,8 @@
 ## ⚙️ Core Workers (Always Running) - 3 Containers
 
 ### 5. **worker**
-- **Purpose:** Default RQ worker for general enrichment (Tier 2-4)
-- **Queue:** `default` (or `tier234` if `WORKER_QUEUE_MODE=per_tier`)
+- **Purpose:** Bridge-network auxiliary RQ worker for shipped non-tier queues
+- **Queue:** `enrichment` in single-mode starts, or the auxiliary queue set in the supported per-tier startup (including `audio_cleanup`)
 - **Process:** Dequeue → Pipeline → Enrichers → Merge → Write to Postgres
 - **Calls:**
   - social-analyzer (social handles)
@@ -94,7 +96,7 @@
   - email-verifier (email validation)
   - litellm (disambiguation)
 - **Data Flow:**
-  - **IN:** Jobs from Redis `default` queue
+  - **IN:** Jobs from Redis `enrichment` queue
   - **OUT:** Enriched dossiers → Postgres
 
 ### 6. **worker-email**
@@ -158,7 +160,7 @@
   4. Download photo → R2/local cache
   5. Write metadata → Postgres
 - **Special:** Uses Multilogin stealth browser to avoid LinkedIn detection
-- **Concurrency:** 1-2 instances (heavy resource usage)
+- **Concurrency:** 1 instance in the supported Linux MLX topology
 - **Data Flow:**
   - **IN:** Jobs from Redis `tier1` queue
   - **OUT:** Photos → R2/local cache, metadata → Postgres
@@ -172,6 +174,13 @@
 - **Data Flow:**
   - **IN:** Jobs from Redis `tier234` queue
   - **OUT:** OSINT data → Postgres
+
+### 12b. **worker-job-matching**
+- **Purpose:** Dedicated consumer for the shipped `job_matching` queue
+- **Queue:** `job_matching`
+- **Network:** Bridge network
+- **Why separate:** Keeps scan/explanation work off the auxiliary queue set and off the tier234 enrichment queue
+- **Also owns:** Seeding the daily `job_matching` and `audio_cleanup` scheduled jobs; the latter is consumed by `worker`
 
 ---
 
@@ -194,7 +203,7 @@
 
 ---
 
-## 📄 Foundation Workers (Document Processing) - 2 Containers
+## 📄 Foundation Workers (Document Processing) - 3 Containers
 
 ### 14. **worker-document**
 - **Purpose:** Parse CV/resume files (PDF, DOCX)
@@ -322,7 +331,7 @@
 
 ## 🔄 Complete Data Flow Diagrams
 
-### **Async Enrichment Flow (POST /api/enrich)**
+### **Async Enrichment Flow (POST /enrich)**
 
 ```
 ┌─────────┐      ┌──────────┐      ┌─────┐      ┌─────────┐
@@ -501,60 +510,66 @@ The platform uses **two network modes** based on container requirements:
 
 ## 📦 Production Deployment Scenarios
 
-### **Minimal Production** (10 containers)
+### **Manual Base Compose (API/Readiness Diagnostic)** (7 containers)
 ```bash
+cd backend/docker
 docker compose \
+  --env-file ../.env.production \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  up -d
+  up -d migrate api redis postgres social-analyzer google-maps-scraper email-verifier
 ```
-**Containers:** postgres, redis, migrate, api, worker, worker-email, worker-cleanup, social-analyzer, google-maps-scraper, email-verifier
+**Containers:** postgres, redis, migrate, api, social-analyzer, google-maps-scraper, email-verifier
 
-**Use Case:** Basic enrichment without LinkedIn photos
+**Use Case:** API/readiness bring-up only. Under the shipped `WORKER_QUEUE_MODE=per_tier` contract this is **not** a supported async enrichment production path, and it intentionally starts no async workers.
 
 ---
 
-### **With Tier 1** (LinkedIn Photos) - 12 containers
+### **Supported Linux MLX Production Path** - 14+ containers
 ```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
-  -f docker-compose.multilogin.yml \
-  up -d
+bash backend/scripts/start_production.sh --with-linux-mlx
 ```
-**Added:** worker-tier1, multilogin
+**Equivalent compose family:** `docker-compose.yml + docker-compose.prod.yml + docker-compose.foundation.yml + docker-compose.tier-workers.yml + docker-compose.multilogin.yml`
 
-**Use Case:** Full enrichment with LinkedIn photo scraping
+**Added:** api, worker, worker-email, worker-cleanup, worker-job-matching, worker-tier234, worker-tier1, multilogin
+
+**Use Case:** Supported Linux production target with LinkedIn photo scraping, scheduled `audio_cleanup`, and consumers for the shipped `email` and `job_matching` queues.
+
+**Important:** `worker-tier1` is single-instance only. On real Linux, Tier 1 is unsupported unless this Linux-MLX path is selected.
+
+**Proof boundary on this repo host:** Windows/WSL checks in this branch prove the compose/config/service-health topology, but not a real Linux-host end-to-end `worker-tier1 -> multilogin -> LinkedIn` scrape. Keep that final operational proof separate.
 
 ---
 
 ### **With Tier Splitting** (Scalable) - 13+ containers
 ```bash
+bash backend/scripts/start_production.sh --with-linux-mlx
+cd backend/docker
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
+  -f docker-compose.foundation.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.multilogin.yml \
-  up -d --scale worker-tier234=8
+  up -d migrate api redis postgres social-analyzer google-maps-scraper email-verifier worker worker-email worker-cleanup worker-job-matching worker-tier1 multilogin --scale worker-tier234=8
 ```
-**Added:** worker-tier1, worker-tier234 (scaled to 8), multilogin
+**Added:** api, worker, worker-email, worker-cleanup, worker-job-matching, worker-tier1, worker-tier234 (scaled to 8), multilogin
 
-**Use Case:** High-throughput enrichment with horizontal scaling
+**Use Case:** High-throughput enrichment with horizontal scaling for `worker-tier234` only. `worker-tier1` still remains single-instance.
 
 ---
 
-### **With Foundation** (CV Parsing) - 15 containers
+### **With Foundation** (CV Parsing) - 13 containers
 ```bash
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
   -f docker-compose.foundation.yml \
-  up -d
+  up -d migrate api redis postgres social-analyzer google-maps-scraper email-verifier worker-email worker-cleanup worker-job-matching worker-document worker-embedding
 ```
-**Added:** worker-document, worker-embedding
+**Added:** worker-email, worker-cleanup, worker-job-matching, worker-document, worker-embedding
 
-**Use Case:** Candidate platform with CV parsing + vector search
+**Use Case:** Candidate platform with CV parsing + vector search when you need document/foundation workers but are not starting the tiered enrichment worker family. For async enrichment under the shipped `WORKER_QUEUE_MODE=per_tier` contract, use the tier-worker or full-production examples instead of a bare `up -d`.
 
 ---
 
@@ -642,19 +657,14 @@ docker compose \
   --env-file ../.env.production \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
-  up -d
+  up -d migrate api redis postgres social-analyzer google-maps-scraper email-verifier
 ```
+
+Diagnostic only under the shipped `WORKER_QUEUE_MODE=per_tier` contract: this is API/readiness-only and intentionally starts no async workers. For supported async enrichment startup, use the Linux MLX or tier-workers paths below.
 
 ### **Start with Tier 1 (Linux)**
 ```bash
-cd backend/docker
-docker compose \
-  --env-file ../.env.production \
-  -f docker-compose.yml \
-  -f docker-compose.prod.yml \
-  -f docker-compose.tier1.yml \
-  -f docker-compose.multilogin.yml \
-  up -d
+bash backend/scripts/start_production.sh --with-linux-mlx
 ```
 
 ### **Start with Tier Splitting (Scalable)**
@@ -664,10 +674,13 @@ docker compose \
   --env-file ../.env.production \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
+  -f docker-compose.foundation.yml \
   -f docker-compose.tier-workers.yml \
   -f docker-compose.multilogin.yml \
-  up -d --scale worker-tier234=8
+  up -d migrate api redis postgres social-analyzer google-maps-scraper email-verifier worker worker-email worker-cleanup worker-job-matching worker-tier1 multilogin --scale worker-tier234=8
 ```
+
+Only `worker-tier234` is scalable. Do not scale `worker-tier1`.
 
 ### **Start Full Stack (All Profiles)**
 ```bash
@@ -763,5 +776,5 @@ docker exec -it <container> redis-cli -h redis -p 6379 ping
 
 ---
 
-**Last Updated:** 2026-08-05
-**Verified Against:** `stage` branch commit `f5515cc`
+**Last Updated:** 2026-09-07
+**Verified Against:** `fix/multilogin-docker-rca` branch commit `0bd23bd5`

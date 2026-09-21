@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid, DeskPagination } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -20,6 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -97,27 +106,69 @@ export function JobPostingsModerationPanel() {
   }
 
   const items = data?.items ?? [];
+  const activePostings = items.filter((posting) => posting.moderationStatus === "active").length;
+  const hiddenPostings = items.filter((posting) => posting.moderationStatus === "hidden").length;
+  const removedPostings = items.filter((posting) => posting.moderationStatus === "removed").length;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <Select value={statusFilter} onValueChange={handleFilterChange}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="hidden">Hidden</SelectItem>
-            <SelectItem value="removed">Removed</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Postings on this page"
+          value={items.length}
+          hint="Current cursor slice"
+        />
+        <DeskMetricCard
+          label="Visible on page"
+          value={activePostings}
+          hint={`${hiddenPostings} hidden / ${removedPostings} removed`}
+          tone={activePostings > 0 ? "success" : "default"}
+        />
+        <DeskMetricCard
+          label="Status filter"
+          value={statusFilter === "all" ? "All statuses" : statusFilter}
+          hint="Moderation status only"
+          tone={statusFilter === "all" ? "default" : "info"}
+        />
+      </DeskMetricGrid>
+
+      <FilterBar>
+        <FilterBarGroup>
+          <Select value={statusFilter} onValueChange={handleFilterChange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="hidden">Hidden</SelectItem>
+              <SelectItem value="removed">Removed</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterBarGroup>
+        <FilterBarActions>
+          <div className="text-right text-sm text-muted-foreground">
+            Hide and remove actions still capture optional audit reasons before mutation.
+          </div>
+        </FilterBarActions>
+      </FilterBar>
 
       {!items.length && !isLoading ? (
         <EmptyState title="No job postings found" description="Try a different status filter." />
       ) : (
-        <div className="rounded-lg border">
+        <div className="flex flex-col gap-3">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Moderation queue</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Review job posting visibility, restore hidden rows, and escalate destructive changes
+                through explicit confirmation.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">Audit-trailed moderation</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
           <Table>
             <TableHeader>
               <TableRow>
@@ -182,24 +233,12 @@ export function JobPostingsModerationPanel() {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={cursorStack.length <= 1 || isLoading}
-          onClick={handlePrevious}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!data?.hasMore || isLoading}
-          onClick={handleNext}
-        >
-          Next page
-        </Button>
-      </div>
+      <DeskPagination
+        canPrevious={cursorStack.length > 1 && !isLoading}
+        canNext={Boolean(data?.hasMore) && !isLoading}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+      />
 
       {pendingModeration ? (
         <ModerateJobPostingDialog

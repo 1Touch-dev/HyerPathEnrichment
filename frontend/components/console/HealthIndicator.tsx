@@ -7,7 +7,7 @@ export function HealthIndicator() {
   const { online, loading } = useHealth();
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-xs shadow-sm backdrop-blur">
+    <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-2 text-xs shadow-sm">
       <span
         className={cn(
           "relative size-2 rounded-full",
@@ -20,7 +20,7 @@ export function HealthIndicator() {
         )}
       </span>
       <span className="font-medium text-foreground">
-        {loading ? "Checking…" : online ? "API online" : "Offline"}
+        {loading ? "Checking connectivity" : online ? "API online" : "API offline"}
       </span>
     </div>
   );

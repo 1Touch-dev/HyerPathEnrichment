@@ -6,7 +6,8 @@
 #   API_TOKEN, DATABASE_URL, REDIS_URL
 #
 # Tier 1 worker secrets: set WORKER_ENV_FILE=/etc/hyrepath/worker.env and use
-#   -f docker-compose.tier1.yml as a third file when ENABLE_TIER1=true.
+#   -f docker-compose.tier-workers.yml (+ -f docker-compose.multilogin.yml on Linux)
+#   for the supported production topology when ENABLE_TIER1=true.
 #
 # TLS terminates at the reverse proxy (see docs/deployment.md); API listens HTTP :8000.
 #
@@ -55,8 +56,10 @@ services:
     restart: unless-stopped
 
   postgres:
-    ports:
-      - "127.0.0.1:5432:5432"
+    # Keep the base host port (5433) but force a real override so Compose
+    # doesn't merge this with docker-compose.yml and bind both 5433 and 5432.
+    ports: !override
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
@@ -64,17 +67,22 @@ services:
     restart: unless-stopped
 
   redis:
-    ports: []
+    # Tier 1 host-network workers reach Redis via 127.0.0.1 on Linux.
+    ports: !override
+      - "127.0.0.1:6379:6379"
     restart: unless-stopped
 
   social-analyzer:
-    ports: !override []
+    ports: !override
+      - "127.0.0.1:9005:9005"
     restart: unless-stopped
 
   google-maps-scraper:
-    ports: !override []
+    ports: !override
+      - "127.0.0.1:8080:8080"
     restart: unless-stopped
 
   email-verifier:
-    ports: !override []
+    ports: !override
+      - "127.0.0.1:8081:8080"
     restart: unless-stopped

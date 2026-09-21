@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid, DeskPagination } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import {
   Select,
   SelectContent,
@@ -11,6 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -91,36 +100,76 @@ export function PortfolioModerationPanel() {
   }
 
   const items = data?.items ?? [];
+  const publishedProfiles = items.filter((profile) => profile.isPublished).length;
+  const hiddenProfiles = items.filter((profile) => profile.adminHidden).length;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-4">
-        <Select value={publishedFilter} onValueChange={handlePublishedFilterChange}>
-          <SelectTrigger className="w-[180px]" aria-label="Filter by published status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All profiles</SelectItem>
-            <SelectItem value="published">Published</SelectItem>
-            <SelectItem value="unpublished">Unpublished</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={visibilityFilter} onValueChange={handleVisibilityFilterChange}>
-          <SelectTrigger className="w-[180px]" aria-label="Filter by moderation status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All visibility</SelectItem>
-            <SelectItem value="hidden">Hidden</SelectItem>
-            <SelectItem value="visible">Visible</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Profiles on this page"
+          value={items.length}
+          hint="Current cursor slice"
+        />
+        <DeskMetricCard
+          label="Published on page"
+          value={publishedProfiles}
+          hint={`${hiddenProfiles} hidden by moderation`}
+          tone={publishedProfiles > 0 ? "success" : "default"}
+        />
+        <DeskMetricCard
+          label="Visibility filter"
+          value={visibilityFilter === "all" ? "All visibility" : visibilityFilter}
+          hint={publishedFilter === "all" ? "All publication states" : publishedFilter}
+          tone={visibilityFilter === "hidden" ? "warning" : "default"}
+        />
+      </DeskMetricGrid>
+
+      <FilterBar>
+        <FilterBarGroup>
+          <Select value={publishedFilter} onValueChange={handlePublishedFilterChange}>
+            <SelectTrigger className="w-[180px]" aria-label="Filter by published status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All profiles</SelectItem>
+              <SelectItem value="published">Published</SelectItem>
+              <SelectItem value="unpublished">Unpublished</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={visibilityFilter} onValueChange={handleVisibilityFilterChange}>
+            <SelectTrigger className="w-[180px]" aria-label="Filter by moderation status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All visibility</SelectItem>
+              <SelectItem value="hidden">Hidden</SelectItem>
+              <SelectItem value="visible">Visible</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterBarGroup>
+        <FilterBarActions>
+          <div className="text-right text-sm text-muted-foreground">
+            Hide and unhide remain backend-authorized, reversible moderation actions.
+          </div>
+        </FilterBarActions>
+      </FilterBar>
 
       {!items.length && !isLoading ? (
         <EmptyState title="No portfolio profiles found" description="Try a different filter." />
       ) : (
-        <div className="rounded-lg border">
+        <div className="flex flex-col gap-3">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Portfolio review queue</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Balance public publish state against Desk moderation visibility in one dense table.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">Public link preserved</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
           <Table>
             <TableHeader>
               <TableRow>
@@ -163,24 +212,12 @@ export function PortfolioModerationPanel() {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={cursorStack.length <= 1 || isLoading}
-          onClick={handlePrevious}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!data?.hasMore || isLoading}
-          onClick={handleNext}
-        >
-          Next page
-        </Button>
-      </div>
+      <DeskPagination
+        canPrevious={cursorStack.length > 1 && !isLoading}
+        canNext={Boolean(data?.hasMore) && !isLoading}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+      />
     </div>
   );
 }

@@ -24,11 +24,15 @@ test.describe("Enrichment flow", () => {
 
   test("async enrichment stays on OSINT and shows job created toast", async ({ page }) => {
     await page.goto("/osint");
-    await expect(page.getByRole("heading", { name: "Look someone up" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Investigate a public footprint" }),
+    ).toBeVisible();
 
     await page.getByRole("textbox", { name: /Username/ }).fill("e2e-playwright");
-    await expect(page.getByRole("button", { name: "Look up" })).toBeEnabled({ timeout: 15_000 });
-    await page.getByRole("button", { name: "Look up" }).click();
+    await expect(page.getByRole("button", { name: "Start lookup" })).toBeEnabled({
+      timeout: 15_000,
+    });
+    await page.getByRole("button", { name: "Start lookup" }).click();
 
     await expect(page).toHaveURL(/\/osint/, { timeout: 15_000 });
     await expect(page.getByText("Job created")).toBeVisible({ timeout: 15_000 });
@@ -44,7 +48,9 @@ test.describe("Enrichment flow", () => {
 
   test("settings page loads", async ({ page }) => {
     await page.goto("/osint/settings");
-    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Keep account controls close to the workbench" }),
+    ).toBeVisible();
   });
 
   test("privacy DSAR ops form loads", async ({ page }) => {

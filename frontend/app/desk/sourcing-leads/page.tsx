@@ -1,10 +1,14 @@
+import { DeskPage } from "@/components/desk/desk-shell";
 import { SourcingLeadsPanel } from "@/features/admin/components/SourcingLeadsPanel";
 
 export default function AdminSourcingLeadsPage() {
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight">LinkedIn sourcing leads</h1>
+    <DeskPage
+      eyebrow="Desk execution"
+      title="LinkedIn sourcing leads"
+      description="Capture manually observed candidate leads and review them in queue form without introducing any LinkedIn automation or autofill behavior."
+    >
       <SourcingLeadsPanel />
-    </div>
+    </DeskPage>
   );
 }
