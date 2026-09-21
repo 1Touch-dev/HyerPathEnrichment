@@ -7,6 +7,16 @@ import * as usePreferencesHooks from "../hooks/usePreferences";
 import * as usePushSubscriptionHooks from "../hooks/usePushSubscription";
 import type { CandidateJobPreferences } from "@/src/lib/types";
 import type { UseQueryResult } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+const toastOptions = expect.objectContaining({
+  onSuccess: expect.any(Function),
+  onError: expect.any(Function),
+});
 
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -59,6 +69,8 @@ function mockUsePushSubscription(
 beforeEach(() => {
   vi.restoreAllMocks();
   mutateMock.mockReset();
+  vi.mocked(toast.success).mockReset();
+  vi.mocked(toast.error).mockReset();
   pushSubscribeMock.mockReset().mockResolvedValue(undefined);
   pushUnsubscribeMock.mockReset().mockResolvedValue(undefined);
   vi.spyOn(usePreferencesHooks, "useUpdatePreferences").mockReturnValue({
@@ -92,17 +104,33 @@ describe("PreferencesForm", () => {
     expect(form).not.toBeNull();
     form!.requestSubmit();
 
-    expect(mutateMock).toHaveBeenCalledWith({
-      desiredRoles: ["Backend Engineer"],
-      desiredLocations: ["Remote"],
-      salaryMin: 100000,
-      salaryMax: 150000,
-      remotePreference: "remote",
-      notificationChannels: ["email"],
-      webhookUrl: null,
-      digestFrequency: "daily",
-      isScanEnabled: true,
+    expect(mutateMock).toHaveBeenCalledWith(
+      {
+        desiredRoles: ["Backend Engineer"],
+        desiredLocations: ["Remote"],
+        salaryMin: 100000,
+        salaryMax: 150000,
+        remotePreference: "remote",
+        notificationChannels: ["email"],
+        webhookUrl: null,
+        digestFrequency: "daily",
+        isScanEnabled: true,
+      },
+      toastOptions,
+    );
+  });
+
+  it("toasts after a successful save", () => {
+    mutateMock.mockImplementation((_payload, options: { onSuccess?: () => void }) => {
+      options.onSuccess?.();
     });
+    mockUsePreferences({ data: samplePreferences, isLoading: false });
+    render(<PreferencesForm />, { wrapper });
+
+    const form = screen.getByText("Save preferences").closest("form");
+    form!.requestSubmit();
+
+    expect(toast.success).toHaveBeenCalledWith("Preferences saved");
   });
 
   it("round-trips edits to desiredRoles/desiredLocations as comma-split arrays", () => {
@@ -123,6 +151,7 @@ describe("PreferencesForm", () => {
         desiredRoles: ["Staff Engineer", "Principal Engineer"],
         desiredLocations: ["Remote", "Austin", "TX"],
       }),
+      toastOptions,
     );
   });
 
@@ -141,6 +170,7 @@ describe("PreferencesForm", () => {
 
     expect(mutateMock).toHaveBeenCalledWith(
       expect.objectContaining({ notificationChannels: ["email"] }),
+      toastOptions,
     );
   });
 
@@ -154,7 +184,10 @@ describe("PreferencesForm", () => {
     const form = screen.getByText("Save preferences").closest("form");
     form!.requestSubmit();
 
-    expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({ digestFrequency: "weekly" }));
+    expect(mutateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ digestFrequency: "weekly" }),
+      toastOptions,
+    );
   });
 
   it("renders the SMS notifications switch as disabled and unchecked", () => {
@@ -187,6 +220,7 @@ describe("PreferencesForm", () => {
 
     expect(mutateMock).toHaveBeenCalledWith(
       expect.objectContaining({ notificationChannels: ["webhook"] }),
+      toastOptions,
     );
   });
 
@@ -205,6 +239,7 @@ describe("PreferencesForm", () => {
 
     expect(mutateMock).toHaveBeenCalledWith(
       expect.objectContaining({ webhookUrl: "https://example.com/hook" }),
+      toastOptions,
     );
   });
 
@@ -246,6 +281,7 @@ describe("PreferencesForm", () => {
 
     expect(mutateMock).toHaveBeenCalledWith(
       expect.objectContaining({ notificationChannels: ["push"] }),
+      toastOptions,
     );
   });
 
@@ -268,6 +304,9 @@ describe("PreferencesForm", () => {
     const form = screen.getByText("Save preferences").closest("form");
     form!.requestSubmit();
 
-    expect(mutateMock).toHaveBeenCalledWith(expect.objectContaining({ notificationChannels: [] }));
+    expect(mutateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationChannels: [] }),
+      toastOptions,
+    );
   });
 });

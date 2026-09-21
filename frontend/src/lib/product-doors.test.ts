@@ -5,6 +5,7 @@ import {
   getDefaultProduct,
   getUserHome,
   isStaffUser,
+  resolvePostLoginPath,
   safeLocalRedirect,
   type ProductDoorUser,
 } from "./product-doors";
@@ -141,5 +142,33 @@ describe("safeLocalRedirect", () => {
     "desk/users",
   ])("rejects unsafe redirect %s", (redirect) => {
     expect(safeLocalRedirect(redirect)).toBeNull();
+  });
+});
+
+describe("resolvePostLoginPath", () => {
+  it("sends staff with a Candidate redirect to their desk home", () => {
+    const admin = user({ is_superuser: true });
+    expect(resolvePostLoginPath(admin, "/app")).toBe("/desk");
+    expect(resolvePostLoginPath(admin, "/app/matches")).toBe("/desk");
+    expect(resolvePostLoginPath(admin, "app")).toBe("/desk");
+  });
+
+  it("still honors staff Desk and OSINT redirects", () => {
+    const admin = user({ is_superuser: true });
+    expect(resolvePostLoginPath(admin, "/desk/users")).toBe("/desk/users");
+    expect(resolvePostLoginPath(admin, "/osint?tiers=tier1")).toBe("/osint?tiers=tier1");
+  });
+
+  it("sends candidates with a staff-door redirect to /app/matches", () => {
+    expect(resolvePostLoginPath(user(), "/desk")).toBe("/app/matches");
+    expect(resolvePostLoginPath(user(), "/osint?tiers=tier1")).toBe("/app/matches");
+  });
+
+  it("honors a candidate's own product redirect", () => {
+    expect(resolvePostLoginPath(user(), "/app/documents")).toBe("/app/documents");
+  });
+
+  it("falls back to role home when the redirect is unsafe", () => {
+    expect(resolvePostLoginPath(user({ is_superuser: true }), "https://example.com")).toBe("/desk");
   });
 });

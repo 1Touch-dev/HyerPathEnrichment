@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useMatches, useMarkMatchViewed, useSubmitFeedback } from "./useMatches";
+import { useMatches, useMarkApplied, useMarkMatchViewed, useSubmitFeedback } from "./useMatches";
 import * as client from "../api/client";
+import { jobMatchingKeys } from "../api/keys";
 import type { JobMatchListResponse } from "@/src/lib/types";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -82,5 +83,28 @@ describe("useSubmitFeedback", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(client.submitMatchFeedback).toHaveBeenCalledWith("m1", "up");
+  });
+});
+
+describe("useMarkApplied", () => {
+  it("optimistically sets appliedAt on the matches cache", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(jobMatchingKeys.matches(20, 0), sampleMatchList);
+    vi.spyOn(client, "markApplied").mockImplementation(() => new Promise(() => undefined));
+
+    const { result } = renderHook(() => useMarkApplied(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    act(() => {
+      result.current.mutate({ matchId: "m1", applied: true });
+    });
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<JobMatchListResponse>(jobMatchingKeys.matches(20, 0));
+      expect(cached?.matches[0].appliedAt).toBeTruthy();
+    });
   });
 });

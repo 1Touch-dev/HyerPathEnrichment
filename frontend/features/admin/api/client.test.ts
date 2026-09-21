@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  confirmMfaEnrollment,
   decideReviewQueueItem,
+  disableMfa,
+  enrollMfa,
   moderateDocument,
   moderateJobPosting,
   moderateOutreachMessage,
@@ -36,6 +39,26 @@ describe("admin client idempotency headers", () => {
     await moderateDocument("doc-1", "soft_delete", "policy");
 
     const calls = fetchMock.mock.calls.map(([, init]) => init as RequestInit);
+    for (const call of calls) {
+      const headers = call.headers as Record<string, string>;
+      expect(headers["Idempotency-Key"]).toBeTruthy();
+    }
+  });
+
+  it("adds Idempotency-Key to MFA enroll, confirm, and disable", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okJson({ secret: "abc", otpauthUrl: "otpauth://totp/x" }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await enrollMfa();
+    await confirmMfaEnrollment("123456");
+    await disableMfa("123456");
+
+    const calls = fetchMock.mock.calls.map(([, init]) => init as RequestInit);
+    expect(calls).toHaveLength(3);
     for (const call of calls) {
       const headers = call.headers as Record<string, string>;
       expect(headers["Idempotency-Key"]).toBeTruthy();

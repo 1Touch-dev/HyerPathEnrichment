@@ -8,6 +8,7 @@ const nextConfig = nextConfigModule as {
 };
 
 const expectedRedirects = [
+  { source: "/app", destination: "/app/matches", permanent: false },
   { source: "/app/enrich", destination: "/osint", permanent: false },
   { source: "/app/signals", destination: "/desk/signals", permanent: false },
   { source: "/app/admin", destination: "/desk", permanent: false },

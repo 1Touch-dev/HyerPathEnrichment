@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 const redirectCases = [
+  ["/app", "/app/matches"],
+  ["/app?tab=matches", "/app/matches?tab=matches"],
   ["/app/enrich?tiers=tier1", "/osint?tiers=tier1"],
   ["/app/signals?source=webhook", "/desk/signals?source=webhook"],
   ["/app/admin", "/desk"],

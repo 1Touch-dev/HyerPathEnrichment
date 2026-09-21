@@ -96,6 +96,34 @@ export function getDefaultProduct(user: ProductDoorUser): Product {
   return "candidate";
 }
 
+function isUnderProductRoot(pathname: string, root: string): boolean {
+  return pathname === root || pathname.startsWith(`${root}/`);
+}
+
+export function productForPath(pathname: string): Product | null {
+  if (isUnderProductRoot(pathname, PRODUCT_ROOTS.osint)) return "osint";
+  if (isUnderProductRoot(pathname, PRODUCT_ROOTS.desk)) return "desk";
+  if (isUnderProductRoot(pathname, PRODUCT_ROOTS.candidate)) return "candidate";
+  return null;
+}
+
+/**
+ * Post-login destination. Staff must not resume into the Candidate product
+ * (`/app`) from a leftover `?redirect=`; candidates must not resume into
+ * Desk or OSINT. Unsafe or cross-door values fall through to `getUserHome`.
+ */
+export function resolvePostLoginPath(user: ProductDoorUser, rawRedirect?: string | null): string {
+  const home = getUserHome(user);
+  const redirect = safeLocalRedirect(rawRedirect);
+  if (!redirect) return home;
+
+  const pathname = new URL(redirect, "https://hyrepath.local").pathname;
+  const product = productForPath(pathname);
+  if (isStaffUser(user) && product === "candidate") return home;
+  if (!isStaffUser(user) && (product === "desk" || product === "osint")) return home;
+  return redirect;
+}
+
 export function hasPermission(
   user: ProductDoorUser | null | undefined,
   permission: Permission,

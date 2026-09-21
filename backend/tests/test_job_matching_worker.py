@@ -490,6 +490,38 @@ class TestScanJobsForCandidate:
                 operation="job_match_explanation",
             )
 
+    def test_nan_salary_currency_does_not_abort_scan(self):
+        user = _create_user()
+        _create_preferences(user.id)
+        cv_doc = _create_completed_cv(user.id, extracted_data={"current_role": "Backend Engineer"})
+        _create_cv_embedding(cv_doc.id)
+        suffix = uuid.uuid4().hex[:8]
+        rows = [
+            {
+                **FAKE_JOBSPY_ROWS[0],
+                "title": f"Backend Engineer {suffix}-nan",
+                "currency": float("nan"),
+            },
+            {
+                **FAKE_JOBSPY_ROWS[1],
+                "title": f"Senior Software Engineer {suffix}-usd",
+                "currency": "USD",
+            },
+        ]
+
+        with (
+            _mock_jobspy_scrape(rows),
+            _mock_embeddings_client(),
+            _mock_explainer(),
+            _mock_enqueue_email(),
+        ):
+            stats = scan_jobs_for_candidate(str(user.id))
+
+        assert stats["scraped"] == 2
+        postings = {p.title: p for p in _get_postings() if suffix in p.title}
+        assert postings[rows[0]["title"]].salary_currency is None
+        assert postings[rows[1]["title"]].salary_currency == "USD"
+
     def test_marks_below_similarity_threshold_in_score_breakdown_end_to_end(self):
         """Module A (§5.4): when `repository.find_similar_postings` flags a triple's
         `passed_threshold=False` (i.e. it was only surfaced via the relaxed fallback

@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 import { usePreferences, useUpdatePreferences } from "../hooks/usePreferences";
 import { usePushSubscription } from "../hooks/usePushSubscription";
 
@@ -98,19 +99,25 @@ export function PreferencesForm() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    updateMutation.mutate({
-      desiredRoles: splitCommaSeparated(desiredRoles),
-      desiredLocations: splitCommaSeparated(desiredLocations),
-      salaryMin: salaryMin ? Number(salaryMin) : null,
-      salaryMax: salaryMax ? Number(salaryMax) : null,
-      remotePreference: remotePreference
-        ? (remotePreference as "remote" | "hybrid" | "onsite")
-        : null,
-      notificationChannels: notificationChannels as ("email" | "sms" | "webhook" | "push")[],
-      webhookUrl: webhookUrl.trim() ? webhookUrl.trim() : null,
-      digestFrequency: digestFrequency as "daily" | "weekly" | "off",
-      isScanEnabled,
-    });
+    updateMutation.mutate(
+      {
+        desiredRoles: splitCommaSeparated(desiredRoles),
+        desiredLocations: splitCommaSeparated(desiredLocations),
+        salaryMin: salaryMin ? Number(salaryMin) : null,
+        salaryMax: salaryMax ? Number(salaryMax) : null,
+        remotePreference: remotePreference
+          ? (remotePreference as "remote" | "hybrid" | "onsite")
+          : null,
+        notificationChannels: notificationChannels as ("email" | "sms" | "webhook" | "push")[],
+        webhookUrl: webhookUrl.trim() ? webhookUrl.trim() : null,
+        digestFrequency: digestFrequency as "daily" | "weekly" | "off",
+        isScanEnabled,
+      },
+      {
+        onSuccess: () => toast.success("Preferences saved"),
+        onError: () => toast.error("Couldn't save preferences"),
+      },
+    );
   }
 
   return (

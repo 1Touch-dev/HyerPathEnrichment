@@ -96,7 +96,7 @@ export function AddManualJobDialog({ open, onOpenChange }: AddManualJobDialogPro
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <form onSubmit={handleSubmit} noValidate>
           <DialogHeader>
             <DialogTitle>Add a job manually</DialogTitle>

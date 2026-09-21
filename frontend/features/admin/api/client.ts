@@ -306,14 +306,17 @@ export async function fetchMfaStatus(): Promise<MfaStatus> {
 }
 
 export async function enrollMfa(): Promise<MfaEnrollResult> {
-  const res = await fetch("/api/admin/mfa/enroll", { method: "POST" });
+  const res = await fetch("/api/admin/mfa/enroll", {
+    method: "POST",
+    headers: withIdempotencyHeaders("admin-mfa-enroll"),
+  });
   return unwrap(res, "Failed to enroll MFA");
 }
 
 export async function confirmMfaEnrollment(code: string): Promise<void> {
   const res = await fetch("/api/admin/mfa/confirm", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: withIdempotencyHeaders("admin-mfa-confirm", { "Content-Type": "application/json" }),
     body: JSON.stringify({ code }),
   });
   if (!res.ok) throw new Error(`Failed to confirm MFA: ${res.status}`);
@@ -322,7 +325,7 @@ export async function confirmMfaEnrollment(code: string): Promise<void> {
 export async function disableMfa(code: string): Promise<void> {
   const res = await fetch("/api/admin/mfa/disable", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: withIdempotencyHeaders("admin-mfa-disable", { "Content-Type": "application/json" }),
     body: JSON.stringify({ code }),
   });
   if (!res.ok) throw new Error(`Failed to disable MFA: ${res.status}`);
