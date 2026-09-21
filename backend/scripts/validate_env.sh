@@ -25,6 +25,9 @@ info() { echo "ℹ $1"; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="${1:-$BACKEND_DIR/.env.production}"
+WORKER_ENV_VALIDATION_FILE="${VALIDATE_WORKER_ENV_FILE:-${WORKER_ENV_FILE:-$ENV_FILE}}"
+EFFECTIVE_TIER1="${VALIDATE_EFFECTIVE_TIER1:-auto}"
+EFFECTIVE_LINUX_MLX="${VALIDATE_EFFECTIVE_LINUX_MLX:-auto}"
 
 ERRORS=0
 WARNINGS=0
@@ -47,18 +50,24 @@ pass "Environment file exists"
 info "Checking required variables..."
 
 check_required() {
-  local var_name="$1"
-  local description="$2"
+  check_required_in_file "$ENV_FILE" "$1" "$2"
+}
 
-  if ! grep -qE "^${var_name}=.+" "$ENV_FILE"; then
+check_required_in_file() {
+  local source_file="$1"
+  local var_name="$2"
+  local description="$3"
+
+  if ! grep -qE "^${var_name}=.+" "$source_file"; then
     fail "$description ($var_name) is not set or empty"
     ERRORS=$((ERRORS + 1))
     return 1
   fi
 
   # Check it's not a placeholder
-  local value=$(grep -E "^${var_name}=" "$ENV_FILE" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
-  if [[ "$value" == "change-me" ]] || [[ "$value" == "your-"* ]] || [[ "$value" == "<"*">" ]]; then
+  local value
+  value="$(get_value_from_file "$source_file" "$var_name")"
+  if [[ "$value" == "change-me" ]] || [[ "$value" == "your-"* ]] || [[ "$value" == "REPLACE_"* ]] || [[ "$value" == "replace_"* ]] || [[ "$value" == "<"*">" ]]; then
     fail "$description ($var_name) contains placeholder value: $value"
     ERRORS=$((ERRORS + 1))
     return 1
@@ -68,8 +77,67 @@ check_required() {
   return 0
 }
 
+get_value_from_file() {
+  local source_file="$1"
+  local var_name="$2"
+  [ -f "$source_file" ] || return 0
+  grep -E "^${var_name}=" "$source_file" | tail -n1 | cut -d'=' -f2- | tr -d '\r' | tr -d '"' | tr -d "'" || true
+}
+
+detect_host_platform() {
+  if [ -n "${VALIDATE_HOST_PLATFORM:-}" ]; then
+    echo "$VALIDATE_HOST_PLATFORM"
+    return
+  fi
+
+  if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "wsl"
+    return
+  fi
+
+  case "$(uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')" in
+    linux*) echo "linux" ;;
+    *) echo "other" ;;
+  esac
+}
+
+file_has_true() {
+  local source_file="$1"
+  local var_name="$2"
+  [ "$(get_value_from_file "$source_file" "$var_name")" = "true" ]
+}
+
+EFFECTIVE_TIER1_ENABLED=0
+EFFECTIVE_LINUX_MLX_ENABLED=0
+HOST_PLATFORM="$(detect_host_platform)"
+
+if [ "$EFFECTIVE_TIER1" = "true" ] || file_has_true "$ENV_FILE" "ENABLE_TIER1" || file_has_true "$WORKER_ENV_VALIDATION_FILE" "ENABLE_TIER1"; then
+  EFFECTIVE_TIER1_ENABLED=1
+fi
+
+if [ "$EFFECTIVE_LINUX_MLX" = "true" ] || file_has_true "$ENV_FILE" "ENABLE_LINUX_MLX" || file_has_true "$WORKER_ENV_VALIDATION_FILE" "ENABLE_LINUX_MLX"; then
+  EFFECTIVE_LINUX_MLX_ENABLED=1
+  EFFECTIVE_TIER1_ENABLED=1
+fi
+
+if [ "$EFFECTIVE_TIER1_ENABLED" -eq 1 ]; then
+  if [ ! -f "$WORKER_ENV_VALIDATION_FILE" ]; then
+    fail "Worker env file not found: $WORKER_ENV_VALIDATION_FILE"
+    ERRORS=$((ERRORS + 1))
+  else
+    pass "Worker env file exists"
+  fi
+fi
+
+if [ "$HOST_PLATFORM" = "linux" ] && [ "$EFFECTIVE_TIER1_ENABLED" -eq 1 ] && [ "$EFFECTIVE_LINUX_MLX_ENABLED" -eq 0 ]; then
+  fail "Effective Tier 1 on real Linux requires ENABLE_LINUX_MLX=true (or start_production.sh --with-linux-mlx); docker-compose.tier1.yml is diagnostic-only for WSL2/Windows"
+  ERRORS=$((ERRORS + 1))
+fi
+
 # Core required variables
 check_required "API_TOKEN" "API authentication token"
+check_required "DATABASE_URL" "Database URL"
+check_required "REDIS_URL" "Redis URL"
 check_required "POSTGRES_USER" "PostgreSQL user"
 check_required "POSTGRES_PASSWORD" "PostgreSQL password"
 check_required "POSTGRES_DB" "PostgreSQL database name"
@@ -92,7 +160,8 @@ check_url_format() {
     return 1
   fi
 
-  local value=$(grep -E "^${var_name}=" "$ENV_FILE" | cut -d'=' -f2-)
+  local value
+  value="$(get_value_from_file "$ENV_FILE" "$var_name")"
 
   # Check for expected host in URL
   if [[ -n "$expected_host" ]] && ! echo "$value" | grep -q "$expected_host"; then
@@ -126,29 +195,42 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
+if grep -qE "^OUTREACH_ENABLED=false" "$ENV_FILE"; then
+  info "Outreach disabled (skipping physical-address requirement)"
+else
+  check_required "OUTREACH_PHYSICAL_ADDRESS" "Outreach physical mailing address"
+fi
+
 echo ""
 
 # ============================================================================
 # Tier 1 configuration validation
 # ============================================================================
-if grep -qE "^ENABLE_TIER1=true" "$ENV_FILE"; then
-  info "Tier 1 enabled - checking required configuration..."
+if [ "$EFFECTIVE_TIER1_ENABLED" -eq 1 ]; then
+  info "Tier 1 effective runtime enabled - checking worker-tier1 configuration..."
+  info "Worker env source: $WORKER_ENV_VALIDATION_FILE"
 
-  check_required "MULTILOGIN_EMAIL" "Multilogin email"
-  check_required "MULTILOGIN_PASSWORD" "Multilogin password"
-  check_required "MULTILOGIN_FOLDER_ID" "Multilogin folder ID"
-  check_required "MULTILOGIN_WORKSPACE_ID" "Multilogin workspace ID"
-  check_required "LINKEDIN_BOT_EMAIL" "LinkedIn bot email"
-  check_required "LINKEDIN_BOT_PASSWORD" "LinkedIn bot password"
+  if [ -f "$WORKER_ENV_VALIDATION_FILE" ]; then
+    check_required_in_file "$WORKER_ENV_VALIDATION_FILE" "MULTILOGIN_EMAIL" "Multilogin email"
+    check_required_in_file "$WORKER_ENV_VALIDATION_FILE" "MULTILOGIN_PASSWORD" "Multilogin password"
+    check_required_in_file "$WORKER_ENV_VALIDATION_FILE" "MULTILOGIN_FOLDER_ID" "Multilogin folder ID"
+    check_required_in_file "$WORKER_ENV_VALIDATION_FILE" "LINKEDIN_BOT_EMAIL" "LinkedIn bot email"
+    check_required_in_file "$WORKER_ENV_VALIDATION_FILE" "LINKEDIN_BOT_PASSWORD" "LinkedIn bot password"
 
-  # Check for Linux MLX mode
-  if grep -qE "^ENABLE_LINUX_MLX=true" "$ENV_FILE"; then
-    info "Linux containerized Multilogin mode detected"
+    browser_mode="$(get_value_from_file "$WORKER_ENV_VALIDATION_FILE" "BROWSER_MODE")"
+    if [ -z "$browser_mode" ]; then
+      pass "BROWSER_MODE defaults to multilogin for worker-tier1"
+    elif [ "$browser_mode" = "multilogin" ]; then
+      pass "BROWSER_MODE is multilogin for worker-tier1"
+    else
+      fail "BROWSER_MODE must be 'multilogin' for effective Tier 1 runtime (current: $browser_mode)"
+      ERRORS=$((ERRORS + 1))
+    fi
 
-    # Check AWS credentials if needed (for build time)
-    if ! grep -qE "^AWS_ACCESS_KEY_ID=.+" "$ENV_FILE"; then
-      warn "AWS_ACCESS_KEY_ID not set (needed for building Linux MLX image)"
-      WARNINGS=$((WARNINGS + 1))
+    if [ "$EFFECTIVE_LINUX_MLX_ENABLED" -eq 1 ]; then
+      info "Linux containerized Multilogin target detected"
+      check_required_in_file "$ENV_FILE" "AWS_ACCESS_KEY_ID" "AWS access key ID"
+      check_required_in_file "$ENV_FILE" "AWS_SECRET_ACCESS_KEY" "AWS secret access key"
     fi
   fi
 
@@ -194,14 +276,16 @@ fi
 # ============================================================================
 # Storage configuration
 # ============================================================================
-if grep -qE "^ENABLE_TIER1=true" "$ENV_FILE"; then
+if [ "$EFFECTIVE_TIER1_ENABLED" -eq 1 ]; then
   info "Checking R2 storage configuration (required for Tier 1)..."
 
-  check_required "R2_ACCOUNT_ID" "R2 account ID"
-  check_required "R2_ACCESS_KEY_ID" "R2 access key ID"
-  check_required "R2_SECRET_ACCESS_KEY" "R2 secret access key"
-  check_required "R2_BUCKET" "R2 bucket name"
-  check_required "R2_PUBLIC_BASE_URL" "R2 public base URL"
+  if [ -f "$WORKER_ENV_VALIDATION_FILE" ]; then
+    check_required_in_file "$WORKER_ENV_VALIDATION_FILE" "R2_ACCOUNT_ID" "R2 account ID"
+    check_required_in_file "$WORKER_ENV_VALIDATION_FILE" "R2_ACCESS_KEY_ID" "R2 access key ID"
+    check_required_in_file "$WORKER_ENV_VALIDATION_FILE" "R2_SECRET_ACCESS_KEY" "R2 secret access key"
+    check_required_in_file "$WORKER_ENV_VALIDATION_FILE" "R2_BUCKET" "R2 bucket name"
+    check_required_in_file "$WORKER_ENV_VALIDATION_FILE" "R2_PUBLIC_BASE_URL" "R2 public base URL"
+  fi
 
   echo ""
 fi
@@ -220,7 +304,7 @@ else
 fi
 
 # Check API token length
-api_token=$(grep -E "^API_TOKEN=" "$ENV_FILE" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+api_token="$(get_value_from_file "$ENV_FILE" "API_TOKEN")"
 if [ ${#api_token} -lt 32 ]; then
   warn "API_TOKEN should be at least 32 characters long"
   WARNINGS=$((WARNINGS + 1))
@@ -237,7 +321,8 @@ info "Checking network configuration consistency..."
 
 # Check if any URLs use 127.0.0.1 (should be rare, only for tier1 overrides)
 # Fixed: Use simpler grep without greedy .* to avoid backtracking hang
-localhost_urls=$(grep -c "127\.0\.0\.1" "$ENV_FILE" 2>/dev/null || echo "0")
+localhost_urls="$(grep -c "127\.0\.0\.1" "$ENV_FILE" 2>/dev/null || true)"
+localhost_urls="${localhost_urls:-0}"
 
 if [ "$localhost_urls" -gt 0 ]; then
   warn "Found $localhost_urls URL(s) using 127.0.0.1 - ensure this is intentional"

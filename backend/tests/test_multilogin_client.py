@@ -10,6 +10,8 @@ from pydantic import SecretStr
 from app.clients.multilogin import (
     MultiloginClient,
     MultiloginError,
+    normalize_multilogin_launcher_url,
+    normalize_multilogin_selenium_host,
     sign_in,
     start_profile,
     stop_profile,
@@ -115,6 +117,27 @@ async def test_start_profile_returns_port(mlx_settings: None) -> None:
         mock_client_cls.assert_called_once_with(timeout=60.0, verify=False)
 
 
+def test_normalize_multilogin_launcher_url_rewrites_docker_host_on_native_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.clients.multilogin._running_on_native_windows", lambda: True)
+    assert (
+        normalize_multilogin_launcher_url("https://host.docker.internal:45001/api/v2")
+        == "https://127.0.0.1:45001/api/v2"
+    )
+    assert (
+        normalize_multilogin_launcher_url("https://launcher.mlx.yt:45001/api/v2")
+        == "https://127.0.0.1:45001/api/v2"
+    )
+
+
+def test_normalize_multilogin_selenium_host_rewrites_docker_host_on_native_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.clients.multilogin._running_on_native_windows", lambda: True)
+    assert normalize_multilogin_selenium_host("http://host.docker.internal") == "http://127.0.0.1"
+
+
 @pytest.mark.asyncio
 async def test_stop_profile_uses_v1_launcher_path(mlx_settings: None) -> None:
     client = MultiloginClient()
@@ -132,6 +155,42 @@ async def test_stop_profile_uses_v1_launcher_path(mlx_settings: None) -> None:
         url = str(mock_client.get.await_args.args[0])
         assert "/api/v1/profile/stop/p/profile-uuid" in url
         mock_client_cls.assert_called_once_with(timeout=30.0, verify=False)
+
+
+@pytest.mark.asyncio
+async def test_start_profile_wraps_httpx_errors(mlx_settings: None) -> None:
+    client = MultiloginClient()
+    client._token = "tok-123"
+    client._token_expires_at = 1e12
+
+    with patch("app.clients.multilogin.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("boom"))
+        mock_client_cls.return_value = mock_client
+
+        with pytest.raises(
+            MultiloginError, match="Failed to start Multilogin profile profile-uuid"
+        ):
+            await client.start_profile("profile-uuid")
+
+
+@pytest.mark.asyncio
+async def test_stop_profile_wraps_httpx_errors(mlx_settings: None) -> None:
+    client = MultiloginClient()
+    client._token = "tok-123"
+    client._token_expires_at = 1e12
+
+    with patch("app.clients.multilogin.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("boom"))
+        mock_client_cls.return_value = mock_client
+
+        with pytest.raises(MultiloginError, match="Failed to stop Multilogin profile profile-uuid"):
+            await client.stop_profile("profile-uuid")
 
 
 @pytest.mark.asyncio

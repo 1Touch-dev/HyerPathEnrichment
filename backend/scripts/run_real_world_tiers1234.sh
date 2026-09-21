@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
-# Real-world Tier 1-4 run: brings up the real compose stack (real sidecars,
-# real CLIs, real Multilogin), runs Tier 2-4 then Tier 1 against it, and
-# combines both stage reports (with per-enricher timing) into one JSON report.
+# Real-world Tier 1-4 run on a REAL Linux host: brings up the supported Linux
+# MLX compose family (real sidecars, real CLIs, real Multilogin), runs Tier
+# 2-4 then Tier 1 against it, and combines both stage reports (with
+# per-enricher timing) into one JSON report.
 #
 # Stage A (Tier 2-4): docker compose exec -T api probe_enrichers.py --canary
 #   against real Sherlock/Maigret/GitRecon/TheHarvester/CrossLinked CLIs plus
 #   real social-analyzer / email-verifier / google-maps-scraper sidecars.
-# Stage B (Tier 1): scripts/e2e_tier1_canary.py run from the WSL host (venv
-#   created on first use) through POST /enrich -> RQ worker -> real Multilogin
-#   X launcher on the Windows host -> real LinkedIn. Single pass, no retries
-#   (Multilogin daily view budget is limited).
+# Stage B (Tier 1): scripts/e2e_tier1_canary.py run from the Linux host (venv
+#   created on first use) through POST /enrich -> RQ worker -> containerized
+#   Multilogin X -> real LinkedIn. Single pass, no retries (Multilogin daily
+#   view budget is limited).
 #
 # Usage:
 #   bash backend/scripts/run_real_world_tiers1234.sh
 #
-# Requires Docker in WSL (Ubuntu). On Windows, invoke via:
-#   wsl -d Ubuntu bash /mnt/g/ThunderMarketingCorp/HyerEnrichment/backend/scripts/run_real_world_tiers1234.sh
+# Do not use this script on Windows/WSL to claim a Linux MLX proof run.
+# It is only honest on a real Linux host where `--with-linux-mlx` is supported.
 #
 # Env:
 #   E2E_KEEP_STACK=1   leave the compose stack up after the run
@@ -30,11 +31,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_DIR="$(cd "$SCRIPT_DIR/../docker" && pwd)"
 BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-ENV_FILE="$BACKEND_DIR/.env"
+ENV_FILE="${API_ENV_FILE:-$BACKEND_DIR/.env.production}"
 RESULTS_DIR="$BACKEND_DIR/.e2e-results"
 REPORT="$RESULTS_DIR/real-world-tiers1234-report.json"
 BASE="http://localhost:8000"
-COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.tier1.yml)
+COMPOSE_FILES=(
+  -f docker-compose.yml
+  -f docker-compose.prod.yml
+  -f docker-compose.foundation.yml
+  -f docker-compose.tier-workers.yml
+  -f docker-compose.multilogin.yml
+)
 
 pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1" >&2; exit 1; }
@@ -43,7 +50,11 @@ warn() { echo "WARN  $1"; }
 mkdir -p "$RESULTS_DIR"
 
 if [ ! -f "$ENV_FILE" ]; then
-  fail "backend/.env not found - populate real sidecar/Multilogin/GitHub settings before a real-world run"
+  fail "$ENV_FILE not found - populate real sidecar/Multilogin/GitHub settings before a real-world run"
+fi
+
+if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
+  fail "run_real_world_tiers1234.sh must run on a real Linux host, not Windows/WSL"
 fi
 
 cleanup() {
@@ -55,22 +66,10 @@ trap cleanup EXIT
 
 RUN_START="$(date +%s)"
 
-# WSL2 + Docker Engine (unlike Docker Desktop): `host-gateway` in extra_hosts
-# resolves to the WSL VM, not the Windows host running Multilogin X. Auto-detect
-# the Windows host via the WSL default route unless already set (see
-# docker-compose.tier1.yml).
-if [ -z "${MULTILOGIN_HOST_IP:-}" ] && [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
-  detected_host_ip="$(ip route show default 2>/dev/null | awk '{print $3}' | head -n1)"
-  if [ -n "$detected_host_ip" ]; then
-    export MULTILOGIN_HOST_IP="$detected_host_ip"
-    warn "auto-detected MULTILOGIN_HOST_IP=$MULTILOGIN_HOST_IP (WSL2 default route to Windows host)"
-  fi
-fi
+echo "== bring up supported Linux MLX stack =="
+bash "$SCRIPT_DIR/start_production.sh" --with-linux-mlx
 
-echo "== bring up real stack (api, worker w/ tier1, redis, postgres, sidecars) =="
 cd "$COMPOSE_DIR"
-docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" up --build -d \
-  migrate api worker redis postgres social-analyzer google-maps-scraper email-verifier
 
 echo "== wait for API health =="
 for i in $(seq 1 90); do
@@ -108,19 +107,19 @@ done
 [ "$code" = "200" ] || fail "email-verifier never returned 200 (last=$code)"
 pass "email-verifier ready"
 
-echo "== wait for worker (Tier 1 enabled) =="
+echo "== wait for worker-tier1 =="
 for i in $(seq 1 30); do
-  if docker compose --env-file "$ENV_FILE" exec -T worker true 2>/dev/null; then
+  if docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T worker-tier1 true 2>/dev/null; then
     break
   fi
   sleep 2
 done
-docker compose --env-file "$ENV_FILE" exec -T worker true 2>/dev/null \
-  || fail "worker is not running (check ENABLE_TIER1 / Multilogin settings)"
-pass "worker running"
+docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T worker-tier1 true 2>/dev/null \
+  || fail "worker-tier1 is not running (check Linux MLX settings)"
+pass "worker-tier1 running"
 
 echo "== worker CLIs (tier 2/3) =="
-docker compose --env-file "$ENV_FILE" exec -T worker sh -c '
+docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T worker-tier234 sh -c '
   which sherlock
   which maigret
   which theHarvester
@@ -136,13 +135,13 @@ STAGE_A_EXIT=0
 
 echo ""
 echo "========== Stage A: Tier 2-4 canary (real CLIs + real sidecars) =========="
-docker compose --env-file "$ENV_FILE" exec -T api sh -c 'mkdir -p /app/backend/docs' \
+docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T api sh -c 'mkdir -p /app/backend/docs' \
   < /dev/null
-docker compose --env-file "$ENV_FILE" exec -T api sh -c 'cat > /app/backend/docs/tier234_canary_set.json' \
+docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T api sh -c 'cat > /app/backend/docs/tier234_canary_set.json' \
   < "$BACKEND_DIR/docs/tier234_canary_set.json"
 
 set +e
-docker compose --env-file "$ENV_FILE" exec -T api sh -c '
+docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T api sh -c '
   set -e
   export E2E_BASE_URL=http://127.0.0.1:8000
   export SOCIAL_ANALYZER_URL=http://social-analyzer:9005
@@ -163,7 +162,7 @@ set -e
 STAGE_A_END="$(date +%s)"
 STAGE_A_DURATION=$((STAGE_A_END - STAGE_A_START))
 
-docker compose --env-file "$ENV_FILE" exec -T api cat /app/backend/.e2e-results/tier234-canary.json \
+docker compose "${COMPOSE_FILES[@]}" --env-file "$ENV_FILE" exec -T api cat /app/backend/.e2e-results/tier234-canary.json \
   > "$RESULTS_DIR/tier234-canary.json" || true
 
 if [ "$STAGE_A_EXIT" -eq 0 ]; then

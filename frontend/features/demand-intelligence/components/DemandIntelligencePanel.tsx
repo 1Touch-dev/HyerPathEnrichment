@@ -3,9 +3,18 @@
 import { useState, type FormEvent } from "react";
 import { Search } from "lucide-react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -56,19 +65,48 @@ export function DemandIntelligencePanel() {
 
   const results = data?.results ?? [];
   const hasSearched = submittedRole.length > 0;
+  const tierOneCount = results.filter((row) => row.tier === "tier_1").length;
 
   return (
     <div className="flex flex-col gap-4">
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <Input
-          value={role}
-          onChange={(event) => setRole(event.target.value)}
-          placeholder="Search by role, e.g. 'software engineer'"
+      <DeskMetricGrid className="xl:grid-cols-3">
+        <DeskMetricCard
+          label="Search state"
+          value={hasSearched ? submittedRole : "Awaiting query"}
+          hint="Role bucket currently in view"
+          tone={hasSearched ? "info" : "default"}
         />
-        <Button type="submit" disabled={!role.trim() || isFetching}>
-          <Search className="mr-2 size-4" />
-          {isFetching ? "Searching…" : "Search"}
-        </Button>
+        <DeskMetricCard
+          label="Results returned"
+          value={results.length}
+          hint={hasSearched ? "Matching country buckets" : "Run a search to populate results"}
+        />
+        <DeskMetricCard
+          label="Tier 1 countries"
+          value={tierOneCount}
+          hint="Highest sourcing priority in this result set"
+          tone={tierOneCount > 0 ? "success" : "default"}
+        />
+      </DeskMetricGrid>
+
+      <form onSubmit={handleSubmit}>
+        <FilterBar className="items-stretch sm:items-end">
+          <FilterBarGroup>
+            <div className="flex-1">
+              <Input
+                value={role}
+                onChange={(event) => setRole(event.target.value)}
+                placeholder="Search by role, e.g. 'software engineer'"
+              />
+            </div>
+          </FilterBarGroup>
+          <FilterBarActions>
+            <Button type="submit" disabled={!role.trim() || isFetching}>
+              <Search className="mr-2 size-4" />
+              {isFetching ? "Searching…" : "Search"}
+            </Button>
+          </FilterBarActions>
+        </FilterBar>
       </form>
 
       {error ? <p className="text-sm text-destructive">{formatApiErrorMessage(error)}</p> : null}
@@ -84,7 +122,18 @@ export function DemandIntelligencePanel() {
           description="No country-demand data was found for that role. This can happen if the daily aggregation job hasn't run yet, or no postings currently match — try a broader role query."
         />
       ) : (
-        <div className="rounded-lg border">
+        <div className="flex flex-col gap-3">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Country demand results</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Recruiter-facing country ranking for the submitted role, grouped by sourcing tier.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">{submittedRole}</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
           <Table>
             <TableHeader>
               <TableRow>

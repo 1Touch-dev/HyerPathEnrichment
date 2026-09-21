@@ -1,10 +1,14 @@
+import { DeskPage } from "@/components/desk/desk-shell";
 import { DemandIntelligencePanel } from "@/features/demand-intelligence/components/DemandIntelligencePanel";
 
 export default function AdminDemandIntelligencePage() {
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Demand Intelligence</h1>
+    <DeskPage
+      eyebrow="Desk intelligence"
+      title="Demand intelligence"
+      description="Search role-level country demand and sourcing priority without altering the existing query flow or backend aggregation behavior."
+    >
       <DemandIntelligencePanel />
-    </div>
+    </DeskPage>
   );
 }

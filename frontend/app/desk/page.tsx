@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { DeskPage } from "@/components/desk/desk-shell";
 import { RouteGuardStatus } from "@/components/auth/route-guard-status";
 import { SystemHealthPanel } from "@/features/admin";
 import { useAuth } from "@/providers/auth-provider";
@@ -26,5 +27,13 @@ export default function DeskIndexPage() {
     return <RouteGuardStatus message="You don't have access to this page" />;
   }
 
-  return <SystemHealthPanel />;
+  return (
+    <DeskPage
+      eyebrow="Desk overview"
+      title="Operations home"
+      description="Start from system health, service posture, and the latest operational signals without changing Desk routing or access rules."
+    >
+      <SystemHealthPanel />
+    </DeskPage>
+  );
 }

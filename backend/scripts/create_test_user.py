@@ -15,9 +15,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import sys
+import tempfile
+import time
+from collections.abc import Awaitable, Callable
+from contextlib import contextmanager
 from pathlib import Path
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +32,7 @@ if str(_BACKEND_ROOT) not in sys.path:
 
 _PROD_LIKE_ENVS = frozenset({"production", "staging"})
 _SUPERUSER_ALLOW_ENV = "ALLOW_E2E_SUPERUSER_BOOTSTRAP"
+_SCHEMA_LOCK_TIMEOUT_SECONDS = 120.0
 
 
 def validate_bootstrap_context(*, app_env: str, is_superuser: bool) -> None:
@@ -80,6 +86,66 @@ async def _create_or_update_user(
         await session.commit()
 
 
+def _schema_lock_path() -> Path:
+    from app.core.config import get_settings
+
+    digest = hashlib.sha256(get_settings().database_url.encode("utf-8")).hexdigest()[:16]
+    return Path(tempfile.gettempdir()) / f"hyrepath-create-test-user-{digest}.lock"
+
+
+@contextmanager
+def _schema_init_lock():
+    lock_path = _schema_lock_path()
+    lock_fd: int | None = None
+    deadline = time.monotonic() + _SCHEMA_LOCK_TIMEOUT_SECONDS
+
+    while True:
+        try:
+            lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(lock_fd, f"{os.getpid()}\n".encode("utf-8"))
+            break
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"timed out waiting for schema bootstrap lock: {lock_path}")
+            time.sleep(0.1)
+
+    try:
+        yield
+    finally:
+        if lock_fd is not None:
+            os.close(lock_fd)
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+async def _ensure_schema_and_create_user(
+    email: str,
+    password: str,
+    first_name: str,
+    last_name: str,
+    *,
+    is_superuser: bool = False,
+    init_db_func: Callable[[], Awaitable[None]] | None = None,
+) -> None:
+    if init_db_func is None:
+        from app.database.session import init_db
+
+        with _schema_init_lock():
+            await init_db()
+    else:
+        await init_db_func()
+
+    await _create_or_update_user(
+        email,
+        password,
+        first_name,
+        last_name,
+        is_superuser=is_superuser,
+    )
+
+
 def main() -> int:
     from app.core.config import get_settings
 
@@ -103,7 +169,7 @@ def main() -> int:
     )
 
     asyncio.run(
-        _create_or_update_user(
+        _ensure_schema_and_create_user(
             args.email,
             args.password,
             args.first_name,

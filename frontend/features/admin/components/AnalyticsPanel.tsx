@@ -2,9 +2,17 @@
 
 import { RefreshCw } from "lucide-react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import { useJobMatchAnalytics } from "../hooks/useAnalytics";
 
 function formatCurrency(value: number | null): string {
@@ -37,14 +45,14 @@ export function AnalyticsPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Job match analytics</h2>
-          <p className="text-sm text-muted-foreground">
+      <SectionHeader>
+        <SectionHeaderContent>
+          <SectionHeaderTitle>Job match analytics</SectionHeaderTitle>
+          <SectionHeaderDescription>
             Aggregate stats, not a full analytics suite.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+          </SectionHeaderDescription>
+        </SectionHeaderContent>
+        <SectionHeaderActions>
           <Badge variant={data.cacheHit ? "secondary" : "outline"}>
             {data.cacheHit ? "Cache hit" : "Freshly computed"}
           </Badge>
@@ -57,55 +65,37 @@ export function AnalyticsPanel() {
             <RefreshCw className="mr-1 size-3" />
             Refresh
           </Button>
-        </div>
-      </div>
+        </SectionHeaderActions>
+      </SectionHeader>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total postings
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{data.totalPostings.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total matches
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{data.totalMatches.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Avg salary range
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold">
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Tracked job postings"
+          value={data.totalPostings.toLocaleString()}
+          hint="Current analytics sample"
+        />
+        <DeskMetricCard
+          label="Generated matches"
+          value={data.totalMatches.toLocaleString()}
+          hint="Across the sampled postings"
+          tone="info"
+        />
+        <DeskMetricCard
+          label="Average salary range"
+          value={
+            <span className="text-lg">
               {formatCurrency(data.avgSalaryMin)} – {formatCurrency(data.avgSalaryMax)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Avg match score
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">
-              {data.avgOverallScore !== null ? Math.round(data.avgOverallScore) : "—"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+            </span>
+          }
+          hint="Null values remain honest"
+        />
+        <DeskMetricCard
+          label="Average match score"
+          value={data.avgOverallScore !== null ? Math.round(data.avgOverallScore) : "—"}
+          hint="Rounded for quick scanning"
+          tone="success"
+        />
+      </DeskMetricGrid>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>

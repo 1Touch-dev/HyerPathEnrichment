@@ -53,6 +53,7 @@ const owner: Identity = {
   last_name: "Owner",
   role_id: "role-team-owner",
   role_name: "team_owner",
+  permissions: [{ resource: "feature_flags", action: "read" }],
 };
 
 async function mockSession(page: Page, user: Identity, impersonating = false): Promise<void> {
@@ -161,7 +162,10 @@ test.describe("Desk Wave 1 release smoke", () => {
     await expect(page).toHaveURL(/\/app\/matches$/);
   });
 
-  test("owner can inspect feature flags but cannot mutate them", async ({ page }) => {
+  test("team owner with explicit feature-flag access can inspect flags but cannot mutate them", async ({
+    page,
+  }) => {
+    test.setTimeout(COLD_NEXT_ROUTE_NAVIGATION_TIMEOUT_MS);
     await mockSession(page, owner);
     await page.route("**/api/admin/feature-flags", (route) =>
       route.fulfill({
@@ -172,15 +176,18 @@ test.describe("Desk Wave 1 release smoke", () => {
               key: "candidate_ranker",
               enabled: false,
               description: "No consumer exists",
-              updated_by: null,
-              updated_at: "2026-01-01T00:00:00.000Z",
+              updatedBy: null,
+              updatedAt: "2026-01-01T00:00:00.000Z",
             },
           ],
         },
       }),
     );
 
-    await page.goto("/desk/feature-flags");
+    await page.goto("/desk/feature-flags", {
+      waitUntil: "domcontentloaded",
+      timeout: COLD_NEXT_ROUTE_NAVIGATION_TIMEOUT_MS,
+    });
     await expect(page.getByRole("heading", { name: "Feature flags" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Create flag" })).toBeDisabled();
     await expect(page.getByRole("switch", { name: "Toggle candidate_ranker" })).toBeDisabled();

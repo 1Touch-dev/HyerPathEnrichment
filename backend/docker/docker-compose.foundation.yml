@@ -1,5 +1,7 @@
 # Foundation Week 1 - AI Candidate Platform Services
-# This is an overlay compose file for document processing, embeddings, and CV extraction workers
+# This overlay adds document/embedding/job-matching workers; `worker-job-matching`
+# also seeds the daily `audio_cleanup` schedule, while the generic `worker`
+# remains the declared `audio_cleanup` queue consumer.
 # Usage: docker compose -f docker-compose.yml -f docker-compose.foundation.yml up
 
 services:
@@ -13,7 +15,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://hyrepath:${POSTGRES_PASSWORD}@postgres:5432/hyrepath
       REDIS_URL: redis://redis:6379/0
-      WORKER_STARTUP_DELAY: "0"
+      WORKER_STARTUP_DELAY: ${WORKER_STARTUP_DELAY:-0}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
       # R2 storage (optional - falls back to local .asset-cache/)

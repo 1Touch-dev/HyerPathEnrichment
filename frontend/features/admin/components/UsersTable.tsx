@@ -4,8 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { LogIn } from "lucide-react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid, DeskPagination } from "@/components/desk/desk-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import {
   Select,
   SelectContent,
@@ -13,6 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -84,30 +94,92 @@ export function UsersTable() {
   }
 
   const items = data?.items ?? [];
+  const activeUsersOnPage = items.filter((targetUser) => targetUser.isActive).length;
+  const suspendedUsersOnPage = items.length - activeUsersOnPage;
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        User deactivation is temporarily unavailable until ADR21 typed confirmation and step-up
-        controls are implemented.
-      </p>
-      <div className="flex items-center justify-between gap-4">
-        <Select value={statusFilter} onValueChange={handleFilterChange}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All users</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="suspended">Suspended</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <Alert variant="warning">
+        <AlertTitle>Mutation guardrails remain in force</AlertTitle>
+        <AlertDescription>
+          User deactivation is temporarily unavailable until ADR21 typed confirmation and step-up
+          controls are implemented.
+        </AlertDescription>
+      </Alert>
+
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Users on this page"
+          value={items.length}
+          hint="Current cursor slice"
+        />
+        <DeskMetricCard
+          label="Active users on page"
+          value={activeUsersOnPage}
+          hint="Available for normal app access"
+          tone="success"
+        />
+        <DeskMetricCard
+          label="Suspended users on page"
+          value={suspendedUsersOnPage}
+          hint="Shown when the current filter includes suspended users"
+          tone={suspendedUsersOnPage > 0 ? "warning" : "default"}
+        />
+        <DeskMetricCard
+          label="Operator capabilities"
+          value={canImpersonate ? "Impersonation enabled" : "Read-only"}
+          hint={canReactivate ? "Reactivation allowed" : "Reactivation restricted"}
+          tone={canImpersonate || canReactivate ? "info" : "default"}
+        />
+      </DeskMetricGrid>
+
+      <FilterBar>
+        <FilterBarGroup>
+          <div className="space-y-2">
+            <SectionHeader>
+              <SectionHeaderContent>
+                <SectionHeaderTitle className="text-base">Account filters</SectionHeaderTitle>
+                <SectionHeaderDescription>
+                  Cursor pagination stays intact; filters reset to the first slice instead of
+                  inventing page numbers.
+                </SectionHeaderDescription>
+              </SectionHeaderContent>
+            </SectionHeader>
+            <Select value={statusFilter} onValueChange={handleFilterChange}>
+              <SelectTrigger className="w-[180px]" aria-label="Filter by account status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All users</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </FilterBarGroup>
+        <FilterBarActions>
+          <div className="text-right text-sm text-muted-foreground">
+            Open a user to inspect role, MFA, and recent admin actions in the detail drawer.
+          </div>
+        </FilterBarActions>
+      </FilterBar>
 
       {!items.length && !isLoading ? (
         <EmptyState title="No users found" description="Try a different status filter." />
       ) : (
-        <div className="rounded-lg border">
+        <div className="flex flex-col gap-3">
+          <SectionHeader>
+            <SectionHeaderContent>
+              <SectionHeaderTitle>Account roster</SectionHeaderTitle>
+              <SectionHeaderDescription>
+                Dense operational view of account status, role posture, MFA readiness, and safe
+                impersonation entrypoints.
+              </SectionHeaderDescription>
+            </SectionHeaderContent>
+            <SectionHeaderActions>
+              <Badge variant="outline">Cursor pagination</Badge>
+            </SectionHeaderActions>
+          </SectionHeader>
           <Table>
             <TableHeader>
               <TableRow>
@@ -180,24 +252,12 @@ export function UsersTable() {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={cursorStack.length <= 1 || isLoading}
-          onClick={handlePrevious}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!data?.hasMore || isLoading}
-          onClick={handleNext}
-        >
-          Next page
-        </Button>
-      </div>
+      <DeskPagination
+        canPrevious={cursorStack.length > 1 && !isLoading}
+        canNext={Boolean(data?.hasMore) && !isLoading}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+      />
 
       {impersonateTarget ? (
         <ImpersonateUserDialog

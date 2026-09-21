@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid } from "@/components/desk/desk-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,6 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -54,6 +64,9 @@ export function SourcingLeadsPanel() {
   const { data: leads = [], isLoading } = useSourcedLeads(status);
   const createLead = useCreateSourcedLead();
   const reviewLead = useReviewSourcedLead();
+  const reviewedLeads = leads.filter((lead) => lead.status === "reviewed").length;
+  const contactedLeads = leads.filter((lead) => lead.status === "contacted").length;
+  const dismissedLeads = leads.filter((lead) => lead.status === "dismissed").length;
 
   function handleReview(
     lead: SourcedCandidateLead,
@@ -64,30 +77,69 @@ export function SourcingLeadsPanel() {
 
   return (
     <div className="flex flex-col gap-8">
+      <Alert variant="info">
+        <AlertTitle>Manual sourcing only</AlertTitle>
+        <AlertDescription>
+          Interns type what they observed while browsing LinkedIn themselves. This UI does not
+          fetch, enrich, or autofill profile data.
+        </AlertDescription>
+      </Alert>
+
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Leads in current view"
+          value={leads.length}
+          hint="Filtered queue slice"
+        />
+        <DeskMetricCard
+          label="Reviewed in view"
+          value={reviewedLeads}
+          hint={`${contactedLeads} contacted / ${dismissedLeads} dismissed`}
+          tone={contactedLeads > 0 ? "success" : reviewedLeads > 0 ? "info" : "default"}
+        />
+        <DeskMetricCard
+          label="Queue filter"
+          value={statusFilter === "all" ? "All statuses" : statusFilter}
+          hint="Review workflow only"
+        />
+      </DeskMetricGrid>
+
       <LeadEntryForm
         isSubmitting={createLead.isPending}
         onSubmit={(input) => createLead.mutateAsync(input).then(() => undefined)}
       />
 
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold tracking-tight">Recruiter review queue</h2>
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value as StatusFilter)}
-          >
-            <SelectTrigger className="w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="new">New</SelectItem>
-              <SelectItem value="reviewed">Reviewed</SelectItem>
-              <SelectItem value="contacted">Contacted</SelectItem>
-              <SelectItem value="dismissed">Dismissed</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <FilterBar>
+          <FilterBarGroup>
+            <SectionHeader>
+              <SectionHeaderContent>
+                <SectionHeaderTitle>Recruiter review queue</SectionHeaderTitle>
+                <SectionHeaderDescription>
+                  Review manually logged leads and move them through reviewed, contacted, or
+                  dismissed states.
+                </SectionHeaderDescription>
+              </SectionHeaderContent>
+            </SectionHeader>
+          </FilterBarGroup>
+          <FilterBarActions>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="new">New</SelectItem>
+                <SelectItem value="reviewed">Reviewed</SelectItem>
+                <SelectItem value="contacted">Contacted</SelectItem>
+                <SelectItem value="dismissed">Dismissed</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterBarActions>
+        </FilterBar>
 
         {!leads.length && !isLoading ? (
           <EmptyState
@@ -95,7 +147,19 @@ export function SourcingLeadsPanel() {
             description="Try a different status filter, or wait for an intern to log a lead."
           />
         ) : (
-          <div className="rounded-lg border">
+          <div className="flex flex-col gap-3">
+            <SectionHeader>
+              <SectionHeaderContent>
+                <SectionHeaderTitle>Lead review roster</SectionHeaderTitle>
+                <SectionHeaderDescription>
+                  Manual sourcing intake with explicit recruiter actions and no automated outreach
+                  side effects.
+                </SectionHeaderDescription>
+              </SectionHeaderContent>
+              <SectionHeaderActions>
+                <Badge variant="outline">Human review preserved</Badge>
+              </SectionHeaderActions>
+            </SectionHeader>
             <Table>
               <TableHeader>
                 <TableRow>

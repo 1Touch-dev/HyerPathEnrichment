@@ -4,7 +4,15 @@ import { useState } from "react";
 import { Fragment } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
+import {
+  SectionHeader,
+  SectionHeaderActions,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -70,6 +78,10 @@ function FailedJobList({ queueName }: { queueName: string }) {
 export function QueueMonitor() {
   const { data: queues, isLoading } = useQueuesOverview();
   const [expandedQueue, setExpandedQueue] = useState<string | null>(null);
+  const items = queues ?? [];
+  const failingQueues = items.filter((queue) => queue.failedCount > 0).length;
+  const totalFailedJobs = items.reduce((total, queue) => total + queue.failedCount, 0);
+  const totalWorkers = items.reduce((total, queue) => total + queue.workersListening, 0);
 
   if (!queues?.length && !isLoading) {
     return <EmptyState title="No queues configured" description="No RQ queues were found." />;
@@ -80,7 +92,42 @@ export function QueueMonitor() {
   }
 
   return (
-    <div className="rounded-lg border">
+    <div className="flex flex-col gap-4">
+      <DeskMetricGrid>
+        <DeskMetricCard
+          label="Queues observed"
+          value={items.length}
+          hint="Current runtime snapshot"
+        />
+        <DeskMetricCard
+          label="Queues with failures"
+          value={failingQueues}
+          hint={`${totalFailedJobs} failed job(s) in total`}
+          tone={failingQueues > 0 ? "warning" : "success"}
+        />
+        <DeskMetricCard
+          label="Workers listening"
+          value={totalWorkers}
+          hint="Across the currently reported queues"
+          tone="info"
+        />
+      </DeskMetricGrid>
+
+      <SectionHeader>
+        <SectionHeaderContent>
+          <SectionHeaderTitle>Queue snapshot</SectionHeaderTitle>
+          <SectionHeaderDescription>
+            Expand a failed count to inspect the queue-local failure list without changing the
+            existing read-only retry posture.
+          </SectionHeaderDescription>
+        </SectionHeaderContent>
+        <SectionHeaderActions>
+          <Badge variant={failingQueues > 0 ? "warning" : "success"}>
+            {failingQueues > 0 ? "Attention needed" : "Healthy"}
+          </Badge>
+        </SectionHeaderActions>
+      </SectionHeader>
+
       <Table>
         <TableHeader>
           <TableRow>

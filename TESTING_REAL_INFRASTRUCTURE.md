@@ -1,11 +1,11 @@
 # Testing with Real Infrastructure
 
-This guide explains how to test Foundation Week 1 with **REAL production services** (PostgreSQL, Redis, R2, OpenAI).
+This guide explains how to test Foundation Week 1 with **real infrastructure as configured** (PostgreSQL, Redis, OpenAI, and the configured document storage backend).
 
 ## ⚠️ Important Warnings
 
 - **This will cost money!** OpenAI API calls ~$0.01 per test run
-- **Uses real R2 storage** - files will be uploaded to your Cloudflare bucket
+- **Uses the configured document storage backend** - files go to Cloudflare R2 only when R2 credentials are configured; otherwise they use local `.asset-cache/`
 - **Uses real PostgreSQL** - data will persist in the database
 - **Not for CI/CD** - only for local/staging validation
 
@@ -16,7 +16,7 @@ This guide explains how to test Foundation Week 1 with **REAL production service
    - PostgreSQL credentials
    - Redis URL
    - OpenAI API key (valid, with credits)
-   - R2 credentials (Cloudflare)
+   - R2 credentials (Cloudflare) only if you specifically want real R2 coverage instead of the local cache fallback
 3. **Port availability**:
    - 5432 (PostgreSQL)
    - 6379 (Redis)
@@ -49,49 +49,77 @@ The script will:
 
 ### Option 2: Manual Steps
 
+The commands below stay in `backend/docker` and use the same Compose services
+as `run_real_infrastructure_tests.sh`.
+
 1. **Start infrastructure:**
    ```bash
    cd backend/docker
    docker compose --env-file ../.env.production \
        -f docker-compose.yml \
        -f docker-compose.foundation.yml \
-       up -d --build
+       up -d --build postgres redis migrate api worker-document worker-embedding
    ```
 
 2. **Wait for services to be healthy** (60-90 seconds):
    ```bash
-   docker compose ps
-   # All services should show "Up (healthy)"
+   docker compose --env-file ../.env.production \
+       -f docker-compose.yml \
+       -f docker-compose.foundation.yml \
+       ps
+   # postgres/redis/api/worker-document/worker-embedding should show "Up" or
+   # "Up (healthy)"; migrate is a one-shot container and should exit 0 after success.
    ```
 
 3. **Verify pgvector:**
    ```bash
-   docker exec hyer-postgres psql -U hyrepath -d hyrepath -c \
+   docker compose --env-file ../.env.production \
+       -f docker-compose.yml \
+       -f docker-compose.foundation.yml \
+       exec -T postgres psql -U hyrepath -d hyrepath -c \
        "SELECT extversion FROM pg_extension WHERE extname='vector';"
    # Expected: 0.7.4 or newer
    ```
 
 4. **Run tests:**
    ```bash
-   cd ..
-   docker exec hyer-api pytest tests/test_foundation_week1_integration.py -v
+   set -a
+   source ../.env.production
+   set +a
+   docker compose --env-file ../.env.production \
+       -f docker-compose.yml \
+       -f docker-compose.foundation.yml \
+       exec -T api env \
+       PYTEST_USE_REAL_INFRA=true \
+       PYTHONPATH=/app/backend \
+       TEST_DATABASE_URL="postgresql+asyncpg://${POSTGRES_USER:-hyrepath}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-hyrepath}" \
+       TEST_REDIS_URL="${TEST_REDIS_URL:-redis://redis:6379/0}" \
+       python -m pytest -p tests.conftest_real_infrastructure \
+       tests/test_foundation_week1_integration.py -v
    ```
 
 5. **Check results:**
    ```bash
    # View worker logs
-   docker logs hyer-worker-document --tail 50
-   docker logs hyer-worker-embedding --tail 50
+   docker compose --env-file ../.env.production \
+       -f docker-compose.yml \
+       -f docker-compose.foundation.yml \
+       logs --tail 50 worker-document worker-embedding
 
    # Check database
-   docker exec hyer-postgres psql -U hyrepath -d hyrepath -c \
+   docker compose --env-file ../.env.production \
+       -f docker-compose.yml \
+       -f docker-compose.foundation.yml \
+       exec -T postgres psql -U hyrepath -d hyrepath -c \
        "SELECT COUNT(*) FROM document_embeddings;"
    ```
 
 6. **Stop services:**
    ```bash
-   cd docker
-   docker compose -f docker-compose.yml -f docker-compose.foundation.yml down
+   docker compose --env-file ../.env.production \
+       -f docker-compose.yml \
+       -f docker-compose.foundation.yml \
+       down
    ```
 
 ## What Gets Tested
@@ -104,8 +132,8 @@ The script will:
 5. Cost tracking enabled
 
 ### Integration Tests (✅ Should Pass with Real Services)
-6. PDF upload → R2 storage
-7. DOCX upload → R2 storage
+6. PDF upload → configured document storage backend
+7. DOCX upload → configured document storage backend
 8. Duplicate detection (SHA256 hash)
 9. Text extraction & chunking
 10. OpenAI embedding generation (1536 dimensions)
@@ -145,7 +173,7 @@ Documents created: +3
 Embeddings generated: +24 (1536 dimensions each)
 OpenAI API calls: ~30 requests
 Cost: $0.008 - $0.015
-R2 storage: +3 files (~200 KB)
+Document storage: +3 files (~200 KB, R2 only if configured)
 ```
 
 ## Troubleshooting
@@ -157,15 +185,26 @@ R2 storage: +3 files (~200 KB)
 **Fix:**
 ```bash
 # Check service status
-docker compose ps
+docker compose --env-file ../.env.production \
+    -f docker-compose.yml \
+    -f docker-compose.foundation.yml \
+    ps
 
 # View logs
-docker logs hyer-api
-docker logs hyer-worker-document
+docker compose --env-file ../.env.production \
+    -f docker-compose.yml \
+    -f docker-compose.foundation.yml \
+    logs api worker-document
 
 # Restart services
-docker compose down
-docker compose up -d
+docker compose --env-file ../.env.production \
+    -f docker-compose.yml \
+    -f docker-compose.foundation.yml \
+    down
+docker compose --env-file ../.env.production \
+    -f docker-compose.yml \
+    -f docker-compose.foundation.yml \
+    up -d --build postgres redis migrate api worker-document worker-embedding
 ```
 
 ### Tests Fail: "Failed to enqueue document"
@@ -175,12 +214,21 @@ docker compose up -d
 **Fix:**
 ```bash
 # Check Redis
-docker exec hyer-redis redis-cli ping
+docker compose --env-file ../.env.production \
+    -f docker-compose.yml \
+    -f docker-compose.foundation.yml \
+    exec -T redis redis-cli ping
 # Expected: PONG
 
 # Check workers
-docker logs hyer-worker-document | grep "worker started"
-docker logs hyer-worker-embedding | grep "worker started"
+docker compose --env-file ../.env.production \
+    -f docker-compose.yml \
+    -f docker-compose.foundation.yml \
+    logs worker-document | grep "worker started"
+docker compose --env-file ../.env.production \
+    -f docker-compose.yml \
+    -f docker-compose.foundation.yml \
+    logs worker-embedding | grep "worker started"
 ```
 
 ### Tests Fail: "OpenAI API error"
@@ -203,12 +251,21 @@ docker logs hyer-worker-embedding | grep "worker started"
 **Fix:**
 ```bash
 # Check extension
-docker exec hyer-postgres psql -U hyrepath -d hyrepath -c \
+docker compose --env-file ../.env.production \
+    -f docker-compose.yml \
+    -f docker-compose.foundation.yml \
+    exec -T postgres psql -U hyrepath -d hyrepath -c \
     "SELECT * FROM pg_extension WHERE extname='vector';"
 
 # If not found, rebuild postgres
-docker compose down -v  # WARNING: Deletes data!
-docker compose up -d --build postgres
+docker compose --env-file ../.env.production \
+    -f docker-compose.yml \
+    -f docker-compose.foundation.yml \
+    down -v  # WARNING: Deletes data!
+docker compose --env-file ../.env.production \
+    -f docker-compose.yml \
+    -f docker-compose.foundation.yml \
+    up -d --build postgres
 ```
 
 ### High Costs
@@ -226,7 +283,7 @@ docker compose up -d --build postgres
 | Item | Cost per Test Run | Monthly (30 runs) |
 |------|------------------|-------------------|
 | OpenAI embeddings | $0.008 - $0.015 | $0.24 - $0.45 |
-| R2 storage | ~$0.0001 | $0.003 |
+| Object storage (R2 only if configured) | ~$0.0001 | $0.003 |
 | Postgres (local) | Free | Free |
 | Redis (local) | Free | Free |
 | **Total** | **~$0.01** | **~$0.30** |
@@ -247,8 +304,8 @@ docker compose up -d --build postgres
 | Cost | $0 | ~$0.01 |
 | Services | SQLite + FakeRedis | PostgreSQL + Redis |
 | OpenAI | Mocked (random vectors) | Real API |
-| Storage | Local `.asset-cache/` | Cloudflare R2 |
-| Confidence | Validates logic | Validates integration |
+| Storage | Local `.asset-cache/` | Configured backend (R2 or local `.asset-cache/`) |
+| Confidence | Validates logic | Validates integration against the configured storage backend |
 
 **Recommendation**: Use mock tests for development/CI, real tests for pre-production validation.
 

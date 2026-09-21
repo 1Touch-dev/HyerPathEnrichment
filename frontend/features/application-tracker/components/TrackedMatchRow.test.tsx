@@ -72,18 +72,18 @@ describe("TrackedMatchRow", () => {
   });
 
   it.each([
-    ["new", "New", "bg-gray-100"],
-    ["applied", "Applied", "bg-blue-100"],
-    ["replied", "Replied", "bg-purple-100"],
-    ["interview", "Interview", "bg-amber-100"],
-    ["offer", "Offer", "bg-green-100"],
-    ["rejected", "Rejected", "bg-red-100"],
+    ["new", "New", "bg-surface"],
+    ["applied", "Applied", "bg-info/10"],
+    ["replied", "Replied", "bg-secondary"],
+    ["interview", "Interview", "bg-warning/10"],
+    ["offer", "Offer", "bg-success/10"],
+    ["rejected", "Rejected", "bg-destructive/10"],
   ] as const)(
-    "renders the %s status badge with label %s and color class %s",
-    (status, label, colorClass) => {
+    "renders the %s status badge with label %s and semantic class %s",
+    (status, label, semanticClass) => {
       render(<TrackedMatchRow match={{ ...baseMatch, applicationStatus: status }} />, { wrapper });
       const badges = screen.getAllByText(label);
-      expect(badges.some((el) => el.className.includes(colorClass))).toBe(true);
+      expect(badges.some((el) => el.className.includes(semanticClass))).toBe(true);
     },
   );
 

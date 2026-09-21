@@ -95,8 +95,9 @@ def main() -> None:
     # Week 2 audio-cleanup work but was never wired up anywhere (rq_worker.py's
     # generic worker never calls it — verified zero other call sites repo-wide).
     # This dedicated worker becomes the sole owner of seeding the cron entries
-    # for both job_matching_fan_out_daily and audio_cleanup_daily, so exactly
-    # one process registers them, regardless of how many generic workers run.
+    # for both job_matching_fan_out_daily and audio_cleanup_daily, while the
+    # generic `worker` remains the declared consumer for the `audio_cleanup`
+    # queue in the supported production topology.
     register_scheduled_jobs()
 
     # RQ's scheduler runs as a forked subprocess (rq.scheduler.RQScheduler._process).

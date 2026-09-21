@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -593,18 +593,14 @@ def test_events_route_initial_count_reflects_unread_matches(
 
 
 def test_trigger_scan_returns_enqueued(client: TestClient) -> None:
-    """RQ's Queue talks to Redis directly, which isn't available in CI (RULE.md: no
-    live external calls in CI), so the Queue class used inside the service module is
-    patched directly here rather than relying on a real/fake connection.
-    """
-    with patch("app.modules.job_matching.service.Queue") as mock_queue_cls:
-        mock_queue_cls.return_value.enqueue = MagicMock(return_value=None)
+    with patch("app.modules.job_matching.service.enqueue_job_matching_scan") as mock_enqueue:
+        mock_enqueue.return_value = None
         response = client.post("/api/job-matching/scan", headers=_auth_headers())
 
     data = assert_success(response)
     assert data["scan_enqueued"] is True
     assert isinstance(data["message"], str) and data["message"]
-    mock_queue_cls.return_value.enqueue.assert_called_once()
+    mock_enqueue.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

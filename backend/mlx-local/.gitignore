@@ -1,0 +1,6 @@
+#
+# Optional local fallback for the supported Linux MLX build:
+# drop the installer at `backend/mlx-local/mlxdeb.deb`.
+# Keep the artifact local only; do not commit it.
+*
+!.gitignore

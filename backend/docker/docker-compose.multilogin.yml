@@ -4,18 +4,24 @@
 # DO NOT use on Windows / WSL2 / Docker Desktop — host networking behaves
 # differently there and the loopback trick only works on Linux.
 #
-# Usage (all three files together):
-#   cd backend/docker
-#   docker compose \
-#       -f docker-compose.yml \
-#       -f docker-compose.prod.yml \
-#       -f docker-compose.tier1.yml \
-#       -f docker-compose.multilogin.yml \
-#       --env-file ../.env.production \
-#       up -d
+# Usage (supported production path only):
+#   Prefer: bash backend/scripts/start_production.sh --with-linux-mlx
+#   Manual equivalent:
+#     cd backend/docker
+#     docker compose \
+#         -f docker-compose.yml \
+#         -f docker-compose.prod.yml \
+#         -f docker-compose.foundation.yml \
+#         -f docker-compose.tier-workers.yml \
+#         -f docker-compose.multilogin.yml \
+#         --env-file ../.env.production \
+#         up -d migrate api redis postgres social-analyzer google-maps-scraper email-verifier \
+#           worker worker-email worker-cleanup worker-job-matching worker-tier234 worker-tier1 multilogin
 #
-# Or via start_production.sh:
-#   bash backend/scripts/start_production.sh --with-tier1 --with-linux-mlx
+# Do not combine this file with docker-compose.tier1.yml. The supported Linux
+# topology is tier-workers + multilogin, where worker-tier1 alone shares the
+# host loopback with Multilogin and the bridge-network worker handles the
+# already-built non-tier queues.
 #
 # How it works
 # ─────────────
@@ -27,11 +33,13 @@
 #
 # Prerequisites
 # ─────────────
-# 1. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY in the env file (build-time only,
-#    used to pull mlxapp.deb from S3 at image build time).
-# 2. MULTILOGIN_EMAIL / MULTILOGIN_PASSWORD / MULTILOGIN_FOLDER_ID /
-#    MULTILOGIN_WORKSPACE_ID set in the env file.
-# 3. LINKEDIN_BOT_EMAIL / LINKEDIN_BOT_PASSWORD set in the env file.
+# 1. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY in the compose `--env-file`
+#    (normally `backend/.env.production`). These are build-time only and are
+#    used to pull mlxapp.deb from S3; AWS_SESSION_TOKEN is optional for
+#    temporary credentials.
+# 2. MULTILOGIN_EMAIL / MULTILOGIN_PASSWORD / MULTILOGIN_FOLDER_ID set in the worker env file.
+# 3. LINKEDIN_BOT_EMAIL / LINKEDIN_BOT_PASSWORD set in the worker env file.
+# 4. R2_* credentials and BROWSER_MODE=multilogin for the effective worker-tier1 runtime.
 # ============================================================================
 
 services:
@@ -42,6 +50,7 @@ services:
       args:
         - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
         - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+        - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
         - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
     container_name: hyrepath-multilogin
     # Shares the Linux host's 127.0.0.1 with the worker container.
@@ -61,37 +70,12 @@ services:
       start_period: 60s
       retries: 3
 
-  # Override the worker to use host networking and point Selenium at 127.0.0.1.
-  # This supersedes the MULTILOGIN_SELENIUM_HOST set in docker-compose.tier1.yml
-  # (which uses launcher.mlx.yt for the WSL2/Windows path).
-  worker:
-    # Must match multilogin's network_mode so both containers share the loopback.
-    network_mode: host
-    environment:
-      ENABLE_TIER1: "true"
-      BROWSER_MODE: multilogin
-      # Direct loopback — no hostname mapping needed on bare Linux.
-      MULTILOGIN_SELENIUM_HOST: "http://127.0.0.1"
-      # Point launcher calls at 127.0.0.1 instead of launcher.mlx.yt; the
-      # self-signed cert is already handled by verify=False in the client.
-      MULTILOGIN_LAUNCHER_URL: "https://127.0.0.1:45001/api/v2"
-      MULTILOGIN_EMAIL: ${MULTILOGIN_EMAIL}
-      MULTILOGIN_PASSWORD: ${MULTILOGIN_PASSWORD}
-      MULTILOGIN_FOLDER_ID: ${MULTILOGIN_FOLDER_ID}
-      MULTILOGIN_WORKSPACE_ID: ${MULTILOGIN_WORKSPACE_ID}
-      LINKEDIN_BOT_EMAIL: ${LINKEDIN_BOT_EMAIL}
-      LINKEDIN_BOT_PASSWORD: ${LINKEDIN_BOT_PASSWORD}
-
-  email-verifier:
-    ports:
-      - "127.0.0.1:8090:8080"
-
-  social-analyzer:
-    ports:
-      - "127.0.0.1:9005:9005"
-
-  google-maps-scraper:
-    ports:
-      - "127.0.0.1:8091:8080"
+  # This override only makes sense when docker-compose.tier-workers.yml is also
+  # loaded. It intentionally targets worker-tier1 (not the generic worker) so
+  # the supported Linux MLX topology has exactly one host-network Tier 1 worker.
+  worker-tier1:
+    depends_on:
+      multilogin:
+        condition: service_healthy
 volumes:
   multilogin_data:

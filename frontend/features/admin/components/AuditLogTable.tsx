@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { EmptyState } from "@/components/console/EmptyState";
+import { DeskMetricCard, DeskMetricGrid, DeskPagination } from "@/components/desk/desk-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { FilterBar, FilterBarActions, FilterBarGroup } from "@/components/ui/filter-bar";
 import {
   Select,
   SelectContent,
@@ -12,6 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SectionHeader,
+  SectionHeaderContent,
+  SectionHeaderDescription,
+  SectionHeaderTitle,
+} from "@/components/ui/section-header";
 import {
   Table,
   TableBody,
@@ -66,6 +73,7 @@ export function AuditLogTable({ targetId }: AuditLogTableProps) {
     const all = data?.items ?? [];
     return targetId ? all.filter((entry) => entry.targetId === targetId) : all;
   }, [data?.items, targetId]);
+  const explicitCount = items.filter((entry) => entry.capturedBy === "explicit").length;
 
   function handleActionChange(value: string) {
     setAction(value === "all" ? null : value);
@@ -82,22 +90,71 @@ export function AuditLogTable({ targetId }: AuditLogTableProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      {targetId ? null : (
-        <div className="flex items-center gap-4">
-          <Select value={action ?? "all"} onValueChange={handleActionChange}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="All actions" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All actions</SelectItem>
-              {ACTIONS.map((a) => (
-                <SelectItem key={a} value={a}>
-                  {a}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {targetId ? (
+        <SectionHeader>
+          <SectionHeaderContent>
+            <SectionHeaderTitle className="text-base">
+              Audit entries on this page
+            </SectionHeaderTitle>
+            <SectionHeaderDescription>
+              The detail view filters the currently loaded audit slice client-side by target ID.
+            </SectionHeaderDescription>
+          </SectionHeaderContent>
+        </SectionHeader>
+      ) : (
+        <>
+          <DeskMetricGrid className="xl:grid-cols-3">
+            <DeskMetricCard
+              label="Entries on this page"
+              value={items.length}
+              hint="Current cursor slice"
+            />
+            <DeskMetricCard
+              label="Explicit captures"
+              value={explicitCount}
+              hint="Directly recorded admin actions"
+              tone={explicitCount > 0 ? "info" : "default"}
+            />
+            <DeskMetricCard
+              label="Filter state"
+              value={action ?? "All actions"}
+              hint="Known audit vocabulary only"
+            />
+          </DeskMetricGrid>
+          <FilterBar>
+            <FilterBarGroup>
+              <div className="space-y-2">
+                <SectionHeader>
+                  <SectionHeaderContent>
+                    <SectionHeaderTitle className="text-base">Action filters</SectionHeaderTitle>
+                    <SectionHeaderDescription>
+                      Filter the current audit feed without altering the stable backend action
+                      vocabulary.
+                    </SectionHeaderDescription>
+                  </SectionHeaderContent>
+                </SectionHeader>
+                <Select value={action ?? "all"} onValueChange={handleActionChange}>
+                  <SelectTrigger className="w-[220px]">
+                    <SelectValue placeholder="All actions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All actions</SelectItem>
+                    {ACTIONS.map((a) => (
+                      <SelectItem key={a} value={a}>
+                        {a}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </FilterBarGroup>
+            <FilterBarActions>
+              <div className="text-right text-sm text-muted-foreground">
+                Actor emails resolve from the current user slice when available.
+              </div>
+            </FilterBarActions>
+          </FilterBar>
+        </>
       )}
 
       {!items.length && !isLoading ? (
@@ -143,24 +200,12 @@ export function AuditLogTable({ targetId }: AuditLogTableProps) {
       )}
 
       {targetId ? null : (
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={cursorStack.length <= 1 || isLoading}
-            onClick={handlePrevious}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!data?.hasMore || isLoading}
-            onClick={handleNext}
-          >
-            Next page
-          </Button>
-        </div>
+        <DeskPagination
+          canPrevious={cursorStack.length > 1 && !isLoading}
+          canNext={Boolean(data?.hasMore) && !isLoading}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+        />
       )}
     </div>
   );
