@@ -1,6 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 const BACKEND_URL = (process.env.BACKEND_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const AUTHENTICATED_SHELL_TIMEOUT = 30_000;
+
+async function expectDeskShell(page: Page): Promise<void> {
+  await expect(page.locator("header").getByText("Desk", { exact: true }).first()).toBeVisible({
+    timeout: AUTHENTICATED_SHELL_TIMEOUT,
+  });
+}
 
 async function pollBackendHealth(maxAttempts = 60, intervalMs = 2000): Promise<void> {
   let lastError = "unknown";
@@ -40,8 +47,14 @@ test.describe("Live backend integration", () => {
 
   test("health page reports live backend (not mock)", async ({ page }) => {
     await page.goto("/desk/system-health");
+    await expectDeskShell(page);
     await expect(page.getByRole("heading", { name: "Self-checks" })).toBeVisible();
-    await expect(page.getByText("OK", { exact: true })).toBeVisible({ timeout: 15_000 });
+    const databaseCheck = page
+      .getByRole("heading", { name: "Database", exact: true })
+      .locator("..");
+    const redisCheck = page.getByRole("heading", { name: "Redis", exact: true }).locator("..");
+    await expect(databaseCheck.getByText("OK", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(redisCheck.getByText("OK", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("hyrepath-enrichment-mock")).toHaveCount(0);
   });
 
@@ -91,6 +104,7 @@ test.describe("Live backend integration", () => {
 
   test("Desk owner landing reports system health without error", async ({ page }) => {
     await page.goto("/desk");
+    await expectDeskShell(page);
     await expect(page.getByRole("heading", { name: "Self-checks" })).toBeVisible();
     await expect(page.getByText("System health unavailable")).toHaveCount(0);
   });

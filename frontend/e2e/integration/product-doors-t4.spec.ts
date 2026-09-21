@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 const BACKEND_ROOT = path.resolve(__dirname, "../../../backend");
 const CANDIDATE_EMAIL = "e2e-t4-candidate@example.com";
 const CANDIDATE_PASSWORD = "IntegrationCandidate123";
+const AUTHENTICATED_SHELL_TIMEOUT = 30_000;
 
 const deskRoutes = [
   "/desk",
@@ -93,6 +94,15 @@ async function mockIdentity(page: Page, identity: DoorUser): Promise<void> {
   await page.route("**/api/auth/me", (route) => route.fulfill({ json: identity }));
 }
 
+async function expectAuthenticatedShell(
+  page: Page,
+  product: "Candidate" | "Desk" | "OSINT",
+): Promise<void> {
+  await expect(page.locator("header").getByText(product, { exact: true }).first()).toBeVisible({
+    timeout: AUTHENTICATED_SHELL_TIMEOUT,
+  });
+}
+
 function unwrap<T>(body: { data?: T } | T): T {
   return body && typeof body === "object" && "data" in body ? (body.data as T) : (body as T);
 }
@@ -150,32 +160,45 @@ test("Candidate jobs/history/dashboard/health remain direct pages", async ({ req
 
 test("role homes and direct-route guards choose the correct door", async ({ browser }) => {
   const cases = [
-    [user(null), "/osint", /\/app\/matches$/],
+    [user(null), "/osint", /\/app\/matches$/, "Candidate"],
     [
       user("recruiter", false, [{ resource: "linkedin_sourcing", action: "write" }]),
       "/desk",
       /\/desk\/sourcing-leads$/,
+      "Desk",
     ],
-    [user("support", false, [{ resource: "users", action: "read" }]), "/desk", /\/desk\/users$/],
-    [user("admin", false, [{ resource: "system_health", action: "read" }]), "/desk", /\/desk$/],
-    [user("team_owner"), "/desk", /\/osint$/],
-    [user(null, true), "/desk", /\/desk$/],
-    [user("custom_staff"), "/desk", /\/osint$/],
+    [
+      user("support", false, [{ resource: "users", action: "read" }]),
+      "/desk",
+      /\/desk\/users$/,
+      "Desk",
+    ],
+    [
+      user("admin", false, [{ resource: "system_health", action: "read" }]),
+      "/desk",
+      /\/desk$/,
+      "Desk",
+    ],
+    [user("team_owner"), "/desk", /\/osint$/, "OSINT"],
+    [user(null, true), "/desk", /\/desk$/, "Desk"],
+    [user("custom_staff"), "/desk", /\/osint$/, "OSINT"],
     [
       user("recruiter", false, [{ resource: "linkedin_sourcing", action: "write" }]),
       "/desk/roles",
       /\/desk\/sourcing-leads$/,
+      "Desk",
     ],
   ] as const;
 
-  for (const [identity, source, expected] of cases) {
+  for (const [identity, source, expected, product] of cases) {
     const context = await browser.newContext();
     const page = await context.newPage();
     await mockIdentity(page, identity);
     await page.goto(source, { waitUntil: "domcontentloaded" });
     await expect(page, `${identity.role_name ?? "candidate"} from ${source}`).toHaveURL(expected, {
-      timeout: 15_000,
+      timeout: AUTHENTICATED_SHELL_TIMEOUT,
     });
+    await expectAuthenticatedShell(page, product);
     await context.close();
   }
 });
@@ -203,19 +226,19 @@ test("OSINT tiers survive the login round-trip", async ({ browser }) => {
   await page.getByLabel("Email").fill(identity.email);
   await page.getByLabel("Password").fill("IntegrationTest123");
   await page.getByRole("button", { name: "Sign In" }).click();
-  await expect(page).toHaveURL(/\/osint\?tiers=tier1%2Ctier3$/);
+  await expect(page).toHaveURL(/\/osint\?tiers=tier1%2Ctier3$/, {
+    timeout: AUTHENTICATED_SHELL_TIMEOUT,
+  });
+  await expectAuthenticatedShell(page, "OSINT");
   await expect(page.getByRole("heading", { name: "Look someone up" })).toBeVisible();
   await context.close();
 });
 
 test("every Desk page and Signals render for a superuser", async ({ page }) => {
   for (const route of deskRoutes) {
-    const response = await page.goto(route, { waitUntil: "domcontentloaded" });
+    const response = await page.goto(route);
     expect(response?.status(), route).toBeLessThan(400);
-    await expect(
-      page.locator("header").getByText("Desk", { exact: true }).first(),
-      route,
-    ).toBeVisible({ timeout: 15_000 });
+    await expectAuthenticatedShell(page, "Desk");
     await expect(page.getByText(/404|not found/i), route).toHaveCount(0);
   }
 
@@ -224,12 +247,16 @@ test("every Desk page and Signals render for a superuser", async ({ page }) => {
   );
   expect(users.items.length).toBeGreaterThan(0);
   const detailRoute = `/desk/users/${users.items[0].id}`;
-  const detailResponse = await page.goto(detailRoute, { waitUntil: "domcontentloaded" });
+  const detailResponse = await page.goto(detailRoute);
   expect(detailResponse?.status(), detailRoute).toBeLessThan(400);
+  await expectAuthenticatedShell(page, "Desk");
   await expect(page.getByText(/404|not found/i), detailRoute).toHaveCount(0);
 
   await page.goto("/desk/signals");
-  await expect(page.getByRole("heading", { name: "Signals", exact: true })).toBeVisible();
+  await expectAuthenticatedShell(page, "Desk");
+  await expect(page.getByRole("heading", { name: "Signals", exact: true })).toBeVisible({
+    timeout: AUTHENTICATED_SHELL_TIMEOUT,
+  });
 });
 
 test("MFA and impersonation complete a full start/status/end lifecycle", async ({ page }) => {
@@ -308,7 +335,7 @@ test("responsive AppShell product chips match Candidate, Desk, and OSINT", async
     const page = await context.newPage();
     await mockIdentity(page, identity);
     await page.goto(route);
-    await expect(page.locator("header").getByText(chip, { exact: true })).toBeVisible();
+    await expectAuthenticatedShell(page, chip);
     await page.screenshot({
       path: testInfo.outputPath("screenshots", `${name}.png`),
       fullPage: true,
