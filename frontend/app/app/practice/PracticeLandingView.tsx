@@ -496,7 +496,7 @@ export function PracticeLandingView() {
         </ShellSection>
 
         <div className="space-y-4">
-          <Card>
+          <Card variant="accent">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Target className="h-4 w-4 text-primary" />
@@ -515,7 +515,7 @@ export function PracticeLandingView() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card variant="accent">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <FileText className="h-4 w-4 text-primary" />
@@ -532,13 +532,13 @@ export function PracticeLandingView() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card variant="accent">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Sparkles className="h-4 w-4 text-primary" />
                 Tracked jobs
               </div>
-              <CardTitle className="text-xl">{readyMatchCount}</CardTitle>
+              <CardTitle className="text-xl text-primary">{readyMatchCount}</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               {practiceMode === "jd"

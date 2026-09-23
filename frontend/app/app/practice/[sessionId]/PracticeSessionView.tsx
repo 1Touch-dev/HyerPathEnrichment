@@ -49,7 +49,10 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
   const audioUploadMutation = useAudioUpload();
   const addAttemptMutation = useAddAttempt();
 
-  if (isLoading) return <div className="animate-pulse h-96 rounded-lg bg-muted" />;
+  if (isLoading)
+    return (
+      <div className="h-96 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+    );
 
   if (sessionError || !session) {
     return (
@@ -139,7 +142,7 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
       </ShellPageHeader>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Answered</p>
             <CardTitle className="text-3xl text-primary">{answeredCount}</CardTitle>
@@ -148,7 +151,7 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
             Completed responses in this session so far.
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Remaining</p>
             <CardTitle className="text-3xl text-primary">
@@ -159,7 +162,7 @@ export function PracticeSessionView({ sessionId }: PracticeSessionViewProps) {
             Questions left before the report is complete.
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Response mode</p>
             <CardTitle className="text-3xl text-primary capitalize">{responseType}</CardTitle>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { MfaSetupCard } from "./MfaSetupCard";
@@ -109,33 +109,39 @@ describe("MfaSetupCard", () => {
     await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledWith("123456"));
   });
 
-  it("calls disable MFA after the user confirms the window.confirm prompt", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    vi.spyOn(window, "prompt").mockReturnValue("123456");
+  it("calls disable MFA after the user confirms via Dialog and enters a code", async () => {
     mockUseMfaStatus({ data: enabledStatus });
     render(<MfaSetupCard />, { wrapper });
 
-    fireEvent.click(screen.getByText("Disable 2FA"));
+    fireEvent.click(screen.getByRole("button", { name: "Disable 2FA" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Disable two-factor authentication?")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText("6-digit MFA code"), {
+      target: { value: "123456" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Disable 2FA" }));
+
     await waitFor(() => expect(disableMutateAsync).toHaveBeenCalledWith("123456"));
   });
 
-  it("does not disable MFA when the user declines the confirmation", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("does not disable MFA when the user cancels the Dialog", async () => {
     mockUseMfaStatus({ data: enabledStatus });
     render(<MfaSetupCard />, { wrapper });
 
-    fireEvent.click(screen.getByText("Disable 2FA"));
+    fireEvent.click(screen.getByRole("button", { name: "Disable 2FA" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(disableMutateAsync).not.toHaveBeenCalled();
   });
 
   it("does not disable MFA when no TOTP code is provided", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    vi.spyOn(window, "prompt").mockReturnValue("");
     mockUseMfaStatus({ data: enabledStatus });
     render(<MfaSetupCard />, { wrapper });
 
-    fireEvent.click(screen.getByText("Disable 2FA"));
+    fireEvent.click(screen.getByRole("button", { name: "Disable 2FA" }));
+    const submit = within(screen.getByRole("dialog")).getByRole("button", { name: "Disable 2FA" });
+    expect(submit).toBeDisabled();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(disableMutateAsync).not.toHaveBeenCalled();
   });

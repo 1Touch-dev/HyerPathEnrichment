@@ -37,6 +37,7 @@ import {
 import { withIdempotencyHeaders } from "@/src/lib/idempotency";
 import { hasPermission } from "@/src/lib/product-doors";
 import type { AdminBrand, AdminBrandCreate, AdminBrandUpdate } from "@/src/lib/types";
+import { DESK_KPI_CARD_CLASS } from "@/features/admin/components/desk-kpi";
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 
@@ -268,18 +269,19 @@ export default function AdminBrandsPage() {
           label="Brands loaded"
           value={brands.length}
           hint="Current administration scope"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Active brands"
           value={activeBrandCount}
           hint={`${brands.length - activeBrandCount} inactive brand(s)`}
-          tone={activeBrandCount > 0 ? "success" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Custom domains"
           value={customDomainCount}
           hint="Configured per-brand public landing domains"
-          tone={customDomainCount > 0 ? "info" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 
@@ -574,171 +576,183 @@ function BrandFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Create brand" : "Edit brand"}</DialogTitle>
-          <DialogDescription>
-            {mode === "create"
-              ? "Required name and slug. Chatbot config is optional JSON. Landing copy uses headline, CTA, and per-tier fields."
-              : "Updates the write allowlist only. Status is changed with Deactivate / Reactivate."}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-2">
-          <Label htmlFor="brand-name">Name</Label>
-          <Input
-            id="brand-name"
-            placeholder="Acme Staffing"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="brand-slug">Slug</Label>
-          <Input
-            id="brand-slug"
-            placeholder="acme-staffing"
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-            aria-invalid={slugInvalid}
-          />
-          {slugInvalid ? (
-            <p className="text-sm text-destructive">Slug must match ^[a-z0-9-]+$</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">Lowercase letters, digits, and hyphens.</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="brand-custom-domain">Custom domain</Label>
-          <Input
-            id="brand-custom-domain"
-            placeholder="careers.example.com"
-            value={customDomain}
-            onChange={(e) => setCustomDomain(e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="brand-chatbot-config">Chatbot config</Label>
-          <Textarea
-            id="brand-chatbot-config"
-            className="font-mono text-xs"
-            rows={5}
-            placeholder="{}"
-            value={chatbotConfigText}
-            onChange={(e) => setChatbotConfigText(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            Admin-only JSON object. Not shown on the public landing page.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Landing page copy</Label>
-          <div className="space-y-2">
-            <Label htmlFor="landing-general-headline" className="text-xs text-muted-foreground">
-              Headline
-            </Label>
-            <Input
-              id="landing-general-headline"
-              placeholder="Join Acme"
-              value={landingHeadline}
-              onChange={(e) => setLandingHeadline(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="landing-general-cta" className="text-xs text-muted-foreground">
-              CTA label
-            </Label>
-            <Input
-              id="landing-general-cta"
-              placeholder="Get started"
-              value={landingCta}
-              onChange={(e) => setLandingCta(e.target.value)}
-            />
-          </div>
-          {landingTiers.map((row, index) => {
-            const trimmedTierSlug = row.slug.trim();
-            const tierSlugInvalid =
-              trimmedTierSlug.length > 0 &&
-              (!SLUG_PATTERN.test(trimmedTierSlug) || RESERVED_KEYS.has(trimmedTierSlug));
-            return (
-              <div key={index} className="space-y-2 rounded-md border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <Label
-                    htmlFor={`landing-tier-${index}-slug`}
-                    className="text-xs text-muted-foreground"
-                  >
-                    Tier
-                  </Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setLandingTiers((rows) => rows.filter((_, i) => i !== index))}
-                  >
-                    Remove
-                  </Button>
-                </div>
-                <Input
-                  id={`landing-tier-${index}-slug`}
-                  placeholder="free"
-                  value={row.slug}
-                  onChange={(e) => updateLandingTier(index, { slug: e.target.value })}
-                  aria-invalid={tierSlugInvalid}
-                />
-                {tierSlugInvalid ? (
-                  <p className="text-sm text-destructive">
-                    {RESERVED_KEYS.has(trimmedTierSlug)
-                      ? `"${trimmedTierSlug}" is reserved and cannot be a tier slug`
-                      : "Tier slug must match ^[a-z0-9-]+$"}
-                  </p>
-                ) : null}
-                <Input
-                  id={`landing-tier-${index}-headline`}
-                  placeholder="Headline"
-                  value={row.headline}
-                  onChange={(e) => updateLandingTier(index, { headline: e.target.value })}
-                />
-                <Input
-                  id={`landing-tier-${index}-cta`}
-                  placeholder="CTA label"
-                  value={row.ctaLabel}
-                  onChange={(e) => updateLandingTier(index, { ctaLabel: e.target.value })}
-                />
-              </div>
-            );
-          })}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setLandingTiers((rows) => [...rows, { ...EMPTY_TIER_ROW }])}
-          >
-            Add tier
-          </Button>
-          {landingWarning ? (
-            <p className="text-sm text-amber-600 dark:text-amber-400">{landingWarning}</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Optional general and per-tier headline / CTA. Empty omits the field on create.
+      <DialogContent className="max-h-[90vh] gap-0 overflow-hidden border-border/70 p-0 sm:max-w-lg">
+        <div className="border-b border-border/60 bg-primary-soft/50 px-6 py-5">
+          <DialogHeader className="space-y-2 text-left">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+              Brand administration
             </p>
-          )}
+            <DialogTitle>{mode === "create" ? "Create brand" : "Edit brand"}</DialogTitle>
+            <DialogDescription>
+              {mode === "create"
+                ? "Required name and slug. Chatbot config is optional JSON. Landing copy uses headline, CTA, and per-tier fields."
+                : "Updates the write allowlist only. Status is changed with Deactivate / Reactivate."}
+            </DialogDescription>
+          </DialogHeader>
         </div>
 
-        {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
-        {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
+        <div className="max-h-[calc(90vh-8rem)] space-y-4 overflow-y-auto bg-card px-6 py-5">
+          <div className="space-y-2">
+            <Label htmlFor="brand-name">Name</Label>
+            <Input
+              id="brand-name"
+              placeholder="Acme Staffing"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => handleOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleConfirm} disabled={isPending || !canSubmit}>
-            {isPending ? "Saving..." : mode === "create" ? "Create brand" : "Save changes"}
-          </Button>
-        </DialogFooter>
+          <div className="space-y-2">
+            <Label htmlFor="brand-slug">Slug</Label>
+            <Input
+              id="brand-slug"
+              placeholder="acme-staffing"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              aria-invalid={slugInvalid}
+            />
+            {slugInvalid ? (
+              <p className="text-sm text-destructive">Slug must match ^[a-z0-9-]+$</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Lowercase letters, digits, and hyphens.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="brand-custom-domain">Custom domain</Label>
+            <Input
+              id="brand-custom-domain"
+              placeholder="careers.example.com"
+              value={customDomain}
+              onChange={(e) => setCustomDomain(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="brand-chatbot-config">Chatbot config</Label>
+            <Textarea
+              id="brand-chatbot-config"
+              className="font-mono text-xs"
+              rows={5}
+              placeholder="{}"
+              value={chatbotConfigText}
+              onChange={(e) => setChatbotConfigText(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Admin-only JSON object. Not shown on the public landing page.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Landing page copy</Label>
+            <div className="space-y-2">
+              <Label htmlFor="landing-general-headline" className="text-xs text-muted-foreground">
+                Headline
+              </Label>
+              <Input
+                id="landing-general-headline"
+                placeholder="Join Acme"
+                value={landingHeadline}
+                onChange={(e) => setLandingHeadline(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="landing-general-cta" className="text-xs text-muted-foreground">
+                CTA label
+              </Label>
+              <Input
+                id="landing-general-cta"
+                placeholder="Get started"
+                value={landingCta}
+                onChange={(e) => setLandingCta(e.target.value)}
+              />
+            </div>
+            {landingTiers.map((row, index) => {
+              const trimmedTierSlug = row.slug.trim();
+              const tierSlugInvalid =
+                trimmedTierSlug.length > 0 &&
+                (!SLUG_PATTERN.test(trimmedTierSlug) || RESERVED_KEYS.has(trimmedTierSlug));
+              return (
+                <div
+                  key={index}
+                  className="space-y-2 rounded-md border border-border/70 bg-card p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <Label
+                      htmlFor={`landing-tier-${index}-slug`}
+                      className="text-xs text-muted-foreground"
+                    >
+                      Tier
+                    </Label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setLandingTiers((rows) => rows.filter((_, i) => i !== index))}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                  <Input
+                    id={`landing-tier-${index}-slug`}
+                    placeholder="free"
+                    value={row.slug}
+                    onChange={(e) => updateLandingTier(index, { slug: e.target.value })}
+                    aria-invalid={tierSlugInvalid}
+                  />
+                  {tierSlugInvalid ? (
+                    <p className="text-sm text-destructive">
+                      {RESERVED_KEYS.has(trimmedTierSlug)
+                        ? `"${trimmedTierSlug}" is reserved and cannot be a tier slug`
+                        : "Tier slug must match ^[a-z0-9-]+$"}
+                    </p>
+                  ) : null}
+                  <Input
+                    id={`landing-tier-${index}-headline`}
+                    placeholder="Headline"
+                    value={row.headline}
+                    onChange={(e) => updateLandingTier(index, { headline: e.target.value })}
+                  />
+                  <Input
+                    id={`landing-tier-${index}-cta`}
+                    placeholder="CTA label"
+                    value={row.ctaLabel}
+                    onChange={(e) => updateLandingTier(index, { ctaLabel: e.target.value })}
+                  />
+                </div>
+              );
+            })}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setLandingTiers((rows) => [...rows, { ...EMPTY_TIER_ROW }])}
+            >
+              Add tier
+            </Button>
+            {landingWarning ? (
+              <p className="text-sm text-warning">{landingWarning}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Optional general and per-tier headline / CTA. Empty omits the field on create.
+              </p>
+            )}
+          </div>
+
+          {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
+          {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirm} disabled={isPending || !canSubmit}>
+              {isPending ? "Saving..." : mode === "create" ? "Create brand" : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -774,40 +788,47 @@ function DeactivateBrandDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Deactivate brand</DialogTitle>
-          <DialogDescription>
-            {brand
-              ? `${brand.name} stays in this list so it can be reactivated. Public landing pages will 404.`
-              : "Public landing pages will 404."}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-2">
-          <Label htmlFor="deactivate-reason">Reason (optional)</Label>
-          <Textarea
-            id="deactivate-reason"
-            placeholder="Optional reason"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
+      <DialogContent className="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-md">
+        <div className="border-b border-border/60 bg-primary-soft/50 px-6 py-5">
+          <DialogHeader className="space-y-2 text-left">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+              Brand status
+            </p>
+            <DialogTitle>Deactivate brand</DialogTitle>
+            <DialogDescription>
+              {brand
+                ? `${brand.name} stays in this list so it can be reactivated. Public landing pages will 404.`
+                : "Public landing pages will 404."}
+            </DialogDescription>
+          </DialogHeader>
         </div>
 
-        {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
+        <div className="space-y-4 bg-card px-6 py-5">
+          <div className="space-y-2">
+            <Label htmlFor="deactivate-reason">Reason (optional)</Label>
+            <Textarea
+              id="deactivate-reason"
+              placeholder="Optional reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => handleOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => onConfirm(reason.trim())}
-            disabled={isPending}
-          >
-            {isPending ? "Deactivating..." : "Deactivate"}
-          </Button>
-        </DialogFooter>
+          {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => onConfirm(reason.trim())}
+              disabled={isPending}
+            >
+              {isPending ? "Deactivating..." : "Deactivate"}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

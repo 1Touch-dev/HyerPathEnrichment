@@ -2,10 +2,10 @@
 
 **Branch:** `migrate/frontend`
 **Figma source of truth:** [HyrePath](https://www.figma.com/design/8x0vctnbpqr6WAF7ACyG7I/HyrePath) (`8x0vctnbpqr6WAF7ACyG7I`)
-**Plan date:** 2026-09-21
+**Plan date:** 2026-09-21 · **Figma twin last synced:** 2026-09-23
 **Scope:** Visual / layout / component migration only — **no** business-logic rewrite, **no** API contract changes unless explicitly flagged below.
 
-**Completeness note:** This revision fills prior gaps: §5.1 token table, §5.2 chrome decision, full §8 (61 routes), Batch 5 sequencing, §13 acceptance rubric, §14 dialog map, §15 orphan features, §16 motion, §17 screenshot method. Merge/PR mechanics intentionally omitted.
+**Completeness note:** This revision fills prior gaps: §5.1 token table, §5.2 chrome decision, full §8 (61 routes), Batch 5 sequencing, §13 acceptance rubric, §14 dialog map, §15 orphan features, §16 motion, §17 screenshot method. **2026-09-23 update:** Figma twin now includes premium 3-color + full tablet/mobile coverage (see §3 Responsive). Merge/PR mechanics intentionally omitted.
 
 ---
 
@@ -13,16 +13,18 @@
 
 ### Goal
 
-Bring the **existing** Next.js frontend in line with the redesigned Figma twin (float sidebar shell, door accents, pastel KPI mosaic, content-parity screens) **without** rebuilding the product. Developers update tokens, shells, shared UI, then screens in batches.
+Bring the **existing** Next.js frontend in line with the redesigned Figma twin (float sidebar shell, **premium 3-color**: neutrals + violet primary, **Desktop + Tablet + Mobile** content-parity screens) **without** rebuilding the product. Developers update tokens, shells, shared UI, then screens in batches.
+
+**Figma twin status (2026-09-23):** Premium 3-color **and** responsive twin complete on file `8x0vctnbpqr6WAF7ACyG7I` — neutrals + violet; red only for destructive; no pastel surface mosaics; Documents table oxblood fills removed; **every ship screen has Desktop + Tablet (1024×768) + Mobile (390×844)** siblings. See `00 System` checklist *premium-3-color + responsive twin complete*.
 
 ### What is changing
 
 | Layer | Change |
 |-------|--------|
-| Visual language | Float sidebar shell, sage canvas, forest CTAs, door accents (Candidate / Desk / OSINT), pastel KPI tiles (mint / sky / peach / sand), status chips |
-| Layout chrome | `AppSidebar` / `AppShell` spacing, radius, active nav treatment; marketing/auth card layouts |
+| Visual language | Float sidebar shell, cool-gray canvas, **violet** CTAs (`#7C5CFF`), white cards, charcoal text; **destructive red only on Delete/failed**; nav icons + section dividers. Pastel/door color slabs retired as surfaces. |
+| Layout chrome | `AppSidebar` / `AppShell` spacing, radius, active nav treatment; marketing/auth card layouts; **tablet icon rail + mobile bottom nav** match Figma responsive shells |
 | Shared components | Button, Badge, Card, Table, Dialog, Tabs, PageHeader, Empty/Skeleton — styled to Figma |
-| Screen skins | All ~61 routes restyled to match Figma frames on pages `20–25` |
+| Screen skins | All ~61 routes restyled to match Figma frames on pages `20–25` (desktop) **and** `20–25 · Responsive` (tablet/mobile) |
 
 ### What must stay working
 
@@ -38,8 +40,8 @@ Bring the **existing** Next.js frontend in line with the redesigned Figma twin (
 
 1. Shared component restyles cascade across Desk + Candidate + OSINT
 2. Float shell vs current flush sidebar breaks responsive / bottom-nav assumptions
-3. Figma is desktop-first (1440×900); mobile states incomplete
-4. Pastel misuse on primary buttons caused contrast bugs once — must encode `on-primary` rules
+3. Frontend must now match **three** Figma viewports (desktop / tablet / mobile) — denser QA surface
+4. Pastel misuse on primary buttons caused contrast bugs once — must encode `on-primary` rules; pastels are **retired as ship surfaces**
 5. Parallel agents editing the same shell/components will conflict
 
 ### Recommended strategy
@@ -99,7 +101,7 @@ Bring the **existing** Next.js frontend in line with the redesigned Figma twin (
 - CSS variables in [`frontend/app/globals.css`](frontend/app/globals.css) (HSL tokens: primary, surface, success/warning/info/destructive)
 - Tailwind maps in [`frontend/tailwind.config.ts`](frontend/tailwind.config.ts)
 - Utility classes: `app-surface`, `app-surface-muted`, `app-surface-elevated`
-- **Gap vs Figma:** no door accents, pastel mosaic, or float-shell shadow tokens in CSS yet
+- **Gap vs Figma:** no violet-primary premium tokens, float-shell shadow, or responsive shell styling in CSS yet (pastel mosaic tokens must **not** be reintroduced as KPI/table fills)
 
 ### State / data fetching
 
@@ -131,24 +133,32 @@ Bring the **existing** Next.js frontend in line with the redesigned Figma twin (
 
 **File:** https://www.figma.com/design/8x0vctnbpqr6WAF7ACyG7I/HyrePath
 
-Inspected via Figma MCP (2026-09-21). Status on `00 System`: **pastel-mosaic complete** (content-parity preserved).
+Inspected via Figma MCP (2026-09-23). Status on `00 System`: **premium-3-color + responsive twin complete** (neutrals + violet; destructive red controls only; no oxblood table fills; all ship screens have Tablet + Mobile siblings).
 
 ### Pages / sections
 
 | Figma page | Contents |
 |------------|----------|
-| `00 System` | Cover + coverage checklist |
-| `10 Foundations` | Color/spacing/radius tokens + pastel/door/status legend |
-| `11 Components` | Buttons, chips, KPI mosaic, nav, chart legend |
-| `12 Shells` | `Shell / Candidate`, `Shell / Desk`, `Shell / OSINT` |
-| `13 Prototype` | Click-through clones (Home → Login → Dashboard → Desk → OSINT → Matches) |
-| `20 Marketing` | 7 routes |
-| `21 Auth` | 5 routes (white card + pastel side panel) |
-| `22 Candidate App` | ~20 routes + dialogs |
-| `23 Desk` | ~21 routes + dialogs |
-| `24 OSINT` | 5 routes + MFA dialog |
-| `25 Public` | 3 routes |
+| `00 System` | Cover + coverage checklist (premium + responsive) |
+| `10 Foundations` | Color/spacing/radius tokens (premium 3-color; pastels retired as ship surfaces) |
+| `11 Components` | Buttons, chips, KPI, nav, chart legend + **Responsive patterns** strip |
+| `12 Shells` | Desktop: `Shell / Candidate`, `Shell / Desk`, `Shell / OSINT`. Responsive: each door × **Tablet** (1024×768) + **Mobile** (390×844) |
+| `13 Prototype` | Door map — Desktop + Tablet + Mobile |
+| `20 Marketing` | 7 routes (desktop) |
+| `20 Marketing · Responsive` | 7 × Mobile + 7 × Tablet (14) |
+| `21 Auth` | 5 routes (desktop; single-column white cards, violet accents) |
+| `21 Auth · Responsive` | 5 × Mobile + 5 × Tablet (10) |
+| `22 Candidate App` | ~24 routes + dialogs (desktop) |
+| `22 Candidate · Responsive` | 24 × Mobile + 24 × Tablet (48) |
+| `23 Desk` | ~26 routes + dialogs (desktop) |
+| `23 Desk · Responsive` | 26 × Mobile + 26 × Tablet (52) |
+| `24 OSINT` | 6 routes + MFA dialog (desktop) |
+| `24 OSINT · Responsive` | 6 × Mobile + 6 × Tablet (12) |
+| `25 Public` | 3 routes (desktop) |
+| `25 Public · Responsive` | 3 × Mobile + 3 × Tablet (6) |
 | `90 Archive Twin` | 61 pixel captures of pre-redesign UI (reference only — **do not ship**) |
+
+**Responsive artboard total:** ~142 Mobile/Tablet frames + 6 responsive shell components (in addition to desktop `20–25`).
 
 ### Design system tokens (Figma variables)
 
@@ -159,30 +169,52 @@ Inspected via Figma MCP (2026-09-21). Status on `00 System`: **pastel-mosaic com
 - Border: `color/border/default`
 - Doors: `color/door/{candidate,desk,osint}` + `-soft`
 - Status: `color/status/{success,info,warning,danger}` + `-soft`
-- Pastels: `color/pastel/{mint,sky,peach,sand}` + `-deep`
+- Pastels: **retired as ship surfaces** (legacy variables may remain — do not use for KPI/table fills)
+- Hard rule: **never** use `color/status/danger` as table row or large panel fill — Delete/failed controls only
+- Charts: violet + light violet + gray (max 3 series)
 - Charts: `color/chart/1..4`
 - Radius: `radius/sm|md|lg|xl`
 - Spacing: `spacing/xs` … `2xl`
 
 ### Navigation patterns
 
-- Float rounded sidebar on sage page canvas (14px outer padding)
-- Door-colored section labels + active soft fill
+- **Desktop:** Float rounded sidebar on cool-gray page canvas (14px outer padding)
+- **Tablet:** Icon rail + topbar (`Shell / {Door} · Tablet`)
+- **Mobile:** Bottom nav (3 primary + More) + topbar (`Shell / {Door} · Mobile`); More sheet preserves Main / System / OSINT category dividers
+- Section labels + **violet** active soft fill (`#EFEAFF`)
+- Lucide-equivalent **icons** on every nav row; **category divider** between Main↔System and OSINT↔System (Desk: divider before footer)
 - Candidate / Desk / OSINT product-specific item lists (mirror `nav-config.ts`)
 
 ### Variants / states present in Figma
 
 - Primary / secondary / destructive buttons
 - Status chips (Done / Live / Needs review / Failed)
-- KPI mosaic strips
-- Dialog artboards named `NN /path · Dialog: {name}`
+- KPI mosaic strips (desktop) → 2-up / horizontal cards on tablet/mobile
+- Dialog artboards named `NN /path · Dialog: {name}` (desktop) + `· Mobile` / `· Tablet` sheet/modal variants on Responsive pages
 - Empty-state copy on many screens
 - Auth: success path + verification failed
+- Responsive patterns on `11 Components`: bottom nav, icon rail, filter sheet, list card, sticky CTA
 
-### Responsive
+### Responsive (designed — ship against these)
 
-- **Assumption:** Figma frames are **desktop 1440×900** only.
-- Mobile/tablet: **missing in Figma** — keep existing `AppBottomNav` / breakpoints; do not invent new mobile chrome without design.
+| Viewport | Frame size | Chrome | Figma source |
+|----------|------------|--------|--------------|
+| Desktop | ~1440×900 | Float sidebar | Pages `20–25`, `12 Shells` desktop |
+| Tablet | **1024×768** | Icon rail + topbar | `NN · Responsive` · Tablet + `Shell / * · Tablet` |
+| Mobile | **390×844** | Bottom nav + topbar | `NN · Responsive` · Mobile + `Shell / * · Mobile` |
+
+**UX adaptation rules (Figma already applies; frontend should match):**
+
+- Tables → stacked cards / compact list rows; Delete stays red **control** only
+- KPI mosaics → 2-up (tablet) or horizontal snap (mobile)
+- Filter bars → Filters chip → bottom sheet
+- Multi-column forms → single column; sticky primary CTA above bottom nav
+- Desktop dialogs → full-width bottom sheets (mobile) / centered modal (tablet)
+- Split panes → list push → detail on mobile
+- Tap targets ≥ 44px; bottom-nav clearance ~72px
+- Marketing / Auth / Public: stacked full-bleed / single-column; **no** app bottom nav
+
+Frame naming: `{desktop name} · Tablet` / `{desktop name} · Mobile` (e.g. `22 /app/documents · Mobile`).
 
 ### Could not fully inspect
 
@@ -196,18 +228,18 @@ Inspected via Figma MCP (2026-09-21). Status on `00 System`: **pastel-mosaic com
 
 | Figma Screen | Current Route/File | Match Status | Required Change | Risk Level | Notes |
 |--------------|-------------------|--------------|-----------------|------------|-------|
-| `20 /` | [`app/page.tsx`](frontend/app/page.tsx) | Route exists but UI needs redesign | Marketing hero + use-case mosaic | Med | Pastel rows |
-| `20 /recruiters` | [`(marketing)/recruiters/page.tsx`](frontend/app/(marketing)/recruiters/page.tsx) | Route exists but UI needs redesign | Persona landing skin | Low | |
-| `20 /candidates` | [`(marketing)/candidates/page.tsx`](frontend/app/(marketing)/candidates/page.tsx) | Route exists but UI needs redesign | Persona landing skin | Low | |
-| `20 /journalists` | [`(marketing)/journalists/page.tsx`](frontend/app/(marketing)/journalists/page.tsx) | Route exists but UI needs redesign | Persona landing skin | Low | |
-| `20 /investors` | [`(marketing)/investors/page.tsx`](frontend/app/(marketing)/investors/page.tsx) | Route exists but UI needs redesign | Persona landing skin | Low | |
-| `20 /sales` | [`(marketing)/sales/page.tsx`](frontend/app/(marketing)/sales/page.tsx) | Route exists but UI needs redesign | Persona landing skin | Low | |
+| `20 /` | [`app/page.tsx`](frontend/app/page.tsx) | Route exists but UI needs redesign | Marketing hero + use-case mosaic | Med | Also match `20 / · Mobile` / `· Tablet` |
+| `20 /recruiters` | [`(marketing)/recruiters/page.tsx`](frontend/app/(marketing)/recruiters/page.tsx) | Route exists but UI needs redesign | Persona landing skin | Low | Responsive siblings exist |
+| `20 /candidates` | [`(marketing)/candidates/page.tsx`](frontend/app/(marketing)/candidates/page.tsx) | Route exists but UI needs redesign | Persona landing skin | Low | Responsive siblings exist |
+| `20 /journalists` | [`(marketing)/journalists/page.tsx`](frontend/app/(marketing)/journalists/page.tsx) | Route exists but UI needs redesign | Persona landing skin | Low | Responsive siblings exist |
+| `20 /investors` | [`(marketing)/investors/page.tsx`](frontend/app/(marketing)/investors/page.tsx) | Route exists but UI needs redesign | Persona landing skin | Low | Responsive siblings exist |
+| `20 /sales` | [`(marketing)/sales/page.tsx`](frontend/app/(marketing)/sales/page.tsx) | Route exists but UI needs redesign | Persona landing skin | Low | Responsive siblings exist |
 | `20 /opt-out` | [`opt-out/page.tsx`](frontend/app/opt-out/page.tsx) | Route exists but UI needs redesign | Mode toggles + form skin | Med | Keep form logic |
-| `21 /login` | [`(auth)/login/page.tsx`](frontend/app/(auth)/login/page.tsx) | Route exists but UI needs redesign | White card + mint panel | Med | Contrast fixed in Figma |
-| `21 /register` | [`(auth)/register/page.tsx`](frontend/app/(auth)/register/page.tsx) | Route exists but UI needs redesign | White card + sky panel | Med | Keep field set |
+| `21 /login` | [`(auth)/login/page.tsx`](frontend/app/(auth)/login/page.tsx) | Route exists but UI needs redesign | White card + violet brand (no pastel side panel) | Med | Contrast fixed in Figma |
+| `21 /register` | [`(auth)/register/page.tsx`](frontend/app/(auth)/register/page.tsx) | Route exists but UI needs redesign | White card; single-column on mobile | Med | Keep field set |
 | `21 /verify-email` | [`(auth)/verify-email/page.tsx`](frontend/app/(auth)/verify-email/page.tsx) | Route exists but UI needs redesign | Failed state card | Low | |
 | `21 /verify-email-pending` | [`(auth)/verify-email-pending/page.tsx`](frontend/app/(auth)/verify-email-pending/page.tsx) | Route exists but UI needs redesign | Pending card | Low | |
-| `21 /invite/[token]` | [`invite/[token]/page.tsx`](frontend/app/invite/[token]/page.tsx) | Route exists but UI needs redesign | Peach panel + form | Med | |
+| `21 /invite/[token]` | [`invite/[token]/page.tsx`](frontend/app/invite/[token]/page.tsx) | Route exists but UI needs redesign | White card + form | Med | |
 | `22 /app` | [`app/app/page.tsx`](frontend/app/app/page.tsx) | Route exists but UI needs redesign | Matches hub (same as matches) | Med | Figma treats as Job matches |
 | `22 /app/dashboard` | [`app/dashboard/page.tsx`](frontend/app/app/dashboard/page.tsx) | Route exists but UI needs redesign | KPI mosaic + table | Med | |
 | `22 /app/matches` | [`app/matches/page.tsx`](frontend/app/app/matches/page.tsx) | Route exists but UI needs redesign | KPI + job cards; **Apply = on-primary** | High | Contrast regression risk |
@@ -249,12 +281,12 @@ Inspected via Figma MCP (2026-09-21). Status on `00 System`: **pastel-mosaic com
 | `24 /osint/settings` (+ security) | `osint/settings/**` | Route exists but UI needs redesign | Settings + MFA | Med | |
 | `25 /b/[slug]` (+ tier) | `b/[slug]/**` | Route exists but UI needs redesign | Brand landing skin | Low | CMS-dependent |
 | `25 /p/[slug]` | [`p/[slug]/page.tsx`](frontend/app/p/[slug]/page.tsx) | Route exists but UI needs redesign | Public portfolio | Low | |
-| Dialog frames (10+) | Feature dialogs in `features/**` | Partial match | Restyle dialog chrome only | Med | Keep behavior |
+| Dialog frames (10+) | Feature dialogs in `features/**` | Partial match | Restyle dialog chrome; mobile = bottom sheet per Responsive artboards | Med | Keep behavior |
 | — | API routes `app/api/**` | Exists in frontend but missing in Figma | **No visual work** | — | Out of scope |
 | — | Middleware / subdomain | Exists in frontend but missing in Figma | **No visual work** | — | |
-| Hover/focus/mobile sheets | — | Missing in Figma | Keep current behavior; clarify | Med | See §11 |
+| Hover/focus variants | — | Static only in Figma | Keep Radix focus rings | Med | See §11 |
 
-**Summary:** ~61 Figma route frames ↔ 61 frontend pages — **no missing routes**. Work is **UI redesign**, not greenfield screens.
+**Summary:** ~61 Figma desktop route frames ↔ 61 frontend pages — **no missing routes**. Tablet + Mobile siblings exist for every ship screen on `· Responsive` pages. Work is **UI redesign** (3 viewports), not greenfield screens.
 
 ---
 
@@ -264,24 +296,24 @@ Inspected via Figma MCP (2026-09-21). Status on `00 System`: **pastel-mosaic com
 |------|----------|-----------|-----------------|-----------------|
 | Typography | IBM Plex in layout; Inter in Figma | Foundations | **Keep IBM Plex** in app; match Figma sizes/weights | Soft block |
 | Spacing | Tailwind + ad hoc | `spacing/*` | Prefer 4/8/12/16/24/32 | Yes |
-| Colors | `globals.css` sage/forest | Door + pastel + status | Add CSS vars; map Tailwind (§5.1) | **Yes** |
+| Colors | `globals.css` sage/forest (legacy) | Premium 3-color: neutrals + **violet primary**; status chips; **no pastel ship surfaces** | Add CSS vars; map Tailwind (§5.1) — primary is violet `#7C5CFF` | **Yes** |
 | Radius | `--radius: 0.875rem` | `radius/md|lg|xl` | Shell `rounded-2xl`, cards `rounded-xl` | Yes |
 | Shadows | `shadow-panel` | Float shell | Add `--shadow-float-sidebar` | Yes |
 | Buttons | `ui/button.tsx` | Components | Primary → `primary-foreground` only | **Yes** |
 | Inputs | `ui/input.tsx` | Auth/forms | Soft border, page fill | Yes |
 | Selects / checkbox / radio | `ui/*` | Forms | Visual only | Soft |
-| Tabs | `ui/tabs.tsx` | Active door-soft | Active = door/primary-soft | Yes |
-| Tables | `ui/table.tsx` | Desk tables | Header door accent; row hover | Yes |
-| Cards | `ui/card.tsx` | KPI mosaic | Pastel utilities or variants | Yes |
+| Tabs | `ui/tabs.tsx` | Active violet-soft | Active = primary-soft | Yes |
+| Tables | `ui/table.tsx` | Desk tables (white/zebra; no danger row fills) | Header accent; row hover; mobile → cards | Yes |
+| Cards | `ui/card.tsx` | KPI / list cards | White + violet accents (not pastel fills) | Yes |
 | Badges | `ui/badge.tsx` | Status chips | Status soft/solid variants | Yes |
-| Modals / sheets | `ui/dialog.tsx`, `ui/sheet.tsx` | Dialog artboards | Surface card; danger CTAs | Soft |
+| Modals / sheets | `ui/dialog.tsx`, `ui/sheet.tsx` | Dialog + Responsive sheet artboards | Surface card; danger CTAs; mobile sheets | Soft |
 | Toasts | Sonner | — | Keep; align primary colors | No |
 | Empty / loading | Skeleton + ad hoc | Empty copy | Prefer shared empty pattern | Soft |
 | Page headers | `ui/page-header.tsx` | H1 patterns | Match title/description | Soft |
-| Sidebar / nav | `AppSidebar` etc. | `12 Shells` | Float shell (§5.2 chrome decision) | **Yes** |
+| Sidebar / nav | `AppSidebar` etc. | `12 Shells` desktop + Tablet/Mobile | Float shell + rail + bottom nav (§5.2) | **Yes** |
 | Containers | `ShellPage` | Main surface | Outer padding + rounded Main | **Yes** |
 
-**Hard rule:** Never put pastel-deep / ink text on `bg-primary` or `bg-destructive`. Use `*-foreground`.
+**Hard rule:** Never put ink text on `bg-primary` or `bg-destructive` without `*-foreground`. Never use destructive/danger as table-row or large content-surface fills. Never reintroduce pastel KPI/table panel fills.
 
 ### 5.1 Concrete token mapping (Batch 1 deliverable)
 
@@ -289,53 +321,51 @@ Implement these in [`globals.css`](frontend/app/globals.css) + [`tailwind.config
 
 | Figma variable | CSS variable | Approx HSL | Tailwind key | Usage |
 |----------------|--------------|------------|--------------|-------|
-| `color/bg/page` | `--background` (exists) | `80 9% 95%` | `background` | Page canvas |
+| `color/bg/page` | `--background` (exists) | `240 11% 96%` | `background` | Cool-gray page canvas |
 | `color/bg/surface` | `--surface` (exists) | `0 0% 100%` | `surface` | Cards / Main |
-| `color/bg/soft` | `--primary-soft` (exists) | `148 29% 88%` | `primary-soft` | Soft fills |
-| `color/bg/primary` | `--primary` (exists) | `151 42% 21%` | `primary` | CTA fill |
+| `color/bg/soft` | `--primary-soft` (exists) | `252 100% 96%` | `primary-soft` | Violet soft fills |
+| `color/bg/primary` | `--primary` (exists) | `252 100% 68%` | `primary` | Violet CTA fill `#7C5CFF` |
 | `color/text/on-primary` | `--primary-foreground` | `0 0% 100%` | `primary-foreground` | CTA text |
 | `color/text/primary` | `--foreground` | `152 16% 11%` | `foreground` | Body |
 | `color/text/muted` | `--muted-foreground` | `96 2% 37%` | `muted-foreground` | Secondary |
 | `color/border/default` | `--border` | `90 10% 84%` | `border` | Borders |
-| `color/door/candidate` | `--door-candidate` | `151 42% 21%` | `door-candidate` | Candidate nav |
-| `color/door/candidate-soft` | `--door-candidate-soft` | `148 35% 88%` | `door-candidate-soft` | Active nav fill |
-| `color/door/desk` | `--door-desk` | `189 45% 28%` | `door-desk` | Desk nav |
-| `color/door/desk-soft` | `--door-desk-soft` | `189 40% 90%` | `door-desk-soft` | Desk active |
-| `color/door/osint` | `--door-osint` | `192 35% 30%` | `door-osint` | OSINT nav |
-| `color/door/osint-soft` | `--door-osint-soft` | `192 25% 90%` | `door-osint-soft` | OSINT active |
+| `color/door/candidate` | `--door-candidate` | optional label accent | `door-candidate` | Optional section label (active fill is violet-soft) |
+| `color/door/candidate-soft` | `--door-candidate-soft` | prefer `--primary-soft` | `door-candidate-soft` | Prefer violet-soft for active nav |
+| `color/door/desk` | `--door-desk` | optional label accent | `door-desk` | Optional |
+| `color/door/desk-soft` | `--door-desk-soft` | prefer `--primary-soft` | `door-desk-soft` | Prefer violet-soft |
+| `color/door/osint` | `--door-osint` | optional label accent | `door-osint` | Optional |
+| `color/door/osint-soft` | `--door-osint-soft` | prefer `--primary-soft` | `door-osint-soft` | Prefer violet-soft |
 | `color/status/success` | `--success` (exists) | `144 39% 30%` | `success` | Done chips |
 | `color/status/success-soft` | `--success-soft` | `144 35% 92%` | `success-soft` | Chip bg |
 | `color/status/info` | `--info` (exists) | `188 57% 35%` | `info` | Live chips |
 | `color/status/info-soft` | `--info-soft` | `188 45% 92%` | `info-soft` | Chip bg |
 | `color/status/warning` | `--warning` (exists) | `36 88% 46%` | `warning` | Review chips |
 | `color/status/warning-soft` | `--warning-soft` | `40 80% 92%` | `warning-soft` | Chip bg |
-| `color/status/danger` | `--destructive` (exists) | `7 55% 41%` | `destructive` | Failed / delete |
-| `color/status/danger-soft` | `--destructive-soft` | `7 45% 93%` | `destructive-soft` | Chip bg |
-| `color/pastel/mint` | `--pastel-mint` | `150 40% 90%` | `pastel-mint` | KPI 1 |
-| `color/pastel/mint-deep` | `--pastel-mint-deep` | `152 45% 28%` | `pastel-mint-deep` | KPI 1 text |
-| `color/pastel/sky` | `--pastel-sky` | `200 55% 90%` | `pastel-sky` | KPI 2 |
-| `color/pastel/sky-deep` | `--pastel-sky-deep` | `198 50% 32%` | `pastel-sky-deep` | KPI 2 text |
-| `color/pastel/peach` | `--pastel-peach` | `22 70% 90%` | `pastel-peach` | KPI 3 |
-| `color/pastel/peach-deep` | `--pastel-peach-deep` | `22 55% 38%` | `pastel-peach-deep` | KPI 3 text |
-| `color/pastel/sand` | `--pastel-sand` | `44 45% 90%` | `pastel-sand` | KPI 4 |
-| `color/pastel/sand-deep` | `--pastel-sand-deep` | `42 40% 35%` | `pastel-sand-deep` | KPI 4 text |
-| `color/chart/1..4` | `--chart-1` … `--chart-4` | align to pastel deeps | `chart-1`…`4` | Analytics legends |
-| Float shadow | `--shadow-float-sidebar` | soft sage drop | `shadow-float-sidebar` | Sidebar |
+| `color/status/danger` | `--destructive` (exists) | `0 72% 51%` | `destructive` | Delete / Failed controls only (`#DC2626`) |
+| `color/status/danger-soft` | `--destructive-soft` | `0 86% 97%` | `destructive-soft` | Chip bg only — not table fills |
+| `color/chart/1` | `--chart-1` | violet ≈ primary | `chart-1` | Series 1 |
+| `color/chart/2` | `--chart-2` | violet-soft | `chart-2` | Series 2 |
+| `color/chart/3` | `--chart-3` | muted gray | `chart-3` | Series 3 |
+| `color/chart/4` | `--chart-4` | border gray | `chart-4` | Optional |
+| Float shadow | `--shadow-float-sidebar` | soft violet-tinted drop | `shadow-float-sidebar` | Sidebar |
 
-**Pastel KPI rule:** Cycle mint→sky→peach→sand on decorative metric strips. If label/value implies Failed/Blocked/Error → use `destructive` / `destructive-soft` instead.
+**Retired (do not map into ship CSS as KPI/table fills):** `color/pastel/*` — legacy variables may remain in Figma Foundations for reference only.
+
+**KPI rule:** White cards + violet accents / gray secondary. Failed/Blocked/Error chips → `destructive` / `destructive-soft` only — never oxblood/danger row fills.
 
 ### 5.2 App chrome decision vs Figma (locked for Batch 2)
 
-Figma shells show **float sidebar + Main card** only. The app also has topbar, nav rail, and bottom nav.
+Figma now designs **all three** chrome modes. Align breakpoints to existing app (`md` / `lg`) unless Product changes them.
 
 | Chrome | Figma | Decision for migration |
 |--------|-------|------------------------|
-| `AppSidebar` | Yes (float) | **Restyle** to float + door accents |
+| `AppSidebar` | Yes (float desktop) | **Restyle** to float + violet active soft |
 | `ShellPage` / Main | Yes | **Restyle** rounded surface on padded canvas |
-| `AppTopbar` | Not in Figma float twin | **Keep** on tablet/mobile breakpoints; on `lg+` slim or absorb into Main header — do **not** delete (search/user menu live here) |
-| `AppNavRail` | Not in Figma | **Keep** for mid breakpoints (`md`–`lg`); restyle active color to door tokens |
-| `AppBottomNav` | Not in Figma | **Keep** for `<lg`; restyle active to door; no new mobile inventing |
-| Marketing / Auth | Dedicated Figma layouts | Match Figma; no AppShell |
+| `AppTopbar` | Yes on Tablet + Mobile shells | **Keep**; restyle to match responsive shells (search/avatar) |
+| `AppNavRail` | Yes — `Shell / * · Tablet` | **Keep** for mid breakpoints (`md`–`lg`); restyle active to violet-soft |
+| `AppBottomNav` | Yes — `Shell / * · Mobile` + Responsive patterns | **Keep** for `<md` (or `<lg` per current app); restyle active to violet-soft; primary items + More per `nav-config` |
+| Filter sheets / list cards | `11 Components` Responsive strip | Prefer `Sheet` + card lists on mobile |
+| Marketing / Auth / Public | Dedicated desktop + Responsive pages | Match Figma; no AppShell |
 
 ---
 
@@ -376,12 +406,12 @@ Figma shells show **float sidebar + Main card** only. The app also has topbar, n
 
 **Deliverables:**
 
-- [ ] Float sidebar + door active states per §5.2
+- [ ] Float sidebar + violet active soft; tablet rail + mobile bottom nav per §5.2
 - [ ] Main rounded surface
-- [ ] Auth pastel side panel + white card
+- [ ] Auth white card + violet brand (no pastel side panel); match Responsive Auth frames
 - [ ] Guards unchanged; shell unit tests pass
 
-**Figma:** `12 Shells`, `21 Auth`
+**Figma:** `12 Shells` (desktop + Tablet/Mobile), `21 Auth`, `21 Auth · Responsive`
 
 ---
 
@@ -392,9 +422,11 @@ Figma shells show **float sidebar + Main card** only. The app also has topbar, n
 **Deliverables:**
 
 - [ ] Button contrast lock
-- [ ] Badge status + Card pastel utilities
-- [ ] Table header / Tabs active / Dialog+Sheet chrome
+- [ ] Badge status + Card utilities (white / violet-soft — **no** pastel KPI fills)
+- [ ] Table header / Tabs active / Dialog+Sheet chrome (mobile sheets)
 - [ ] ClassName-only unit test updates
+
+**Figma:** `11 Components` (+ Responsive patterns strip)
 
 ---
 
@@ -464,8 +496,10 @@ Work **after** Batch 3. Within Batch 5, order by shared dependency (tables/forms
 
 - [ ] Empty / loading / error for all High + Med screens in §8
 - [ ] Permission: candidate blocked from `/desk`/`/osint`
-- [ ] All §14 dialogs open/submit/cancel
-- [ ] `<lg`: bottom nav + rail still work after float shell
+- [ ] All §14 dialogs open/submit/cancel; mobile sheet variants behave
+- [ ] Tablet (`md`–`lg`): icon rail + topbar match `Shell / * · Tablet`
+- [ ] Mobile (`<md` or current `<lg`): bottom nav + More match `Shell / * · Mobile`
+- [ ] Tables degrade to cards / list rows per Responsive UX rules (§3)
 - [ ] Visual bug list
 
 ---
@@ -473,8 +507,9 @@ Work **after** Batch 3. Within Batch 5, order by shared dependency (tables/forms
 ### Batch 7 — Final Integration and Release Gate
 
 - [ ] Desktop screenshot vs Figma for all §8 routes (or sampled High+Med with Low spot-check)
+- [ ] Spot-check Tablet + Mobile vs `· Responsive` frames for High screens
 - [ ] lint / typecheck / unit / smoke green
-- [ ] Remaining gaps listed (mobile Figma, hover)
+- [ ] Remaining gaps listed (hover/focus variants only — mobile Figma delivered)
 - [ ] Release recommendation when gate green
 
 ---
@@ -580,9 +615,9 @@ Work **after** Batch 3. Within Batch 5, order by shared dependency (tables/forms
 |------|------|--------|------------|------------|-------|
 | Many screens at once | Process | High | High | Batches; E∥F only after D | H |
 | Shared component break | `ui/*` | High | Med | Small PRs; contrast checklist | D, G |
-| Figma missing mobile | Responsive | Med | High | §5.2 keep bottom nav/rail | C, G |
+| Figma responsive density | Responsive | Med | Med | Match §3 UX rules; screenshot High screens at 3 widths | C, G |
 | Figma missing hover/focus | A11y | Med | Med | Keep Radix focus rings | D |
-| Pastel on primary CTA | Contrast | High | Med | Button API + §13 | D, E |
+| Pastel / danger resurfacing on CTAs or tables | Contrast | High | Med | Button API + §13; no pastel ship fills | D, E |
 | Permission UI break | Desk/OSINT | High | Low | StaffGuard untouched | F, G |
 | Table/form regression | Desk | High | Med | ClassName-only in panels | F |
 | Agent conflicts on shell | Git | Med | High | Serialize B→C→D | H |
@@ -608,15 +643,16 @@ Work **after** Batch 3. Within Batch 5, order by shared dependency (tables/forms
 - [ ] Route 200
 - [ ] Screenshot vs Figma (§13)
 - [ ] CTA contrast
-- [ ] Door nav color
+- [ ] Door nav / violet active soft
 - [ ] Forms submit
-- [ ] Dialogs (§14)
+- [ ] Dialogs (§14) + mobile sheets
 - [ ] Empty/loading
+- [ ] Spot-check one Tablet + one Mobile High screen vs Responsive Figma
 
 ### Accessibility basics
 
 - [ ] Focus visible
-- [ ] Contrast AA on pastel + primary
+- [ ] Contrast AA on primary + destructive (+ status chips)
 - [ ] Dialog/sheet focus trap
 
 ### Release gate
@@ -633,7 +669,7 @@ Work **after** Batch 3. Within Batch 5, order by shared dependency (tables/forms
 
 ### Missing screens / states
 
-1. Mobile shells: float desktop vs keep bottom-nav? (**Assumption until answered:** §5.2 keep current mobile chrome.)
+1. ~~Mobile shells: float desktop vs keep bottom-nav?~~ **Answered (2026-09-23):** Figma delivers all three — float desktop, tablet icon rail, mobile bottom nav (§3 / §5.2).
 2. Dedicated Figma loading/error frames?
 
 ### Conflicting layouts
@@ -643,11 +679,11 @@ Work **after** Batch 3. Within Batch 5, order by shared dependency (tables/forms
 
 ### Responsive
 
-5. Keep `lg` sidebar breakpoint?
+5. Keep `lg` sidebar breakpoint? (**Assumption:** yes — map Desktop=`lg+`, Tablet=`md`–`lg`, Mobile=`<md` unless Product overrides.)
 
 ### Component behavior
 
-6. Pastel cycle vs meaning-based KPIs? (**Assumption:** Failed/Blocked → danger; else cycle.)
+6. KPI coloring? (**Assumption:** white/violet/gray; Failed/Blocked → danger chips only — pastel cycle **retired**.)
 
 ### Data / API
 
@@ -661,7 +697,7 @@ Work **after** Batch 3. Within Batch 5, order by shared dependency (tables/forms
 
 9. Should `billing` / `interview-scheduling` get Figma frames? (**Assumption:** out of scope until designed; if UI reachable, light-token restyle only — §15.)
 
-*Unanswered items do not block Batches 0–3.*
+*Unanswered items do not block Batches 0–3. Responsive chrome is no longer blocked on design.*
 
 ---
 
@@ -702,15 +738,16 @@ flowchart TD
 A screen/dialog is **done** when all apply:
 
 1. **Structure:** Same routes, fields, buttons, tables, permissions as before (no removed controls).
-2. **Desktop look:** Side-by-side with Figma frame at ~1440 width — float shell (if shelled), door/pastel/status colors, typography scale in family.
-3. **Contrast:** Primary/destructive buttons use `*-foreground` white (or AA) text. No pastel-deep on forest fill.
-4. **KPI/cards:** Decorative strips use pastel cycle; Failed/Blocked use danger.
-5. **States:** Loading/empty/error still work; empty copy matches Figma when present.
-6. **Motion:** Existing motion still works (§16); no new motion required.
-7. **Tests:** Affected unit tests pass; smoke still green after High screens.
-8. **Evidence:** Before/after screenshot attached to work item (local or PR).
+2. **Desktop look:** Side-by-side with Figma frame at ~1440 width — float shell (if shelled), violet/status colors, typography scale in family.
+3. **Tablet / Mobile look:** Spot-check High screens against `· Tablet` / `· Mobile` artboards — rail/bottom-nav chrome, card lists (not dense tables), sheet dialogs.
+4. **Contrast:** Primary/destructive buttons use `*-foreground` white (or AA) text. No ink on violet fill.
+5. **KPI/cards:** White cards + violet accents; Failed/Blocked use danger chips only — never danger/pastel row fills.
+6. **States:** Loading/empty/error still work; empty copy matches Figma when present.
+7. **Motion:** Existing motion still works (§16); no new motion required.
+8. **Tests:** Affected unit tests pass; smoke still green after High screens.
+9. **Evidence:** Before/after screenshot attached to work item (local or PR).
 
-**Not required for DoD:** Pixel-perfect Inter metrics; mobile Figma parity; hover variants missing from Figma.
+**Not required for DoD:** Pixel-perfect Inter metrics; hover variants missing from Figma.
 
 ---
 
@@ -769,8 +806,8 @@ These live under `frontend/features/` but have **no** matching Figma route frame
 
 Without mandating a specific CI product:
 
-1. Capture desktop screenshots at 1440×900 (or device-scale equivalent) for routes in §8 High+Med.
-2. Open matching Figma frame (`20–25`) beside screenshot.
+1. Capture screenshots at **1440×900** (desktop), **1024×768** (tablet), and **390×844** (mobile) for High+Med routes in §8 (tablet/mobile may be sampled if volume is high).
+2. Open matching Figma frame: desktop from `20–25`, responsive from `NN · Responsive` (`· Tablet` / `· Mobile`).
 3. Check §13 rubric (not pixel-diff mandatory).
 4. Store baselines under a **gitignored** local folder e.g. `frontend/.design-baseline/` (do not commit binaries unless team agrees).
 5. Optional later: Playwright screenshot asserts — not a Batch 0 blocker.
@@ -779,14 +816,15 @@ Without mandating a specific CI product:
 
 ## Assumptions (explicit)
 
-1. Figma `8x0vctnbpqr6WAF7ACyG7I` is visual source of truth.
+1. Figma `8x0vctnbpqr6WAF7ACyG7I` is visual source of truth (desktop **and** Responsive pages).
 2. `90 Archive Twin` is reference only.
 3. No API / OpenAPI / backend changes.
 4. IBM Plex stays unless §11.3 overrides.
 5. Content-parity fields already match — skin/layout only.
-6. Desktop-first; mobile chrome per §5.2 until design delivers.
+6. Three viewports: Desktop float sidebar, Tablet icon rail, Mobile bottom nav — per §3 / §5.2.
 7. Review queue stays a **Sheet** even if Figma labels it Dialog.
 8. MFA disable may be upgraded to Dialog for parity (same confirm semantics).
+9. Premium 3-color only; pastel ship surfaces are retired.
 
 ---
 
@@ -798,7 +836,8 @@ Without mandating a specific CI product:
 - Deleting routes or Archive Twin
 - Changing permission models
 - Pixel-perfect Inter typography swap
-- Inventing mobile Figma
+- Reintroducing pastel KPI/table mosaics
+- Inventing new mobile chrome beyond Figma Responsive shells
 
 ---
 

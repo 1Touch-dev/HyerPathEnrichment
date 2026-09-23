@@ -175,15 +175,25 @@ export function JobProgress({ job, polling, pollTimedOut, onRetry, onRefresh }: 
   };
 
   return (
-    <Card aria-live="polite" aria-atomic="true" role="status">
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
+    <Card
+      className="overflow-hidden border-border/70 bg-card shadow-sm"
+      aria-live="polite"
+      aria-atomic="true"
+      role="status"
+    >
+      <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/60 bg-primary-soft/40">
         <div className="flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">Job progress</p>
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+            Job progress
+          </p>
           <CardTitle className="text-lg" id={`job-status-${job.id}`}>
             {statusMessage(job.status, elapsedSec, estimatedRemaining)}
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
-            <code className="rounded bg-muted px-2 py-1 text-xs" aria-label="Job ID">
+            <code
+              className="rounded-md bg-primary-soft px-2 py-1 text-xs text-primary"
+              aria-label="Job ID"
+            >
               {job.id}
             </code>
             <Button

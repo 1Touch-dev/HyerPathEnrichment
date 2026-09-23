@@ -15,6 +15,7 @@ import {
 import { fetchRoles } from "@/features/admin/api/client";
 import { adminKeys } from "@/features/admin/api/keys";
 import type { AdminRoleWithPermissions } from "@/src/lib/types";
+import { DESK_KPI_CARD_CLASS } from "@/features/admin/components/desk-kpi";
 
 /**
  * Read-only role/permission matrix. `fetchRoles()` is typed `Promise<AdminRole[]>`
@@ -72,18 +73,19 @@ export default function AdminRolesPage() {
           label="Roles loaded"
           value={roles.length}
           hint="Current admin role inventory"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="System roles"
           value={systemRoles}
           hint={`${roles.length - systemRoles} custom role(s)`}
-          tone={systemRoles > 0 ? "info" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Permission entries"
           value={totalPermissions}
           hint="Read-only until ADR21 controls land"
-          tone="warning"
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 

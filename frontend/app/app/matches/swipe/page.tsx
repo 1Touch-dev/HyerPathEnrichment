@@ -37,7 +37,9 @@ export default function SwipeDeckPage() {
 
       <ShellSection surface="muted" className="items-center">
         <Suspense
-          fallback={<div className="animate-pulse h-[32rem] w-full rounded-2xl bg-muted" />}
+          fallback={
+            <div className="h-[32rem] w-full animate-pulse rounded-2xl border border-border/70 bg-surface shadow-panel" />
+          }
         >
           <SwipeDeckView />
         </Suspense>

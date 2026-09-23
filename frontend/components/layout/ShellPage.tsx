@@ -27,19 +27,19 @@ export const SHELL_PRODUCT_META = {
     label: "Candidate",
     description: "Candidate workspace",
     density: "comfortable",
-    accentClass: "from-primary/18 via-primary-soft/12 to-transparent",
+    accentClass: "from-primary-soft/80 via-primary-soft/30 to-transparent",
   },
   osint: {
     label: "OSINT",
     description: "Public-only lookup",
     density: "dense",
-    accentClass: "from-info/16 via-primary-soft/10 to-transparent",
+    accentClass: "from-primary-soft/70 via-primary-soft/25 to-transparent",
   },
   desk: {
     label: "Desk",
     description: "Staff operations",
     density: "dense",
-    accentClass: "from-secondary/95 via-primary-soft/8 to-transparent",
+    accentClass: "from-primary-soft/75 via-primary-soft/20 to-transparent",
   },
 } satisfies Record<
   Product,
@@ -87,17 +87,17 @@ export function ShellViewport({ product, className, children, ...props }: ShellV
     <div
       data-shell-viewport=""
       data-shell-product={product}
-      className={cn("relative isolate min-h-full", className)}
+      className={cn("relative isolate min-h-full bg-surface", className)}
       {...props}
     >
       <div
         aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 h-40 rounded-[2rem] bg-gradient-to-b blur-3xl",
+          "pointer-events-none absolute inset-x-0 top-0 h-36 rounded-[2rem] bg-gradient-to-b blur-3xl",
           meta.accentClass,
         )}
       />
-      <div className="relative min-h-full px-4 py-4 pb-24 sm:px-6 sm:py-6 sm:pb-24 lg:px-8 lg:py-8 md:pb-10">
+      <div className="relative min-h-full px-4 py-4 pb-24 sm:px-6 sm:py-6 sm:pb-24 md:pb-10 lg:px-8 lg:py-8">
         {children}
       </div>
     </div>

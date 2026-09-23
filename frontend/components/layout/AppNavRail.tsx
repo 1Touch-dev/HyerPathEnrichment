@@ -29,20 +29,20 @@ export function AppNavRail({
     <aside
       data-shell-nav-rail=""
       data-shell-product={product}
-      className="hidden h-full w-[84px] flex-col items-center justify-between border-r border-border/70 bg-surface-elevated/80 px-2 py-4 shadow-panel backdrop-blur supports-[backdrop-filter]:bg-surface-elevated/70 md:flex lg:hidden"
+      className="hidden h-full w-[84px] shrink-0 flex-col items-center justify-between rounded-2xl border border-border/50 bg-surface px-2 py-4 shadow-float-sidebar md:flex lg:hidden"
     >
       <div className="flex w-full flex-col items-center gap-4">
         <Link
           href={PRODUCT_ROOTS[product]}
           aria-label="Hyrepath home"
           className={cn(
-            "flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm",
+            "flex size-11 items-center justify-center rounded-2xl bg-primary-soft text-primary",
             NAV_FOCUS,
           )}
         >
           <HyrepathLogo className="size-5" />
         </Link>
-        <nav className="flex w-full flex-col gap-2 px-2">
+        <nav className="flex w-full flex-col gap-2 px-1">
           {sections
             .flatMap((section) => section.items)
             .map((item) => {
@@ -57,10 +57,10 @@ export function AppNavRail({
                   aria-label={item.label}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative flex h-12 items-center justify-center rounded-xl text-muted-foreground transition-colors",
+                    "relative flex h-12 min-h-11 items-center justify-center rounded-xl text-muted-foreground transition-colors",
                     NAV_FOCUS,
                     active
-                      ? "border border-border/70 bg-secondary/90 text-primary shadow-sm"
+                      ? "bg-primary-soft text-primary"
                       : "hover:bg-surface-muted hover:text-foreground",
                   )}
                 >

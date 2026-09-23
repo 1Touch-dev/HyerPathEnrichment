@@ -55,4 +55,10 @@ describe("BrandLandingPage", () => {
     expect(screen.queryByText("Apply now")).not.toBeInTheDocument();
     expect(screen.queryByText("We're launching soon")).not.toBeInTheDocument();
   });
+
+  it("uses white card chrome with violet soft brand chip", () => {
+    const { container } = render(<BrandLandingPage brand={brand()} />);
+    expect(container.querySelector(".bg-card")).not.toBeNull();
+    expect(container.querySelector(".bg-primary-soft")).not.toBeNull();
+  });
 });

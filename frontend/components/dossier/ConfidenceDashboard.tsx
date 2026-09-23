@@ -7,12 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ConfidenceBreakdown } from "@/src/lib/types";
-import {
-  formatPercent,
-  getConfidenceColor,
-  getConfidenceProgressColor,
-  getConfidenceBadgeVariant,
-} from "@/src/lib/utils";
+import { formatPercent, getConfidenceColor, getConfidenceBadgeVariant } from "@/src/lib/utils";
 import { cn } from "@/src/lib/utils";
 
 interface ConfidenceDashboardProps {
@@ -21,9 +16,9 @@ interface ConfidenceDashboardProps {
 }
 
 function getProgressColor(score: number): string {
-  if (score >= 0.9) return "#10b981"; // green-500
-  if (score >= 0.7) return "#f59e0b"; // amber-500
-  return "#f97316"; // orange-500
+  if (score >= 0.9) return "#7C5CFF"; // primary violet
+  if (score >= 0.7) return "#A78BFA"; // light violet
+  return "#9CA3AF"; // cool gray
 }
 
 export function ConfidenceDashboard({ confidence, className }: ConfidenceDashboardProps) {
@@ -43,8 +38,8 @@ export function ConfidenceDashboard({ confidence, className }: ConfidenceDashboa
   }));
 
   return (
-    <Card className={className}>
-      <CardHeader>
+    <Card className={cn("border-border/70 bg-card shadow-sm", className)}>
+      <CardHeader className="border-b border-border/60 bg-primary-soft/40">
         <CardTitle>Confidence Analysis</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -105,13 +100,10 @@ export function ConfidenceDashboard({ confidence, className }: ConfidenceDashboa
                 </div>
               </div>
 
-              {/* Progress bar */}
+              {/* Progress bar — violet series only */}
               <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
                 <div
-                  className={cn(
-                    "absolute top-0 left-0 h-full rounded-full transition-all",
-                    getConfidenceProgressColor(item.score),
-                  )}
+                  className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all"
                   style={{ width: `${item.score * 100}%` }}
                 />
               </div>
@@ -122,7 +114,7 @@ export function ConfidenceDashboard({ confidence, className }: ConfidenceDashboa
                   {item.evidence.map((evidence, idx) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                      className="inline-flex items-center rounded-md bg-primary-soft px-2 py-1 text-xs text-primary"
                     >
                       {evidence}
                     </span>

@@ -35,6 +35,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { hasPermission } from "@/src/lib/product-doors";
 import type { AdminUser } from "@/src/lib/types";
 import { useAdminUsers, useUpdateUserStatus } from "../hooks/useAdminUsers";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 import { ImpersonateUserDialog } from "./ImpersonateUserDialog";
 import { RoleBadge } from "./RoleBadge";
 
@@ -112,24 +113,37 @@ export function UsersTable() {
           label="Users on this page"
           value={items.length}
           hint="Current cursor slice"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Active users on page"
           value={activeUsersOnPage}
-          hint="Available for normal app access"
-          tone="success"
+          hint={<Badge variant="success">Available for app access</Badge>}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Suspended users on page"
           value={suspendedUsersOnPage}
-          hint="Shown when the current filter includes suspended users"
-          tone={suspendedUsersOnPage > 0 ? "warning" : "default"}
+          hint={
+            suspendedUsersOnPage > 0 ? (
+              <Badge variant="warning">Included by filter</Badge>
+            ) : (
+              <Badge variant="outline">None on this slice</Badge>
+            )
+          }
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Operator capabilities"
           value={canImpersonate ? "Impersonation enabled" : "Read-only"}
-          hint={canReactivate ? "Reactivation allowed" : "Reactivation restricted"}
-          tone={canImpersonate || canReactivate ? "info" : "default"}
+          hint={
+            canReactivate ? (
+              <Badge variant="info">Reactivation allowed</Badge>
+            ) : (
+              <Badge variant="outline">Reactivation restricted</Badge>
+            )
+          }
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 

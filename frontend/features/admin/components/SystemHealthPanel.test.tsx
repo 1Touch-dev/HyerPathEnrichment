@@ -89,4 +89,12 @@ describe("SystemHealthPanel", () => {
     expect(screen.getByText("Saturation")).toBeInTheDocument();
     expect(screen.queryByText("Golden signals not configured")).not.toBeInTheDocument();
   });
+
+  it("uses white KPI card surfaces without pastel tone fills", () => {
+    const { container } = render(<SystemHealthPanel />, { wrapper });
+    const cards = container.querySelectorAll(".bg-card");
+    expect(cards.length).toBeGreaterThan(0);
+    expect(container.querySelector(".bg-success\\/10")).toBeNull();
+    expect(container.querySelector(".bg-destructive\\/10")).toBeNull();
+  });
 });

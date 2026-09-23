@@ -5,11 +5,11 @@ import { SettingsView } from "@/features/settings";
 export default function OsintSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
-      <Card className="overflow-hidden">
-        <CardHeader className="gap-4 border-b border-border/60 bg-surface-muted/40">
+      <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
+        <CardHeader className="gap-4 border-b border-border/60 bg-primary-soft/40">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-2">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
                 OSINT operator profile
               </p>
               <CardTitle className="text-xl">
@@ -27,14 +27,14 @@ export default function OsintSettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="grid gap-3 pt-6 md:grid-cols-2">
-          <div className="rounded-xl border border-border/70 bg-surface p-4">
+          <div className="rounded-xl border border-border/70 bg-card p-4">
             <p className="text-sm font-medium text-foreground">Session control</p>
             <p className="mt-1 text-sm text-muted-foreground">
               Use the session actions below when a research machine changes hands or an operator
               needs to sign out quickly.
             </p>
           </div>
-          <div className="rounded-xl border border-border/70 bg-surface p-4">
+          <div className="rounded-xl border border-border/70 bg-card p-4">
             <p className="text-sm font-medium text-foreground">Security handoff</p>
             <p className="mt-1 text-sm text-muted-foreground">
               Two-factor authentication lives on the dedicated security route so it remains one

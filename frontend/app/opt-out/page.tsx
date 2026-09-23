@@ -1,5 +1,6 @@
 import { MarketingShell } from "@/components/layout/MarketingShell";
 import { OptOutForm } from "@/components/opt-out/OptOutForm";
+import { Card, CardContent } from "@/components/ui/card";
 
 const HOW_IT_WORKS = [
   {
@@ -22,9 +23,11 @@ const HOW_IT_WORKS = [
 export default function OptOutPage() {
   return (
     <MarketingShell>
-      <div className="mx-auto flex max-w-xl flex-col gap-10 px-4 py-12">
-        <section className="flex flex-col gap-3 text-center">
-          <p className="text-xs font-semibold uppercase tracking-widest text-primary">Privacy</p>
+      <div className="mx-auto flex max-w-xl flex-col gap-10 px-4 py-12 sm:py-16">
+        <section className="flex flex-col gap-4 rounded-[1.5rem] border border-border/70 bg-surface p-6 text-center shadow-panel sm:p-10">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+            Privacy
+          </p>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
             Opt out of enrichment
           </h1>
@@ -42,10 +45,14 @@ export default function OptOutPage() {
           </h2>
           <ol className="flex flex-col gap-3">
             {HOW_IT_WORKS.map((item) => (
-              <li key={item.step} className="rounded-lg border border-border bg-card p-4">
-                <p className="font-mono text-xs text-primary">{item.step}</p>
-                <p className="mt-1 text-sm font-medium">{item.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>
+              <li key={item.step}>
+                <Card variant="accent" className="border-border/70">
+                  <CardContent className="p-4">
+                    <p className="font-mono text-xs text-primary">{item.step}</p>
+                    <p className="mt-1 text-sm font-medium">{item.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>
+                  </CardContent>
+                </Card>
               </li>
             ))}
           </ol>

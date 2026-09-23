@@ -31,13 +31,13 @@ export function AppTopbar({ product, sections }: AppTopbarProps) {
     <header
       data-shell-topbar=""
       data-shell-product={product}
-      className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between border-b border-border/60 bg-background/92 px-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/72 lg:px-6"
+      className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between border-b border-border/50 bg-surface/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-surface/80 lg:px-6"
     >
       <div className="flex min-w-0 items-center gap-3 sm:gap-4">
         <Link
           href={PRODUCT_ROOTS[product]}
           aria-label={`${meta.label} home`}
-          className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm transition-colors hover:bg-primary/15"
+          className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary transition-colors hover:bg-primary-soft/80 lg:hidden"
         >
           <div className="flex size-8 items-center justify-center rounded-lg">
             <HyrepathLogo className="size-5" />

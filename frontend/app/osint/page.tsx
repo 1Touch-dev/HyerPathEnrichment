@@ -112,7 +112,7 @@ function OsintLookupPageContent() {
     <div className="flex flex-col gap-8">
       <PageHeader>
         <PageHeaderContent>
-          <PageHeaderEyebrow>OSINT workbench</PageHeaderEyebrow>
+          <PageHeaderEyebrow className="text-primary">OSINT workbench</PageHeaderEyebrow>
           <PageHeaderTitle>Investigate a public footprint</PageHeaderTitle>
           <PageHeaderDescription>
             Staff-only workspace for person and business research. Queue a deeper multi-tier run or
@@ -157,11 +157,11 @@ function OsintLookupPageContent() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.82fr)]">
         <div className="flex min-w-0 flex-col gap-6">
-          <Card className="overflow-hidden">
-            <CardHeader className="gap-4 border-b border-border/60 bg-surface-muted/40">
+          <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
+            <CardHeader className="gap-4 border-b border-border/60 bg-primary-soft/40">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-2">
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
                     Run strategy
                   </p>
                   <CardTitle className="text-xl">Choose speed or depth</CardTitle>
@@ -196,8 +196,8 @@ function OsintLookupPageContent() {
           ) : null}
 
           {showProgress && activeJob ? (
-            <Card className="overflow-hidden">
-              <CardHeader className="gap-3 border-b border-border/60 bg-surface-muted/40">
+            <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
+              <CardHeader className="gap-3 border-b border-border/60 bg-primary-soft/40">
                 <CardTitle className="text-xl">Active lookup</CardTitle>
                 <CardDescription>
                   Live progress remains visible here until the request reaches a terminal state.
@@ -231,11 +231,11 @@ function OsintLookupPageContent() {
         </div>
 
         <div className="flex flex-col gap-6">
-          <Card className="overflow-hidden">
-            <CardHeader className="gap-4 border-b border-border/60 bg-surface-muted/40">
+          <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
+            <CardHeader className="gap-4 border-b border-border/60 bg-primary-soft/40">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-2">
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
                     Research briefing
                   </p>
                   <CardTitle className="text-xl">Keep the request targeted</CardTitle>
@@ -248,9 +248,9 @@ function OsintLookupPageContent() {
               </div>
             </CardHeader>
             <CardContent className="space-y-5 pt-6">
-              <div className="space-y-3 rounded-xl border border-border/70 bg-surface p-4">
+              <div className="space-y-3 rounded-xl border border-border/70 bg-card p-4 shadow-sm">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="size-4 text-info" />
+                  <ShieldCheck className="size-4 text-primary" />
                   <p className="text-sm font-medium text-foreground">Current tier seed</p>
                 </div>
                 {selectedTiers.length > 0 ? (
@@ -304,9 +304,9 @@ function WorkbenchMetric({
   description: string;
 }) {
   return (
-    <Card>
+    <Card className="border-border/70 bg-card shadow-sm">
       <CardContent className="space-y-2 p-5">
-        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
           {label}
         </p>
         <p className="text-3xl font-semibold tracking-tight text-foreground">{value}</p>
@@ -318,7 +318,7 @@ function WorkbenchMetric({
 
 function BriefingItem({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-surface p-4">
+    <div className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
       <p className="text-sm font-medium text-foreground">{title}</p>
       <p className="mt-1 text-sm text-muted-foreground">{description}</p>
     </div>

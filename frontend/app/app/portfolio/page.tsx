@@ -24,7 +24,11 @@ export default function PortfolioPage() {
       </ShellPageHeader>
 
       <ShellSection>
-        <Suspense fallback={<div className="animate-pulse h-96 rounded-lg bg-muted" />}>
+        <Suspense
+          fallback={
+            <div className="h-96 w-full animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+          }
+        >
           <PortfolioEditor />
         </Suspense>
       </ShellSection>

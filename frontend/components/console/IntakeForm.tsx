@@ -161,11 +161,11 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
   };
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="gap-4 border-b border-border/60 bg-surface-muted/40">
+    <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
+      <CardHeader className="gap-4 border-b border-border/60 bg-primary-soft/40">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-2">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
               Request intake
             </p>
             <CardTitle className="text-2xl">Prepare a lookup</CardTitle>
@@ -210,7 +210,7 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
         ) : null}
 
         <form className="flex flex-col gap-8" onSubmit={handleSubmit}>
-          <fieldset className="flex flex-col gap-4 rounded-xl border border-border/70 bg-surface p-4 sm:p-5">
+          <fieldset className="flex flex-col gap-4 rounded-xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
             <SectionHeader>
               <SectionHeaderContent>
                 <SectionHeaderTitle>Requested tiers</SectionHeaderTitle>
@@ -231,8 +231,8 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
                   <label
                     key={tier}
                     htmlFor={id}
-                    className={`flex cursor-pointer items-start gap-3 rounded-xl border border-border/70 bg-background p-4 transition-colors hover:bg-surface-muted/50 ${
-                      checked ? "border-primary/40 bg-primary/5" : ""
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border border-border/70 bg-card p-4 transition-colors hover:bg-primary-soft/50 ${
+                      checked ? "border-primary/40 bg-primary-soft" : ""
                     } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
                   >
                     <Checkbox
@@ -259,7 +259,7 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
           </fieldset>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <section className="rounded-xl border border-border/70 bg-surface p-4 sm:p-5">
+            <section className="rounded-xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
               <SectionHeader className="mb-4">
                 <SectionHeaderContent>
                   <SectionHeaderTitle>Identity signals</SectionHeaderTitle>
@@ -316,7 +316,7 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
               </div>
             </section>
 
-            <section className="rounded-xl border border-border/70 bg-surface p-4 sm:p-5">
+            <section className="rounded-xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
               <SectionHeader className="mb-4">
                 <SectionHeaderContent>
                   <SectionHeaderTitle>Search context</SectionHeaderTitle>
@@ -370,7 +370,7 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
             </section>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">Ready to submit</p>
               <p className="text-sm text-muted-foreground">
@@ -381,7 +381,11 @@ export function IntakeForm({ mode, initialTiers, onSubmit, loading }: IntakeForm
               ) : null}
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
             </div>
-            <Button type="submit" disabled={!canSubmit} className="sm:min-w-40">
+            <Button
+              type="submit"
+              disabled={!canSubmit}
+              className="bg-primary text-primary-foreground sm:min-w-40"
+            >
               {loading ? "Starting lookup…" : "Start lookup"}
             </Button>
           </div>

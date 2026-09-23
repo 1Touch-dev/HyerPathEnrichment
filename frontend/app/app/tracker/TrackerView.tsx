@@ -93,11 +93,11 @@ export function TrackerView() {
       <div className="space-y-6">
         {header}
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="animate-pulse rounded-lg bg-muted h-28" />
-          <div className="animate-pulse rounded-lg bg-muted h-28" />
-          <div className="animate-pulse rounded-lg bg-muted h-28" />
+          <div className="h-28 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+          <div className="h-28 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+          <div className="h-28 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
         </div>
-        <div className="animate-pulse h-96 rounded-lg bg-muted" />
+        <div className="h-96 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
         {addJobDialog}
       </div>
     );
@@ -152,7 +152,7 @@ export function TrackerView() {
     <div className="space-y-6">
       {header}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Active applications</p>
             <CardTitle className="text-3xl text-primary">{activeCount}</CardTitle>
@@ -161,7 +161,7 @@ export function TrackerView() {
             Roles still moving through your funnel.
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Interviews</p>
             <CardTitle className="text-3xl text-primary">{interviewCount}</CardTitle>
@@ -170,7 +170,7 @@ export function TrackerView() {
             Open roles currently in an interview stage.
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Manual entries</p>
             <CardTitle className="text-3xl text-primary">{manualCount}</CardTitle>

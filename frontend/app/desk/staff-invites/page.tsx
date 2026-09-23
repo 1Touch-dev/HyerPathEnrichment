@@ -26,6 +26,8 @@ import {
   SectionHeaderTitle,
 } from "@/components/ui/section-header";
 
+const DESK_KPI_CARD_CLASS = "border-border/70 bg-card";
+
 type StaffInvite = {
   id: string;
   email: string;
@@ -100,18 +102,19 @@ export default function AdminStaffInvitesPage() {
           label="Invites this session"
           value={invites.length}
           hint="Created in this tab"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Accepted in this session"
           value={acceptedInvites}
           hint={`${invites.length - acceptedInvites} pending invite(s)`}
-          tone={acceptedInvites > 0 ? "success" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Role assignment"
           value="Preset on create"
           hint="Recipients register with the assigned staff role"
-          tone="info"
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 
@@ -198,43 +201,50 @@ function CreateStaffInviteDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Invite staff member</DialogTitle>
-          <DialogDescription>
-            Sends an invite the recipient can use to register with a staff role already assigned.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-2">
-          <Label htmlFor="invite-email">Email</Label>
-          <Input
-            id="invite-email"
-            type="email"
-            placeholder="teammate@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+      <DialogContent className="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-md">
+        <div className="border-b border-border/60 bg-primary-soft/50 px-6 py-5">
+          <DialogHeader className="space-y-2 text-left">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+              Staff access
+            </p>
+            <DialogTitle>Invite staff member</DialogTitle>
+            <DialogDescription>
+              Sends an invite the recipient can use to register with a staff role already assigned.
+            </DialogDescription>
+          </DialogHeader>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="invite-role">Role name</Label>
-          <Input
-            id="invite-role"
-            placeholder="recruiter"
-            value={roleName}
-            onChange={(e) => setRoleName(e.target.value)}
-          />
-        </div>
+        <div className="space-y-4 bg-card px-6 py-5">
+          <div className="space-y-2">
+            <Label htmlFor="invite-email">Email</Label>
+            <Input
+              id="invite-email"
+              type="email"
+              placeholder="teammate@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => handleOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleConfirm} disabled={isPending || isEmailInvalid}>
-            {isPending ? "Sending..." : "Send invite"}
-          </Button>
-        </DialogFooter>
+          <div className="space-y-2">
+            <Label htmlFor="invite-role">Role name</Label>
+            <Input
+              id="invite-role"
+              placeholder="recruiter"
+              value={roleName}
+              onChange={(e) => setRoleName(e.target.value)}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirm} disabled={isPending || isEmailInvalid}>
+              {isPending ? "Sending..." : "Send invite"}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

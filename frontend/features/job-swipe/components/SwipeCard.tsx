@@ -59,7 +59,7 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
 
   return (
     <motion.div
-      className="absolute inset-0 select-none rounded-[1.75rem] border border-border/70 bg-card/95 p-6 shadow-elevated backdrop-blur-sm"
+      className="absolute inset-0 select-none rounded-[1.75rem] border border-border/70 bg-surface p-5 shadow-elevated sm:p-6"
       style={{ x, y, rotate }}
       drag={isTop}
       dragSnapToOrigin
@@ -69,19 +69,19 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
       data-match-id={card.matchId}
     >
       <motion.div
-        className="absolute left-4 top-4 rounded-xl border-2 border-success px-3 py-1 text-base font-semibold text-success bg-background/90"
+        className="absolute left-4 top-4 rounded-xl border-2 border-success bg-surface/95 px-3 py-1 text-sm font-semibold tracking-wide text-success sm:text-base"
         style={{ opacity: likeOpacity }}
       >
         INTERESTED
       </motion.div>
       <motion.div
-        className="absolute right-4 top-4 rounded-xl border-2 border-destructive px-3 py-1 text-base font-semibold text-destructive bg-background/90"
+        className="absolute right-4 top-4 rounded-xl border-2 border-destructive bg-surface/95 px-3 py-1 text-sm font-semibold tracking-wide text-destructive sm:text-base"
         style={{ opacity: passOpacity }}
       >
         PASS
       </motion.div>
       <motion.div
-        className="absolute left-1/2 top-4 -translate-x-1/2 rounded-xl border-2 border-info px-3 py-1 text-base font-semibold text-info bg-background/90"
+        className="absolute left-1/2 top-4 -translate-x-1/2 rounded-xl border-2 border-primary bg-surface/95 px-3 py-1 text-sm font-semibold tracking-wide text-primary sm:text-base"
         style={{ opacity: superLikeOpacity }}
       >
         SUPER LIKE
@@ -108,8 +108,10 @@ export function SwipeCard({ card, onSwiped, onDraftOutreach, isTop }: SwipeCardP
                 {card.appliedAt ? <Badge variant="outline">Applied</Badge> : null}
               </div>
               <div>
-                <h2 className="text-2xl font-semibold tracking-tight">{card.title}</h2>
-                <p className="text-base text-muted-foreground">{card.company}</p>
+                <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                  {card.title}
+                </h2>
+                <p className="text-sm text-muted-foreground sm:text-base">{card.company}</p>
               </div>
             </div>
           </div>

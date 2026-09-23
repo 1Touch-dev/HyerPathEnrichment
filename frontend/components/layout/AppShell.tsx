@@ -34,8 +34,8 @@ function AppShellChrome({ children, product, matchesUnreadCount, user }: AppShel
   const sections = getNavSections(product, user);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      <div className="hidden lg:flex lg:shrink-0">
+    <div className="flex h-screen gap-3.5 overflow-hidden bg-background p-3.5 text-foreground">
+      <div className="hidden h-full shrink-0 lg:flex">
         <AppSidebar product={product} sections={sections} matchesUnreadCount={matchesUnreadCount} />
       </div>
       <AppNavRail
@@ -44,7 +44,7 @@ function AppShellChrome({ children, product, matchesUnreadCount, user }: AppShel
         pathname={pathname}
         matchesUnreadCount={matchesUnreadCount}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-panel">
         <AppTopbar product={product} sections={sections} />
         <VerificationBanner />
         <ImpersonationBanner />

@@ -96,16 +96,21 @@ export function AddManualJobDialog({ open, onOpenChange }: AddManualJobDialogPro
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <form onSubmit={handleSubmit} noValidate>
-          <DialogHeader>
-            <DialogTitle>Add a job manually</DialogTitle>
-            <DialogDescription>
-              Track a job you found elsewhere — we&apos;ll add it to your Applications board.
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent className="max-h-[90vh] gap-0 overflow-hidden border-border/70 p-0 sm:max-w-lg">
+        <form onSubmit={handleSubmit} noValidate className="flex max-h-[90vh] flex-col">
+          <div className="shrink-0 border-b border-border/60 bg-primary-soft/50 px-6 py-5">
+            <DialogHeader className="space-y-2 text-left">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+                Applications
+              </p>
+              <DialogTitle>Add a job manually</DialogTitle>
+              <DialogDescription>
+                Track a job you found elsewhere — we&apos;ll add it to your Applications board.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 overflow-y-auto bg-card px-6 py-5">
             <div className="space-y-2">
               <Label htmlFor="manual-job-title">Job title</Label>
               <Input
@@ -174,7 +179,7 @@ export function AddManualJobDialog({ open, onOpenChange }: AddManualJobDialogPro
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-border/60 bg-card px-6 py-4 sm:justify-end">
             <Button
               type="button"
               variant="outline"

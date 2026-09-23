@@ -61,8 +61,8 @@ export function JdPracticeSessionView({ jobMatchId }: JdPracticeSessionViewProps
 
   if (questionsMutation.isPending || questionsMutation.isIdle) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border p-10">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center gap-3 rounded-[1.25rem] border border-border/70 bg-surface p-10 shadow-panel">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Generating your practice questions...</p>
         <p className="text-xs text-muted-foreground">
           This can take up to a minute — we&apos;re tailoring questions to this job description.

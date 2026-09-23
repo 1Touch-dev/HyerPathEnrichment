@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/section-header";
 import { Switch } from "@/components/ui/switch";
 import { useFeatureFlags } from "../hooks/useFeatureFlags";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 function AsyncState({
   role,
@@ -53,18 +54,19 @@ export function FeatureFlagsPanel() {
           label="Stored records"
           value={(flags ?? []).length}
           hint="Visible administration-only records"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Enabled records"
           value={enabledFlags}
           hint="Set in storage, not yet consumed by an app service"
-          tone={enabledFlags > 0 ? "info" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Disabled records"
           value={disabledFlags}
           hint="Mutation remains unavailable"
-          tone={disabledFlags > 0 ? "warning" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 

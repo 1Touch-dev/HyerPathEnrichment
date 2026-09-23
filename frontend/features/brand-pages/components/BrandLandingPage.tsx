@@ -23,12 +23,14 @@ export function BrandLandingPage({ brand, tierConfig }: BrandLandingPageProps) {
 
   return (
     <article className="mx-auto max-w-2xl space-y-8 px-4 py-12">
-      <header>
-        <Badge variant="outline">{brand.name}</Badge>
-        <h1 className="mt-4 text-3xl font-bold">{headline}</h1>
-        {comingSoon && <p className="mt-3 text-muted-foreground">We&apos;re launching soon</p>}
+      <header className="space-y-4 rounded-[1.5rem] border border-border/70 bg-card p-6 shadow-panel sm:p-10">
+        <Badge variant="secondary" className="bg-primary-soft text-primary">
+          {brand.name}
+        </Badge>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">{headline}</h1>
+        {comingSoon && <p className="text-muted-foreground">We&apos;re launching soon</p>}
         {ctaLabel && (
-          <div className="mt-6">
+          <div className="pt-2">
             <Button asChild>
               <Link href="/register">{ctaLabel}</Link>
             </Button>

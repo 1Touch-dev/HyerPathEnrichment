@@ -16,14 +16,14 @@ interface JdPracticeEntryCardProps {
  */
 export function JdPracticeEntryCard({ jobMatchId }: JdPracticeEntryCardProps) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+    <div className="flex flex-col gap-3 rounded-[1.25rem] border border-border/70 bg-surface p-4 shadow-panel sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <div>
         <p className="font-medium">Practice for this job</p>
         <p className="text-sm text-muted-foreground">
           Get interview questions tailored to this job&apos;s description.
         </p>
       </div>
-      <Button asChild size="sm">
+      <Button asChild size="sm" className="shrink-0 self-start sm:self-auto">
         <Link href={`/app/practice?jobMatchId=${jobMatchId}`}>Start practice</Link>
       </Button>
     </div>

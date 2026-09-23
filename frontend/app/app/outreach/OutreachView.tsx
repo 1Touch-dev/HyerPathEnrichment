@@ -85,11 +85,11 @@ export function OutreachView() {
       <div className="space-y-6">
         {header}
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="animate-pulse rounded-lg bg-muted h-28" />
-          <div className="animate-pulse rounded-lg bg-muted h-28" />
-          <div className="animate-pulse rounded-lg bg-muted h-28" />
+          <div className="h-28 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+          <div className="h-28 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+          <div className="h-28 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
         </div>
-        <div className="animate-pulse h-96 rounded-lg bg-muted" />
+        <div className="h-96 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
       </div>
     );
   }
@@ -109,7 +109,7 @@ export function OutreachView() {
       {header}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Drafts</p>
             <CardTitle className="text-3xl text-primary">{draftCount}</CardTitle>
@@ -118,7 +118,7 @@ export function OutreachView() {
             Messages you can still edit before sending or copying.
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Sent</p>
             <CardTitle className="text-3xl text-primary">{sentCount}</CardTitle>
@@ -127,7 +127,7 @@ export function OutreachView() {
             Outreach you have already sent or copied out.
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Resume context</p>
             <CardTitle className="text-3xl text-primary">

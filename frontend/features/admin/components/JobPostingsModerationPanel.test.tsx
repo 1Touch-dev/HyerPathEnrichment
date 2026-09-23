@@ -168,4 +168,18 @@ describe("JobPostingsModerationPanel", () => {
     render(<JobPostingsModerationPanel />, { wrapper });
     expect(screen.getByText("Next page")).not.toBeDisabled();
   });
+
+  it("uses white KPI card surfaces without pastel tone fills", () => {
+    const { container } = render(<JobPostingsModerationPanel />, { wrapper });
+    expect(container.querySelectorAll(".bg-card").length).toBeGreaterThan(0);
+    expect(container.querySelector(".bg-success\\/10")).toBeNull();
+    expect(container.querySelector(".bg-info\\/10")).toBeNull();
+  });
+
+  it("opens a restyled hide-reason dialog without pastel chrome", () => {
+    render(<JobPostingsModerationPanel />, { wrapper });
+    fireEvent.click(screen.getByText("Hide"));
+    expect(screen.getByText("Job posting moderation")).toBeInTheDocument();
+    expect(screen.getByLabelText("Reason (optional)")).toBeInTheDocument();
+  });
 });

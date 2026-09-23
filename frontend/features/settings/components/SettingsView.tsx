@@ -168,7 +168,7 @@ export function SettingsView({
             </CardContent>
           </Card>
 
-          <Card className="border-destructive/30">
+          <Card className="border-destructive/20 bg-surface">
             <CardHeader>
               <CardTitle className="text-destructive">Danger Zone</CardTitle>
               <CardDescription>Irreversible and destructive actions</CardDescription>
@@ -191,15 +191,20 @@ export function SettingsView({
       </div>
 
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Are you absolutely sure?</DialogTitle>
-            <DialogDescription>
-              This will permanently delete your account and all associated data. You will not be
-              able to login again unless you contact support.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
+        <DialogContent className="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-md">
+          <div className="border-b border-border/60 bg-primary-soft/50 px-6 py-5">
+            <DialogHeader className="space-y-2 text-left">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-destructive">
+                Danger zone
+              </p>
+              <DialogTitle>Are you absolutely sure?</DialogTitle>
+              <DialogDescription>
+                This will permanently delete your account and all associated data. You will not be
+                able to login again unless you contact support.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <DialogFooter className="gap-2 bg-card px-6 py-5 sm:justify-end sm:gap-2">
             <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>

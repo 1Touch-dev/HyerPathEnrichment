@@ -19,15 +19,14 @@ export function EmailStatusCard({ email, onClick, selected }: EmailStatusCardPro
     return (
       <Card
         className={cn(
-          "cursor-pointer transition-all hover:shadow-md",
+          "cursor-pointer border-border/70 bg-card shadow-sm transition-all hover:shadow-md",
           selected ? "ring-2 ring-primary" : "",
-          "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800",
         )}
         onClick={onClick}
       >
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+            <CheckCircle className="w-5 h-5 shrink-0 mt-0.5 text-success" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <p className="font-medium text-sm truncate">{verifiedEmail.value}</p>
@@ -77,18 +76,18 @@ export function EmailStatusCard({ email, onClick, selected }: EmailStatusCardPro
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-all hover:shadow-md",
+        "cursor-pointer border-border/70 bg-card shadow-sm transition-all hover:shadow-md",
         selected ? "ring-2 ring-primary" : "",
       )}
       onClick={onClick}
     >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-warning" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
               <p className="font-medium text-sm truncate">{email as string}</p>
-              <Badge variant="outline" className="shrink-0">
+              <Badge variant="warning" className="shrink-0">
                 Unverified
               </Badge>
             </div>

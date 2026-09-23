@@ -60,4 +60,10 @@ describe("PublicPortfolioPage", () => {
     render(<PublicPortfolioPage profile={{ ...baseProfile, items: [] }} />);
     expect(screen.queryByText("My repo")).not.toBeInTheDocument();
   });
+
+  it("uses white card chrome with violet soft item chips", () => {
+    const { container } = render(<PublicPortfolioPage profile={baseProfile} />);
+    expect(container.querySelectorAll(".bg-card").length).toBeGreaterThan(0);
+    expect(container.querySelector(".bg-primary-soft")).not.toBeNull();
+  });
 });

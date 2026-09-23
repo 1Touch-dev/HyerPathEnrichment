@@ -278,18 +278,23 @@ export function DraftOutreachDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            Draft outreach{companyName.trim() ? ` to ${companyName.trim()}` : ""}
-          </DialogTitle>
-          <DialogDescription>
-            Choose message type, résumé, and optional job description. LinkedIn and other non-email
-            messages are copy-paste-only — they can&apos;t be sent from this app.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-h-[90vh] gap-0 overflow-hidden border-border/70 p-0 sm:max-w-lg">
+        <div className="shrink-0 border-b border-border/60 bg-primary-soft/50 px-6 py-5">
+          <DialogHeader className="space-y-2 text-left">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+              Outreach
+            </p>
+            <DialogTitle>
+              Draft outreach{companyName.trim() ? ` to ${companyName.trim()}` : ""}
+            </DialogTitle>
+            <DialogDescription>
+              Choose message type, résumé, and optional job description. LinkedIn and other
+              non-email messages are copy-paste-only — they can&apos;t be sent from this app.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <div className="space-y-4">
+        <div className="max-h-[min(60vh,28rem)] space-y-4 overflow-y-auto bg-card px-6 py-5">
           {!initialCompanyName ? (
             <div className="space-y-2">
               <Label htmlFor="draft-outreach-company">Company</Label>
@@ -448,19 +453,19 @@ export function DraftOutreachDialog({
               onValueChange={(value) => setJdSource(value as "tracked" | "paste" | "none")}
               className="grid gap-2"
             >
-              <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 bg-surface p-3">
                 <RadioGroupItem value="none" id="jd-none" />
                 <Label htmlFor="jd-none" className="cursor-pointer font-normal">
                   No JD (company context only)
                 </Label>
               </label>
-              <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 bg-surface p-3">
                 <RadioGroupItem value="tracked" id="jd-tracked" />
                 <Label htmlFor="jd-tracked" className="cursor-pointer font-normal">
                   Tracked job
                 </Label>
               </label>
-              <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 bg-surface p-3">
                 <RadioGroupItem value="paste" id="jd-paste" />
                 <Label htmlFor="jd-paste" className="cursor-pointer font-normal">
                   Paste JD
@@ -478,7 +483,7 @@ export function DraftOutreachDialog({
               ) : (matchesData?.matches.length ?? 0) === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No tracked jobs yet.{" "}
-                  <Link href="/app/matches" className="underline">
+                  <Link href="/app/matches" className="text-primary underline">
                     Go to Job matching
                   </Link>
                 </p>
@@ -523,7 +528,7 @@ export function DraftOutreachDialog({
           {readyDocuments.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Upload a CV first to draft outreach.{" "}
-              <Link href="/app/documents" className="underline">
+              <Link href="/app/documents" className="text-primary underline">
                 Go to Documents
               </Link>
             </p>
@@ -536,7 +541,7 @@ export function DraftOutreachDialog({
           ) : null}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t border-border/60 bg-card px-6 py-4 sm:justify-end">
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>

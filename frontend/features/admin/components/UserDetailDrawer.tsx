@@ -16,6 +16,7 @@ import {
   SectionHeaderTitle,
 } from "@/components/ui/section-header";
 import { AuditLogTable } from "./AuditLogTable";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 import { RoleBadge } from "./RoleBadge";
 import type { AdminUser } from "@/src/lib/types";
 
@@ -30,8 +31,11 @@ type UserDetailDrawerProps = {
 export function UserDetailDrawer({ user, open, onOpenChange }: UserDetailDrawerProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
+      <SheetContent className="w-full overflow-y-auto border-l border-border/70 bg-background sm:max-w-lg">
+        <SheetHeader className="space-y-2 border-b border-border/60 pb-4">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+            Account detail
+          </p>
           <SheetTitle>{user.email}</SheetTitle>
           <SheetDescription>
             {user.firstName} {user.lastName}
@@ -48,7 +52,7 @@ export function UserDetailDrawer({ user, open, onOpenChange }: UserDetailDrawerP
                 </Badge>
               }
               hint={`Created ${formatDate(user.createdAt)}`}
-              tone={user.isActive ? "success" : "warning"}
+              className={DESK_KPI_CARD_CLASS}
             />
             <DeskMetricCard
               label="Verification and MFA"
@@ -63,11 +67,11 @@ export function UserDetailDrawer({ user, open, onOpenChange }: UserDetailDrawerP
                 </div>
               }
               hint="Security posture for this account"
-              tone={user.mfaEnabled ? "info" : "default"}
+              className={DESK_KPI_CARD_CLASS}
             />
           </DeskMetricGrid>
 
-          <section className="rounded-lg border border-border/70 bg-surface p-4">
+          <section className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
             <SectionHeader>
               <SectionHeaderContent>
                 <SectionHeaderTitle>Account details</SectionHeaderTitle>

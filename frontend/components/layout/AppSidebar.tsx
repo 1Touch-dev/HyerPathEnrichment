@@ -22,6 +22,9 @@ type AppSidebarProps = {
 const NAV_FOCUS =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
+const ACTIVE_NAV = "bg-primary-soft text-primary";
+const IDLE_NAV = "text-muted-foreground hover:bg-surface-muted hover:text-foreground";
+
 export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSidebarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
@@ -37,11 +40,11 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
       data-shell-sidebar=""
       data-shell-product={product}
       className={cn(
-        "flex h-full flex-col border-r border-border/70 bg-surface-elevated/80 shadow-panel backdrop-blur supports-[backdrop-filter]:bg-surface-elevated/70 transition-[width] duration-200",
+        "flex h-full flex-col rounded-2xl border border-border/50 bg-surface shadow-float-sidebar transition-[width] duration-200",
         sidebarOpen ? "w-72" : "w-[78px]",
       )}
     >
-      <div className="border-b border-border/70 px-3 py-4">
+      <div className="border-b border-border/60 px-3 py-4">
         {sidebarOpen ? (
           <div className="flex items-start justify-between gap-3">
             <Link
@@ -49,11 +52,11 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
               aria-label="Hyrepath home"
               className={cn("flex min-w-0 flex-1 items-start gap-3 rounded-xl p-1", NAV_FOCUS)}
             >
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
                 <HyrepathLogo className="size-5" />
               </span>
               <span className="flex min-w-0 flex-col gap-1">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/80">
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                   Hyrepath
                 </span>
                 <span className="w-fit rounded-md bg-secondary px-2.5 py-1 text-sm font-medium leading-5 text-primary">
@@ -82,7 +85,7 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
               href={PRODUCT_ROOTS[product]}
               aria-label="Hyrepath home"
               className={cn(
-                "flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm",
+                "flex size-11 items-center justify-center rounded-2xl bg-primary-soft text-primary",
                 NAV_FOCUS,
               )}
             >
@@ -105,9 +108,12 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
         )}
       </div>
 
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
-        {sections.map((section) => (
-          <div key={section.title}>
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        {sections.map((section, index) => (
+          <div
+            key={section.title}
+            className={cn(index > 0 && "mt-5 border-t border-border/60 pt-5")}
+          >
             {sidebarOpen ? (
               <p className="mb-2 px-3 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
                 {section.title}
@@ -127,9 +133,7 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
                       className={cn(
                         "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
                         NAV_FOCUS,
-                        active
-                          ? "border border-border/70 bg-secondary/90 text-primary shadow-sm"
-                          : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                        active ? ACTIVE_NAV : IDLE_NAV,
                         !sidebarOpen && "justify-center px-0",
                       )}
                       title={!sidebarOpen ? item.label : undefined}
@@ -155,7 +159,7 @@ export function AppSidebar({ product, sections, matchesUnreadCount = 0 }: AppSid
         ))}
       </nav>
 
-      <div className="border-t border-border/70 px-3 py-4">
+      <div className="border-t border-border/60 px-3 py-4">
         {sidebarOpen ? <p className="text-xs text-subtle-foreground">{meta.description}</p> : null}
       </div>
     </aside>

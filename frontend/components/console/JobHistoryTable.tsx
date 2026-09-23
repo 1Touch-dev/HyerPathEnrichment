@@ -57,7 +57,7 @@ export function JobHistoryTable({
 
   if (loading && jobs.length === 0) {
     return (
-      <div className="space-y-3 rounded-xl border border-border/70 bg-surface p-4">
+      <div className="space-y-3 rounded-xl border border-border/70 bg-card p-4 shadow-sm">
         <Skeleton className="h-12 w-full" />
         <Skeleton className="h-12 w-full" />
         <Skeleton className="h-12 w-full" />

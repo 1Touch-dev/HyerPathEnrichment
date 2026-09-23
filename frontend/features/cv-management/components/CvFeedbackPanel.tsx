@@ -86,7 +86,7 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
   return (
     <div className="space-y-6">
       {report.isBlurred ? (
-        <div className="rounded-lg border border-dashed p-4">
+        <div className="rounded-xl border border-dashed border-primary/30 bg-surface p-4 shadow-panel">
           <p className="text-sm text-muted-foreground">
             Premium CV feedback is blurred on free accounts. Upgrade to unlock strengths,
             improvements, and rewritten bullets.
@@ -99,7 +99,7 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
 
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">ATS score</span>
-        <Badge>{report.atsScore}/100</Badge>
+        <Badge className="bg-primary text-primary-foreground">{report.atsScore}/100</Badge>
       </div>
 
       {report.strengths.length > 0 && (
@@ -131,12 +131,15 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
             {report.rewrittenBullets.map((bullet, index) => {
               const isAccepted = report.acceptedBulletIndices.includes(index);
               return (
-                <div key={index} className="rounded-lg border p-3">
+                <div
+                  key={index}
+                  className="rounded-xl border border-border/70 bg-surface p-3 shadow-panel"
+                >
                   <p className="text-sm text-muted-foreground line-through">{bullet.original}</p>
                   <p className="mt-1 text-sm font-medium">{bullet.rewritten}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{bullet.rationale}</p>
                   {isAccepted ? (
-                    <Badge variant="outline" className="mt-2 gap-1 text-green-700">
+                    <Badge variant="success" className="mt-2 gap-1">
                       ✓ Applied
                     </Badge>
                   ) : (

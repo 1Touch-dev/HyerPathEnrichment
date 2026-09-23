@@ -33,6 +33,7 @@ import {
   useAdminOutreachMessages,
   useModerateOutreachMessage,
 } from "../hooks/useOutreachModeration";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 type StatusFilter = "all" | "draft" | "sent";
 type BlockedFilter = "all" | "blocked" | "unblocked";
@@ -106,17 +107,19 @@ export function OutreachModerationPanel() {
           label="Messages on this page"
           value={items.length}
           hint="Current cursor slice"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Sent on page"
           value={sentMessages}
           hint={`${blockedMessages} blocked by moderation`}
-          tone={blockedMessages > 0 ? "warning" : "success"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Current filters"
           value={statusFilter === "all" ? "All statuses" : statusFilter}
           hint={blockedFilter === "all" ? "All messages" : blockedFilter}
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 

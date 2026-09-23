@@ -134,7 +134,7 @@ export function JobDetailView({ jobId, jobsHref }: JobDetailViewProps) {
       </Button>
       <PageHeader>
         <PageHeaderContent>
-          <PageHeaderEyebrow>Dossier detail</PageHeaderEyebrow>
+          <PageHeaderEyebrow className="text-primary">Dossier detail</PageHeaderEyebrow>
           <PageHeaderTitle>Job dossier</PageHeaderTitle>
           <PageHeaderDescription className="space-y-2">
             <span className="block font-mono text-xs text-muted-foreground sm:text-sm">
@@ -156,7 +156,14 @@ export function JobDetailView({ jobId, jobsHref }: JobDetailViewProps) {
           ) : null}
         </PageHeaderActions>
       </PageHeader>
-      <JobProgress job={job} polling={isPolling} pollTimedOut={false} onRefresh={() => refetch()} />
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+        <JobProgress
+          job={job}
+          polling={isPolling}
+          pollTimedOut={false}
+          onRefresh={() => refetch()}
+        />
+      </div>
       <DossierView job={job} />
     </div>
   );

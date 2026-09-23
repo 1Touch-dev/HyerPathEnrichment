@@ -18,13 +18,17 @@ export function CompletenessBanner({ documentId, onStartChat }: CompletenessBann
   const percent = Math.round(data.completenessScore * 100);
 
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-amber-900">
+    <div className="rounded-xl border border-warning/20 bg-warning-soft p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm font-medium text-warning">
           Your CV is {percent}% complete — {data.missingFields.length} field
           {data.missingFields.length === 1 ? "" : "s"} missing
         </p>
-        <Button size="sm" onClick={onStartChat}>
+        <Button
+          size="sm"
+          onClick={onStartChat}
+          className="w-full bg-primary text-primary-foreground sm:w-fit"
+        >
           Complete it
         </Button>
       </div>

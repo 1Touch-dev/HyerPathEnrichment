@@ -40,9 +40,10 @@ export function DashboardView() {
 
       {error ? <p className="text-sm text-destructive">{formatApiErrorMessage(error)}</p> : null}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* KPI mosaic: white cards + violet accents only — no pastel fills. */}
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
         {kpis.map((kpi) => (
-          <Card key={kpi.label}>
+          <Card key={kpi.label} variant="accent">
             <CardHeader className="pb-2">
               <CardDescription>{kpi.label}</CardDescription>
               {isLoading ? (
@@ -76,7 +77,7 @@ export function DashboardView() {
               {data.recent.map((job) => (
                 <li
                   key={job.id}
-                  className="flex min-w-0 flex-col gap-1 rounded-md border px-3 py-2 text-sm"
+                  className="flex min-w-0 flex-col gap-1 rounded-xl border border-border/70 bg-surface px-3 py-2 text-sm"
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <Link
@@ -103,7 +104,7 @@ export function DashboardView() {
 
       {candidateMutationsAllowed ? (
         <div className="flex flex-wrap gap-2">
-          <Button asChild>
+          <Button asChild className="bg-primary text-primary-foreground">
             <Link href="/osint">New enrichment</Link>
           </Button>
           <Button asChild variant="outline">

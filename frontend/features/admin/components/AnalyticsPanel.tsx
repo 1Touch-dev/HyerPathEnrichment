@@ -14,6 +14,7 @@ import {
   SectionHeaderTitle,
 } from "@/components/ui/section-header";
 import { useJobMatchAnalytics } from "../hooks/useAnalytics";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 function formatCurrency(value: number | null): string {
   if (value === null) return "—";
@@ -73,12 +74,13 @@ export function AnalyticsPanel() {
           label="Tracked job postings"
           value={data.totalPostings.toLocaleString()}
           hint="Current analytics sample"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Generated matches"
           value={data.totalMatches.toLocaleString()}
           hint="Across the sampled postings"
-          tone="info"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Average salary range"
@@ -88,12 +90,13 @@ export function AnalyticsPanel() {
             </span>
           }
           hint="Null values remain honest"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Average match score"
           value={data.avgOverallScore !== null ? Math.round(data.avgOverallScore) : "—"}
           hint="Rounded for quick scanning"
-          tone="success"
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 

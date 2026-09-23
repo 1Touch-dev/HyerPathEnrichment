@@ -34,7 +34,7 @@ export function SourceBadges({ sources, className }: SourceBadgesProps) {
 
   return (
     <div className={className}>
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
         Data Sources
       </p>
       <div className="flex flex-wrap gap-2">

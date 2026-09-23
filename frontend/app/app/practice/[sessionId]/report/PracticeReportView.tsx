@@ -74,7 +74,10 @@ function AttemptReportRow({ attempt, index }: { attempt: PracticeAttempt; index:
 export function PracticeReportView({ sessionId }: PracticeReportViewProps) {
   const { data: session, isLoading, error } = usePracticeSession(sessionId);
 
-  if (isLoading) return <div className="animate-pulse h-96 rounded-lg bg-muted" />;
+  if (isLoading)
+    return (
+      <div className="h-96 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+    );
 
   if (error || !session) {
     return (
@@ -100,14 +103,14 @@ export function PracticeReportView({ sessionId }: PracticeReportViewProps) {
           <Badge variant={session.overallScore === null ? "outline" : "success"}>
             Overall score: {session.overallScore === null ? "Pending..." : session.overallScore}
           </Badge>
-          <Link href="/app/practice" className="text-sm font-medium underline">
+          <Link href="/app/practice" className="text-sm font-medium text-primary underline">
             Practice again
           </Link>
         </ShellPageHeaderActions>
       </ShellPageHeader>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Attempts</p>
             <CardTitle className="text-3xl text-primary">{session.attempts.length}</CardTitle>
@@ -116,7 +119,7 @@ export function PracticeReportView({ sessionId }: PracticeReportViewProps) {
             Submitted answers in this session.
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Audio answers</p>
             <CardTitle className="text-3xl text-primary">
@@ -127,7 +130,7 @@ export function PracticeReportView({ sessionId }: PracticeReportViewProps) {
             Responses that can include delivery coaching.
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Text answers</p>
             <CardTitle className="text-3xl text-primary">

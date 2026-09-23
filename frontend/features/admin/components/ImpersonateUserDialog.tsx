@@ -61,15 +61,20 @@ export function ImpersonateUserDialog({ user, open, onOpenChange }: ImpersonateU
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Log in as {user.email}</DialogTitle>
-          <DialogDescription>
-            You will act as this user until you end the session. This is logged.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+      <DialogContent className="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-md">
+        <div className="border-b border-border/60 bg-primary-soft/50 px-6 py-5">
+          <DialogHeader className="space-y-2 text-left">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+              Impersonation
+            </p>
+            <DialogTitle>Log in as {user.email}</DialogTitle>
+            <DialogDescription>
+              You will act as this user until you end the session. This is logged.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4 bg-card px-6 py-5">
+          <div className="space-y-2">
             <Label htmlFor="impersonation-reason">Reason</Label>
             <Textarea
               id="impersonation-reason"
@@ -81,7 +86,7 @@ export function ImpersonateUserDialog({ user, open, onOpenChange }: ImpersonateU
             />
           </div>
           {requiresMfaCode ? (
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="impersonation-mfa-code">Your 2FA code</Label>
               <Input
                 id="impersonation-mfa-code"
@@ -94,7 +99,7 @@ export function ImpersonateUserDialog({ user, open, onOpenChange }: ImpersonateU
             </div>
           ) : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

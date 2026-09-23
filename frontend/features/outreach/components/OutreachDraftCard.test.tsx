@@ -122,7 +122,7 @@ describe("OutreachDraftCard", () => {
     );
   });
 
-  it("renders a LinkedIn character counter under subject and body, amber past 1500 and red past 1900 for the body", () => {
+  it("renders a LinkedIn character counter under subject and body, warning past 1500 and destructive past 1900 for the body", () => {
     render(<OutreachDraftCard message={{ ...draftMessage, messageType: "linkedin" }} />, {
       wrapper,
     });
@@ -130,14 +130,14 @@ describe("OutreachDraftCard", () => {
     fireEvent.change(screen.getByDisplayValue(draftMessage.body), {
       target: { value: "a".repeat(1600) },
     });
-    const amberCounter = screen.getByText("1600 / 1900");
-    expect(amberCounter.className).toContain("amber");
+    const warningCounter = screen.getByText("1600 / 1900");
+    expect(warningCounter.className).toContain("text-warning");
 
     fireEvent.change(screen.getByDisplayValue("a".repeat(1600)), {
       target: { value: "a".repeat(1950) },
     });
-    const redCounter = screen.getByText("1950 / 1900");
-    expect(redCounter.className).toContain("red");
+    const destructiveCounter = screen.getByText("1950 / 1900");
+    expect(destructiveCounter.className).toContain("text-destructive");
   });
 
   it("does not render a character counter for non-LinkedIn message types", () => {

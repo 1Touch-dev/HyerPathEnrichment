@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { parseResponseEnvelopeError, unwrapEnvelopeData } from "@/src/lib/api-envelope";
 import { backendFetchPublic } from "@/src/lib/backend-client";
 
@@ -48,20 +48,29 @@ export default async function InviteTokenPage({ params }: { params: Promise<{ to
   const invite = unwrapEnvelopeData<PublicStaffInvite>(raw);
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-8">
-      <Card className="w-full max-w-md p-8 shadow-lg text-center">
-        <h1 className="text-2xl font-bold tracking-tight">You&apos;re invited</h1>
-        <p className="text-muted-foreground mt-2">
-          {invite.invited_by_name ? `${invite.invited_by_name} invited you` : "You've been invited"}{" "}
-          to join as a <span className="font-semibold">{invite.role_name}</span>.
-        </p>
-        <p className="text-sm text-muted-foreground mt-4">
-          This invite is for <span className="font-medium">{invite.email}</span> and expires{" "}
-          {new Date(invite.expires_at).toLocaleString()}.
-        </p>
-        <Button asChild className="w-full mt-6">
-          <Link href={`/register?invite_token=${encodeURIComponent(token)}`}>Accept invite</Link>
-        </Button>
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-16">
+      <Card variant="accent" className="w-full max-w-md text-center shadow-panel">
+        <CardHeader>
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+            Staff invite
+          </p>
+          <CardTitle className="text-2xl tracking-tight">You&apos;re invited</CardTitle>
+          <CardDescription>
+            {invite.invited_by_name
+              ? `${invite.invited_by_name} invited you`
+              : "You've been invited"}{" "}
+            to join as a <span className="font-semibold text-foreground">{invite.role_name}</span>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            This invite is for <span className="font-medium text-foreground">{invite.email}</span>{" "}
+            and expires {new Date(invite.expires_at).toLocaleString()}.
+          </p>
+          <Button asChild className="mt-6 w-full bg-primary text-primary-foreground">
+            <Link href={`/register?invite_token=${encodeURIComponent(token)}`}>Accept invite</Link>
+          </Button>
+        </CardContent>
       </Card>
     </div>
   );
@@ -69,13 +78,17 @@ export default async function InviteTokenPage({ params }: { params: Promise<{ to
 
 function InviteUnavailableCard({ message }: { message: string }) {
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-8">
-      <Card className="w-full max-w-md p-8 shadow-lg text-center">
-        <h1 className="text-2xl font-bold tracking-tight">Invite unavailable</h1>
-        <p className="text-muted-foreground mt-2">{message}</p>
-        <Button asChild variant="outline" className="w-full mt-6">
-          <Link href="/register">Go to sign up</Link>
-        </Button>
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-16">
+      <Card variant="accent" className="w-full max-w-md text-center shadow-panel">
+        <CardHeader>
+          <CardTitle className="text-2xl tracking-tight">Invite unavailable</CardTitle>
+          <CardDescription>{message}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/register">Go to sign up</Link>
+          </Button>
+        </CardContent>
       </Card>
     </div>
   );

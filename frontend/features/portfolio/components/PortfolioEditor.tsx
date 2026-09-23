@@ -57,7 +57,10 @@ export function PortfolioEditor() {
     setIsPublished(profile.isPublished);
   }, [profile]);
 
-  if (isLoading) return <div className="animate-pulse h-96 rounded-lg bg-muted" />;
+  if (isLoading)
+    return (
+      <div className="h-96 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+    );
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();

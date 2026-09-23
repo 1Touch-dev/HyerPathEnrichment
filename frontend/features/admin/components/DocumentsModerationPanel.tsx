@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import type { AdminDocument, AdminDocumentFilters } from "@/src/lib/types";
 import { useAdminDocuments, useModerateDocument } from "../hooks/useDocumentsModeration";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 type DeletedFilter = "all" | "active" | "deleted";
 
@@ -97,17 +98,19 @@ export function DocumentsModerationPanel() {
           label="Documents on this page"
           value={items.length}
           hint="Current cursor slice"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Active on page"
           value={activeDocuments}
           hint={`${deletedDocuments} soft-deleted`}
-          tone={deletedDocuments > 0 ? "warning" : "success"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Moderation filter"
           value={deletedFilter === "all" ? "All documents" : deletedFilter}
           hint="Soft-delete posture only"
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 

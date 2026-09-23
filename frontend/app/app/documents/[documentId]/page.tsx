@@ -167,7 +167,7 @@ export default function DocumentDetailPage() {
           </ShellSectionHeaderContent>
         </ShellSectionHeader>
         <Card>
-          <CardContent>
+          <CardContent className="pt-6">
             <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               <div>
                 <dt className="text-muted-foreground">Type</dt>
@@ -201,7 +201,7 @@ export default function DocumentDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <ShellSection surface="muted">
+      <ShellSection>
         <ShellSectionHeader>
           <ShellSectionHeaderContent>
             <ShellSectionHeaderTitle>Raw text</ShellSectionHeaderTitle>
@@ -211,9 +211,9 @@ export default function DocumentDetailPage() {
           </ShellSectionHeaderContent>
         </ShellSectionHeader>
         <Card>
-          <CardContent>
+          <CardContent className="pt-6">
             {doc.rawText ? (
-              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted/30 p-4 text-xs">
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-xl border border-border/70 bg-surface p-4 text-xs">
                 {doc.rawText}
               </pre>
             ) : (

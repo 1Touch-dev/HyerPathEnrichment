@@ -34,6 +34,7 @@ import {
   useAdminPortfolioProfiles,
   useModeratePortfolioProfile,
 } from "../hooks/usePortfolioModeration";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 type PublishedFilter = "all" | "published" | "unpublished";
 type VisibilityFilter = "all" | "hidden" | "visible";
@@ -110,18 +111,19 @@ export function PortfolioModerationPanel() {
           label="Profiles on this page"
           value={items.length}
           hint="Current cursor slice"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Published on page"
           value={publishedProfiles}
           hint={`${hiddenProfiles} hidden by moderation`}
-          tone={publishedProfiles > 0 ? "success" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Visibility filter"
           value={visibilityFilter === "all" ? "All visibility" : visibilityFilter}
           hint={publishedFilter === "all" ? "All publication states" : publishedFilter}
-          tone={visibilityFilter === "hidden" ? "warning" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 

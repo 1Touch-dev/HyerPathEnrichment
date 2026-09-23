@@ -112,17 +112,17 @@ export function DossierView({ job }: DossierViewProps) {
       )}
 
       {status === "completed" && (
-        <Alert className="border-success/20 bg-success/10 text-success">
+        <Alert variant="success">
           <CheckCircle className="h-4 w-4" />
-          <AlertTitle className="text-foreground">Complete</AlertTitle>
-          <AlertDescription className="text-foreground/80">
+          <AlertTitle>Complete</AlertTitle>
+          <AlertDescription>
             Enrichment completed at {new Date(job.updatedAt).toLocaleTimeString()}
           </AlertDescription>
         </Alert>
       )}
 
-      <Card className="overflow-hidden">
-        <CardHeader className="gap-5 border-b border-border/60 bg-surface-muted/40">
+      <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
+        <CardHeader className="gap-5 border-b border-border/60 bg-primary-soft/40">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{job.input.requestedTiers.length} requested tiers</Badge>
             <Badge variant="info">{evidenceCount} evidence points</Badge>
@@ -172,7 +172,7 @@ export function DossierView({ job }: DossierViewProps) {
               {selectedEntity ? (
                 <EntityDetailPanel dossier={dossier} entity={selectedEntity} />
               ) : (
-                <div className="rounded-xl border border-dashed border-border/70 bg-surface p-6 text-sm text-muted-foreground">
+                <div className="rounded-xl border border-dashed border-border/70 bg-card p-6 text-sm text-muted-foreground">
                   Select a finding to view its details, supporting evidence, and raw payload.
                 </div>
               )}
@@ -202,8 +202,8 @@ export function DossierView({ job }: DossierViewProps) {
 
 function SummaryMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-surface p-4">
-      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+    <div className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
         {label}
       </p>
       <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{value}</p>

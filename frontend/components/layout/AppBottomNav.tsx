@@ -10,6 +10,9 @@ import type { NavSection } from "./nav-config";
 const NAV_FOCUS =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
+const ACTIVE_NAV = "bg-primary-soft text-primary";
+const IDLE_NAV = "text-muted-foreground hover:bg-surface-muted hover:text-foreground";
+
 type AppBottomNavProps = {
   sections: NavSection[];
   pathname: string;
@@ -31,9 +34,9 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
 
   return (
     <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-      <nav className="border-t border-border/70 bg-background/80 px-3 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
+      <nav className="border-t border-border/50 bg-surface/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-surface/80 md:hidden">
         <ul
-          className="mx-auto grid max-w-xl gap-1 rounded-[1.25rem] border border-border/70 bg-surface-elevated/95 p-1.5 shadow-panel"
+          className="mx-auto grid max-w-xl gap-1 rounded-2xl border border-border/50 bg-surface p-1.5 shadow-panel"
           style={{ gridTemplateColumns: `repeat(${primaryItems.length + 1}, minmax(0, 1fr))` }}
         >
           {primaryItems.map((item) => {
@@ -46,11 +49,9 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative flex flex-col items-center gap-1 rounded-xl px-2 py-2.5 text-xs",
+                    "relative flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs transition-colors",
                     NAV_FOCUS,
-                    active
-                      ? "border border-border/70 bg-secondary/90 text-primary shadow-sm"
-                      : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                    active ? ACTIVE_NAV : IDLE_NAV,
                   )}
                 >
                   <span className="relative">
@@ -70,11 +71,9 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
                 ref={moreTriggerRef}
                 type="button"
                 className={cn(
-                  "flex w-full flex-col items-center gap-1 rounded-xl px-2 py-2.5 text-xs",
+                  "flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs transition-colors",
                   NAV_FOCUS,
-                  moreActive
-                    ? "border border-border/70 bg-secondary/90 text-primary shadow-sm"
-                    : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                  moreActive ? ACTIVE_NAV : IDLE_NAV,
                 )}
                 aria-expanded={moreOpen}
               >
@@ -88,7 +87,7 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
 
       <SheetContent
         side="bottom"
-        className="rounded-t-[1.75rem] border-border/70 bg-surface-elevated px-4 pb-8 shadow-overlay md:hidden"
+        className="rounded-t-[1.75rem] border-border/50 bg-surface px-4 pb-8 shadow-overlay md:hidden"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           moreTriggerRef.current?.focus();
@@ -108,11 +107,9 @@ export function AppBottomNav({ sections, pathname, matchesUnreadCount = 0 }: App
                   onClick={() => setMoreOpen(false)}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors",
+                    "flex min-h-11 items-center gap-3 rounded-xl px-3 py-3 text-sm transition-colors",
                     NAV_FOCUS,
-                    active
-                      ? "bg-secondary text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    active ? ACTIVE_NAV : IDLE_NAV,
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

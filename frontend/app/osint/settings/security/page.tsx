@@ -54,8 +54,11 @@ export default function OsintSecuritySettingsPage() {
         </div>
 
         <div className="flex flex-col gap-6">
-          <Card className="overflow-hidden">
-            <CardHeader className="gap-3 border-b border-border/60 bg-surface-muted/40">
+          <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
+            <CardHeader className="gap-3 border-b border-border/60 bg-primary-soft/40">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+                Operator guidance
+              </p>
               <CardTitle className="text-xl">Why this matters</CardTitle>
               <CardDescription>
                 Research tooling often stays open for long stretches. Strong session protection
@@ -63,14 +66,14 @@ export default function OsintSecuritySettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 pt-6">
-              <div className="rounded-xl border border-border/70 bg-surface p-4">
+              <div className="rounded-xl border border-border/70 bg-card p-4">
                 <p className="text-sm font-medium text-foreground">Shared environments</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   MFA helps when operators switch machines, borrow workstations, or leave an active
                   session behind.
                 </p>
               </div>
-              <div className="rounded-xl border border-border/70 bg-surface p-4">
+              <div className="rounded-xl border border-border/70 bg-card p-4">
                 <p className="text-sm font-medium text-foreground">Sensitive outcomes</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   The same account can inspect dossiers, review identifiers, and launch new jobs, so
@@ -80,7 +83,7 @@ export default function OsintSecuritySettingsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-border/70 bg-card shadow-sm">
             <CardContent className="space-y-3 p-5">
               <p className="text-sm font-medium text-foreground">Need another account change?</p>
               <p className="text-sm text-muted-foreground">

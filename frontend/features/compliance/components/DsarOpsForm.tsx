@@ -76,8 +76,8 @@ interface DsarSummary {
 
 function MetadataSummary({ summary }: { summary: DsarSummary }) {
   return (
-    <div className="rounded-md bg-muted p-4">
-      <h3 className="mb-3 font-semibold">Summary</h3>
+    <div className="rounded-xl border border-border/70 bg-surface p-4">
+      <h3 className="mb-3 text-sm font-semibold">Summary</h3>
       <div className="grid gap-2 text-sm">
         {summary.identifier_provided && (
           <div>
@@ -147,7 +147,7 @@ function PhotoSection({ photo }: { photo: NonNullable<EnrichedData["photo"]> }) 
                 href={photo.asset_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
+                className="text-primary hover:underline"
               >
                 {photo.asset_url}
               </a>
@@ -223,14 +223,17 @@ function HandlesSection({ handles }: { handles: NonNullable<EnrichedData["handle
       <CardContent>
         <div className="space-y-2">
           {handles.map((handle, idx) => (
-            <div key={idx} className="flex items-center justify-between rounded-md border p-3">
+            <div
+              key={idx}
+              className="flex items-center justify-between rounded-xl border border-border/70 bg-surface p-3"
+            >
               <div className="flex-1">
                 <div className="font-medium">{handle.platform}</div>
                 <a
                   href={handle.profile_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-primary hover:underline"
                 >
                   @{handle.username}
                 </a>
@@ -262,7 +265,7 @@ function BusinessSection({ business }: { business: NonNullable<EnrichedData["bus
                 href={business.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
+                className="text-primary hover:underline"
               >
                 {business.website}
               </a>
@@ -278,12 +281,12 @@ function BusinessSection({ business }: { business: NonNullable<EnrichedData["bus
 
 function DeletionSummary({ summary }: { summary: DsarSummary }) {
   return (
-    <div className="rounded-md bg-muted p-4">
-      <h3 className="mb-3 font-semibold">Deletion Summary</h3>
+    <div className="rounded-xl border border-border/70 bg-surface p-4">
+      <h3 className="mb-3 text-sm font-semibold">Deletion Summary</h3>
       <div className="grid gap-2 text-sm">
         <div>
           <span className="text-muted-foreground">Status:</span>{" "}
-          <Badge variant={summary.suppressed ? "default" : "secondary"}>
+          <Badge variant={summary.suppressed ? "success" : "warning"}>
             {summary.suppressed ? "Suppressed" : "Pending"}
           </Badge>
         </div>
@@ -332,8 +335,11 @@ export function DsarOpsForm() {
   };
 
   return (
-    <Card>
+    <Card className="border-border/70">
       <CardHeader>
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+          Privacy
+        </p>
         <CardTitle>Privacy request</CardTitle>
         <CardDescription>
           Request a copy of your data or ask us to delete it. Public opt-out stays available at

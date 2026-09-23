@@ -8,17 +8,19 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // Contrast lock: filled primary/destructive always use *-foreground (white) text.
         default: "bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-panel",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/95 hover:shadow-panel",
         outline:
           "border-border bg-surface text-foreground shadow-none hover:border-ring/30 hover:bg-secondary/70",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-accent hover:shadow-panel",
+        secondary:
+          "border-border/70 bg-surface text-foreground shadow-none hover:bg-secondary hover:shadow-panel",
         ghost:
           "border-transparent bg-transparent text-foreground shadow-none hover:bg-secondary/70",
         link: "h-auto rounded-none border-0 bg-transparent p-0 text-primary shadow-none underline-offset-4 hover:underline",
-        soft: "bg-primary/10 text-primary shadow-none hover:bg-primary/15",
-        success: "bg-success/10 text-success shadow-none hover:bg-success/15",
+        soft: "bg-primary-soft text-primary shadow-none hover:bg-primary-soft/80",
+        success: "bg-success-soft text-success shadow-none hover:bg-success-soft/80",
       },
       size: {
         default: "h-11 px-4 py-2",

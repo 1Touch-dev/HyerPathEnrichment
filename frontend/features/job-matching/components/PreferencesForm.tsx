@@ -68,7 +68,10 @@ export function PreferencesForm() {
     setDigestFrequency(preferences.digestFrequency ?? "daily");
   }, [preferences]);
 
-  if (isLoading) return <div className="animate-pulse h-64 rounded-lg bg-muted" />;
+  if (isLoading)
+    return (
+      <div className="h-64 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+    );
 
   function toggleChannel(channel: string, checked: boolean) {
     setNotificationChannels((prev) =>

@@ -81,9 +81,9 @@ export default function OsintJobsPage() {
         </div>
         <div className="flex flex-col gap-6">
           <Card className="overflow-hidden">
-            <CardHeader className="gap-4 border-b border-border/60 bg-surface-muted/40">
+            <CardHeader className="gap-4 border-b border-border/60 bg-card">
               <div className="space-y-2">
-                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
                   Review workflow
                 </p>
                 <CardTitle className="text-xl">Treat jobs as a research trail</CardTitle>
@@ -126,9 +126,9 @@ function JobsMetric({
   description: string;
 }) {
   return (
-    <Card>
+    <Card className="border-border/70 bg-card shadow-sm">
       <CardContent className="space-y-2 p-5">
-        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
           {label}
         </p>
         <p className="text-3xl font-semibold tracking-tight text-foreground">{value}</p>
@@ -140,7 +140,7 @@ function JobsMetric({
 
 function ReviewWorkflowItem({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-surface p-4">
+    <div className="rounded-xl border border-border/70 bg-card p-4">
       <p className="text-sm font-medium text-foreground">{title}</p>
       <p className="mt-1 text-sm text-muted-foreground">{description}</p>
     </div>

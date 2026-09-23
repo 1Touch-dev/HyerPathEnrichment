@@ -48,17 +48,18 @@ export function MatchCard({ match }: MatchCardProps) {
   }, [candidateMutationsAllowed, match.matchId]);
 
   return (
-    <div className="app-surface-muted flex flex-col gap-4 rounded-[1.25rem] p-5 transition-colors hover:border-ring/30">
+    <div className="app-surface flex flex-col gap-4 rounded-[1.25rem] border border-border/70 p-5 shadow-panel transition-colors hover:border-primary/30">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           {scoreBadge(match)}
           {match.isNew ? <Badge variant="info">New</Badge> : null}
           {match.appliedAt ? <Badge variant="outline">Applied</Badge> : null}
         </div>
-        <div className="flex items-center gap-1 rounded-full bg-surface px-1 py-1">
+        <div className="flex items-center gap-1 rounded-full border border-border/60 bg-surface px-1 py-1">
           <Button
             size="icon"
             variant={match.feedback === "up" ? "default" : "ghost"}
+            className={match.feedback === "up" ? "bg-primary text-primary-foreground" : undefined}
             onClick={() => submitFeedback.mutate({ matchId: match.matchId, feedback: "up" })}
             aria-label="Good match"
           >
@@ -67,6 +68,7 @@ export function MatchCard({ match }: MatchCardProps) {
           <Button
             size="icon"
             variant={match.feedback === "down" ? "default" : "ghost"}
+            className={match.feedback === "down" ? "bg-primary text-primary-foreground" : undefined}
             onClick={() => submitFeedback.mutate({ matchId: match.matchId, feedback: "down" })}
             aria-label="Not a good match"
           >
@@ -104,8 +106,13 @@ export function MatchCard({ match }: MatchCardProps) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-1">
-        <Button size="sm" asChild>
+      <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-3">
+        {/* Contrast lock: Apply must stay on-primary (violet fill + white text). */}
+        <Button
+          size="sm"
+          asChild
+          className="bg-primary text-primary-foreground hover:bg-primary/95"
+        >
           <CandidatePolicyLink
             href={getApplyRedirectUrl(match.matchId)}
             target="_blank"
@@ -115,7 +122,7 @@ export function MatchCard({ match }: MatchCardProps) {
           </CandidatePolicyLink>
         </Button>
 
-        <div className="flex items-center gap-2 rounded-full bg-surface px-3 py-2">
+        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-surface px-3 py-2">
           <Checkbox
             id={`applied-${match.matchId}`}
             checked={match.appliedAt !== null}

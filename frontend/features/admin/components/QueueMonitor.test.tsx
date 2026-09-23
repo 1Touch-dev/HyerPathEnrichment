@@ -116,4 +116,12 @@ describe("QueueMonitor", () => {
       expect(screen.getByText("Retry unavailable in Wave 2")).toBeInTheDocument(),
     );
   });
+
+  it("uses white KPI card surfaces without pastel tone fills", () => {
+    const { container } = render(<QueueMonitor />, { wrapper });
+    expect(container.querySelectorAll(".bg-card").length).toBeGreaterThan(0);
+    expect(container.querySelector(".bg-success\\/10")).toBeNull();
+    expect(container.querySelector(".bg-warning\\/10")).toBeNull();
+    expect(container.querySelector(".bg-info\\/10")).toBeNull();
+  });
 });

@@ -64,11 +64,11 @@ export function JobQueuePanel({
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <Card className="overflow-hidden">
-        <CardHeader className="gap-4 border-b border-border/60 bg-surface-muted/40 pb-4">
+      <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
+        <CardHeader className="gap-4 border-b border-border/60 bg-primary-soft/40 pb-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
                 Live queue
               </p>
               <div className="space-y-1">
@@ -120,7 +120,7 @@ export function JobQueuePanel({
               {orderedJobs.map((job) => (
                 <div
                   key={job.id}
-                  className="flex flex-col gap-3 rounded-xl border border-border/70 bg-surface p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -131,7 +131,7 @@ export function JobQueuePanel({
                           : "Recent request"}
                       </span>
                     </div>
-                    <code className="mt-2 block truncate rounded-md bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
+                    <code className="mt-2 block truncate rounded-md bg-primary-soft px-2.5 py-1.5 text-xs text-primary">
                       {job.id}
                     </code>
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">

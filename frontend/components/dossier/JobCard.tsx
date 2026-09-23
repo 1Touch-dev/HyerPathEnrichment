@@ -15,7 +15,7 @@ export function JobCard({ job, onClick, selected, className }: JobCardProps) {
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-all hover:shadow-lg",
+        "cursor-pointer border-border/70 bg-card shadow-sm transition-all hover:shadow-md",
         selected ? "ring-2 ring-primary" : "",
         className,
       )}
@@ -24,8 +24,8 @@ export function JobCard({ job, onClick, selected, className }: JobCardProps) {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 flex-1 min-w-0">
-            <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-              <Briefcase className="w-5 h-5 text-primary" />
+            <div className="shrink-0 rounded-lg bg-primary-soft p-2">
+              <Briefcase className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
               <h4 className="font-semibold text-base mb-1 truncate">{job.title}</h4>

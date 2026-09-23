@@ -49,6 +49,7 @@ import {
   useSkipLinkedInTask,
   useStartLinkedInSendBatch,
 } from "../hooks/useLinkedInSendTasks";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 type StatusFilter = "all" | "pending" | "claimed" | "completed" | "skipped";
 
@@ -148,18 +149,19 @@ export function LinkedInTasksPanel() {
           label="Tasks in current view"
           value={tasks.length}
           hint={`${unbatchedPendingTasks.length} unbatched pending task(s)`}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Claimed tasks on page"
           value={claimedTasks}
           hint={`${completedTasks} completed / ${skippedTasks} skipped`}
-          tone={claimedTasks > 0 ? "info" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Selected for batching"
           value={selectedTaskIds.size}
           hint="Only pending unbatched tasks are selectable"
-          tone={selectedTaskIds.size > 0 ? "warning" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 
@@ -193,7 +195,7 @@ export function LinkedInTasksPanel() {
       </FilterBar>
 
       {lastCreatedBatch ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium">
               Batch {lastCreatedBatch.id.slice(0, 8)} — profile{" "}
@@ -363,18 +365,23 @@ function CreateBatchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create LinkedIn send batch</DialogTitle>
-          <DialogDescription>
-            {selectedCount} of {availablePendingCount} unbatched pending task(s) selected.
-            `maxSendsPerDay` is a hard per-day ceiling for this Multilogin profile — the batch halts
-            once it&rsquo;s reached and resumes the next day. Creating a batch does not start it;
-            you must start it separately.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+      <DialogContent className="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-md">
+        <div className="border-b border-border/60 bg-primary-soft/50 px-6 py-5">
+          <DialogHeader className="space-y-2 text-left">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+              LinkedIn batch
+            </p>
+            <DialogTitle>Create LinkedIn send batch</DialogTitle>
+            <DialogDescription>
+              {selectedCount} of {availablePendingCount} unbatched pending task(s) selected.
+              `maxSendsPerDay` is a hard per-day ceiling for this Multilogin profile — the batch
+              halts once it&rsquo;s reached and resumes the next day. Creating a batch does not
+              start it; you must start it separately.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4 bg-card px-6 py-5">
+          <div className="space-y-2">
             <Label htmlFor="batch-profile-id">Multilogin profile ID</Label>
             <Input
               id="batch-profile-id"
@@ -384,7 +391,7 @@ function CreateBatchDialog({
               required
             />
           </div>
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="batch-max-sends">Max sends per day</Label>
             <Input
               id="batch-max-sends"

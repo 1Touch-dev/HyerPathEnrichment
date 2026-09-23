@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { useFailedJobs, useQueuesOverview } from "../hooks/useQueues";
 import type { QueueSnapshot } from "@/src/lib/types";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 function formatAge(seconds: number | null): string {
   if (seconds === null) return "—";
@@ -98,18 +99,19 @@ export function QueueMonitor() {
           label="Queues observed"
           value={items.length}
           hint="Current runtime snapshot"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Queues with failures"
           value={failingQueues}
           hint={`${totalFailedJobs} failed job(s) in total`}
-          tone={failingQueues > 0 ? "warning" : "success"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Workers listening"
           value={totalWorkers}
           hint="Across the currently reported queues"
-          tone="info"
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 
@@ -170,7 +172,7 @@ export function QueueMonitor() {
               </TableRow>
               {expandedQueue === queue.name ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="bg-muted/30 p-0">
+                  <TableCell colSpan={6} className="bg-card p-0">
                     <FailedJobList queueName={queue.name} />
                   </TableCell>
                 </TableRow>

@@ -36,6 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAiAction, useAiActions } from "../hooks/useAiActions";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 // This plan's backend emits a small, stable action-type vocabulary — hardcoded
 // here rather than a dedicated dropdown-population endpoint, mirroring
@@ -99,17 +100,19 @@ export function AiActionsTable() {
           label="Actions on this page"
           value={items.length}
           hint="Current cursor slice"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Rows with summaries"
           value={reviewedActions}
           hint="Human-readable action context"
-          tone={reviewedActions > 0 ? "info" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Action type filter"
           value={actionType ?? "All action types"}
           hint="Stable action vocabulary"
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 
@@ -246,16 +249,17 @@ function AiActionDetail({ actionId, open, onOpenChange }: AiActionDetailProps) {
                 label="Action type"
                 value={data.actionType}
                 hint={formatDate(data.createdAt)}
-                tone="info"
+                className={DESK_KPI_CARD_CLASS}
               />
               <DeskMetricCard
                 label="Related record"
                 value={<span className="break-all font-mono text-xs">{data.relatedId ?? "—"}</span>}
                 hint="Best-effort linked record"
+                className={DESK_KPI_CARD_CLASS}
               />
             </DeskMetricGrid>
 
-            <section className="rounded-lg border border-border/70 bg-surface p-4">
+            <section className="rounded-lg border border-border/70 bg-card p-4">
               <SectionHeader>
                 <SectionHeaderContent>
                   <SectionHeaderTitle>Action context</SectionHeaderTitle>

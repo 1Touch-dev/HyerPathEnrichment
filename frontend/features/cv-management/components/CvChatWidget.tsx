@@ -43,7 +43,7 @@ export function CvChatWidget({ documentId, onComplete }: CvChatWidgetProps) {
   }
 
   return (
-    <div className="flex h-96 flex-col rounded-lg border">
+    <div className="flex h-96 flex-col rounded-xl border border-border/70 bg-surface shadow-panel">
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {session.messages.map((message) => (
           <div
@@ -53,7 +53,7 @@ export function CvChatWidget({ documentId, onComplete }: CvChatWidgetProps) {
             <span
               className={
                 message.role === "assistant"
-                  ? "inline-block rounded-lg bg-muted px-3 py-2 text-sm"
+                  ? "inline-block rounded-lg bg-surface-muted px-3 py-2 text-sm text-foreground"
                   : "inline-block rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
               }
             >

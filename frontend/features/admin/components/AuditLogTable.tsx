@@ -30,6 +30,7 @@ import {
 import { fetchAdminUsers } from "../api/client";
 import { adminKeys } from "../api/keys";
 import { useAuditLogs } from "../hooks/useAuditLogs";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 // This plan's backend emits a small, stable action vocabulary — hardcoded
 // here rather than a dedicated `GET /audit-logs/actions` dropdown-population
@@ -108,17 +109,19 @@ export function AuditLogTable({ targetId }: AuditLogTableProps) {
               label="Entries on this page"
               value={items.length}
               hint="Current cursor slice"
+              className={DESK_KPI_CARD_CLASS}
             />
             <DeskMetricCard
               label="Explicit captures"
               value={explicitCount}
               hint="Directly recorded admin actions"
-              tone={explicitCount > 0 ? "info" : "default"}
+              className={DESK_KPI_CARD_CLASS}
             />
             <DeskMetricCard
               label="Filter state"
               value={action ?? "All actions"}
               hint="Known audit vocabulary only"
+              className={DESK_KPI_CARD_CLASS}
             />
           </DeskMetricGrid>
           <FilterBar>

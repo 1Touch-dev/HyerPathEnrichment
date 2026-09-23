@@ -10,10 +10,10 @@ type MarketingShellProps = {
 export function MarketingShell({ children }: MarketingShellProps) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-50 border-b border-border/40 bg-gradient-to-b from-background to-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <header className="sticky top-0 z-50 border-b border-border/40 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 lg:px-6">
           <Link href="/" className="group flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-primary-soft text-primary transition-colors group-hover:bg-primary/15">
               <HyrepathLogo className="size-6" />
             </div>
             <div className="flex flex-col gap-0.5">
@@ -34,7 +34,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
         </div>
       </header>
       <main>{children}</main>
-      <footer className="border-t border-border bg-card/30">
+      <footer className="border-t border-border/60 bg-surface/60">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-xs text-muted-foreground">
           <span>Self-hosted enrichment · LGPD / GDPR / CCPA</span>
           <div className="flex gap-4">

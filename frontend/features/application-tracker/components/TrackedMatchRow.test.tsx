@@ -73,11 +73,11 @@ describe("TrackedMatchRow", () => {
 
   it.each([
     ["new", "New", "bg-surface"],
-    ["applied", "Applied", "bg-info/10"],
+    ["applied", "Applied", "bg-info-soft"],
     ["replied", "Replied", "bg-secondary"],
-    ["interview", "Interview", "bg-warning/10"],
-    ["offer", "Offer", "bg-success/10"],
-    ["rejected", "Rejected", "bg-destructive/10"],
+    ["interview", "Interview", "bg-warning-soft"],
+    ["offer", "Offer", "bg-success-soft"],
+    ["rejected", "Rejected", "bg-destructive-soft"],
   ] as const)(
     "renders the %s status badge with label %s and semantic class %s",
     (status, label, semanticClass) => {

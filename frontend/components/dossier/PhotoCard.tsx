@@ -25,7 +25,7 @@ export function PhotoCard({ photo, fallbackText, size = "md", className = "" }: 
     // Fallback: Show initials
     return (
       <div
-        className={`${container} flex items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/10 ${text} font-semibold ${className}`}
+        className={`${container} flex items-center justify-center rounded-full bg-primary-soft ${text} font-semibold text-primary ${className}`}
       >
         {initialsFrom(fallbackText)}
       </div>
@@ -50,7 +50,7 @@ export function PhotoCard({ photo, fallbackText, size = "md", className = "" }: 
               width={size === "lg" ? 128 : size === "md" ? 96 : 56}
               height={size === "lg" ? 128 : size === "md" ? 96 : 56}
               unoptimized
-              className="w-full h-full rounded-full object-cover ring-2 ring-offset-2 ring-primary/20 cursor-help"
+              className="h-full w-full cursor-help rounded-full object-cover ring-2 ring-primary-soft ring-offset-2"
             />
           </div>
         </TooltipTrigger>

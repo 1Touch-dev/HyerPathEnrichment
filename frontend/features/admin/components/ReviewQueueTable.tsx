@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import type { AdminReviewQueueItem } from "@/src/lib/types";
 import { useReviewQueue } from "../hooks/useReviewQueue";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 import { ReviewQueueDetail } from "./ReviewQueueDetail";
 
 const RESOURCE_TYPES = [
@@ -96,17 +97,24 @@ export function ReviewQueueTable() {
           label="Items on this page"
           value={items.length}
           hint="Current cursor slice"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Pending reviews"
           value={pendingReviews}
-          hint={`${approvedReviews} approved / ${rejectedReviews} rejected on this page`}
-          tone={pendingReviews > 0 ? "warning" : "success"}
+          hint={
+            <div className="flex flex-wrap gap-1.5">
+              <Badge variant="success">{approvedReviews} approved</Badge>
+              <Badge variant="destructive">{rejectedReviews} rejected</Badge>
+            </div>
+          }
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Resource filter"
           value={resourceType ?? "All resource types"}
-          hint={status ?? "All statuses"}
+          hint={<Badge variant="outline">{status ?? "All statuses"}</Badge>}
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 

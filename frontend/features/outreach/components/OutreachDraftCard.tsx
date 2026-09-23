@@ -27,8 +27,8 @@ const LINKEDIN_BODY_MAX_CHARS = 1900;
 const LINKEDIN_COUNTER_AMBER_RATIO = 1500 / 1900;
 
 function counterColorClass(length: number, max: number): string {
-  if (length > max) return "text-red-600 dark:text-red-500";
-  if (length > max * LINKEDIN_COUNTER_AMBER_RATIO) return "text-amber-600 dark:text-amber-500";
+  if (length > max) return "text-destructive";
+  if (length > max * LINKEDIN_COUNTER_AMBER_RATIO) return "text-warning";
   return "text-muted-foreground";
 }
 

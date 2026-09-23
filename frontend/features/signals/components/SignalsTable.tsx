@@ -21,6 +21,9 @@ import {
 } from "@/components/ui/table";
 import { SignalListItem } from "@/src/lib/types";
 
+/** White KPI surface — mirrors admin desk-kpi (no pastel tone fills). */
+const SIGNAL_KPI_CARD_CLASS = "border-border/70 bg-card";
+
 type SignalsTableProps = {
   signals: SignalListItem[];
   total: number;
@@ -47,17 +50,19 @@ export function SignalsTable({ signals, total, loading, onLoadMore }: SignalsTab
           label="Signals loaded"
           value={signals.length}
           hint={`${total} total signal(s)`}
+          className={SIGNAL_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Remaining records"
           value={Math.max(total - signals.length, 0)}
           hint={hasMore ? "More pages available" : "Current view is complete"}
-          tone={hasMore ? "info" : "success"}
+          className={SIGNAL_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Source posture"
           value={signals[0]?.source ?? "Awaiting signals"}
           hint="Top row source in the current feed"
+          className={SIGNAL_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 

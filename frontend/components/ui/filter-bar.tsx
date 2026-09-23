@@ -6,7 +6,7 @@ const FilterBar = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
     <div
       ref={ref}
       className={cn(
-        "flex flex-col gap-3 rounded-lg border border-border/70 bg-surface p-3 shadow-sm sm:flex-row sm:items-end sm:justify-between sm:p-4",
+        "flex flex-col gap-3 rounded-xl border border-border/70 bg-surface p-3 shadow-sm sm:flex-row sm:items-end sm:justify-between sm:p-4",
         className,
       )}
       {...props}

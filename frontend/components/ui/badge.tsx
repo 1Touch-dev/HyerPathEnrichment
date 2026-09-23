@@ -7,13 +7,21 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
+        // Solid fills use *-foreground for contrast lock on primary/destructive.
         default: "border-transparent bg-primary text-primary-foreground shadow-sm",
         secondary: "border-transparent bg-secondary text-secondary-foreground",
-        destructive: "border-destructive/15 bg-destructive/10 text-destructive",
         outline: "border-border bg-surface text-foreground",
-        success: "border-success/15 bg-success/10 text-success",
-        warning: "border-warning/20 bg-warning/10 text-warning",
-        info: "border-info/15 bg-info/10 text-info",
+        // Soft status chips (Done / Live / Needs review / Failed) — soft bg only, not row fills.
+        success: "border-transparent bg-success-soft text-success",
+        warning: "border-transparent bg-warning-soft text-warning",
+        info: "border-transparent bg-info-soft text-info",
+        destructive: "border-transparent bg-destructive-soft text-destructive",
+        // Solid status variants when a stronger chip is needed.
+        "success-solid": "border-transparent bg-success text-success-foreground shadow-sm",
+        "warning-solid": "border-transparent bg-warning text-warning-foreground shadow-sm",
+        "info-solid": "border-transparent bg-info text-info-foreground shadow-sm",
+        "destructive-solid":
+          "border-transparent bg-destructive text-destructive-foreground shadow-sm",
       },
     },
     defaultVariants: {

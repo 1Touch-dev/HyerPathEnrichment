@@ -10,6 +10,7 @@ import {
   SectionHeaderTitle,
 } from "@/components/ui/section-header";
 import { useSystemHealth } from "../hooks/useSystemHealth";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 function StatusBadge({ ok }: { ok: boolean }) {
   return <Badge variant={ok ? "success" : "destructive"}>{ok ? "OK" : "Down"}</Badge>;
@@ -47,19 +48,25 @@ export function SystemHealthPanel() {
           label="Database latency"
           value={`${data.databaseLatencyMs} ms`}
           hint={<StatusBadge ok={data.databaseOk} />}
-          tone={data.databaseOk ? "success" : "danger"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Redis latency"
           value={`${data.redisLatencyMs} ms`}
           hint={<StatusBadge ok={data.redisOk} />}
-          tone={data.redisOk ? "success" : "danger"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Prometheus source"
           value={data.prometheusConfigured ? "Configured" : "Unavailable"}
-          hint="Golden signals degrade gracefully when the query source is not configured."
-          tone={data.prometheusConfigured ? "info" : "warning"}
+          hint={
+            data.prometheusConfigured ? (
+              <Badge variant="info">Signals live</Badge>
+            ) : (
+              <Badge variant="warning">Degraded</Badge>
+            )
+          }
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 
@@ -78,13 +85,13 @@ export function SystemHealthPanel() {
             label="Database"
             value={`${data.databaseLatencyMs} ms`}
             hint={<StatusBadge ok={data.databaseOk} />}
-            tone={data.databaseOk ? "success" : "danger"}
+            className={DESK_KPI_CARD_CLASS}
           />
           <DeskMetricCard
             label="Redis"
             value={`${data.redisLatencyMs} ms`}
             hint={<StatusBadge ok={data.redisOk} />}
-            tone={data.redisOk ? "success" : "danger"}
+            className={DESK_KPI_CARD_CLASS}
           />
         </DeskMetricGrid>
       </section>
@@ -106,8 +113,8 @@ export function SystemHealthPanel() {
                 key={key}
                 label={SIGNAL_LABELS[key] ?? key}
                 value={value ?? "—"}
-                hint="Prometheus-backed metric"
-                tone="info"
+                hint={<Badge variant="outline">Prometheus</Badge>}
+                className={DESK_KPI_CARD_CLASS}
               />
             ))}
           </DeskMetricGrid>

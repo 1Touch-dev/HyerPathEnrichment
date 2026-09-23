@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/section-header";
 import { Textarea } from "@/components/ui/textarea";
 import { useDecideReviewQueueItem, useReviewQueueItem } from "../hooks/useReviewQueue";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 type ReviewQueueDetailProps = {
   itemId: string;
@@ -47,6 +48,9 @@ function statusBadgeVariant(status: string) {
  * decide action (§`content_review:decide` — the backend, not this component,
  * enforces the permission; see `UsersTable`'s superuser-gated affordances for
  * why this repo has no separate client-side permission list).
+ *
+ * Figma labels this a Dialog; product keeps Sheet (drawer) behavior and matches
+ * visual density/colors only.
  */
 export function ReviewQueueDetail({ itemId, open, onOpenChange }: ReviewQueueDetailProps) {
   const { data, isLoading } = useReviewQueueItem(itemId);
@@ -70,8 +74,11 @@ export function ReviewQueueDetail({ itemId, open, onOpenChange }: ReviewQueueDet
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
+      <SheetContent className="w-full overflow-y-auto border-l border-border/70 bg-background sm:max-w-lg">
+        <SheetHeader className="space-y-2 border-b border-border/60 pb-4">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+            Moderation review
+          </p>
           <SheetTitle>Review queue item</SheetTitle>
           <SheetDescription>{item ? item.resourceType : "Loading…"}</SheetDescription>
         </SheetHeader>
@@ -86,23 +93,17 @@ export function ReviewQueueDetail({ itemId, open, onOpenChange }: ReviewQueueDet
                   label="Decision status"
                   value={<Badge variant={statusBadgeVariant(item.status)}>{item.status}</Badge>}
                   hint={`Flagged ${formatDate(item.flaggedAt)}`}
-                  tone={
-                    item.status === "approved"
-                      ? "success"
-                      : item.status === "rejected"
-                        ? "danger"
-                        : "warning"
-                  }
+                  className={DESK_KPI_CARD_CLASS}
                 />
                 <DeskMetricCard
                   label="Flag source"
                   value={<Badge variant="outline">{item.flagSource}</Badge>}
                   hint={item.resourceType}
-                  tone="info"
+                  className={DESK_KPI_CARD_CLASS}
                 />
               </DeskMetricGrid>
 
-              <section className="rounded-lg border border-border/70 bg-surface p-4">
+              <section className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
                 <SectionHeader>
                   <SectionHeaderContent>
                     <SectionHeaderTitle>Review context</SectionHeaderTitle>
@@ -149,7 +150,7 @@ export function ReviewQueueDetail({ itemId, open, onOpenChange }: ReviewQueueDet
                   </SectionHeaderContent>
                 </SectionHeader>
                 {resolvedResource ? (
-                  <pre className="max-h-64 overflow-auto rounded-md border bg-muted p-3 text-xs">
+                  <pre className="max-h-64 overflow-auto rounded-xl border border-border/70 bg-card p-3 text-xs shadow-sm">
                     {JSON.stringify(resolvedResource, null, 2)}
                   </pre>
                 ) : (
@@ -170,7 +171,7 @@ export function ReviewQueueDetail({ itemId, open, onOpenChange }: ReviewQueueDet
                 </AlertDescription>
               </Alert>
 
-              <div className="flex flex-col gap-3 border-t pt-6">
+              <div className="flex flex-col gap-3 border-t border-border/60 pt-6">
                 <h3 className="text-sm font-semibold">{alreadyDecided ? "Re-decide" : "Decide"}</h3>
                 <Select value={choice} onValueChange={(value) => setChoice(value as DecideChoice)}>
                   <SelectTrigger className="w-[180px]" aria-label="Decision">
@@ -186,7 +187,12 @@ export function ReviewQueueDetail({ itemId, open, onOpenChange }: ReviewQueueDet
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
                 />
-                <Button onClick={handleDecide} disabled={decide.isPending} className="self-start">
+                <Button
+                  onClick={handleDecide}
+                  disabled={decide.isPending}
+                  variant={choice === "rejected" ? "destructive" : "default"}
+                  className="self-start"
+                >
                   Submit decision
                 </Button>
               </div>

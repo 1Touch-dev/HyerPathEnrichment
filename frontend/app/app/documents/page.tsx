@@ -34,8 +34,11 @@ export default function DocumentsPage() {
         </ShellPageHeaderContent>
       </ShellPageHeader>
 
-      <ShellSection surface="muted">
-        <DocumentUploadCard />
+      {/* White upload well — no muted/oxblood surface fills (Figma `22 /app/documents`). */}
+      <ShellSection>
+        <div className="rounded-[1.25rem] border border-dashed border-primary/30 bg-surface p-1 shadow-panel sm:p-2">
+          <DocumentUploadCard />
+        </div>
       </ShellSection>
 
       <ShellSection>
@@ -53,11 +56,15 @@ export default function DocumentsPage() {
             <TabsTrigger value="documents">Your documents</TabsTrigger>
             <TabsTrigger value="search">Search</TabsTrigger>
           </TabsList>
-          <TabsContent value="documents">
-            <DocumentList documents={documents ?? []} loading={isLoading} />
+          <TabsContent value="documents" className="mt-4">
+            <div className="overflow-x-auto rounded-[1.25rem] border border-border/70 bg-surface p-1 shadow-panel sm:p-2">
+              <DocumentList documents={documents ?? []} loading={isLoading} />
+            </div>
           </TabsContent>
-          <TabsContent value="search">
-            <DocumentSearchPanel />
+          <TabsContent value="search" className="mt-4">
+            <div className="rounded-[1.25rem] border border-border/70 bg-surface p-1 shadow-panel sm:p-2">
+              <DocumentSearchPanel />
+            </div>
           </TabsContent>
         </Tabs>
       </ShellSection>

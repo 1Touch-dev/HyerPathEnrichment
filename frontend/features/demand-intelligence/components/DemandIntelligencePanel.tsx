@@ -27,6 +27,9 @@ import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 import type { CountryDemandRow, CountryTier } from "../hooks/useDemandIntelligence";
 import { useTopCountriesForRole } from "../hooks/useDemandIntelligence";
 
+/** White KPI surface — mirrors admin desk-kpi (no pastel tone fills). */
+const DEMAND_KPI_CARD_CLASS = "border-border/70 bg-card";
+
 const TIER_LABEL: Record<CountryTier, string> = {
   tier_1: "Tier 1",
   tier_2: "Tier 2",
@@ -74,18 +77,19 @@ export function DemandIntelligencePanel() {
           label="Search state"
           value={hasSearched ? submittedRole : "Awaiting query"}
           hint="Role bucket currently in view"
-          tone={hasSearched ? "info" : "default"}
+          className={DEMAND_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Results returned"
           value={results.length}
           hint={hasSearched ? "Matching country buckets" : "Run a search to populate results"}
+          className={DEMAND_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Tier 1 countries"
           value={tierOneCount}
           hint="Highest sourcing priority in this result set"
-          tone={tierOneCount > 0 ? "success" : "default"}
+          className={DEMAND_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 

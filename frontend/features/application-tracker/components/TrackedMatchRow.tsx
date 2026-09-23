@@ -62,8 +62,8 @@ export function TrackedMatchRow({ match }: TrackedMatchRowProps) {
           )}
         </div>
 
-        <div className="min-w-[5rem] rounded-xl bg-surface px-3 py-2 text-center">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-subtle-foreground">
+        <div className="min-w-[5rem] rounded-xl border border-primary/15 bg-primary-soft/40 px-3 py-2 text-center">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
             Score
           </p>
           {match.overallScore === null ? (
@@ -71,7 +71,9 @@ export function TrackedMatchRow({ match }: TrackedMatchRowProps) {
               —
             </span>
           ) : (
-            <span className="text-sm font-medium">{Math.round(match.overallScore)}/100</span>
+            <span className="text-sm font-medium text-primary">
+              {Math.round(match.overallScore)}/100
+            </span>
           )}
         </div>
 

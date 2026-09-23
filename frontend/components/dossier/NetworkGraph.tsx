@@ -115,21 +115,21 @@ export function NetworkGraph({ dossier, className }: NetworkGraphProps) {
     }
   });
 
-  // Node colors by type
+  // Node colors — premium 3-color (violet / light violet / gray)
   const getNodeColor = (node: GraphNode) => {
     switch (node.type) {
       case "person":
-        return "#3b82f6"; // blue-500
+        return "#7C5CFF"; // primary violet
       case "handle":
-        return "#10b981"; // green-500
+        return "#A78BFA"; // light violet
       case "company":
-        return "#f59e0b"; // amber-500
+        return "#6B7280"; // cool gray
       case "coworker":
-        return "#8b5cf6"; // violet-500
+        return "#A78BFA";
       case "email":
-        return "#ec4899"; // pink-500
+        return "#9CA3AF";
       default:
-        return "#6b7280"; // gray-500
+        return "#9CA3AF";
     }
   };
 

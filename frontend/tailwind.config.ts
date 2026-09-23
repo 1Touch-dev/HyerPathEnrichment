@@ -36,18 +36,22 @@ const config: Config = {
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+          soft: "hsl(var(--destructive-soft))",
         },
         success: {
           DEFAULT: "hsl(var(--success))",
           foreground: "hsl(var(--success-foreground))",
+          soft: "hsl(var(--success-soft))",
         },
         warning: {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
+          soft: "hsl(var(--warning-soft))",
         },
         info: {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
+          soft: "hsl(var(--info-soft))",
         },
         muted: {
           DEFAULT: "hsl(var(--muted))",
@@ -76,6 +80,22 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        "door-candidate": {
+          DEFAULT: "hsl(var(--door-candidate))",
+          soft: "hsl(var(--door-candidate-soft))",
+        },
+        "door-desk": {
+          DEFAULT: "hsl(var(--door-desk))",
+          soft: "hsl(var(--door-desk-soft))",
+        },
+        "door-osint": {
+          DEFAULT: "hsl(var(--door-osint))",
+          soft: "hsl(var(--door-osint-soft))",
+        },
+        "chart-1": "hsl(var(--chart-1))",
+        "chart-2": "hsl(var(--chart-2))",
+        "chart-3": "hsl(var(--chart-3))",
+        "chart-4": "hsl(var(--chart-4))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -88,6 +108,7 @@ const config: Config = {
           "0 20px 50px -28px hsl(var(--shadow-color) / 0.34), 0 10px 24px -18px hsl(var(--shadow-color) / 0.16)",
         overlay:
           "0 28px 72px -32px hsl(var(--shadow-color) / 0.4), 0 12px 28px -20px hsl(var(--shadow-color) / 0.22)",
+        "float-sidebar": "var(--shadow-float-sidebar)",
       },
     },
   },

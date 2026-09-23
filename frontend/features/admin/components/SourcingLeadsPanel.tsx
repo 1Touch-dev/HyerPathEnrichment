@@ -38,6 +38,7 @@ import {
   useReviewSourcedLead,
   useSourcedLeads,
 } from "../hooks/useSourcingLeads";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 type StatusFilter = "all" | SourcedLeadStatus;
 
@@ -90,17 +91,19 @@ export function SourcingLeadsPanel() {
           label="Leads in current view"
           value={leads.length}
           hint="Filtered queue slice"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Reviewed in view"
           value={reviewedLeads}
           hint={`${contactedLeads} contacted / ${dismissedLeads} dismissed`}
-          tone={contactedLeads > 0 ? "success" : reviewedLeads > 0 ? "info" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Queue filter"
           value={statusFilter === "all" ? "All statuses" : statusFilter}
           hint="Review workflow only"
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 
@@ -305,7 +308,10 @@ function LeadEntryForm({ isSubmitting, onSubmit }: LeadEntryFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border p-4">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-4 rounded-lg border border-border/70 bg-card p-4 shadow-sm"
+    >
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold tracking-tight">Log a sourced lead</h2>
         <p className="text-sm text-muted-foreground">

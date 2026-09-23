@@ -4,43 +4,77 @@
 
 @layer base {
   :root {
-    --background: 80 9% 95%;
+    /* Page / surface — cool-gray + white (Figma premium) */
+    --background: 240 11% 96%;
     --foreground: 152 16% 11%;
     --card: 0 0% 100%;
     --card-foreground: 152 16% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 152 16% 11%;
-    --primary: 151 42% 21%;
+
+    /* Primary — violet CTA #7C5CFF */
+    --primary: 252 100% 68%;
     --primary-foreground: 0 0% 100%;
-    --primary-soft: 148 29% 88%;
-    --secondary: 140 25% 92%;
-    --secondary-foreground: 151 42% 21%;
-    --muted: 80 8% 92%;
+    --primary-soft: 252 100% 96%;
+
+    /* Supporting — cool-gray + violet (not forest) */
+    --secondary: 240 14% 93%;
+    --secondary-foreground: 252 45% 32%;
+    --muted: 240 10% 93%;
     --muted-foreground: 96 2% 37%;
-    --accent: 143 24% 90%;
-    --accent-foreground: 151 42% 21%;
-    --destructive: 7 55% 41%;
+    --accent: 252 60% 96%;
+    --accent-foreground: 252 45% 32%;
+
+    /* Destructive — #DC2626 delete/failed only */
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
+    --destructive-soft: 0 86% 97%;
+
     --border: 90 10% 84%;
-    --border-strong: 96 6% 70%;
-    --input: 90 8% 79%;
-    --ring: 151 30% 34%;
+    --border-strong: 240 8% 78%;
+    --input: 240 8% 82%;
+    --ring: 252 100% 68%;
     --radius: 0.875rem;
+
     --surface: 0 0% 100%;
     --surface-foreground: 152 16% 11%;
-    --surface-muted: 90 20% 97%;
+    --surface-muted: 240 12% 97%;
     --surface-muted-foreground: 152 10% 28%;
     --surface-elevated: 0 0% 100%;
     --surface-elevated-foreground: 152 16% 11%;
+
+    /* Status chips */
     --success: 144 39% 30%;
     --success-foreground: 0 0% 100%;
+    --success-soft: 144 35% 92%;
     --warning: 36 88% 46%;
     --warning-foreground: 29 94% 14%;
+    --warning-soft: 40 80% 92%;
     --info: 188 57% 35%;
     --info-foreground: 0 0% 100%;
-    --subtle-foreground: 80 2% 54%;
-    --selection: 148 32% 86%;
-    --shadow-color: 154 34% 18%;
+    --info-soft: 188 45% 92%;
+
+    --subtle-foreground: 240 4% 52%;
+    --selection: 252 80% 92%;
+    --shadow-color: 252 28% 28%;
+
+    /* Door accents (softs prefer violet-soft) */
+    --door-candidate: 252 100% 68%;
+    --door-candidate-soft: 252 100% 96%;
+    --door-desk: 252 70% 58%;
+    --door-desk-soft: 252 100% 96%;
+    --door-osint: 252 55% 52%;
+    --door-osint-soft: 252 100% 96%;
+
+    /* Charts */
+    --chart-1: 252 100% 68%;
+    --chart-2: 252 100% 96%;
+    --chart-3: 96 2% 55%;
+    --chart-4: 90 10% 84%;
+
+    /* Soft violet-tinted sidebar float shadow */
+    --shadow-float-sidebar:
+      0 12px 40px -12px hsl(252 100% 68% / 0.22), 0 4px 16px -6px hsl(252 40% 40% / 0.1);
   }
 }
 
@@ -56,9 +90,6 @@
   body {
     @apply bg-background text-foreground antialiased;
     min-height: 100vh;
-    background-image:
-      radial-gradient(circle at top, hsl(var(--primary-soft) / 0.65), transparent 32%),
-      linear-gradient(180deg, hsl(var(--background)), hsl(var(--secondary) / 0.35) 100%);
     text-rendering: optimizeLegibility;
   }
 

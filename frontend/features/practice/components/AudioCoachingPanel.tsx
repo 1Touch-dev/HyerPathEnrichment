@@ -14,7 +14,7 @@ export function AudioCoachingPanel({ status }: AudioCoachingPanelProps) {
   const toneEntries = status.voiceToneSignals ? Object.entries(status.voiceToneSignals) : null;
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
+    <div className="space-y-3 rounded-xl border border-border/70 bg-surface p-4">
       <h3 className="text-sm font-semibold">Audio coaching</h3>
 
       {analysis && (
@@ -22,19 +22,19 @@ export function AudioCoachingPanel({ status }: AudioCoachingPanelProps) {
           {analysis.fillerWordCount !== undefined && (
             <div>
               <p className="text-muted-foreground">Filler words</p>
-              <p className="font-medium">{analysis.fillerWordCount}</p>
+              <p className="font-medium text-primary">{analysis.fillerWordCount}</p>
             </div>
           )}
           {analysis.wordsPerMinute !== undefined && (
             <div>
               <p className="text-muted-foreground">Words per minute</p>
-              <p className="font-medium">{analysis.wordsPerMinute}</p>
+              <p className="font-medium text-primary">{analysis.wordsPerMinute}</p>
             </div>
           )}
           {analysis.clarityScore !== undefined && (
             <div>
               <p className="text-muted-foreground">Clarity</p>
-              <p className="font-medium">{analysis.clarityScore}</p>
+              <p className="font-medium text-primary">{analysis.clarityScore}</p>
             </div>
           )}
         </div>

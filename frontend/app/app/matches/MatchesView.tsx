@@ -73,12 +73,12 @@ export function MatchesView() {
     return (
       <div className="space-y-6">
         {header}
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="animate-pulse rounded-lg bg-muted h-28" />
-          <div className="animate-pulse rounded-lg bg-muted h-28" />
-          <div className="animate-pulse rounded-lg bg-muted h-28" />
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          <div className="h-28 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+          <div className="h-28 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
+          <div className="h-28 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel sm:col-span-2 md:col-span-1" />
         </div>
-        <div className="animate-pulse h-96 rounded-lg bg-muted" />
+        <div className="h-96 animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
       </div>
     );
   }
@@ -96,8 +96,8 @@ export function MatchesView() {
     return (
       <div className="space-y-6">
         {header}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          <Card variant="accent">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Sparkles className="h-4 w-4 text-primary" />
@@ -109,7 +109,7 @@ export function MatchesView() {
               Documents power scans, preferences, and practice personalization.
             </CardContent>
           </Card>
-          <Card>
+          <Card variant="accent">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Target className="h-4 w-4 text-primary" />
@@ -121,7 +121,7 @@ export function MatchesView() {
               Choose roles, locations, salary, and notification channels.
             </CardContent>
           </Card>
-          <Card>
+          <Card variant="accent" className="sm:col-span-2 md:col-span-1">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <TrendingUp className="h-4 w-4 text-primary" />
@@ -158,8 +158,8 @@ export function MatchesView() {
     <div className="space-y-6">
       {header}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Showing now</p>
             <CardTitle className="text-3xl text-primary">{matches.length}</CardTitle>
@@ -168,7 +168,7 @@ export function MatchesView() {
             Roles on this page ready for review.
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="accent">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Fresh this round</p>
             <CardTitle className="text-3xl text-primary">{newMatches}</CardTitle>
@@ -177,12 +177,12 @@ export function MatchesView() {
             New roles you have not reviewed yet.
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="accent" className="sm:col-span-2 md:col-span-1">
           <CardHeader className="pb-2">
             <p className="text-sm text-muted-foreground">Strong fit</p>
             <CardTitle className="text-3xl text-primary">{highFitMatches}</CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CardContent className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <Badge variant="outline">{appliedMatches} applied</Badge>
             High-confidence matches are highlighted first.
           </CardContent>

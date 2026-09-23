@@ -26,7 +26,10 @@ export function SwipeDeckView() {
     title: string;
   } | null>(null);
 
-  if (isLoading) return <div className="animate-pulse h-[32rem] rounded-2xl bg-muted" />;
+  if (isLoading)
+    return (
+      <div className="h-[32rem] animate-pulse rounded-2xl border border-border/70 bg-surface shadow-panel" />
+    );
   if (isError)
     return <EmptyState title="Couldn't load your deck" description="Please try again shortly." />;
   if (!data || data.cards.length === 0) {

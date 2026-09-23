@@ -119,4 +119,11 @@ describe("LinkedInTasksPanel", () => {
     render(<LinkedInTasksPanel />, { wrapper });
     expect(screen.getByText("Create batch from selected (0)")).toBeDisabled();
   });
+
+  it("uses white KPI card surfaces without pastel tone fills", () => {
+    const { container } = render(<LinkedInTasksPanel />, { wrapper });
+    expect(container.querySelectorAll(".bg-card").length).toBeGreaterThan(0);
+    expect(container.querySelector(".bg-warning\\/10")).toBeNull();
+    expect(container.querySelector(".bg-info\\/10")).toBeNull();
+  });
 });

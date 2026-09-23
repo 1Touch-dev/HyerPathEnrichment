@@ -51,10 +51,15 @@ export function BusinessProfileCard({ business, className }: BusinessProfileCard
   const hasMedia = business.thumbnail || business.images || business.streetViewUrl;
 
   return (
-    <Card className={cn("border-l-4 border-l-blue-500", className)}>
+    <Card
+      className={cn(
+        "border border-border/70 border-l-4 border-l-primary bg-card shadow-sm",
+        className,
+      )}
+    >
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 flex-wrap">
-          <Building className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
+        <CardTitle className="flex flex-wrap items-center gap-2">
+          <Building className="h-5 w-5 shrink-0 text-primary" />
           <span className="flex-1">{business.name}</span>
           {business.category && (
             <Badge variant="secondary" className="text-xs">
@@ -278,7 +283,7 @@ export function BusinessProfileCard({ business, className }: BusinessProfileCard
                                   <div key={optIdx} className="flex items-start gap-1.5 text-xs">
                                     <span
                                       className={
-                                        option.enabled ? "text-green-600" : "text-muted-foreground"
+                                        option.enabled ? "text-success" : "text-muted-foreground"
                                       }
                                     >
                                       {option.enabled ? "✓" : "○"}

@@ -100,4 +100,11 @@ describe("ReviewQueueDetail", () => {
     render(<ReviewQueueDetail itemId="rq1" open onOpenChange={vi.fn()} />, { wrapper });
     expect(screen.getAllByText("Loading…").length).toBeGreaterThan(0);
   });
+
+  it("keeps Sheet drawer chrome (not a Dialog) for review decisions", () => {
+    render(<ReviewQueueDetail itemId="rq1" open onOpenChange={vi.fn()} />, { wrapper });
+    expect(document.querySelector('[role="dialog"]')).toBeTruthy();
+    expect(screen.getByText("Moderation review")).toBeInTheDocument();
+    expect(screen.getByText("Review queue item").closest('[data-state="open"]')).toBeTruthy();
+  });
 });

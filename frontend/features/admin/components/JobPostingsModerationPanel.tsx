@@ -41,6 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { AdminJobPosting, ModerationStatus } from "@/src/lib/types";
 import type { JobPostingFilters } from "../api/client";
 import { useAdminJobPostings, useModerateJobPosting } from "../hooks/useJobPostingsModeration";
+import { DESK_KPI_CARD_CLASS } from "./desk-kpi";
 
 type ModerationStatusFilter = "all" | ModerationStatus;
 
@@ -117,18 +118,19 @@ export function JobPostingsModerationPanel() {
           label="Postings on this page"
           value={items.length}
           hint="Current cursor slice"
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Visible on page"
           value={activePostings}
           hint={`${hiddenPostings} hidden / ${removedPostings} removed`}
-          tone={activePostings > 0 ? "success" : "default"}
+          className={DESK_KPI_CARD_CLASS}
         />
         <DeskMetricCard
           label="Status filter"
           value={statusFilter === "all" ? "All statuses" : statusFilter}
           hint="Moderation status only"
-          tone={statusFilter === "all" ? "default" : "info"}
+          className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
 
@@ -293,17 +295,22 @@ function ModerateJobPostingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {actionLabel} &quot;{posting.title}&quot;?
-          </DialogTitle>
-          <DialogDescription>
-            {posting.company} — this action is recorded in the admin audit trail.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+      <DialogContent className="gap-0 overflow-hidden border-border/70 p-0 sm:max-w-md">
+        <div className="border-b border-border/60 bg-primary-soft/50 px-6 py-5">
+          <DialogHeader className="space-y-2 text-left">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
+              Job posting moderation
+            </p>
+            <DialogTitle>
+              {actionLabel} &quot;{posting.title}&quot;?
+            </DialogTitle>
+            <DialogDescription>
+              {posting.company} — this action is recorded in the admin audit trail.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4 bg-card px-6 py-5">
+          <div className="space-y-2">
             <Label htmlFor="moderation-reason">Reason (optional)</Label>
             <Textarea
               id="moderation-reason"
