@@ -18,7 +18,8 @@
 | Git / GitHub | **Never** commit or push `.env`, `.env.local`, `.env.production`, `.env.staging`, or any non-template `.env*` — host-only secrets |
 | Missing / expired keys | **Still deploy.** Report them. Fill later. Do not block the stack for optional/paid/deferred secrets |
 | Day-1 Multilogin | **Off** — no `multilogin`, no `worker-tier1` |
-| Day-1 scope | Entire frontend + backend + DB + all Docker profiles/services except Multilogin |
+| Day-1 scope | **100% HyrePath frontend** + backend + DB + all Docker profiles/services except Multilogin |
+| Day-1 UIs | HyrePath Next.js app **and** observability profile frontends (Langfuse, GlitchTip, ChangeDetection) all live and proxied |
 | God test user | Seeded in app Postgres with `is_superuser=True` |
 | Schema changes | Alembic `upgrade head` only; never `alembic downgrade` in preview |
 | Volume wipe | Never raw `docker compose down -v`; only via guarded nuclear script |
@@ -76,8 +77,8 @@ Sources of truth for the inventory: `backend/app/core/config.py` (Settings alias
    - `LLM_MODE=stub` until vendor keys work (containers for litellm/ollama still up)
    - `PROXY_MODE=none` until Scrapoxy credentials work (scrapoxy container still up)
    - `EMAIL_ENABLED=false` / `EMAIL_TEST_MODE=true` until SendGrid works
-7. Install Node for frontend (`npm ci`, `npm run build`, `npm run start`).
-8. Point reverse proxy (Caddy/nginx) at UI `:3000` and API `127.0.0.1:8000`.
+7. Install Node LTS for the **full** HyrePath frontend (`npm ci`, production `build`, `start` via systemd/pm2 — not `next dev`).
+8. Point reverse proxy (Caddy/nginx) at **all** Day-1 UIs (see §4.1 URL map): HyrePath app, API, Langfuse, GlitchTip, ChangeDetection (and Scrapoxy admin if used).
 9. Create deploy scripts under `backend/scripts/deploy/` (listed below — **not implemented by this plan**).
 10. Schedule daily DB backup cron for `10-backup-db.sh`.
 
@@ -123,21 +124,82 @@ services: multilogin, worker-tier1 # do not start
 
 **Paid / LLM / proxy:** `reacher`, `litellm`, `scrapoxy`, `ollama`
 
-**Observability:** `langfuse`, `changedetection`, `glitchtip-migrate`, `glitchtip-web`, `glitchtip-worker`
+**Observability (profile `observability` — backends + their frontends):** `langfuse`, `changedetection`, `glitchtip-migrate`, `glitchtip-web`, `glitchtip-worker`
 
 **Off until Multilogin day:** `multilogin`, `worker-tier1`
 
-### Frontend (same EC2, not Docker)
+### 4.1 Frontends — 100% Day-1 (HyrePath + observability UIs)
+
+Day-1 deploys **every user-facing UI**, not API-only.
+
+#### A. HyrePath frontend (Next.js) — entire app, 100%
+
+There is no frontend Docker image in this repo. Run the **full** production Next.js app on this EC2:
 
 ```bash
 cd frontend
-# BACKEND_API_URL + BACKEND_API_TOKEN (= API_TOKEN)
-npm ci && npm run build && npm run start -- -p 3000
+cp .env.example .env.local   # never commit; BACKEND_API_URL + BACKEND_API_TOKEN = API_TOKEN
+npm ci
+npm run build                # production build of ALL routes
+npm run start -- -H 127.0.0.1 -p 3000
+# Prefer systemd or pm2 so it survives reboot (script 08-redeploy-frontend.sh)
 ```
 
-### One-time observability DBs
+**100% means all App Router surfaces ship in that one build**, including:
 
-Create Postgres DBs `langfuse` and `glitchtip` (separate from `hyrepath`).
+| Area | Routes (examples) |
+|------|-------------------|
+| Marketing | `/`, `/candidates`, `/recruiters`, `/sales`, `/investors`, `/journalists` |
+| Auth | `/login`, `/register`, `/verify-email`, `/verify-email-pending`, `/invite/[token]` |
+| Candidate app | `/app/*` — dashboard, jobs, matches/swipe, documents, practice, tracker, outreach, portfolio, settings, privacy, history, health |
+| OSINT door | `/osint/*` — jobs, settings |
+| Staff desk | `/desk/*` — users, roles, brands, queues, signals, review-queue, feature-flags, audit-logs, analytics, system-health, outreach, documents, portfolio, job-postings, demand-intelligence, sourcing-leads, linkedin-tasks, ai-actions, staff-invites |
+| Public | `/p/[slug]`, `/b/[slug]`, `/opt-out` |
+
+`FRONTEND_USE_MOCKS=false`. No subset deploy, no marketing-only build.
+
+Redeploy after frontend code/env changes: **`08-redeploy-frontend.sh`** (`npm ci` if lockfile changed → `build` → restart process).
+
+#### B. Observability profile frontends (Docker — must be up and reachable)
+
+These are the **web UIs** that come with `--profile observability`. Day-1 starts their containers **and** exposes them through the reverse proxy so you can log in and use them.
+
+| UI | Compose service | Host port (compose) | Purpose |
+|----|-----------------|---------------------|---------|
+| **Langfuse** | `langfuse` | `3002` → container `3000` | LLM tracing UI |
+| **GlitchTip** | `glitchtip-web` (+ migrate/worker) | `8001` (or `GLITCHTIP_HOST_PORT`) | Error tracking UI (Sentry-compatible) |
+| **ChangeDetection** | `changedetection` | `5000` | Watch / signals UI |
+
+Also up with paid/proxy profiles (admin UIs, not HyrePath product):
+
+| UI | Service | Notes |
+|----|---------|--------|
+| Scrapoxy | `scrapoxy` | Ports `8888` / `8890` when profile on — use when testing proxies |
+| LiteLLM | `litellm` | API `:4000` (proxy, not a full product UI) |
+
+#### C. Reverse proxy URL map (Day-1)
+
+Bind app ports to `127.0.0.1` only; publish via Caddy/nginx:
+
+| Public path / host | Upstream |
+|--------------------|----------|
+| `https://<preview>/` (or app host) | `127.0.0.1:3000` — **full HyrePath frontend** |
+| `https://<preview-api>/` or `/api` proxy | `127.0.0.1:8000` — backend |
+| `https://langfuse.<preview>/` or `/langfuse` | `127.0.0.1:3002` |
+| `https://glitchtip.<preview>/` or `/glitchtip` | `127.0.0.1:8001` |
+| `https://changes.<preview>/` or `/changes` | `127.0.0.1:5000` |
+
+Set `FRONTEND_URL`, `GLITCHTIP_PUBLIC_URL`, `CHANGEDETECTION_PUBLIC_URL`, and Langfuse `NEXTAUTH_URL` (compose) to the **public** URLs you choose so cookies/OAuth redirects work.
+
+#### D. One-time observability DB + login
+
+1. Create Postgres DBs `langfuse` and `glitchtip` (separate from `hyrepath`).
+2. After containers are healthy, register **god** email/password in Langfuse + GlitchTip UIs (same as HyrePath god user).
+3. Bootstrap GlitchTip DSN → set `SENTRY_DSN` in `.env.staging` → `02-redeploy-env.sh api worker …` when ready (EMPTY until then is OK per soft-env).
+
+### Frontend (same EC2) — bring-up order note
+
+Order: fill boot env → `07-env-report.sh` → `01-full-up.sh` (includes observability containers) → create obs DBs if needed → `06-seed-god-user.sh` → **`08-redeploy-frontend.sh` (full Next build)** → register Langfuse/GlitchTip → proxy all UIs → `99-health.sh` (API + frontend + obs UI probes).
 
 ### Day-1 bring-up command (reference for `01-full-up.sh`)
 
@@ -166,7 +228,7 @@ docker compose \
   glitchtip-migrate glitchtip-web glitchtip-worker
 ```
 
-Order: fill boot env → `07-env-report.sh` → `01-full-up.sh` → seed god user → frontend → `99-health.sh`.
+Order: see §4.1 D — backend stack + **full frontend** + **observability UIs** before health.
 
 ---
 
@@ -200,8 +262,10 @@ Langfuse / GlitchTip: register the **same** email/password manually (separate au
 | App / sidecar code | `03-redeploy-code.sh <services…>` |
 | Compose / Docker config | `04-redeploy-compose.sh` |
 | Enable Multilogin later | `05-deploy-multilogin.sh` |
+| HyrePath frontend code or `frontend/.env.local` | `08-redeploy-frontend.sh` |
+| Observability UI container only | `03-redeploy-code.sh langfuse` / `changedetection` / `glitchtip-web` |
 
-**Code → container:** API → `api`; enrichers/workers → `worker` (+ email / job-matching / cleanup / document / embedding / interview as needed); sidecars → that sidecar; migration → `migrate` then recreate `api`.
+**Code → container:** API → `api`; enrichers/workers → `worker` (+ email / job-matching / cleanup / document / embedding / interview as needed); sidecars → that sidecar; migration → `migrate` then recreate `api`; **frontend tree → `08-redeploy-frontend.sh` (not Docker)**.
 
 ---
 
@@ -211,18 +275,19 @@ All under `backend/scripts/deploy/`.
 
 | Script | Purpose |
 |--------|---------|
-| `01-full-up.sh` | Full Day-1 stack (no Multilogin); call `07-env-report.sh` first (warn-only for non-boot) |
+| `01-full-up.sh` | Full Day-1 stack (no Multilogin) **including observability profile containers**; call `07-env-report.sh` first (warn-only for non-boot) |
 | `02-redeploy-env.sh` | Force-recreate containers that read env |
-| `03-redeploy-code.sh` | Rebuild named services |
+| `03-redeploy-code.sh` | Rebuild named services (incl. `langfuse` / `glitchtip-web` / `changedetection`) |
 | `04-redeploy-compose.sh` | Re-apply full Day-1 compose |
 | `05-deploy-multilogin.sh` | Multilogin + `worker-tier1` later |
 | `06-seed-god-user.sh` | Idempotent god user |
 | `07-env-report.sh` | Audit **all** keys: OK / EMPTY / PLACEHOLDER / EXPIRED / NEED_LATER / DEFERRED |
+| `08-redeploy-frontend.sh` | **Full** HyrePath Next.js: `npm ci` (if needed) → `npm run build` → restart `next start` (systemd/pm2) |
 | `10-backup-db.sh` | Postgres backup wrapper |
 | `11-stack-down.sh` | `down` without `-v` |
 | `12-restore-db.sh` | Restore dump + forward migrate |
 | `13-nuclear-reset.sh` | Guarded `down -v` |
-| `99-health.sh` | `/health` + `/ready` |
+| `99-health.sh` | API `/health`+`/ready` **and** HyrePath `:3000` **and** Langfuse `:3002` **and** GlitchTip `:8001` **and** ChangeDetection `:5000` |
 
 ### Hard ops rules
 
@@ -257,15 +322,16 @@ SAFE STOP: 11-stack-down.sh
 
 ## 9. Feature test order
 
-1. `/health` + `/ready`
-2. God-user login
-3. Admin / staff
-4. Enrichment Tiers 2–4 / sidecars
-5. Documents / embeddings / job matching / interview AI (needs `OPENAI_API_KEY` when testing those paths)
-6. LiteLLM / Ollama when keys exist
-7. Observability UIs
-8. Compliance paths
-9. Multilogin last
+1. `/health` + `/ready` (API)
+2. **Full HyrePath frontend** loads on `:3000` — marketing, auth, `/app`, `/osint`, `/desk`
+3. God-user login on HyrePath UI
+4. Admin / staff desk pages
+5. Enrichment Tiers 2–4 / sidecars
+6. Documents / embeddings / job matching / interview AI (needs `OPENAI_API_KEY` when testing those paths)
+7. LiteLLM / Ollama when keys exist
+8. **Observability frontends:** Langfuse UI, GlitchTip UI, ChangeDetection UI (login + smoke)
+9. Compliance / opt-out paths in the frontend
+10. Multilogin last
 
 ---
 
@@ -277,16 +343,17 @@ SAFE STOP: 11-stack-down.sh
 [ ] §12.A boot-required keys are real (not placeholders)
 [ ] 07-env-report.sh run; save/print NEED_LATER + EXPIRED list
 [ ] Scripts under backend/scripts/deploy/ (future task)
-[ ] 01-full-up.sh
+[ ] 01-full-up.sh (includes --profile observability)
 [ ] Create langfuse + glitchtip databases
 [ ] 06-seed-god-user.sh
-[ ] Register same email/password in Langfuse + GlitchTip
-[ ] Frontend .env.local + build + start on :3000
-[ ] Reverse proxy wired
-[ ] 99-health.sh
+[ ] 08-redeploy-frontend.sh — full Next.js production build of 100% of frontend
+[ ] FRONTEND_USE_MOCKS=false; .env.local never committed
+[ ] Reverse proxy: HyrePath + API + Langfuse + GlitchTip + ChangeDetection
+[ ] Register same email/password in Langfuse + GlitchTip UIs
+[ ] 99-health.sh probes API + HyrePath UI + all three observability UIs
 [ ] Cron for 10-backup-db.sh
-[ ] Smoke features that do not need missing keys
-[ ] git push origin main after deployed fixes
+[ ] Smoke HyrePath product doors + observability UIs
+[ ] git push origin main after deployed fixes (never push .env*)
 ```
 
 ---
@@ -617,5 +684,7 @@ When implementing later:
 
 1. Add `backend/scripts/deploy/*.sh` only (plus optional pointer in `docs/deployment.md`).
 2. `07-env-report.sh` must print **all** §12 keys with status — never silent skip.
-3. `01-full-up.sh` hard-fails only on §12.A; soft-warns the rest.
-4. Operators pick `02` / `03` / `04` / `05` explicitly — no auto-guess deploy.
+3. `01-full-up.sh` hard-fails only on §12.A; soft-warns the rest; always starts observability profile containers.
+4. `08-redeploy-frontend.sh` always production-builds the **entire** Next.js app (no partial route deploy).
+5. `99-health.sh` must fail if HyrePath UI or any observability UI is down.
+6. Operators pick `02` / `03` / `04` / `05` / `08` explicitly — no auto-guess deploy.
