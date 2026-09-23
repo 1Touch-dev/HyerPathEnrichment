@@ -14,9 +14,20 @@ out/
 *.tsbuildinfo
 coverage/
 
-# Env & secrets
+# Env & secrets — NEVER commit real env files to git/GitHub
+# Allowed templates only: *.example / *.template
 .env
+.env.local
+.env.production
+.env.staging
+**/.env
+**/.env.local
+**/.env.production
+**/.env.staging
 .env.*
+!**/.env.example
+!**/.env.*.example
+!**/.env.*.template
 !.env.example
 backend/.env
 frontend/.env.local

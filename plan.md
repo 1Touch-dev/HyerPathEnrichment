@@ -15,6 +15,7 @@
 | Git flow | Work on `main` → deploy on EC2 → verify → `git push origin main` |
 | Images | Build on this EC2 with `docker compose … --build` (do not rely on GitHub Actions CD for this loop) |
 | Env file | `backend/.env.staging` (mode `600`) — **every key from the master inventory present** |
+| Git / GitHub | **Never** commit or push `.env`, `.env.local`, `.env.production`, `.env.staging`, or any non-template `.env*` — host-only secrets |
 | Missing / expired keys | **Still deploy.** Report them. Fill later. Do not block the stack for optional/paid/deferred secrets |
 | Day-1 Multilogin | **Off** — no `multilogin`, no `worker-tier1` |
 | Day-1 scope | Entire frontend + backend + DB + all Docker profiles/services except Multilogin |
@@ -579,10 +580,22 @@ Prefer `/etc/hyrepath/worker.env` at Multilogin day; still list in staging inven
 3. 02-redeploy-env.sh <affected services>   # or rebuild frontend
 4. 07-env-report.sh   # confirm OK
 5. 99-health.sh
-6. git commit + push main (env files stay gitignored — only code/docs push)
+6. git commit + push main (**never** stage env secret files — only code/docs/scripts)
 ```
 
-Real secrets stay on the host; do not commit `.env.staging`. Commit only plan/script/docs changes.
+### Never push these to git / GitHub
+
+| File | Why |
+|------|-----|
+| `.env` | Real secrets |
+| `.env.local` | Frontend secrets |
+| `.env.production` | Production secrets |
+| `.env.staging` | Preview secrets on this EC2 |
+| Any other non-template `.env*` | Same |
+
+**Allowed in git:** `.env.example`, `.env.staging.example`, `.env.production.example`, `.env.production.template`, etc.
+
+Enforced by `.gitignore` + pre-commit hook `scripts/hooks/block_env_files.py`. Real secrets stay on the host only.
 
 ---
 
