@@ -79,6 +79,9 @@ services:
       SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@hyrepath.com}
       SENDGRID_FROM_NAME: ${SENDGRID_FROM_NAME:-Hyrepath Enrichment}
       SENDGRID_REPLY_TO: ${SENDGRID_REPLY_TO:-support@hyrepath.com}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ops@example.com}
       OUTREACH_ENABLED: ${OUTREACH_ENABLED:-true}
       OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
       # OpenAI API for embeddings (document search)
@@ -161,6 +164,9 @@ services:
       SENTRY_SEND_DEFAULT_PII: ${SENTRY_SEND_DEFAULT_PII:-false}
       # OpenAI API for embeddings (document search) and feedback generation
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ops@example.com}
       WORKER_STARTUP_DELAY: ${WORKER_STARTUP_DELAY:-0}
     depends_on:
       migrate:
@@ -404,14 +410,15 @@ services:
     environment:
       # Dedicated DB — do not share the app schema (hyrepath).
       DATABASE_URL: ${LANGFUSE_DATABASE_URL:-postgresql://hyrepath:hyrepath@postgres:5432/langfuse}
-      NEXTAUTH_SECRET: change-me
-      SALT: change-me
-      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-change-me}
+      SALT: ${LANGFUSE_SALT:-change-me}
+      # Browser-facing Langfuse URL (EC2 public IP/host). Not the in-compose :3000.
+      NEXTAUTH_URL: ${LANGFUSE_NEXTAUTH_URL:-http://localhost:3002}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "3002:3000"
+      - "${LANGFUSE_HOST_PORT:-3002}:3000"
     restart: unless-stopped
   changedetection:
     image: ghcr.io/dgtlmoon/changedetection.io:latest
