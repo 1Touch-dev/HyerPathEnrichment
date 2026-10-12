@@ -26,7 +26,7 @@ dependencies = [
   "email-validator>=2.0,<3.0",
   "fastapi-users[sqlalchemy]>=15.0.5,<15.1",
   "httpx-oauth>=0.15,<1.0",
-  "PyJWT[crypto]>=2.13,<2.14",
+  "PyJWT[crypto]>=2.15.1,<2.16",
   "passlib[bcrypt]>=1.7,<2.0",
   "bcrypt>=4.0,<5.0",
   "pyotp>=2.9,<3.0",
@@ -53,7 +53,9 @@ dev = [
   "pytest-asyncio>=1.0,<2.0",
   "pytest-cov>=5.0,<8.0",
   "mypy>=1.10,<3.0",
-  "ruff>=0.5,<1.0",
+  # Keep CI on the same Ruff release as .pre-commit-config.yaml. An unpinned
+  # install resolved to 0.17 and failed on rules that hook does not run.
+  "ruff>=0.11.12,<0.12",
   # LinkedIn unit tests import selenium-backed modules at collection time
   "selenium>=4.21,<5.0",
   "requests>=2.31,<3.0",

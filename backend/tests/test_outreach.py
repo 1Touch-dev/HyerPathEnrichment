@@ -102,9 +102,7 @@ async def test_perplexity_client_retries_transient_error_then_succeeds(monkeypat
 
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.json = MagicMock(
-        return_value={"output_text": "Acme is hiring."}
-    )
+    mock_response.json = MagicMock(return_value={"output_text": "Acme is hiring."})
     mock_post = AsyncMock(side_effect=[httpx.ConnectError("network blip"), mock_response])
     with patch.object(client._client, "post", new=mock_post):
         result = await client.get_company_context("Acme Corp")

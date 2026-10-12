@@ -84,12 +84,14 @@ test.describe("approved Desk states and keyboard semantics", () => {
       return url.searchParams.get("redirect") === "/desk/queues?queue=default&state=failed";
     });
 
-    const email = page.getByLabel("Email");
-    const password = page.getByLabel("Password");
+    const email = page.getByRole("textbox", { name: "Email" });
+    const password = page.getByRole("textbox", { name: "Password", exact: true });
     await email.focus();
     await expect(email).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(password).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Show password" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Sign In" })).toBeFocused();
   });
