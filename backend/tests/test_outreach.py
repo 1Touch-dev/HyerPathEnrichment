@@ -70,11 +70,25 @@ async def test_perplexity_client_returns_summary_on_success(monkeypatch):
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     mock_response.json = MagicMock(
-        return_value={"choices": [{"message": {"content": "  Acme makes widgets.  "}}]}
+        return_value={
+            "status": "completed",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "  Acme makes widgets.  "}],
+                }
+            ],
+        }
     )
-    with patch.object(client._client, "post", new=AsyncMock(return_value=mock_response)):
+    mock_post = AsyncMock(return_value=mock_response)
+    with patch.object(client._client, "post", new=mock_post):
         result = await client.get_company_context("Acme Corp", role_title="Engineer")
     assert result == {"summary": "Acme makes widgets.", "source": "perplexity"}
+    assert mock_post.call_args.args[0].endswith("/v1/responses")
+    body = mock_post.call_args.kwargs["json"]
+    assert body["preset"] == "fast"
+    assert "Acme Corp" in body["input"]
+    assert "Engineer" in body["input"]
     get_settings.cache_clear()
 
 
@@ -89,7 +103,7 @@ async def test_perplexity_client_retries_transient_error_then_succeeds(monkeypat
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     mock_response.json = MagicMock(
-        return_value={"choices": [{"message": {"content": "Acme is hiring."}}]}
+        return_value={"output_text": "Acme is hiring."}
     )
     mock_post = AsyncMock(side_effect=[httpx.ConnectError("network blip"), mock_response])
     with patch.object(client._client, "post", new=mock_post):
@@ -97,6 +111,21 @@ async def test_perplexity_client_retries_transient_error_then_succeeds(monkeypat
 
     assert mock_post.call_count == 2
     assert result == {"summary": "Acme is hiring.", "source": "perplexity"}
+    get_settings.cache_clear()
+
+
+async def test_perplexity_client_fails_soft_when_agent_response_has_no_text(monkeypatch):
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "pplx-test")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    client = PerplexityClient()
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = MagicMock(return_value={"status": "completed", "output": []})
+    with patch.object(client._client, "post", new=AsyncMock(return_value=mock_response)):
+        result = await client.get_company_context("Acme Corp")
+    assert result == {"summary": "", "source": "none"}
     get_settings.cache_clear()
 
 
