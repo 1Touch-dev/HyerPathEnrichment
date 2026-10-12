@@ -109,3 +109,7 @@ memory/
 # Orchestrator-managed git worktrees (kept inside workspace for file-write approval scoping)
 .worktrees-m2/
 .worktrees/
+
+# Single-host CD state and generated image overlay (never commit)
+.deploy/
+backend/docker/docker-compose.cd-images.yml

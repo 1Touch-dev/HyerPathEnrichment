@@ -143,96 +143,127 @@ See [PROD_SMOKE.md](PROD_SMOKE.md) and [PROD_ACCEPTANCE.md](PROD_ACCEPTANCE.md).
 
 ## Continuous deployment (GitHub Actions)
 
-Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml).
+Single host, single GitHub Environment **`production`**. Testing now; later the same Environment becomes live (turn on Required reviewers — no second stack).
 
-| Trigger | Build → GHCR | Staging | Production |
-|---------|--------------|---------|------------|
-| Push to `main` | Yes | Auto (`environment: staging`) | — |
-| `workflow_dispatch` + `target=staging` | Yes | Auto | — |
-| `workflow_dispatch` + `target=production` | Yes | — | Manual approval (`environment: production`) |
-| `workflow_dispatch` + `dry_run=true` | Plan only (verify Dockerfiles; no build/push) | Skipped | Skipped |
+Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml). Host script: [`backend/scripts/deploy/cd-on-host.sh`](../backend/scripts/deploy/cd-on-host.sh).
 
-Images (per commit SHA + `latest`):
+```text
+push main → CI success (push only) → five :<sha> images → GHCR
+  → Environment production → SSH this EC2
+  → refuse dirty/unpushed; skip if .deploy/hold
+  → git checkout main && git reset --hard SHA
+  → compose config → pull → Day-1 up → frontend → health
+  → record .deploy/current_sha
+```
 
-- `ghcr.io/<owner>/<repo>/api:<sha>`
-- `ghcr.io/<owner>/<repo>/worker:<sha>`
+| Trigger | Build → GHCR | SSH deploy |
+|---------|--------------|------------|
+| Green **CI** after **push** to `main` | Yes | Yes (`environment: production`) |
+| Green CI from a **PR** | No | No (`workflow_run.event` must be `push`) |
+| Failed / cancelled CI | No | No |
+| Commit message contains `[skip cd]` | No | No |
+| `.deploy/hold` on the host | Images may build | SSH exits 0 without touching git/compose |
+| `workflow_dispatch` + `dry_run=true` | Plan only | Skipped |
+| `workflow_dispatch` + `dry_run=false` | Yes | Yes |
 
-Dockerfiles: [`backend/docker/Dockerfile.api`](../backend/docker/Dockerfile.api), [`backend/docker/Dockerfile.worker`](../backend/docker/Dockerfile.worker).
+CD never `git commit` or `git push`. After deploy, the repo stays on **`main`** (not detached) so you can SSH, edit, commit, and push.
 
-Remote compose overlays (from `backend/docker` on the host):
+### Day-1 stack (what CD starts)
 
-- **Staging:** `docker-compose.yml` + `docker-compose.staging.yml` + generated `docker-compose.cd-images.yml`
-- **Production:** `docker-compose.yml` + `docker-compose.prod.yml` + generated `docker-compose.cd-images.yml`
+Same files, profiles, and services as [`01-full-up.sh`](../backend/scripts/deploy/01-full-up.sh) / [`_common.sh`](../backend/scripts/deploy/_common.sh):
 
-### GitHub Environments and secrets
+- Files: `docker-compose.yml` + `docker-compose.staging.yml` + `foundation.yml` + `week2-ai.yml` + `tier-workers.yml` + `--env-file backend/.env.production`
+- Profiles: `paid`, `llm`, `observability`, `ollama`, `scrapoxy`
+- All `DAY1_SERVICES` (api, workers, sidecars, LLM, observability). **Not** `multilogin` / `worker-tier1`. Do not load `docker-compose.multilogin.yml` or `docker-compose.tier1.yml`.
+- Frontend: full Next.js via [`08-redeploy-frontend.sh`](../backend/scripts/deploy/08-redeploy-frontend.sh) (pm2 `:3000`).
+- Health: [`99-health.sh`](../backend/scripts/deploy/99-health.sh).
 
-Create Environments **`staging`** and **`production`**. On **production**, enable **Required reviewers** so deploys wait for approval.
+Do **not** switch CD to `docker-compose.prod.yml` until go-live (that overlay binds API to `127.0.0.1:8000` and would break the current `:8002` public map).
 
-Set these secrets on each Environment (values may differ per env; never commit them):
+### Images (SHA is the version)
+
+`ghcr.io/<owner>/<repo>/…:<git-sha>` (lowercase). `:latest` is also pushed but production always pins `:<sha>`.
+
+| Image | Services |
+|-------|----------|
+| `…/api:<sha>` | `migrate`, `api` |
+| `…/worker:<sha>` | `worker`, `worker-email`, `worker-cleanup`, `worker-tier234`, `worker-interview-ai` |
+| `…/worker-document:<sha>` | `worker-document` |
+| `…/worker-embedding:<sha>` | `worker-embedding` |
+| `…/worker-job-matching:<sha>` | `worker-job-matching` |
+
+Sidecars stay public or host-built images. Overlay: generated `backend/docker/docker-compose.cd-images.yml` (gitignored).
+
+### GitHub Environment secrets
+
+Create Environment **`production`**. Leave Required reviewers **off** while this host is the test environment.
 
 | Secret | Required | Purpose |
 |--------|----------|---------|
-| `SSH_HOST` | Yes | Deploy host hostname or IP |
-| `SSH_USER` | Yes | SSH username |
+| `SSH_HOST` | Yes | EC2 Elastic IP (this host: `54.87.41.86`) |
+| `SSH_USER` | Yes | SSH username (`ubuntu`) |
 | `SSH_KEY` | Yes | Private key (PEM) for `SSH_USER` |
-| `SSH_PORT` | No | SSH port (appleboy default `22` if unset) |
-| `GHCR_USERNAME` | Yes | GitHub user/bot that can pull packages |
-| `GHCR_TOKEN` | Yes | PAT or fine-grained token with `read:packages` (host `docker login`) |
-| `DEPLOY_PATH` | No | Host path to `backend/docker` (default `/opt/hyrepath/HyerPathEnrichment/backend/docker`) |
-| `COMPOSE_ENV_FILE` | No | Env file on host (default `../.env.staging` or `../.env.production`) |
+| `SSH_PORT` | No | Default `22` |
+| `SSH_HOST_FINGERPRINT` | No | Host key fingerprint (prefer over skipping host checks) |
+| `GHCR_USERNAME` | Yes | Account that can `docker pull` |
+| `GHCR_TOKEN` | Yes | PAT with `read:packages` only (host login) |
+| `DEPLOY_PATH` | No | Host path to `backend/docker` (default `/home/ubuntu/HyerPathEnrichment/backend/docker`) |
 
-Registry **push** from Actions uses `GITHUB_TOKEN` with `packages: write` (workflow permission). Host **pull** uses `GHCR_TOKEN` — do not rely on job `GITHUB_TOKEN` on the VPS.
+Registry **push** uses job `GITHUB_TOKEN` (`packages: write`). Host **pull** uses `GHCR_TOKEN`.
 
-App secrets (`API_TOKEN`, `DATABASE_URL`, R2, Multilogin, etc.) stay on the host env files — not in GitHub Actions secrets unless you deliberately migrate them later.
+App secrets stay in `backend/.env.production` and `frontend/.env.local` on the host (`chmod 600`). CD does not copy them from GitHub.
+
+### SSH hotfix when CD is broken
+
+Host scripts do not need GHCR:
+
+```bash
+cd /home/ubuntu/HyerPathEnrichment
+mkdir -p .deploy && touch .deploy/hold   # block incoming CD
+# edit files
+bash backend/scripts/deploy/01-full-up.sh
+bash backend/scripts/deploy/08-redeploy-frontend.sh
+bash backend/scripts/deploy/99-health.sh
+git add -A && git commit -m "hotfix [skip cd]" && git push origin main
+rm -f .deploy/hold
+```
+
+- Dirty working tree or unpushed commits → CD **fails** and does not `reset --hard`.
+- `.deploy/hold` → CD **skips** (green) and does not touch git or compose.
+- `[skip cd]` in the commit message → Actions skips image build and SSH.
+- To pause all auto-deploys: Actions → Deploy → Disable workflow. Host scripts still work.
 
 ### Dry-run
 
 1. Actions → **Deploy** → **Run workflow**
-2. Set `dry_run=true` (optional: pick `target` for the plan summary)
-3. Job verifies Dockerfiles/compose overlays exist and prints planned image tags; **does not** build, push to GHCR, or SSH
+2. Set `dry_run=true`
+3. Job verifies Dockerfiles/compose/host scripts exist and prints planned image tags; **does not** build, push, or SSH
 
 ### Validate the workflow (actionlint)
 
 ```bash
-# Install: https://github.com/rhysd/actionlint
-#   go install github.com/rhysd/actionlint/cmd/actionlint@latest
-#   # or download a release binary
 actionlint .github/workflows/deploy.yml
 ```
 
-If `actionlint` is unavailable, use the UI dry-run above as the proof path.
-
 ### CD rollback
 
-1. Find the last known-good commit SHA (previous green Deploy run or GHCR tag).
-2. On the host (`backend/docker`), pin images and recreate:
+1. Read `.deploy/previous_sha` on the host (or the last green Deploy SHA).
+2. `workflow_dispatch` that SHA, or on the host:
 
 ```bash
-API=ghcr.io/<owner>/<repo>/api
-WORKER=ghcr.io/<owner>/<repo>/worker
-GOOD_SHA=<previous-sha>
-
-{
-  echo "services:"
-  echo "  migrate:"
-  echo "    image: ${API}:${GOOD_SHA}"
-  echo "  api:"
-  echo "    image: ${API}:${GOOD_SHA}"
-  echo "  worker:"
-  echo "    image: ${WORKER}:${GOOD_SHA}"
-} > docker-compose.cd-images.yml
-
-# staging:
-docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.cd-images.yml \
-  --env-file ../.env.staging pull api worker migrate
-docker compose -f docker-compose.yml -f docker-compose.staging.yml -f docker-compose.cd-images.yml \
-  --env-file ../.env.staging up -d --no-build
-
-# production: swap staging overlay for docker-compose.prod.yml and ../.env.production
+cd /home/ubuntu/HyerPathEnrichment
+PREV=$(cat .deploy/previous_sha)
+# set the five image names + IMAGE_TAG=$PREV and re-run cd-on-host.sh
+# or: 01-full-up.sh after git checkout main && git reset --hard "$PREV"
 ```
 
-3. Or re-run **Deploy** via `workflow_dispatch` on the good commit (production still needs approval).
-4. Database: Alembic is forward-only — restore Postgres from backup if a migration was the failure (see [OPS.md](OPS.md)).
+3. Database: Alembic is forward-only — restore Postgres from backup if a migration was the failure (see [OPS.md](OPS.md)). Do not assume automatic DB rollback is safe.
+
+### Go-live later (same Environment, same stack)
+
+- Turn on **Required reviewers** on `production`.
+- Point DNS at the Elastic IP; terminate TLS at Caddy; bind API via `docker-compose.prod.yml` when you are ready to drop public `:8002`.
+- Rotate secrets; restrict SSH; wire [`10-backup-db.sh`](../backend/scripts/deploy/10-backup-db.sh) before migrate.
 
 ## Related docs
 

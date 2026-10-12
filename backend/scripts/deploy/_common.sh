@@ -28,9 +28,11 @@ DAY1_FILES=(
 )
 
 DAY1_PROFILES=(
+  --profile paid
   --profile llm
   --profile observability
   --profile ollama
+  --profile scrapoxy
 )
 
 DAY1_SERVICES=(
@@ -38,9 +40,16 @@ DAY1_SERVICES=(
   worker worker-email worker-cleanup worker-tier234
   social-analyzer google-maps-scraper email-verifier
   worker-document worker-embedding worker-job-matching worker-interview-ai
-  reacher litellm ollama
+  reacher litellm ollama scrapoxy
   langfuse changedetection
   glitchtip-migrate glitchtip-web glitchtip-worker
+)
+
+# App services whose images CD pins to :<sha>. Sidecars stay public/host images.
+CD_APP_SERVICES=(
+  migrate api
+  worker worker-email worker-cleanup worker-tier234 worker-interview-ai
+  worker-document worker-embedding worker-job-matching
 )
 
 compose() {

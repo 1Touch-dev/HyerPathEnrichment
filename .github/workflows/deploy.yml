@@ -1,15 +1,13 @@
-# CD: build API/worker → GHCR → staging (auto after green CI on main) / production (approval).
-# Auto staging no longer runs on bare push to main — it waits for workflow "CI" success
-# (workflow_run). Manual: Actions → Deploy → Run workflow (dry_run / target preserved).
+# CD: green CI on main (push only) → five SHA images → GHCR → SSH this EC2.
+# One GitHub Environment: production. Full Day-1 stack (no Multilogin).
+# Manual: Actions → Deploy → Run workflow (dry_run skips GHCR + SSH).
+# Commit message containing [skip cd] skips image build and SSH.
 # Validate locally:
 #   actionlint .github/workflows/deploy.yml
-#   (https://github.com/rhysd/actionlint — or:
-#    go install github.com/rhysd/actionlint/cmd/actionlint@latest)
 
 name: Deploy
 
 on:
-  # Gate staging auto-deploy on green CI (FIND-INFRA-003). Replaces push-to-main trigger.
   workflow_run:
     workflows: ["CI"]
     types:
@@ -21,16 +19,9 @@ on:
         description: "Plan only — skip GHCR build/push and remote deploy"
         type: boolean
         default: false
-      target:
-        description: "Deploy target when not dry-run (production requires Environment approval)"
-        type: choice
-        options:
-          - staging
-          - production
-        default: staging
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-production
   cancel-in-progress: false
 
 permissions:
@@ -40,44 +31,64 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  # Images: ghcr.io/<owner>/<repo>/api:<tag> and .../worker:<tag>
   IMAGE_NAME_API: ${{ github.repository }}/api
   IMAGE_NAME_WORKER: ${{ github.repository }}/worker
+  IMAGE_NAME_WORKER_DOCUMENT: ${{ github.repository }}/worker-document
+  IMAGE_NAME_WORKER_EMBEDDING: ${{ github.repository }}/worker-embedding
+  IMAGE_NAME_WORKER_JOB_MATCHING: ${{ github.repository }}/worker-job-matching
 
 jobs:
-  # Skip failed/cancelled CI runs; always allow manual dispatch (incl. dry_run).
   await-ci:
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.event == 'push'
+      )
     outputs:
       deploy_sha: ${{ steps.sha.outputs.deploy_sha }}
+      skip_cd: ${{ steps.sha.outputs.skip_cd }}
     steps:
       - name: Resolve deploy SHA
         id: sha
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             SHA="${{ github.event.workflow_run.head_sha }}"
           else
             SHA="${{ github.sha }}"
           fi
           echo "deploy_sha=${SHA}" >> "$GITHUB_OUTPUT"
-          echo "Deploy SHA=${SHA} (event=${{ github.event_name }})"
+          MSG="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq .commit.message)"
+          SKIP=false
+          if printf '%s' "$MSG" | grep -Fq '[skip cd]'; then
+            SKIP=true
+          fi
+          echo "skip_cd=${SKIP}" >> "$GITHUB_OUTPUT"
+          echo "Deploy SHA=${SHA} event=${{ github.event_name }} skip_cd=${SKIP}"
 
   build-and-push:
     needs: await-ci
+    if: |
+      needs.await-ci.result == 'success' &&
+      needs.await-ci.outputs.skip_cd != 'true'
     runs-on: ubuntu-latest
     outputs:
       dry_run: ${{ steps.flags.outputs.dry_run }}
       image_tag: ${{ steps.meta.outputs.image_tag }}
       api_image: ${{ steps.meta.outputs.api_image }}
       worker_image: ${{ steps.meta.outputs.worker_image }}
-      dispatch_target: ${{ steps.flags.outputs.dispatch_target }}
+      worker_document_image: ${{ steps.meta.outputs.worker_document_image }}
+      worker_embedding_image: ${{ steps.meta.outputs.worker_embedding_image }}
+      worker_job_matching_image: ${{ steps.meta.outputs.worker_job_matching_image }}
     steps:
       - uses: actions/checkout@v7
         with:
-          # workflow_run checks out default branch tip unless ref is set to the CI commit
           ref: ${{ needs.await-ci.outputs.deploy_sha }}
 
       - name: Resolve flags
@@ -87,41 +98,50 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
             DRY_RUN=true
           fi
-          TARGET=staging
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TARGET="${{ inputs.target }}"
-          fi
           echo "dry_run=${DRY_RUN}" >> "$GITHUB_OUTPUT"
-          echo "dispatch_target=${TARGET}" >> "$GITHUB_OUTPUT"
-          echo "DRY_RUN=${DRY_RUN} TARGET=${TARGET}"
+          echo "DRY_RUN=${DRY_RUN}"
 
       - name: Image metadata
         id: meta
         run: |
           TAG="${{ needs.await-ci.outputs.deploy_sha }}"
-          API_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}"
-          WORKER_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER }}"
-          # GHCR requires lowercase repository path
-          API_IMAGE="$(echo "$API_IMAGE" | tr '[:upper:]' '[:lower:]')"
-          WORKER_IMAGE="$(echo "$WORKER_IMAGE" | tr '[:upper:]' '[:lower:]')"
+          lower() { echo "$1" | tr '[:upper:]' '[:lower:]'; }
+          API_IMAGE="$(lower "${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}")"
+          WORKER_IMAGE="$(lower "${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER }}")"
+          DOC_IMAGE="$(lower "${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER_DOCUMENT }}")"
+          EMB_IMAGE="$(lower "${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER_EMBEDDING }}")"
+          JM_IMAGE="$(lower "${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WORKER_JOB_MATCHING }}")"
           {
             echo "image_tag=${TAG}"
             echo "api_image=${API_IMAGE}"
             echo "worker_image=${WORKER_IMAGE}"
+            echo "worker_document_image=${DOC_IMAGE}"
+            echo "worker_embedding_image=${EMB_IMAGE}"
+            echo "worker_job_matching_image=${JM_IMAGE}"
           } >> "$GITHUB_OUTPUT"
           echo "Would publish:"
           echo "  ${API_IMAGE}:${TAG}"
-          echo "  ${API_IMAGE}:latest"
           echo "  ${WORKER_IMAGE}:${TAG}"
-          echo "  ${WORKER_IMAGE}:latest"
+          echo "  ${DOC_IMAGE}:${TAG}"
+          echo "  ${EMB_IMAGE}:${TAG}"
+          echo "  ${JM_IMAGE}:${TAG}"
 
-      - name: Verify Dockerfiles exist
+      - name: Verify Dockerfiles and compose files exist
         run: |
           test -f backend/docker/Dockerfile.api
           test -f backend/docker/Dockerfile.worker
+          test -f backend/docker/Dockerfile.worker-document
+          test -f backend/docker/Dockerfile.worker-embedding
+          test -f backend/docker/Dockerfile.worker-job-matching
           test -f backend/docker/docker-compose.yml
           test -f backend/docker/docker-compose.staging.yml
-          test -f backend/docker/docker-compose.prod.yml
+          test -f backend/docker/docker-compose.foundation.yml
+          test -f backend/docker/docker-compose.week2-ai.yml
+          test -f backend/docker/docker-compose.tier-workers.yml
+          test -f backend/scripts/deploy/cd-on-host.sh
+          test -f backend/scripts/deploy/01-full-up.sh
+          test -f backend/scripts/deploy/08-redeploy-frontend.sh
+          test -f backend/scripts/deploy/99-health.sh
 
       - name: Set up Docker Buildx
         if: steps.flags.outputs.dry_run != 'true'
@@ -161,91 +181,67 @@ jobs:
           cache-from: type=gha,scope=worker
           cache-to: type=gha,mode=max,scope=worker
 
+      - name: Build and push worker-document image
+        if: steps.flags.outputs.dry_run != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          file: backend/docker/Dockerfile.worker-document
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.worker_document_image }}:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.worker_document_image }}:latest
+          cache-from: type=gha,scope=worker-document
+          cache-to: type=gha,mode=max,scope=worker-document
+
+      - name: Build and push worker-embedding image
+        if: steps.flags.outputs.dry_run != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          file: backend/docker/Dockerfile.worker-embedding
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.worker_embedding_image }}:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.worker_embedding_image }}:latest
+          cache-from: type=gha,scope=worker-embedding
+          cache-to: type=gha,mode=max,scope=worker-embedding
+
+      - name: Build and push worker-job-matching image
+        if: steps.flags.outputs.dry_run != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          file: backend/docker/Dockerfile.worker-job-matching
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.worker_job_matching_image }}:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.worker_job_matching_image }}:latest
+          cache-from: type=gha,scope=worker-job-matching
+          cache-to: type=gha,mode=max,scope=worker-job-matching
+
       - name: Dry-run summary
         if: steps.flags.outputs.dry_run == 'true'
         run: |
           cat <<EOF
           === Deploy dry-run ===
-          Ref: ${{ github.ref }}
           SHA: ${{ needs.await-ci.outputs.deploy_sha }}
-          Target (dispatch): ${{ steps.flags.outputs.dispatch_target }}
-          API image:    ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.image_tag }}
-          Worker image: ${{ steps.meta.outputs.worker_image }}:${{ steps.meta.outputs.image_tag }}
-          Staging compose:  docker-compose.yml + docker-compose.staging.yml
-          Production compose: docker-compose.yml + docker-compose.prod.yml
-          Dockerfiles: verified present under backend/docker/
+          API:              ${{ steps.meta.outputs.api_image }}:${{ steps.meta.outputs.image_tag }}
+          Worker:           ${{ steps.meta.outputs.worker_image }}:${{ steps.meta.outputs.image_tag }}
+          Worker-document:  ${{ steps.meta.outputs.worker_document_image }}:${{ steps.meta.outputs.image_tag }}
+          Worker-embedding: ${{ steps.meta.outputs.worker_embedding_image }}:${{ steps.meta.outputs.image_tag }}
+          Worker-job-matching: ${{ steps.meta.outputs.worker_job_matching_image }}:${{ steps.meta.outputs.image_tag }}
+          Host compose: Day-1 files + profiles (paid/llm/observability/ollama/scrapoxy)
           Skipped: GHCR build/push, SSH deploy
           EOF
 
-  deploy-staging:
-    needs: build-and-push
+  deploy:
+    needs: [await-ci, build-and-push]
     if: |
-      needs.build-and-push.outputs.dry_run != 'true' && (
-        (github.event_name == 'workflow_run' &&
-          github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.head_branch == 'main') ||
-        (github.event_name == 'workflow_dispatch' && needs.build-and-push.outputs.dispatch_target == 'staging')
-      )
+      needs.await-ci.outputs.skip_cd != 'true' &&
+      needs.build-and-push.result == 'success' &&
+      needs.build-and-push.outputs.dry_run != 'true'
     runs-on: ubuntu-latest
-    environment: staging
-    steps:
-      - name: Deploy staging via SSH
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
-          script_stop: true
-          envs: API_IMAGE,WORKER_IMAGE,IMAGE_TAG,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH,COMPOSE_ENV_FILE
-          script: |
-            set -euo pipefail
-            DEPLOY_PATH="${DEPLOY_PATH:-/opt/hyrepath/HyerPathEnrichment/backend/docker}"
-            cd "$DEPLOY_PATH"
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            {
-              echo "services:"
-              echo "  migrate:"
-              echo "    image: ${API_IMAGE}:${IMAGE_TAG}"
-              echo "  api:"
-              echo "    image: ${API_IMAGE}:${IMAGE_TAG}"
-              echo "  worker:"
-              echo "    image: ${WORKER_IMAGE}:${IMAGE_TAG}"
-            } > docker-compose.cd-images.yml
-            docker compose \
-              -f docker-compose.yml \
-              -f docker-compose.staging.yml \
-              -f docker-compose.cd-images.yml \
-              --env-file "${COMPOSE_ENV_FILE:-../.env.staging}" \
-              pull api worker migrate
-            docker compose \
-              -f docker-compose.yml \
-              -f docker-compose.staging.yml \
-              -f docker-compose.cd-images.yml \
-              --env-file "${COMPOSE_ENV_FILE:-../.env.staging}" \
-              up -d --no-build api worker redis postgres social-analyzer google-maps-scraper email-verifier
-            docker compose \
-              -f docker-compose.yml \
-              -f docker-compose.staging.yml \
-              -f docker-compose.cd-images.yml \
-              ps
-        env:
-          API_IMAGE: ${{ needs.build-and-push.outputs.api_image }}
-          WORKER_IMAGE: ${{ needs.build-and-push.outputs.worker_image }}
-          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
-          GHCR_USER: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          COMPOSE_ENV_FILE: ${{ secrets.COMPOSE_ENV_FILE }}
-
-  deploy-production:
-    needs: build-and-push
-    if: |
-      needs.build-and-push.outputs.dry_run != 'true' &&
-      github.event_name == 'workflow_dispatch' &&
-      needs.build-and-push.outputs.dispatch_target == 'production'
-    runs-on: ubuntu-latest
-    # Requires a configured GitHub Environment named "production" with required reviewers.
     environment: production
     steps:
       - name: Deploy production via SSH
@@ -255,44 +251,27 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
+          fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
           script_stop: true
-          envs: API_IMAGE,WORKER_IMAGE,IMAGE_TAG,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH,COMPOSE_ENV_FILE
+          envs: DEPLOY_SHA,API_IMAGE,WORKER_IMAGE,WORKER_DOCUMENT_IMAGE,WORKER_EMBEDDING_IMAGE,WORKER_JOB_MATCHING_IMAGE,IMAGE_TAG,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
           script: |
             set -euo pipefail
-            DEPLOY_PATH="${DEPLOY_PATH:-/opt/hyrepath/HyerPathEnrichment/backend/docker}"
-            cd "$DEPLOY_PATH"
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            {
-              echo "services:"
-              echo "  migrate:"
-              echo "    image: ${API_IMAGE}:${IMAGE_TAG}"
-              echo "  api:"
-              echo "    image: ${API_IMAGE}:${IMAGE_TAG}"
-              echo "  worker:"
-              echo "    image: ${WORKER_IMAGE}:${IMAGE_TAG}"
-            } > docker-compose.cd-images.yml
-            docker compose \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml \
-              -f docker-compose.cd-images.yml \
-              --env-file "${COMPOSE_ENV_FILE:-../.env.production}" \
-              pull api worker migrate
-            docker compose \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml \
-              -f docker-compose.cd-images.yml \
-              --env-file "${COMPOSE_ENV_FILE:-../.env.production}" \
-              up -d --no-build api worker redis postgres social-analyzer google-maps-scraper email-verifier
-            docker compose \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml \
-              -f docker-compose.cd-images.yml \
-              ps
+            DEPLOY_PATH="${DEPLOY_PATH:-/home/ubuntu/HyerPathEnrichment/backend/docker}"
+            export REPO_ROOT
+            REPO_ROOT="$(cd "$DEPLOY_PATH/../.." && pwd)"
+            cd "$REPO_ROOT"
+            git fetch origin
+            git show "${DEPLOY_SHA}:backend/scripts/deploy/cd-on-host.sh" > /tmp/hyrepath-cd-on-host.sh
+            chmod +x /tmp/hyrepath-cd-on-host.sh
+            bash /tmp/hyrepath-cd-on-host.sh
         env:
+          DEPLOY_SHA: ${{ needs.await-ci.outputs.deploy_sha }}
           API_IMAGE: ${{ needs.build-and-push.outputs.api_image }}
           WORKER_IMAGE: ${{ needs.build-and-push.outputs.worker_image }}
+          WORKER_DOCUMENT_IMAGE: ${{ needs.build-and-push.outputs.worker_document_image }}
+          WORKER_EMBEDDING_IMAGE: ${{ needs.build-and-push.outputs.worker_embedding_image }}
+          WORKER_JOB_MATCHING_IMAGE: ${{ needs.build-and-push.outputs.worker_job_matching_image }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
           GHCR_USER: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          COMPOSE_ENV_FILE: ${{ secrets.COMPOSE_ENV_FILE }}
