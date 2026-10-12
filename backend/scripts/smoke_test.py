@@ -2,7 +2,7 @@
 
 Env:
   BASE_URL          — API root (default http://localhost:8000)
-  SMOKE_EMAIL       — existing account; when unset, the script registers a throwaway user
+  SMOKE_EMAIL       — verified staff account; when unset, the script registers a throwaway user
   SMOKE_PASSWORD    — password for SMOKE_EMAIL, or for the throwaway user (default SmokePass1)
   SMOKE_TIMEOUT     — per-request timeout seconds (default 60)
   SMOKE_SKIP_ASYNC  — set to 1 to skip async enrich + poll (sync-only)
