@@ -195,11 +195,16 @@ jobs:
 
       # /enrich requires a verified staff user. Self-register leaves
       # is_verified false, so the login cookie alone is 403.
+      # scripts/ is dockerignored, so this runs on the runner against the
+      # published Postgres port instead of inside the API image.
       - name: Seed verified smoke user
+        working-directory: backend
+        env:
+          APP_ENV: development
+          ALLOW_E2E_SUPERUSER_BOOTSTRAP: "1"
+          DATABASE_URL: postgresql+asyncpg://hyrepath:change-me@127.0.0.1:5433/hyrepath
         run: |
-          cd backend/docker && docker compose exec -T \
-            -e ALLOW_E2E_SUPERUSER_BOOTSTRAP=1 \
-            api python /app/backend/scripts/create_test_user.py \
+          .venv/bin/python scripts/create_test_user.py \
             --email smoke-ci@example.com \
             --password SmokePass1 \
             --is-superuser
