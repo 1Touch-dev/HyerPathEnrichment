@@ -179,6 +179,9 @@ jobs:
           # Compose defaults OUTREACH_ENABLED=true and leaves the address empty.
           # Lifespan then exits before /health can answer (CAN-SPAM fail-closed).
           OUTREACH_PHYSICAL_ADDRESS: "123 Main St, Suite 100, San Francisco, CA 94105"
+          # This stack's one worker listens on enrichment. per_tier would
+          # enqueue the smoke job onto tier234, which is not running here.
+          WORKER_QUEUE_MODE: single
 
       - name: Wait for /health
         run: |

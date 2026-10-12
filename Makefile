@@ -56,7 +56,7 @@ up: ## Start documented free Compose stack
 	if [ -z "$$addr" ] && [ -f $(BACKEND_DIR)/.env ]; then \
 	  addr=$$(sed -n 's/^OUTREACH_PHYSICAL_ADDRESS=//p' $(BACKEND_DIR)/.env | head -1); \
 	fi; \
-	cd $(DOCKER_DIR) && OUTREACH_PHYSICAL_ADDRESS="$$addr" DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose up --build -d $(FREE_STACK)
+	cd $(DOCKER_DIR) && OUTREACH_PHYSICAL_ADDRESS="$$addr" WORKER_QUEUE_MODE="$${WORKER_QUEUE_MODE:-single}" DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose up --build -d $(FREE_STACK)
 
 down: ## Stop Compose stack
 	cd $(DOCKER_DIR) && docker compose down
