@@ -176,10 +176,9 @@ jobs:
           make setup && make up
         env:
           POSTGRES_PASSWORD: change-me
-
-      - name: Postgres logs on stack failure
-        if: failure()
-        run: cd backend/docker && docker compose logs postgres || true
+          # Compose defaults OUTREACH_ENABLED=true and leaves the address empty.
+          # Lifespan then exits before /health can answer (CAN-SPAM fail-closed).
+          OUTREACH_PHYSICAL_ADDRESS: "123 Main St, Suite 100, San Francisco, CA 94105"
 
       - name: Wait for /health
         run: |
@@ -193,6 +192,10 @@ jobs:
           done
           echo "API did not become healthy in time"
           exit 1
+
+      - name: Service logs on failure
+        if: failure()
+        run: cd backend/docker && docker compose logs --tail 200 api worker migrate postgres || true
 
       - name: Smoke test
         run: make smoke

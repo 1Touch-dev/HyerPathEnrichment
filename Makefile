@@ -52,7 +52,11 @@ setup: ## Env file + editable backend install (venv; avoids PEP 668)
 	$(BACKEND_DIR)/.venv/bin/pre-commit install --hook-type commit-msg
 
 up: ## Start documented free Compose stack
-	cd $(DOCKER_DIR) && DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose up --build -d $(FREE_STACK)
+	@addr="$${OUTREACH_PHYSICAL_ADDRESS:-}"; \
+	if [ -z "$$addr" ] && [ -f $(BACKEND_DIR)/.env ]; then \
+	  addr=$$(sed -n 's/^OUTREACH_PHYSICAL_ADDRESS=//p' $(BACKEND_DIR)/.env | head -1); \
+	fi; \
+	cd $(DOCKER_DIR) && OUTREACH_PHYSICAL_ADDRESS="$$addr" DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose up --build -d $(FREE_STACK)
 
 down: ## Stop Compose stack
 	cd $(DOCKER_DIR) && docker compose down
