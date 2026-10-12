@@ -55,7 +55,7 @@ dev = [
   "mypy>=1.10,<3.0",
   # Keep CI on the same Ruff release as .pre-commit-config.yaml. An unpinned
   # install resolved to 0.17 and failed on rules that hook does not run.
-  "ruff>=0.11.12,<0.12",
+  "ruff>=0.11.12,<0.18",
   # LinkedIn unit tests import selenium-backed modules at collection time
   "selenium>=4.21,<5.0",
   "requests>=2.31,<3.0",
