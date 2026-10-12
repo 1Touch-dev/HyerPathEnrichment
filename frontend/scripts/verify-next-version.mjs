@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Ensure next is on a patched 14.2.x+ release (see Next.js security advisories).
- * npm audit may still flag next until advisory metadata lists 14.2.35 as fixed.
+ * Ensure next is on a patched 15.5.x release (see Next.js security advisories).
+ * 15.5.27 is the first 15.5 release past the current high/critical ranges.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -12,17 +12,15 @@ const pkg = JSON.parse(readFileSync(join(root, "node_modules/next/package.json")
 const version = pkg.version;
 
 function isPatchedNext(ver) {
-  const parts = ver.split(".").map(Number);
-  const [major, minor, patch] = parts;
-  if (major > 14) return true;
-  if (major < 14) return false;
-  if (minor > 2) return true;
-  if (minor < 2) return false;
-  return patch >= 35;
+  const [major, minor, patch] = ver.split(".").map(Number);
+  if (major !== 15) return false;
+  if (minor > 5) return false;
+  if (minor < 5) return false;
+  return patch >= 27;
 }
 
 if (!isPatchedNext(version)) {
-  console.error(`next must be >= 14.2.35 (installed: ${version})`);
+  console.error(`next must be 15.5.27 or a later 15.5 patch (installed: ${version})`);
   process.exit(1);
 }
 
