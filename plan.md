@@ -1,9 +1,9 @@
 # EC2 Live Preview Deployment Plan
 
-**Status:** Plan only — do **not** implement scripts or run deploys from this document until explicitly asked.
-**Host model:** This EC2 is edit + deploy + git source of truth. Fix here → redeploy here → push `main` from here.
+**Status:** Day-1 implemented on this EC2 (2026-09-24) — deploy scripts live; stack + frontend + health probes green. Multilogin still off.
+**Host model:** This EC2 is **bare metal Linux** (not WSL). Edit + deploy + git source of truth. Fix here → redeploy here → push `main` from here.
 **Branch:** `main` only (no feature branches for this loop).
-**Date captured:** 2026-09-23 (updated same day: soft-env + full env inventory)
+**Date captured:** 2026-09-23 (updated 2026-09-24: bare-metal networking + `.env.production` on this host)
 
 ---
 
@@ -11,27 +11,52 @@
 
 | Item | Decision |
 |------|----------|
-| Machine | This EC2 (live testing / preview environment) |
+| Machine | This EC2 bare-metal Linux (live testing / preview) — public IP `54.87.41.86` |
 | Git flow | Work on `main` → deploy on EC2 → verify → `git push origin main` |
 | Images | Build on this EC2 with `docker compose … --build` (do not rely on GitHub Actions CD for this loop) |
-| Env file | `backend/.env.staging` (mode `600`) — **every key from the master inventory present** |
+| Env file | **`backend/.env.production`** (mode `600`) on this host — same key inventory as §12; `APP_ENV=production`. Keep a copy/symlink as `backend/.env` if compose defaults to it. Soft-env still applies for optional keys. |
+| Frontend env | **`frontend/.env.local`** (mode `600`, never commit) |
 | Git / GitHub | **Never** commit or push `.env`, `.env.local`, `.env.production`, `.env.staging`, or any non-template `.env*` — host-only secrets |
 | Missing / expired keys | **Still deploy.** Report them. Fill later. Do not block the stack for optional/paid/deferred secrets |
-| Day-1 Multilogin | **Off** — no `multilogin`, no `worker-tier1` |
+| Day-1 Multilogin | **Off** — no `multilogin`, no `worker-tier1`; `ENABLE_TIER1=false`, `ENABLE_LINUX_MLX=false` |
 | Day-1 scope | **100% HyrePath frontend** + backend + DB + all Docker profiles/services except Multilogin |
-| Day-1 UIs | HyrePath Next.js app **and** observability profile frontends (Langfuse, GlitchTip, ChangeDetection) all live and proxied |
+| Day-1 UIs | HyrePath Next.js app **and** observability profile frontends (Langfuse, GlitchTip, ChangeDetection) all live |
 | God test user | Seeded in app Postgres with `is_superuser=True` |
 | Schema changes | Alembic `upgrade head` only; never `alembic downgrade` in preview |
 | Volume wipe | Never raw `docker compose down -v`; only via guarded nuclear script |
 
 ---
 
+## 1.1 Bare-metal Docker networking (EC2 Linux)
+
+| Path | Rule |
+|------|------|
+| Container → container | Use **Compose service DNS** (`postgres`, `redis`, `langfuse`, `reacher`, `changedetection`, `glitchtip-web`, …). Never `localhost` inside a container for another service. |
+| Container → host process | `host.docker.internal` via compose `extra_hosts: host-gateway` (`MULTILOGIN_HOST_IP=host-gateway`). |
+| Multilogin day (later) | `network_mode: host` on `multilogin` + `worker-tier1` → use **`127.0.0.1`** (tier-workers overlay already overrides URLs). |
+| Browser → UIs | Public EC2 IP (or future domain) + published host ports / Caddy. |
+| Next.js BFF → API | Same host loopback: `BACKEND_API_URL=http://127.0.0.1:${API_HOST_PORT}` (this host: **8002**). |
+| Host port map (this EC2) | API `8002`, Redis publish `6380`, GlitchTip `8003`, Langfuse `3002`, ChangeDetection `5000`, HyrePath frontend `3000`. |
+
+### Public URL map (this EC2 — until DNS)
+
+| Surface | URL |
+|---------|-----|
+| HyrePath frontend | `http://54.87.41.86:3000` → `FRONTEND_URL` + CORS |
+| API (direct) | `http://54.87.41.86:8002` |
+| Langfuse UI | `http://54.87.41.86:3002` → `LANGFUSE_NEXTAUTH_URL` |
+| GlitchTip UI | `http://54.87.41.86:8003` → `GLITCHTIP_PUBLIC_URL` |
+| ChangeDetection UI | `http://54.87.41.86:5000` → `CHANGEDETECTION_PUBLIC_URL` |
+
+**Cookies / TLS:** `APP_ENV=production` forces `COOKIE_SECURE=true`. Browser login cookies only stick over **HTTPS**. Plain HTTP on the public IP is fine for `/health` and UI smoke; for real auth, put **Caddy + domain (Let's Encrypt)** in front, then flip `FRONTEND_URL` / CORS / obs public URLs to `https://…`.
+
+**Proxy:** `PROXY_MODE=paid` with Oxylabs URL is valid (not the Scrapoxy compose profile). Do not start `--profile paid` scrapoxy unless using Scrapoxy itself.
 ## 2. Soft-env policy (deploy even when keys are missing)
 
 ### Rule
 
 1. **Ship the full stack Day-1** with all containers (except Multilogin / `worker-tier1`).
-2. **`.env.staging` must list every variable** in §12 (master inventory). Empty string or a clear placeholder is allowed for non-boot keys.
+2. **`.env.production` must list every variable** in §12 (master inventory). Empty string or a clear placeholder is allowed for non-boot keys.
 3. **Boot-blocking keys only** stop bring-up (see §12.A). Everything else is reported as `NEED_LATER` / `PLACEHOLDER` / `EXPIRED` / `EMPTY` and you add values over time via `02-redeploy-env.sh`.
 4. **Feature flags stay off** when a feature would fail-fast without secrets (e.g. leave `ENABLE_TIER1=false`, `ENABLE_BILLING=false` until Stripe/Multilogin keys exist). Containers for that feature still run when they are independent (LiteLLM, Langfuse, etc.).
 5. After every full-up / env change, run **`07-env-report.sh`**. It prints which keys are OK, missing, placeholder, or flagged expired — so you know exactly what to add later.
@@ -47,7 +72,7 @@
 | `NEED_LATER` | Required for a feature you want next, currently EMPTY/PLACEHOLDER |
 | `DEFERRED` | Intentionally unused while Multilogin / billing / etc. is off |
 
-Operator marks expired keys in a sidecar file (not secrets): `backend/.env.staging.status` lines like `OPENAI_API_KEY=EXPIRED` or `GITHUB_TOKEN=NEED_LATER`. Report merges file status + value heuristics.
+Operator marks expired keys in a sidecar file (not secrets): `backend/.env.production.status` lines like `OPENAI_API_KEY=EXPIRED` or `GITHUB_TOKEN=NEED_LATER`. Report merges file status + value heuristics.
 
 ### Boot vs later
 
@@ -66,22 +91,22 @@ Sources of truth for the inventory: `backend/app/core/config.py` (Settings alias
 1. Keep a single OS user; delete the unused user.
 2. Install Docker Engine + Compose plugin; add deploy user to `docker` group.
 3. Clone/work in this repo on `main` (path example: `/opt/hyrepath/HyerPathEnrichment` or `/home/<user>/HyerPathEnrichment`).
-4. Build `backend/.env.staging` from the **full key list in §12** (start from `backend/.env.example` + staging overlay values). Mode `600`.
+4. Build `backend/.env.production` from the **full key list in §12** (start from existing secrets + public-IP URL map in §1.1). Mode `600`. Sync to `backend/.env` if needed.
 5. Fill §12.A boot-required keys for real. Leave optional keys empty or `REPLACE_*`; run `07-env-report.sh` and keep the report.
-6. Day-1 flags:
-   - `APP_ENV=staging`
-   - `COOKIE_SECURE=true`
+6. Day-1 flags (this host):
+   - `APP_ENV=production`
+   - `COOKIE_SECURE=true` (browser login needs HTTPS — see §1.1)
    - `ENABLE_TIER1=false`
    - `ENABLE_LINUX_MLX=false`
    - `ENABLE_BILLING=false` until Stripe keys are real
-   - `LLM_MODE=stub` until vendor keys work (containers for litellm/ollama still up)
-   - `PROXY_MODE=none` until Scrapoxy credentials work (scrapoxy container still up)
-   - `EMAIL_ENABLED=false` / `EMAIL_TEST_MODE=true` until SendGrid works
+   - `LLM_MODE=litellm` when Gemini/OpenAI keys exist (else `stub`)
+   - `PROXY_MODE=paid` when Oxylabs (or similar) creds exist; else `none` (do not confuse with Scrapoxy profile)
+   - `EMAIL_ENABLED` / SendGrid per operator secrets
 7. Install Node LTS for the **full** HyrePath frontend (`npm ci`, production `build`, `start` via systemd/pm2 — not `next dev`).
-8. Point reverse proxy (Caddy/nginx) at **all** Day-1 UIs (see §4.1 URL map): HyrePath app, API, Langfuse, GlitchTip, ChangeDetection (and Scrapoxy admin if used).
-9. Create deploy scripts under `backend/scripts/deploy/` (listed below — **not implemented by this plan**).
+8. Point reverse proxy (Caddy/nginx) at **all** Day-1 UIs when a domain exists; until then expose published ports on the public IP (security group must allow 3000/8002/3002/8003/5000 as needed).
+9. Create deploy scripts under `backend/scripts/deploy/` (listed below).
 10. Schedule daily DB backup cron for `10-backup-db.sh`.
-
+11. Frontend `.env.local`: `BACKEND_API_URL=http://127.0.0.1:8002`, `BACKEND_API_TOKEN=<same as API_TOKEN>`, `FRONTEND_USE_MOCKS=false`.
 ---
 
 ## 4. Day-1 compose topology
@@ -179,17 +204,19 @@ Also up with paid/proxy profiles (admin UIs, not HyrePath product):
 
 #### C. Reverse proxy URL map (Day-1)
 
-Bind app ports to `127.0.0.1` only; publish via Caddy/nginx:
+Prefer Caddy/nginx with a real domain + TLS. Until DNS exists, bind published ports and use the **public IP map in §1.1**.
+
+When proxied:
 
 | Public path / host | Upstream |
 |--------------------|----------|
-| `https://<preview>/` (or app host) | `127.0.0.1:3000` — **full HyrePath frontend** |
-| `https://<preview-api>/` or `/api` proxy | `127.0.0.1:8000` — backend |
+| `https://<preview>/` | `127.0.0.1:3000` — **full HyrePath frontend** |
+| `https://<preview-api>/` or `/api` proxy | `127.0.0.1:8002` — backend (this host `API_HOST_PORT`) |
 | `https://langfuse.<preview>/` or `/langfuse` | `127.0.0.1:3002` |
-| `https://glitchtip.<preview>/` or `/glitchtip` | `127.0.0.1:8001` |
+| `https://glitchtip.<preview>/` or `/glitchtip` | `127.0.0.1:8003` |
 | `https://changes.<preview>/` or `/changes` | `127.0.0.1:5000` |
 
-Set `FRONTEND_URL`, `GLITCHTIP_PUBLIC_URL`, `CHANGEDETECTION_PUBLIC_URL`, and Langfuse `NEXTAUTH_URL` (compose) to the **public** URLs you choose so cookies/OAuth redirects work.
+Set `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `GLITCHTIP_PUBLIC_URL`, `CHANGEDETECTION_PUBLIC_URL`, and `LANGFUSE_NEXTAUTH_URL` to the **public** URLs so cookies/OAuth redirects work.
 
 #### D. One-time observability DB + login
 
@@ -212,22 +239,24 @@ docker compose \
   -f docker-compose.foundation.yml \
   -f docker-compose.week2-ai.yml \
   -f docker-compose.tier-workers.yml \
-  --env-file ../.env.staging \
-  --profile paid \
+  --env-file ../.env.production \
   --profile llm \
   --profile observability \
   --profile ollama \
-  --profile scrapoxy \
   up -d --build \
   migrate api redis postgres \
   worker worker-email worker-cleanup worker-tier234 \
   social-analyzer google-maps-scraper email-verifier \
   worker-document worker-embedding worker-job-matching worker-interview-ai \
-  reacher litellm scrapoxy ollama \
+  reacher litellm ollama \
   langfuse changedetection \
   glitchtip-migrate glitchtip-web glitchtip-worker
 ```
 
+Notes for this EC2:
+- Use `--env-file ../.env.production` (not `.env.staging`).
+- Omit `--profile paid` / scrapoxy when `PROXY_MODE=paid` points at Oxylabs directly.
+- Omit Multilogin / `worker-tier1` on Day-1.
 Order: see §4.1 D — backend stack + **full frontend** + **observability UIs** before health.
 
 ---
@@ -236,14 +265,23 @@ Order: see §4.1 D — backend stack + **full frontend** + **observability UIs**
 
 | Field | Value |
 |-------|--------|
-| Email | `god@hyrepath.local` |
+| Email | `god@hyrepath.dev` |
 | Password | `HyrepathGodTest123!` |
 | Flags | `is_verified=True`, `is_active=True`, `is_superuser=True` |
 
-`is_superuser` bypasses all RBAC. Seed via `06-seed-god-user.sh` (do not use `create_test_user.py` under `APP_ENV=staging` — it refuses).
+`is_superuser` bypasses all RBAC. Seed via `06-seed-god-user.sh` (do not use `create_test_user.py` under `APP_ENV=staging|production` — it refuses).
 
-Langfuse / GlitchTip: register the **same** email/password manually (separate auth systems).
+**Email note:** do **not** use `@…local` — Pydantic `EmailStr` rejects reserved TLDs (`validation error` on login).
 
+Langfuse / GlitchTip: same email/password (registered on this host).
+
+### HTTPS on this EC2 (no domain yet)
+
+- Caddy terminates TLS on `:443` with a **self-signed** cert (`/etc/caddy/certs/hyrepath.crt`, SAN=`54.87.41.86`).
+- `:80` redirects to `https://54.87.41.86`.
+- Browser will warn once — click through / advance to the site.
+- `FRONTEND_URL=https://54.87.41.86` + `COOKIE_SECURE=true` so login cookies set with `Secure`.
+- Real domain + Let's Encrypt can replace the self-signed cert later.
 ---
 
 ## 6. Bug-fix loop
@@ -258,7 +296,7 @@ Langfuse / GlitchTip: register the **same** email/password manually (separate au
 
 | Change type | Script |
 |-------------|--------|
-| `.env.staging` only | `02-redeploy-env.sh` then `07-env-report.sh` |
+| `.env.production` only | `02-redeploy-env.sh` then `07-env-report.sh` |
 | App / sidecar code | `03-redeploy-code.sh <services…>` |
 | Compose / Docker config | `04-redeploy-compose.sh` |
 | Enable Multilogin later | `05-deploy-multilogin.sh` |
@@ -269,9 +307,9 @@ Langfuse / GlitchTip: register the **same** email/password manually (separate au
 
 ---
 
-## 7. Script inventory (to implement later — not in this commit)
+## 7. Script inventory
 
-All under `backend/scripts/deploy/`.
+All under `backend/scripts/deploy/` (**implemented**).
 
 | Script | Purpose |
 |--------|---------|
@@ -338,21 +376,23 @@ SAFE STOP: 11-stack-down.sh
 ## 10. Day-1 execution checklist
 
 ```text
-[ ] Single OS user + Docker ready
-[ ] backend/.env.staging contains EVERY key from §12
+[ ] Single OS user + Docker ready (bare-metal EC2)
+[ ] backend/.env.production contains EVERY key from §12 + public-IP URL map (§1.1)
 [ ] §12.A boot-required keys are real (not placeholders)
+[ ] frontend/.env.local: loopback API :8002, mocks false, token matches API_TOKEN
 [ ] 07-env-report.sh run; save/print NEED_LATER + EXPIRED list
-[ ] Scripts under backend/scripts/deploy/ (future task)
-[ ] 01-full-up.sh (includes --profile observability)
+[ ] Scripts under backend/scripts/deploy/
+[ ] 01-full-up.sh (includes --profile observability; --env-file .env.production)
 [ ] Create langfuse + glitchtip databases
 [ ] 06-seed-god-user.sh
 [ ] 08-redeploy-frontend.sh — full Next.js production build of 100% of frontend
 [ ] FRONTEND_USE_MOCKS=false; .env.local never committed
-[ ] Reverse proxy: HyrePath + API + Langfuse + GlitchTip + ChangeDetection
+[ ] Public IP ports or reverse proxy: HyrePath + API + Langfuse + GlitchTip + ChangeDetection
 [ ] Register same email/password in Langfuse + GlitchTip UIs
 [ ] 99-health.sh probes API + HyrePath UI + all three observability UIs
 [ ] Cron for 10-backup-db.sh
 [ ] Smoke HyrePath product doors + observability UIs
+[ ] Domain + Caddy TLS before relying on Secure auth cookies
 [ ] git push origin main after deployed fixes (never push .env*)
 ```
 
@@ -370,7 +410,7 @@ SAFE STOP: 11-stack-down.sh
 
 ## 12. Master environment inventory
 
-**Every key below must appear in `backend/.env.staging` on Day-1.** Values for non-boot keys may be empty or placeholder. `07-env-report.sh` classifies them.
+**Every key below must appear in `backend/.env.production` on Day-1.** Values for non-boot keys may be empty or placeholder. `07-env-report.sh` classifies them.
 
 Compose-only / host-only keys (not always in Settings) are included so nothing is forgotten.
 
@@ -380,10 +420,10 @@ Fail-fast from `validate_production_security_settings` / `validate_env.sh` / out
 
 | Key | Notes |
 |-----|--------|
-| `APP_ENV` | `staging` |
+| `APP_ENV` | `production` on this EC2 |
 | `API_TOKEN` | Non-default, prefer ≥32 chars |
 | `SECRET_KEY` | `openssl rand -hex 32`, ≥32 chars, not `change-me*` |
-| `COOKIE_SECURE` | `true` |
+| `COOKIE_SECURE` | `true` (needs HTTPS for browser cookies — §1.1) |
 | `CHANGEDETECTION_API_KEY` | Required when staging (signals webhook fail-closed) |
 | `POSTGRES_USER` | e.g. `hyrepath` |
 | `POSTGRES_PASSWORD` | Strong, not `change-me` / `password` |
@@ -401,8 +441,8 @@ Fail-fast from `validate_production_security_settings` / `validate_env.sh` / out
 | `API_HOST_PORT` | `8000` |
 | `METRICS_TOKEN` | empty → falls back to `API_TOKEN` |
 | `REDIS_HOST_PORT` | `6379` |
-| `FRONTEND_URL` | preview UI origin |
-| `CORS_ALLOWED_ORIGINS` | empty → uses `FRONTEND_URL` |
+| `FRONTEND_URL` | public UI origin (`http://54.87.41.86:3000` until DNS) |
+| `CORS_ALLOWED_ORIGINS` | include public frontend origin (+ localhost for local checks) |
 | `ENABLE_BRAND_CORS_ORIGINS` | `false` |
 | `COOKIE_DOMAIN` | empty or preview domain |
 | `JWT_ALGORITHM` | `HS256` |
@@ -485,21 +525,22 @@ Fail-fast from `validate_production_security_settings` / `validate_env.sh` / out
 | `VAPID_PUBLIC_KEY` | web push |
 | `VAPID_PRIVATE_KEY` | |
 | `VAPID_SUBJECT` | |
-| `LANGFUSE_HOST` | e.g. `http://langfuse:3000` |
+| `LANGFUSE_HOST` | e.g. `http://langfuse:3000` (in-compose) |
+| `LANGFUSE_NEXTAUTH_URL` | browser Langfuse URL (e.g. `http://54.87.41.86:3002`) |
 | `LANGFUSE_PUBLIC_KEY` | after Langfuse project create |
 | `LANGFUSE_SECRET_KEY` | |
 | `LANGFUSE_DATABASE_URL` | compose default to langfuse DB |
 | `CHANGEDETECTION_URL` | `http://changedetection:5000` |
-| `CHANGEDETECTION_PUBLIC_URL` | |
+| `CHANGEDETECTION_PUBLIC_URL` | browser URL (e.g. `http://54.87.41.86:5000`) |
 | `CHANGEDETECTION_SIGNAL_URL` | |
 | `NOTIFY_WEBHOOK_URL` | outbound signals |
 | `SENTRY_DSN` | GlitchTip/Sentry DSN after bootstrap |
-| `SENTRY_ENVIRONMENT` | `staging` |
+| `SENTRY_ENVIRONMENT` | `production` on this host |
 | `SENTRY_RELEASE` | |
 | `SENTRY_TRACES_SAMPLE_RATE` | `0` |
 | `SENTRY_SEND_DEFAULT_PII` | `false` |
-| `GLITCHTIP_HOST_PORT` | `8001` |
-| `GLITCHTIP_PUBLIC_URL` | |
+| `GLITCHTIP_HOST_PORT` | `8003` on this host |
+| `GLITCHTIP_PUBLIC_URL` | e.g. `http://54.87.41.86:8003` |
 | `GLITCHTIP_SECRET_KEY` | set a real secret |
 | `GLITCHTIP_DATABASE_URL` | compose default |
 | `PROMETHEUS_QUERY_URL` | optional admin health |
@@ -631,7 +672,7 @@ Prefer `/etc/hyrepath/worker.env` at Multilogin day; still list in staging inven
 
 | Key | Notes |
 |-----|--------|
-| `BACKEND_API_URL` | API origin on this EC2 |
+| `BACKEND_API_URL` | Same-host loopback API — `http://127.0.0.1:8002` on this EC2 |
 | `BACKEND_API_TOKEN` | Same as `API_TOKEN` |
 | `BACKEND_FETCH_TIMEOUT_MS` | optional |
 | `FRONTEND_USE_MOCKS` | `false` for live |
@@ -642,8 +683,8 @@ Prefer `/etc/hyrepath/worker.env` at Multilogin day; still list in staging inven
 ### 12.H Adding a key later
 
 ```text
-1. Edit backend/.env.staging (or frontend/.env.local)
-2. Clear EXPIRED/NEED_LATER in .env.staging.status if used
+1. Edit backend/.env.production (or frontend/.env.local)
+2. Clear EXPIRED/NEED_LATER in .env.production.status if used
 3. 02-redeploy-env.sh <affected services>   # or rebuild frontend
 4. 07-env-report.sh   # confirm OK
 5. 99-health.sh

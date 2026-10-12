@@ -119,6 +119,9 @@ services:
       JOB_MATCHING_TOP_N_EXPLANATIONS: ${JOB_MATCHING_TOP_N_EXPLANATIONS:-5}
       JOB_MATCHING_INACTIVE_AFTER_DAYS: ${JOB_MATCHING_INACTIVE_AFTER_DAYS:-14}
       NOTIFY_SMS_ENABLED: ${NOTIFY_SMS_ENABLED:-false}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ops@example.com}
       # Tier 4 job source: jobspy (free scraping) | jsearch (paid RapidAPI, reliable) —
       # this worker calls JobSpyEnricher._scrape directly (scan_jobs_for_candidate), so
       # it needs the same provider settings as api/worker.
