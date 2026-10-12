@@ -183,11 +183,12 @@ def main() -> None:
         fail(f"/api/opt-out expected 202, got {opt_out.status_code}: {opt_out.text[:200]}")
     ok("unauth /api/opt-out → 202")
 
-    # 6. DSAR without a cookie (public compliance route)
+    # 6. DSAR with the login cookie (verified users only)
     dsar_id = f"smoke-dsar-{uuid.uuid4().hex}@example.com"
     try:
         dsar = requests.post(
             f"{BASE_URL}/api/dsar",
+            headers=headers,
             json={"identifier": dsar_id, "request_type": "access"},
             timeout=TIMEOUT,
         )
@@ -198,7 +199,7 @@ def main() -> None:
     dsar_body = unwrap_success(dsar.json(), "/api/dsar")
     if "id" not in dsar_body:
         fail(f"/api/dsar missing id: {dsar_body}")
-    ok("unauth /api/dsar → 201")
+    ok("/api/dsar → 201")
 
     if SKIP_ASYNC:
         print("smoke ok (async skipped)")
