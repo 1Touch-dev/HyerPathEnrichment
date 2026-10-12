@@ -2,7 +2,8 @@
 
 Env:
   BASE_URL          — API root (default http://localhost:8000)
-  API_TOKEN         — Bearer token (default from .env.production if exists, else change-me)
+  SMOKE_EMAIL       — existing account; when unset, the script registers a throwaway user
+  SMOKE_PASSWORD    — password for SMOKE_EMAIL, or for the throwaway user (default SmokePass1)
   SMOKE_TIMEOUT     — per-request timeout seconds (default 60)
   SMOKE_SKIP_ASYNC  — set to 1 to skip async enrich + poll (sync-only)
   SMOKE_PROD        — when set to 1, require explicit BASE_URL (production mode)
@@ -16,7 +17,6 @@ import os
 import sys
 import time
 import uuid
-from pathlib import Path
 
 import requests
 
@@ -29,22 +29,8 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000").rstrip("/")
-
-# Try to load API_TOKEN from .env.production if not provided
-_API_TOKEN_FROM_ENV = os.environ.get("API_TOKEN")
-if not _API_TOKEN_FROM_ENV:
-    # Try loading from .env.production
-    _env_prod_path = Path(__file__).parent.parent / "backend" / ".env.production"
-    if _env_prod_path.exists():
-        try:
-            for line in _env_prod_path.read_text().splitlines():
-                if line.strip().startswith("API_TOKEN="):
-                    _API_TOKEN_FROM_ENV = line.split("=", 1)[1].strip()
-                    break
-        except Exception:  # noqa: S110 - best-effort env file parsing at import time
-            pass
-
-API_TOKEN = _API_TOKEN_FROM_ENV or "change-me"
+SMOKE_EMAIL = os.environ.get("SMOKE_EMAIL", "").strip()
+SMOKE_PASSWORD = os.environ.get("SMOKE_PASSWORD", "SmokePass1")
 TIMEOUT = float(os.environ.get("SMOKE_TIMEOUT", "60"))
 SKIP_ASYNC = os.environ.get("SMOKE_SKIP_ASYNC", "").strip().lower() in {"1", "true", "yes"}
 POLL_INTERVAL = 2.0
@@ -61,8 +47,50 @@ def ok(msg: str) -> None:
     print(f"PASS  {msg}")
 
 
-def auth_headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {API_TOKEN}"}
+def auth_headers(access_token: str) -> dict[str, str]:
+    """Enrichment reads the JWT from the access_token cookie, not a Bearer token."""
+    return {"Cookie": f"access_token={access_token}"}
+
+
+def login_access_token() -> str:
+    """Register a throwaway user when needed, then log in and return the JWT cookie."""
+    email = SMOKE_EMAIL or f"smoke-{uuid.uuid4().hex}@example.com"
+    if not SMOKE_EMAIL:
+        try:
+            registered = requests.post(
+                f"{BASE_URL}/auth/register",
+                json={
+                    "email": email,
+                    "password": SMOKE_PASSWORD,
+                    "first_name": "Smoke",
+                    "last_name": "Test",
+                },
+                timeout=TIMEOUT,
+            )
+        except requests.RequestException as exc:
+            fail(f"/auth/register unreachable: {exc}")
+        if registered.status_code != 201:
+            fail(
+                f"/auth/register expected 201, got {registered.status_code}: "
+                f"{registered.text[:200]}"
+            )
+        ok(f"/auth/register → {email}")
+
+    try:
+        logged_in = requests.post(
+            f"{BASE_URL}/auth/login",
+            json={"email": email, "password": SMOKE_PASSWORD},
+            timeout=TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        fail(f"/auth/login unreachable: {exc}")
+    if logged_in.status_code != 200:
+        fail(f"/auth/login expected 200, got {logged_in.status_code}: {logged_in.text[:200]}")
+    access_token = logged_in.cookies.get("access_token")
+    if not access_token:
+        fail("/auth/login did not set an access_token cookie")
+    ok("/auth/login → cookie")
+    return str(access_token)
 
 
 def unwrap_success(body: object, label: str) -> dict:
@@ -102,6 +130,9 @@ def main() -> None:
         fail(f"/ready unexpected data: {ready_body}")
     ok("/ready")
 
+    access_token = login_access_token()
+    headers = auth_headers(access_token)
+
     # 3. Auth required on enrich
     try:
         unauth = requests.post(
@@ -115,11 +146,11 @@ def main() -> None:
         fail(f"unauth /enrich/sync expected 401, got {unauth.status_code}")
     ok("unauth /enrich/sync → 401")
 
-    # 4. Sync enrich with Bearer
+    # 4. Sync enrich with the login cookie
     try:
         enrich = requests.post(
             f"{BASE_URL}/enrich/sync",
-            headers=auth_headers(),
+            headers=headers,
             json={"username": "smoke-user", "requested_tiers": ["tier2"]},
             timeout=TIMEOUT,
         )
@@ -138,7 +169,7 @@ def main() -> None:
             fail(f"/enrich/sync dossier missing {key!r}")
     ok(f"/enrich/sync → {payload['status']}")
 
-    # 5. Opt-out without Bearer (public compliance route)
+    # 5. Opt-out without a cookie (public compliance route)
     opt_id = f"smoke-optout-{uuid.uuid4().hex}@example.com"
     try:
         opt_out = requests.post(
@@ -152,7 +183,7 @@ def main() -> None:
         fail(f"/api/opt-out expected 202, got {opt_out.status_code}: {opt_out.text[:200]}")
     ok("unauth /api/opt-out → 202")
 
-    # 6. DSAR without Bearer (public compliance route)
+    # 6. DSAR without a cookie (public compliance route)
     dsar_id = f"smoke-dsar-{uuid.uuid4().hex}@example.com"
     try:
         dsar = requests.post(
@@ -177,7 +208,7 @@ def main() -> None:
     try:
         async_resp = requests.post(
             f"{BASE_URL}/enrich",
-            headers={**auth_headers(), "Content-Type": "application/json"},
+            headers={**headers, "Content-Type": "application/json"},
             json={"username": "smoke-async-user", "requested_tiers": ["tier2"]},
             timeout=TIMEOUT,
         )
@@ -197,9 +228,7 @@ def main() -> None:
     final: dict | None = None
     while time.time() < deadline:
         try:
-            poll = requests.get(
-                f"{BASE_URL}/enrich/{job_id}", headers=auth_headers(), timeout=TIMEOUT
-            )
+            poll = requests.get(f"{BASE_URL}/enrich/{job_id}", headers=headers, timeout=TIMEOUT)
         except requests.RequestException as exc:
             fail(f"/enrich/{job_id} poll unreachable: {exc}")
         if poll.status_code != 200:

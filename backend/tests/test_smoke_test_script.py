@@ -11,11 +11,12 @@ import pytest
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "smoke_test.py"
 
 
-def _mock_response(status_code: int, json_data: dict) -> MagicMock:
+def _mock_response(status_code: int, json_data: dict, cookies: dict | None = None) -> MagicMock:
     resp = MagicMock()
     resp.status_code = status_code
     resp.json.return_value = json_data
     resp.text = str(json_data)
+    resp.cookies = cookies or {}
     return resp
 
 
@@ -51,6 +52,10 @@ def test_smoke_async_polls_until_completed(
     smoke = _load_smoke(monkeypatch)
 
     mock_post.side_effect = [
+        _mock_response(201, {"email": "smoke@example.com"}),
+        _mock_response(
+            200, _success({"message": "Login successful"}), cookies={"access_token": "tok"}
+        ),
         _mock_response(401, {}),
         _mock_response(200, _success({"status": "completed", "dossier": _dossier()})),
         _mock_response(202, _success({"status": "accepted"})),
@@ -67,7 +72,7 @@ def test_smoke_async_polls_until_completed(
     with patch.object(smoke.time, "sleep"):
         smoke.main()
 
-    assert mock_post.call_count == 5
+    assert mock_post.call_count == 7
     assert mock_get.call_count == 4
     assert mock_get.call_args_list[-1][0][0].endswith("/enrich/job-123")
 
@@ -86,6 +91,10 @@ def test_smoke_skip_async(
         _mock_response(200, _success({"status": "ready"})),
     ]
     mock_post.side_effect = [
+        _mock_response(201, {"email": "smoke@example.com"}),
+        _mock_response(
+            200, _success({"message": "Login successful"}), cookies={"access_token": "tok"}
+        ),
         _mock_response(401, {}),
         _mock_response(200, _success({"status": "completed", "dossier": _dossier()})),
         _mock_response(202, _success({"status": "accepted"})),
@@ -94,5 +103,5 @@ def test_smoke_skip_async(
 
     smoke.main()
 
-    assert mock_post.call_count == 4
+    assert mock_post.call_count == 6
     assert mock_get.call_count == 2
