@@ -2,7 +2,7 @@
 
 **Branch:** `master-complete-foundation` (this file is committed directly to this branch — no new branch is created, per explicit instruction)
 **Status:** Implementation blueprint — nothing described here exists in code yet unless explicitly marked `EXISTS` with a file citation. Everything else is `NEW`.
-**Governing rule file:** `RULE.md` — every decision below was checked against it; violations are called out explicitly rather than silently made. See §0.
+**Governing rule file:** `RULE.md` — every decision below was checked against it; `violations` are called out explicitly rather than silently made. See §0.
 **Companion document:** `phase2_module1.md` (AI Job Matching & Notifications) — Module 2 **depends on** Module 1's schema (`job_postings`, `job_matches`) for the swipe deck's data source. This is called out explicitly in §4 so the dependency is never missed.
 
 **Purpose of this document:** a single, linear, followable plan such that a developer (or agent) who implements every numbered step in order — backend, database, workers, Docker, tests, frontend — ends with Module 2 ("Tinder-Style Job Board + CV Management") **100% functionally complete**, with automated tests proving it, without needing to consult any other chat, report, or memory. Every file this plan creates or edits is listed by exact path, with full code. Every claim about *why* a design choice was made is evidence-labeled per §1. Every folder, file, function, and dependency — big and small — is explained. If you implement this document line by line, at the end Module 2 is 100% complete, factually and truthfully, with tests proving it.
