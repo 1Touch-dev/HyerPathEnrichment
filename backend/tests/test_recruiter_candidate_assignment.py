@@ -35,11 +35,6 @@ from app.modules.job_matching.models import JobMatch, JobPosting
 from tests.conftest import USING_POSTGRES
 from tests.envelope_helpers import assert_error, assert_success
 
-SQLITE_ROLE_UUID_DASH_BUG_REASON = (
-    "KNOWN BUG (SQLite-only): migration 038 seeds dashed role UUIDs while ORM UUID "
-    "columns store undashed values, so role-permission lookups miss on SQLite TEXT."
-)
-
 # Deliberately reuse conftest.py's default `client` fixture (plain
 # TestClient(app), no lifespan context) -- see test_recruiter_actions.py's own
 # comment for why a locally redefined lifespan-entering `client` fixture is
@@ -260,8 +255,7 @@ async def test_assign_candidate_superuser_bypasses_gate_and_creates_row(
     """`is_superuser` short-circuits `user_has_permission` (Decision 1) without
     touching the role/permission-table lookup -- exercises the real
     `require_permission("recruiter_assignments", "write")` dependency on the
-    router without depending on role-based RBAC storage, which is affected by
-    the known SQLite dash-UUID bug (see the team_owner-role test below)."""
+    router without depending on role-based RBAC storage."""
     response = client.post(
         "/api/recruiter-assignments",
         headers=_auth_headers(str(superuser.id)),
@@ -275,18 +269,15 @@ async def test_assign_candidate_superuser_bypasses_gate_and_creates_row(
     assert {row.candidate_user_id for row in rows} == {candidate.id}
 
 
-@pytest.mark.xfail(
-    condition=not USING_POSTGRES, reason=SQLITE_ROLE_UUID_DASH_BUG_REASON, strict=True
-)
 async def test_assign_candidate_via_team_owner_role_permission_grant(
     client: TestClient, db: AsyncSession, recruiter_a: User, candidate: User
 ) -> None:
-    """The *actual* production path: a user with the seeded `team_owner` role
+    """The production path: a user with the seeded `team_owner` role
     (granted `recruiter_assignments:write` by migration
     056_recruiter_assignments_permission.py) can create an assignment through
-    the real role -> permission lookup, not a superuser bypass. Confirmed
-    against real PostgreSQL (see USING_POSTGRES); xfails on SQLite for the
-    same pre-existing reason test_admin_rbac.py's role-based tests do."""
+    the real role -> permission lookup, not a superuser bypass. SQLite stores
+    seeded role ids with dashes; `user_has_permission` compares them with
+    dashes removed, so this grant resolves on both dialects."""
     from app.modules.admin.models import Role
 
     result = await db.execute(select(Role).where(Role.name == "team_owner"))

@@ -40,10 +40,21 @@ if not USING_POSTGRES:
     # Give every pytest process its own database. A fixed repository path lets
     # concurrent validation runs unlink or migrate the database underneath one
     # another, leaving later tests with partially missing auth tables.
-    _TEST_DB_DIR = tempfile.TemporaryDirectory(prefix=f"hyrepath-pytest-{os.getpid()}-")
-    _TEST_DB = Path(_TEST_DB_DIR.name) / "hyrepath.db"
-    os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_TEST_DB.as_posix()}"
-    print(f"[TEST CONFIG] Using SQLite: {_TEST_DB}")
+    #
+    # Pytest loads this file as the conftest plugin, and several tests also
+    # `import tests.conftest`. Those are different module objects, so this
+    # body runs twice. A second TemporaryDirectory would overwrite
+    # DATABASE_URL after the engine is already bound to the first file;
+    # Alembic would then migrate the second file and every query would hit
+    # an empty schema.
+    _EXISTING_TEST_DB = os.environ.get("DATABASE_URL", "")
+    if "hyrepath-pytest-" in _EXISTING_TEST_DB and _EXISTING_TEST_DB.startswith("sqlite"):
+        _TEST_DB = Path(_EXISTING_TEST_DB.removeprefix("sqlite+aiosqlite:///"))
+    else:
+        _TEST_DB_DIR = tempfile.TemporaryDirectory(prefix=f"hyrepath-pytest-{os.getpid()}-")
+        _TEST_DB = Path(_TEST_DB_DIR.name) / "hyrepath.db"
+        os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_TEST_DB.as_posix()}"
+        print(f"[TEST CONFIG] Using SQLite: {_TEST_DB}")
 else:
     # Use existing PostgreSQL (real infrastructure testing)
     print(f"[TEST CONFIG] Using real PostgreSQL: {_EXISTING_DB_URL[:50]}...")

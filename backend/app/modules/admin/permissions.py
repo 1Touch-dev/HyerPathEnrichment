@@ -57,7 +57,10 @@ async def user_has_permission(db: AsyncSession, user: User, resource: str, actio
             Permission.resource == resource,
             Permission.action == action,
         )
+        .limit(1)
     )
+    # Dash-stripped matching can see both the migration's dashed UUID and an
+    # undashed copy of the same grant. This is an existence check.
     return result.scalar_one_or_none() is not None
 
 
