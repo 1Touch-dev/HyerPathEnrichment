@@ -212,6 +212,7 @@ CD never `git commit` or `git push`. After deploy, the repo stays on **`main`** 
 Same files, profiles, and services as [`01-full-up.sh`](../backend/scripts/deploy/01-full-up.sh) / [`_common.sh`](../backend/scripts/deploy/_common.sh):
 
 - Files: `docker-compose.yml` + `foundation.yml` + `week2-ai.yml` + `tier-workers.yml` + `staging.yml` (last, so `APP_ENV=staging` wins) + `--env-file backend/.env.production`
+- **Day-1 `APP_ENV` is intentionally `staging`:** `backend/.env.production` may still say `APP_ENV=production`, but `docker-compose.staging.yml` is applied last and sets `APP_ENV: staging` on `api` / `worker`. Do **not** “fix” this by removing the staging overlay or reordering files without an ADR — Day-1 preview relies on staging semantics (including billing mock rejection and cookie secure rules for prod-like envs). Go-live switches to `docker-compose.prod.yml` (see below), which sets `APP_ENV=production`.
 - Profiles: `paid`, `llm`, `observability`, `scrapoxy`. Ollama is not started; LLM calls use API keys (`LLM_MODE=litellm`).
 - All `DAY1_SERVICES` (api, workers, sidecars, LLM, observability). **Not** `multilogin` / `worker-tier1`. Do not load `docker-compose.multilogin.yml` or `docker-compose.tier1.yml`.
 - Frontend: full Next.js via [`08-redeploy-frontend.sh`](../backend/scripts/deploy/08-redeploy-frontend.sh) (pm2 `:3000`).
