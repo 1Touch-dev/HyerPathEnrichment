@@ -37,6 +37,8 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_PRICE_ID_PREMIUM: ${STRIPE_PRICE_ID_PREMIUM:-}
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
+      PERPLEXITY_API_BASE: ${PERPLEXITY_API_BASE:-}
     ports: !override
       - "127.0.0.1:8000:8000"
     restart: unless-stopped
@@ -53,6 +55,8 @@ services:
       EMAIL_VERIFIER_URL: http://email-verifier:8080
       SOCIAL_ANALYZER_URL: http://social-analyzer:9005
       GMAPS_SCRAPER_URL: http://google-maps-scraper:8080
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
+      PERPLEXITY_API_BASE: ${PERPLEXITY_API_BASE:-}
     restart: unless-stopped
 
   postgres:

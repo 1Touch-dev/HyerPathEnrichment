@@ -86,6 +86,9 @@ services:
       OUTREACH_PHYSICAL_ADDRESS: ${OUTREACH_PHYSICAL_ADDRESS:-}
       # OpenAI API for embeddings (document search)
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Perplexity Agent API (outreach / resume research); api has no env_file.
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
+      PERPLEXITY_API_BASE: ${PERPLEXITY_API_BASE:-}
       # Admin Module: RBAC, audit log, feature flags, cached aggregates, MFA, impersonation
       ADMIN_AUDIT_LOG_RETENTION_DAYS: ${ADMIN_AUDIT_LOG_RETENTION_DAYS:-1825}
       ADMIN_AGGREGATE_CACHE_TTL_SECONDS: ${ADMIN_AGGREGATE_CACHE_TTL_SECONDS:-300}
@@ -164,6 +167,8 @@ services:
       SENTRY_SEND_DEFAULT_PII: ${SENTRY_SEND_DEFAULT_PII:-false}
       # OpenAI API for embeddings (document search) and feedback generation
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
+      PERPLEXITY_API_BASE: ${PERPLEXITY_API_BASE:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ops@example.com}
