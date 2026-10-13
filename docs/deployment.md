@@ -173,7 +173,7 @@ CD never `git commit` or `git push`. After deploy, the repo stays on **`main`** 
 Same files, profiles, and services as [`01-full-up.sh`](../backend/scripts/deploy/01-full-up.sh) / [`_common.sh`](../backend/scripts/deploy/_common.sh):
 
 - Files: `docker-compose.yml` + `docker-compose.staging.yml` + `foundation.yml` + `week2-ai.yml` + `tier-workers.yml` + `--env-file backend/.env.production`
-- Profiles: `paid`, `llm`, `observability`, `ollama`, `scrapoxy`
+- Profiles: `paid`, `llm`, `observability`, `scrapoxy`. Ollama is not started; LLM calls use API keys (`LLM_MODE=litellm`).
 - All `DAY1_SERVICES` (api, workers, sidecars, LLM, observability). **Not** `multilogin` / `worker-tier1`. Do not load `docker-compose.multilogin.yml` or `docker-compose.tier1.yml`.
 - Frontend: full Next.js via [`08-redeploy-frontend.sh`](../backend/scripts/deploy/08-redeploy-frontend.sh) (pm2 `:3000`).
 - Health: [`99-health.sh`](../backend/scripts/deploy/99-health.sh).

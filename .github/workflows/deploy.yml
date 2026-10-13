@@ -231,7 +231,7 @@ jobs:
           Worker-document:  ${{ steps.meta.outputs.worker_document_image }}:${{ steps.meta.outputs.image_tag }}
           Worker-embedding: ${{ steps.meta.outputs.worker_embedding_image }}:${{ steps.meta.outputs.image_tag }}
           Worker-job-matching: ${{ steps.meta.outputs.worker_job_matching_image }}:${{ steps.meta.outputs.image_tag }}
-          Host compose: Day-1 files + profiles (paid/llm/observability/ollama/scrapoxy)
+          Host compose: Day-1 files + profiles (paid/llm/observability/scrapoxy)
           Skipped: GHCR build/push, SSH deploy
           EOF
 
