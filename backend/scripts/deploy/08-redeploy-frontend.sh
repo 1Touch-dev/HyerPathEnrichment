@@ -31,4 +31,10 @@ else
     -- start
 fi
 pm2 save
+# pm2 restart returns before Next accepts connections — CD health used to
+# FAIL frontend with "Could not connect to 127.0.0.1 port 3000" immediately after.
+FRONTEND_READY_URL="${FRONTEND_READY_URL:-http://127.0.0.1:3000/}"
+FRONTEND_READY_TIMEOUT_S="${FRONTEND_READY_TIMEOUT_S:-60}"
+echo "==> Waiting for frontend on ${FRONTEND_READY_URL} (timeout ${FRONTEND_READY_TIMEOUT_S}s)"
+wait_for_http "$FRONTEND_READY_URL" "$FRONTEND_READY_TIMEOUT_S" 1
 echo "Frontend listening on 127.0.0.1:3000 (publish via SG / Caddy)."
