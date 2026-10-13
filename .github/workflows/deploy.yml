@@ -252,7 +252,6 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
           fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
-          script_stop: true
           envs: DEPLOY_SHA,API_IMAGE,WORKER_IMAGE,WORKER_DOCUMENT_IMAGE,WORKER_EMBEDDING_IMAGE,WORKER_JOB_MATCHING_IMAGE,IMAGE_TAG,GHCR_USER,GHCR_TOKEN,DEPLOY_PATH
           script: |
             set -euo pipefail
