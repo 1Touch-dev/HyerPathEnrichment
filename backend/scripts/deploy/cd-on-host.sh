@@ -83,9 +83,8 @@ git reset --hard "${DEPLOY_SHA}"
 source "$SCRIPT_DIR/_common.sh"
 
 mkdir -p "$DEPLOY_STATE"
-if [[ -f "${DEPLOY_STATE}/current_sha" ]]; then
-  cp "${DEPLOY_STATE}/current_sha" "${DEPLOY_STATE}/previous_sha"
-fi
+acquire_cd_lock "$DEPLOY_STATE"
+# candidate is the in-flight SHA; current_sha advances only after health OK.
 echo "${DEPLOY_SHA}" > "${DEPLOY_STATE}/candidate_sha"
 
 log "Writing ${OVERLAY}"
@@ -152,8 +151,7 @@ log "Ensuring langfuse + glitchtip databases exist"
 PGUSER="$(env_get POSTGRES_USER)"
 PGUSER="${PGUSER:-hyrepath}"
 for db in langfuse glitchtip; do
-  docker exec -i "$cid" psql -U "$PGUSER" -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='${db}'" | grep -q 1 \
-    || docker exec -i "$cid" psql -U "$PGUSER" -d postgres -c "CREATE DATABASE ${db} OWNER ${PGUSER};"
+  ensure_postgres_database "$cid" "$PGUSER" "$db"
 done
 
 log "Starting full Day-1 stack (no-build, no Multilogin)"
@@ -174,12 +172,43 @@ if ! bash "${SCRIPT_DIR}/99-health.sh"; then
   exit 1
 fi
 
-echo "${DEPLOY_SHA}" > "${DEPLOY_STATE}/current_sha"
+# Confirm pinned API image matches the SHA we are about to mark current.
+api_cid="$(compose_cd ps -q api | head -n1 || true)"
+if [[ -z "$api_cid" ]]; then
+  echo "ERROR: api container missing after health; current_sha not advanced" >&2
+  exit 1
+fi
+running_image="$(docker inspect -f '{{.Config.Image}}' "$api_cid")"
+case "$running_image" in
+  *:"${DEPLOY_SHA}"|*:"${IMAGE_TAG}")
+    ;;
+  *)
+    echo "ERROR: running api image '${running_image}' does not match DEPLOY_SHA=${DEPLOY_SHA}; current_sha not advanced" >&2
+    {
+      echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+      echo "SHA=${DEPLOY_SHA}"
+      echo "PREVIOUS=$(cat "${DEPLOY_STATE}/previous_sha" 2>/dev/null || echo none)"
+      echo "RESULT=IMAGE_MISMATCH"
+    } >> "${DEPLOY_STATE}/history.log"
+    exit 1
+    ;;
+esac
+
+if ! record_cd_success "$DEPLOY_STATE" "$DEPLOY_SHA"; then
+  {
+    echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+    echo "SHA=${DEPLOY_SHA}"
+    echo "PREVIOUS=$(cat "${DEPLOY_STATE}/previous_sha" 2>/dev/null || echo none)"
+    echo "RESULT=STATE_REJECT"
+  } >> "${DEPLOY_STATE}/history.log"
+  exit 1
+fi
 {
   echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   echo "SHA=${DEPLOY_SHA}"
   echo "PREVIOUS=$(cat "${DEPLOY_STATE}/previous_sha" 2>/dev/null || echo none)"
   echo "RESULT=SUCCESS"
+  echo "API_IMAGE=${running_image}"
 } >> "${DEPLOY_STATE}/history.log"
 
-log "Deployed ${DEPLOY_SHA} (branch=$(git branch --show-current))"
+log "Deployed ${DEPLOY_SHA} (branch=$(git branch --show-current) image=${running_image})"

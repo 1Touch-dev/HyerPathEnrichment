@@ -8,6 +8,8 @@ source "$SCRIPT_DIR/_common.sh"
 API_PORT="$(api_host_port)"
 GT_PORT="$(glitchtip_host_port)"
 LF_PORT="$(langfuse_host_port)"
+# Frontend may still be warming if called outside 08-redeploy; bounded retry.
+FRONTEND_HEALTH_TIMEOUT_S="${FRONTEND_HEALTH_TIMEOUT_S:-30}"
 fail=0
 
 probe() {
@@ -22,7 +24,12 @@ probe() {
 
 probe "api /health" "http://127.0.0.1:${API_PORT}/health"
 probe "api /ready"  "http://127.0.0.1:${API_PORT}/ready"
-probe "frontend"    "http://127.0.0.1:3000/"
+if wait_for_http "http://127.0.0.1:3000/" "$FRONTEND_HEALTH_TIMEOUT_S" 1; then
+  echo "OK  frontend  http://127.0.0.1:3000/"
+else
+  echo "FAIL frontend  http://127.0.0.1:3000/" >&2
+  fail=1
+fi
 probe "langfuse"    "http://127.0.0.1:${LF_PORT}/"
 probe "glitchtip"   "http://127.0.0.1:${GT_PORT}/"
 probe "changedetection" "http://127.0.0.1:5000/"

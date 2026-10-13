@@ -109,19 +109,42 @@ For the current S3-backed `Dockerfile.multilogin` build, AWS credentials come fr
 
 The Linux MLX path above is the supported operational target. On real Linux, Tier 1 should be treated as unsupported unless `ENABLE_LINUX_MLX=true` / `bash backend/scripts/start_production.sh --with-linux-mlx` selects that full family. This Windows/WSL repo host proves the compose/config/service-health contract for that topology, but a real Linux-host end-to-end Tier 1 validation run is still the final proof step for `worker-tier1 -> multilogin -> LinkedIn`.
 
-## TLS (Caddy example)
+## TLS (Caddy)
 
-Install Caddy on the host. Example `/etc/caddy/Caddyfile`:
+Day-1 host terminates TLS at systemd Caddy (`/etc/caddy/Caddyfile`, **not** in git). Frontend domains reverse-proxy to Next on `127.0.0.1:3000`. The API is published on the host as `API_HOST_PORT` (this EC2: **8002**).
 
-```
-enrich.hyrepath.io {
-    reverse_proxy 127.0.0.1:8000
+### Stripe webhook path (proposed — apply only with approval)
+
+Next.js has no `/api/billing/webhooks/stripe` route. Public POSTs today return **404**. FastAPI serves `POST /api/billing/webhooks/stripe` on the API port and requires a valid `Stripe-Signature` over the **raw body**.
+
+Route **only** that path to the API; keep all other traffic on the frontend:
+
+```caddy
+# Apply on each public site that should accept Stripe webhooks
+# (recommend canonical: https://app.hyerpath.com/api/billing/webhooks/stripe).
+handle /api/billing/webhooks/stripe* {
+	reverse_proxy 127.0.0.1:8002
+}
+handle {
+	reverse_proxy 127.0.0.1:3000
 }
 ```
 
-Caddy obtains Let's Encrypt certificates automatically. For Cloudflare, use DNS challenge or Cloudflare proxy with origin cert.
+Validate before reload:
 
-Frontend (if separate): deploy to Vercel/Cloudflare Pages with `BACKEND_API_URL=https://enrich.hyrepath.io`.
+```bash
+sudo cp -a /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak.$(date -u +%Y%m%dT%H%M%SZ)
+# edit /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+# Expect 400 (signature), not 404:
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST \
+  https://app.hyerpath.com/api/billing/webhooks/stripe
+```
+
+Rollback: restore the `.bak.*` file, `caddy validate`, `systemctl reload caddy`.
+
+Caddy obtains Let's Encrypt certificates automatically. For Cloudflare, use DNS challenge or Cloudflare proxy with origin cert.
 
 R2 CDN: configure custom domain TLS in Cloudflare for the bucket public URL (`R2_PUBLIC_BASE_URL`).
 
@@ -150,11 +173,27 @@ Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml). Hos
 ```text
 push main → CI success (push only) → five :<sha> images → GHCR
   → Environment production → SSH this EC2
-  → refuse dirty/unpushed; skip if .deploy/hold
+  → refuse dirty/unpushed; skip if .deploy/hold; flock .deploy/lock
   → git checkout main && git reset --hard SHA
-  → compose config → pull → Day-1 up → frontend → health
-  → record .deploy/current_sha
+  → write .deploy/candidate_sha (not success yet)
+  → compose config → pull → ensure langfuse/glitchtip DBs (idempotent)
+  → Day-1 up → frontend (bounded wait_for_http) → health
+  → verify running api image tag matches SHA
+  → record .deploy/current_sha (only on full success)
 ```
+
+Host state under `.deploy/`:
+
+| File | Meaning |
+|------|---------|
+| `hold` | Skip CD entirely (exit 0) |
+| `lock` | `flock` — concurrent SSH deploys refuse |
+| `candidate_sha` | In-flight SHA (set before mutate; may remain after failure) |
+| `current_sha` | Last **healthy** release — never written on HEALTH_FAIL |
+| `previous_sha` | Prior `current_sha` (updated only when success advances) |
+| `history.log` | Append-only SUCCESS / HEALTH_FAIL / IMAGE_MISMATCH / STATE_REJECT |
+
+Idempotent DB ensure and readiness helpers live in [`_common.sh`](../backend/scripts/deploy/_common.sh). Host self-check: `bash backend/scripts/deploy/test-cd-reliability.sh`.
 
 | Trigger | Build → GHCR | SSH deploy |
 |---------|--------------|------------|
@@ -172,7 +211,7 @@ CD never `git commit` or `git push`. After deploy, the repo stays on **`main`** 
 
 Same files, profiles, and services as [`01-full-up.sh`](../backend/scripts/deploy/01-full-up.sh) / [`_common.sh`](../backend/scripts/deploy/_common.sh):
 
-- Files: `docker-compose.yml` + `docker-compose.staging.yml` + `foundation.yml` + `week2-ai.yml` + `tier-workers.yml` + `--env-file backend/.env.production`
+- Files: `docker-compose.yml` + `foundation.yml` + `week2-ai.yml` + `tier-workers.yml` + `staging.yml` (last, so `APP_ENV=staging` wins) + `--env-file backend/.env.production`
 - Profiles: `paid`, `llm`, `observability`, `scrapoxy`. Ollama is not started; LLM calls use API keys (`LLM_MODE=litellm`).
 - All `DAY1_SERVICES` (api, workers, sidecars, LLM, observability). **Not** `multilogin` / `worker-tier1`. Do not load `docker-compose.multilogin.yml` or `docker-compose.tier1.yml`.
 - Frontend: full Next.js via [`08-redeploy-frontend.sh`](../backend/scripts/deploy/08-redeploy-frontend.sh) (pm2 `:3000`).
