@@ -6,7 +6,7 @@
 - Notion (HyrePath workspace): [HyrePath Platform — Product Feature Catalog](https://app.notion.com/p/3e31d1b2b75a81bd9c8fc6f1a3224bad) (validated 22 Sep 2026)
 - Notion: [HyrePath Feature Brief](https://app.notion.com/p/3d41d1b2b75a81fd81b1d7f485823d61)
 - Operator phase status export: `hyepath` (2026-10-12)
-- Operator updates (2026-10-14): CI/CD, Google OAuth, Perplexity, Stripe, Multilogin
+- Operator updates (2026-10-14): CI/CD, Google OAuth, Perplexity, Stripe, Multilogin, domain + DNS
 
 **Legend:** ✅ Completed · ⏳ Pending · 🔧 Needs fix · ⚠️ Partial
 
@@ -26,8 +26,8 @@
 | Google verification | ⏳ Pending | OAuth app / brand verification with Google still open |
 | Stripe business verification | ⏳ Pending | Stripe account business verification still open |
 | Multilogin | 🔧 Needs fix | Day-1 leaves Multilogin / `worker-tier1` off; must be fixed before Tier-1 photo path is live |
-| Purchase / configure domain | ⏳ Pending | Target e.g. `enrich.hyrepath.io`; HTTPS / cookies need real DNS |
-| DNS configuration | ⏳ Pending | Point DNS at Elastic IP; Let's Encrypt; update public URLs |
+| Purchase / configure domain | ✅ Completed | Domain purchased and configured |
+| DNS configuration | ✅ Completed | DNS pointed; TLS / public URL cutover done |
 | Live / pilot testing | ⏳ Pending | Full product-door pilot over real HTTPS still open |
 
 ---
@@ -215,9 +215,8 @@
 1. **Google verification** — OAuth integrated; Google’s verification still pending
 2. **Stripe business verification** — Stripe integration done; business verification still pending
 3. **Multilogin** — must be fixed before enabling Tier-1 / LinkedIn photo capture in prod
-4. **Domain + DNS** — real domain, Let's Encrypt, public URL cutover
-5. **Live / pilot testing** — end-to-end pilot over real HTTPS
-6. **Known product gaps** — SMS match digest stub; voice-tone practice signal writer; drag-and-drop kanban / two-way Google Calendar sync are later enhancements
+4. **Live / pilot testing** — end-to-end pilot over real HTTPS
+5. **Known product gaps** — SMS match digest stub; voice-tone practice signal writer; drag-and-drop kanban / two-way Google Calendar sync are later enhancements
 
 ---
 
