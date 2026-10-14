@@ -829,23 +829,26 @@ async def google_callback(
         )
 
     try:
-        google_id, email, profile, access_token, expires_at = await exchange_google_code(
-            settings, code=code
-        )
+        (
+            google_id,
+            email,
+            profile,
+            access_token,
+            google_refresh_token,
+            expires_at,
+        ) = await exchange_google_code(settings, code=code)
         user = await upsert_google_user(
             db,
             google_id=google_id,
             email=email,
             access_token=access_token,
-            refresh_token=None,
+            refresh_token=google_refresh_token,
             expires_at=expires_at,
             profile=profile,
         )
     except Exception as exc:
         logger.exception("Google OAuth callback failed")
-        await log_auth_event(
-            db, "oauth_login", False, ip, user_agent, None, None, str(exc)[:500]
-        )
+        await log_auth_event(db, "oauth_login", False, ip, user_agent, None, None, str(exc)[:500])
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Google OAuth login failed",

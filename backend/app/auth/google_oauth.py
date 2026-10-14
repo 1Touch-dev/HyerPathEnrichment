@@ -161,16 +161,18 @@ async def exchange_google_code(
     settings: Settings,
     *,
     code: str,
-) -> tuple[str, str | None, dict[str, Any], str, int | None]:
+) -> tuple[str, str, dict[str, Any], str, str | None, int | None]:
     """
     Exchange authorization code for tokens + profile.
 
-    Returns (google_id, email, profile, access_token, expires_at).
+    Returns (google_id, email, profile, access_token, refresh_token, expires_at).
     """
     client = _google_client(settings)
     token = await client.get_access_token(code, settings.GOOGLE_OAUTH_REDIRECT_URL)
     access_token = token["access_token"]
     refresh_token = token.get("refresh_token")
+    if refresh_token is not None:
+        refresh_token = str(refresh_token)
     expires_at = token.get("expires_at")
     if isinstance(expires_at, float):
         expires_at = int(expires_at)
@@ -179,7 +181,7 @@ async def exchange_google_code(
     if not email:
         raise ValueError("Google account did not return an email address")
     profile = await client.get_profile(access_token)
-    return google_id, email, profile, access_token, expires_at
+    return google_id, email, profile, access_token, refresh_token, expires_at
 
 
 def oauth_configured(settings: Settings) -> bool:
