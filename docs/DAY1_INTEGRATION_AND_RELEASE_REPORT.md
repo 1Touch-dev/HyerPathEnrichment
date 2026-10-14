@@ -1,8 +1,8 @@
 # Day-1 Integration and Release Report
 
-**Document date:** 2026-10-13  
-**Audience:** operators, engineers, and future agents  
-**Host:** single-host EC2 Day-1 preview (`HyerPathEnrichment`)  
+**Document date:** 2026-10-13
+**Audience:** operators, engineers, and future agents
+**Host:** single-host EC2 Day-1 preview (`HyerPathEnrichment`)
 **Authoritative live release at write time:** `e7cff415b40d4e3ab3bca3dc4ad9c7872fc5b47c`
 
 This report summarizes work completed on **2026-10-12** and **2026-10-13**: domain and DNS cutover, Caddy TLS routing, Perplexity Agent API integration, Stripe test/sandbox billing, and GitHub Actions continuous deployment. It is grounded in repository commits, host state (`.deploy/`, Caddy, compose), and session memory—not aspirational roadmap items.
@@ -143,11 +143,11 @@ Compose now passes `FRONTEND_URL` / `CORS_ALLOWED_ORIGINS` / `COOKIE_DOMAIN` int
 
 Against `https://app.hyerpath.com` with dedicated smoke users:
 
-1. Login → host-only `Secure` / `HttpOnly` cookies  
-2. Settings + `GET /api/billing/subscription`  
-3. `POST /api/billing/checkout-session` → Stripe test Checkout URL  
-4. Entitlement path: test subscription + signed `checkout.session.completed` → `effectiveTier=premium`  
-5. Re-login still premium  
+1. Login → host-only `Secure` / `HttpOnly` cookies
+2. Settings + `GET /api/billing/subscription`
+3. `POST /api/billing/checkout-session` → Stripe test Checkout URL
+4. Entitlement path: test subscription + signed `checkout.session.completed` → `effectiveTier=premium`
+5. Re-login still premium
 6. Cancel/abandon path leaves user free (`incomplete` pre-pay row is expected when checkout creates a Stripe customer)
 
 **Limitation:** headless Playwright could not complete Stripe-hosted Checkout card UI in this environment; entitlement was proven via test-mode Subscription API + public signed webhook. A manual browser Upgrade → `4242` remains optional polish.
@@ -184,7 +184,7 @@ Prior failure on `b3005ef`: `RESULT=HEALTH_FAIL`, no `current_sha`.
 | Ollama on Day-1 | Profile pulled Ollama | Removed from Day-1 profiles/services (`b3005ef`) |
 | Actions warning | Unsupported `script_stop` on ssh-action | Removed (`e7cff41`) |
 
-Host self-check: `bash backend/scripts/deploy/test-cd-reliability.sh` (42 PASS).  
+Host self-check: `bash backend/scripts/deploy/test-cd-reliability.sh` (42 PASS).
 Billing smoke helper: `bash backend/scripts/deploy/phase6-billing-smoke.sh`.
 
 ### Important Day-1 semantics
