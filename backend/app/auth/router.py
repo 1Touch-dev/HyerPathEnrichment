@@ -12,6 +12,13 @@ from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import CurrentUser
+from app.auth.google_oauth import (
+    build_google_authorization_url,
+    exchange_google_code,
+    oauth_configured,
+    upsert_google_user,
+    verify_oauth_state,
+)
 from app.auth.jwt_tokens import PyJWTError, create_user_access_token, decode_access_token
 from app.auth.logged_out_tokens import LoggedOutTokenService
 from app.auth.models import AuthAuditLog, User
@@ -749,3 +756,133 @@ async def resend_verification(
         )
 
     return MessageResponse(message="Verification email sent. Please check your inbox.")
+
+
+@router.get(
+    "/google/authorize",
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
+async def google_authorize() -> dict[str, str]:
+    """
+    Return the Google OAuth authorization URL for the Next.js BFF to redirect to.
+
+    Browser traffic terminates at Next; the BFF must not send users to the
+    loopback API URL.
+    """
+    settings = get_settings()
+    if not oauth_configured(settings):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth is not configured",
+        )
+    authorization_url, _state = await build_google_authorization_url(settings)
+    return {"authorization_url": authorization_url}
+
+
+@router.get(
+    "/google/callback",
+    response_model=LoginResponse,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
+async def google_callback(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db_session),
+    code: Annotated[str | None, Query()] = None,
+    state: Annotated[str | None, Query()] = None,
+    error: Annotated[str | None, Query()] = None,
+) -> LoginResponse:
+    """
+    Exchange Google authorization code for session cookies.
+
+    Called by the Next.js BFF at /callback/google (matches GOOGLE_OAUTH_REDIRECT_URL).
+    """
+    settings = get_settings()
+    ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent")
+
+    if not oauth_configured(settings):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth is not configured",
+        )
+
+    if error:
+        await log_auth_event(
+            db, "oauth_login", False, ip, user_agent, None, None, f"Google error: {error}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Google OAuth failed: {error}",
+        )
+
+    if not code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing OAuth code")
+
+    if not verify_oauth_state(settings.SECRET_KEY, state):
+        await log_auth_event(
+            db, "oauth_login", False, ip, user_agent, None, None, "Invalid OAuth state"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth state",
+        )
+
+    try:
+        google_id, email, profile, access_token, expires_at = await exchange_google_code(
+            settings, code=code
+        )
+        user = await upsert_google_user(
+            db,
+            google_id=google_id,
+            email=email,
+            access_token=access_token,
+            refresh_token=None,
+            expires_at=expires_at,
+            profile=profile,
+        )
+    except Exception as exc:
+        logger.exception("Google OAuth callback failed")
+        await log_auth_event(
+            db, "oauth_login", False, ip, user_agent, None, None, str(exc)[:500]
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google OAuth login failed",
+        ) from exc
+
+    if not user.is_active:
+        await log_auth_event(
+            db, "oauth_login", False, ip, user_agent, user.id, user.email, "Account inactive"
+        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
+
+    access_token_jwt, _jti = create_access_token(str(user.id), user.email)
+    refresh_token_value, _ = await create_refresh_token(db, user.id)
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token_jwt,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        domain=settings.COOKIE_DOMAIN or None,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token_value,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="strict",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        domain=settings.COOKIE_DOMAIN or None,
+        path="/",
+    )
+
+    await log_auth_event(db, "oauth_login", True, ip, user_agent, user.id, user.email)
+    return LoginResponse(
+        user=await serialize_user_identity(db, user),
+        message="Google login successful",
+    )
