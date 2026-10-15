@@ -20,6 +20,8 @@ from app.dependencies.rate_limit import _host_client_id
 from app.main import app
 from tests.envelope_helpers import assert_error
 
+pytestmark = pytest.mark.usefixtures("pin_rate_limit_clock")
+
 
 def _unique_email() -> str:
     return f"ratelimit-{uuid4().hex}@example.com"

@@ -19,6 +19,8 @@ from app.core.config import get_settings
 from app.main import app
 from tests.envelope_helpers import assert_error, assert_success
 
+pytestmark = pytest.mark.usefixtures("pin_rate_limit_clock")
+
 
 @pytest.fixture
 def client() -> TestClient:

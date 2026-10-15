@@ -259,7 +259,9 @@ def test_opt_out_suppresses_enrichment(staff_auth_headers: dict[str, str]) -> No
 
 
 def test_sync_rate_limit_returns_429(
-    monkeypatch: pytest.MonkeyPatch, staff_auth_headers: dict[str, str]
+    monkeypatch: pytest.MonkeyPatch,
+    staff_auth_headers: dict[str, str],
+    pin_rate_limit_clock: None,
 ) -> None:
     from app.core.config import get_settings
 
