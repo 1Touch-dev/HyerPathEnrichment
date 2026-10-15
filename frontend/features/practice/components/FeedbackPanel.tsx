@@ -16,7 +16,11 @@ export function FeedbackPanel({ attempt }: FeedbackPanelProps) {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Score</h3>
         {attempt.aiScore === null ? (
-          <span className="text-sm text-muted-foreground">Pending...</span>
+          attempt.aiFeedback ? (
+            <span className="text-sm text-destructive">Not scored</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">Pending...</span>
+          )
         ) : (
           <span className="text-lg font-semibold text-primary">{attempt.aiScore}</span>
         )}

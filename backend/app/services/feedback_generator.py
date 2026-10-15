@@ -18,6 +18,15 @@ from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 
+# Per-request HTTP budget. `with_transient_retry` retries twice, so one scoring
+# call can occupy about three of these. The RQ job timeout in
+# `workers/queue.py` must be at least that long or slower answers are killed
+# with no score saved.
+FEEDBACK_HTTP_TIMEOUT_SECONDS = 60.0
+
+UNSCORABLE_ANSWER_MESSAGE = "This answer could not be scored because there was no text to evaluate."
+SCORING_FAILED_MESSAGE = "Scoring failed for this answer."
+
 # Heuristic LLM estimate disclaimer — set on every CvImprovementResult so callers
 # never present the ats_score as if it mirrors a real employer's ATS scoring system.
 ATS_SCORE_METHODOLOGY = (
@@ -294,7 +303,7 @@ async def generate_interview_feedback(
     )
 
     # Call OpenAI API with JSON mode
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=FEEDBACK_HTTP_TIMEOUT_SECONDS) as client:
 
         async def _do_post() -> httpx.Response:
             resp = await client.post(

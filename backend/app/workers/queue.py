@@ -247,10 +247,13 @@ def enqueue_feedback(attempt_id: str) -> None:
     Raises:
         Exception: On enqueue failure
     """
+    from app.services.feedback_generator import FEEDBACK_HTTP_TIMEOUT_SECONDS
     from app.workers.tasks.feedback import generate_feedback_job
 
     connection = get_redis_connection()
-    timeout_seconds = 60  # Feedback generation should be fast
+    # Initial call plus two transient retries, plus a small buffer so RQ does
+    # not kill the job (and leave the answer on "Pending...") mid-request.
+    timeout_seconds = int(FEEDBACK_HTTP_TIMEOUT_SECONDS * 3) + 30
 
     try:
         queue = Queue(QUEUE_FEEDBACK, connection=connection)

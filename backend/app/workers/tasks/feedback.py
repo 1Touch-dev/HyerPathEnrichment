@@ -18,7 +18,11 @@ from app.database.session import SyncSessionLocal
 from app.models import InterviewQuestion
 from app.modules.sessions.models import QuestionAttempt
 from app.observability.cost_tracking import track_llm_cost, track_llm_failure
-from app.services.feedback_generator import generate_interview_feedback
+from app.services.feedback_generator import (
+    SCORING_FAILED_MESSAGE,
+    UNSCORABLE_ANSWER_MESSAGE,
+    generate_interview_feedback,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +51,10 @@ def _generate_feedback_sync(attempt_id: str, db: Session) -> None:
     # Validate required fields
     if not attempt.text_response:
         logger.warning(f"No text response for attempt {attempt_id}, skipping feedback")
+        # Leave a terminal message. A null score with no feedback stays
+        # "Pending..." in the client, which keeps polling forever.
+        attempt.ai_feedback = UNSCORABLE_ANSWER_MESSAGE
+        db.commit()
         return
 
     # Look up question text via the real FK (question_attempts.question_id ->
@@ -198,6 +206,8 @@ def generate_feedback_job(attempt_id: str) -> None:
                     updated_metadata = dict(attempt.attempt_metadata or {})
                     updated_metadata["feedback_error"] = str(e)
                     attempt.attempt_metadata = updated_metadata
+                    if attempt.ai_score is None and not attempt.ai_feedback:
+                        attempt.ai_feedback = SCORING_FAILED_MESSAGE
                     db.commit()
             except Exception as update_error:
                 logger.error(
