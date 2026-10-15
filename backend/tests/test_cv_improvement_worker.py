@@ -8,6 +8,7 @@ for assertions without the worker's own teardown disposing the shared test engin
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -18,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.modules.documents.models import CandidateDocument, CvFeedbackReport, DocumentJob
+from app.modules.documents.schemas import JobStatusResponse
 from app.workers.tasks.cv_improvement import (
     _generate_cv_improvement_job,
     generate_cv_improvement_job,
@@ -97,6 +99,40 @@ async def worker_job(
     return job
 
 
+def test_completed_cv_feedback_progress_is_a_valid_status_fraction() -> None:
+    """Bug 2: CV analysis stays on "Analyzing your CV..." when the completed job
+    cannot be returned.
+
+    `cv_improvement` stores progress as a percentage (100.0). `JobStatusResponse`
+    only accepts a 0.0-1.0 fraction, so GET /api/documents/jobs/{id} 500s after
+    the job finishes and the panel never leaves the analyzing state.
+    """
+    response = JobStatusResponse(
+        job_id="job-1",
+        status="completed",
+        progress=100.0,
+        document_id="doc-1",
+        result={"report_id": "report-1"},
+        error=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    assert response.status == "completed"
+    assert response.progress == 1.0
+
+    in_progress = JobStatusResponse(
+        job_id="job-1",
+        status="processing",
+        progress=0.4,
+        document_id="doc-1",
+        result=None,
+        error=None,
+        created_at=response.created_at,
+        updated_at=response.updated_at,
+    )
+    assert in_progress.progress == 0.4
+
+
 async def test_generate_cv_improvement_job_success(
     db: AsyncSession, worker_document: CandidateDocument, worker_job: DocumentJob
 ) -> None:
@@ -137,7 +173,7 @@ async def test_generate_cv_improvement_job_success(
 
     await db.refresh(worker_job)
     assert worker_job.status == "completed"
-    assert worker_job.progress == 100.0
+    assert worker_job.progress == 1.0
     assert worker_job.result == {"report_id": str(report.id)}
 
 

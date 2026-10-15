@@ -63,7 +63,7 @@ async def _generate_cv_improvement_job(
             await session.execute(
                 sa_update(DocumentJob)
                 .where(DocumentJob.id == UUID(job_id))
-                .values(status="completed", progress=100.0, result={"report_id": str(report.id)})
+                .values(status="completed", progress=1.0, result={"report_id": str(report.id)})
             )
             await session.commit()
 

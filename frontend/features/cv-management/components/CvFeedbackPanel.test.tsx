@@ -46,7 +46,7 @@ function rawJobStatus(status: string) {
   return {
     job_id: "job1",
     status,
-    progress: status === "completed" ? 100 : 0,
+    progress: status === "completed" ? 1 : 0,
     document_id: "doc1",
     result: status === "completed" ? { report_id: "r1" } : null,
     error: status === "failed" ? "boom" : null,
