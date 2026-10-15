@@ -22,6 +22,7 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
   const queryClient = useQueryClient();
   const [pendingJobId, setPendingJobId] = useState<string | null>(null);
   const [targetRole, setTargetRole] = useState("");
+  const [failureMessage, setFailureMessage] = useState<string | null>(null);
 
   const { data: report, isLoading } = useCvFeedback(documentId);
   const jobStatus = useCvFeedbackJobStatus(pendingJobId);
@@ -40,8 +41,10 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
     if (!jobStatus.data) return;
     if (jobStatus.data.status === "completed") {
       void queryClient.invalidateQueries({ queryKey: cvManagementKeys.feedback(documentId) });
+      setFailureMessage(null);
       setPendingJobId(null);
     } else if (jobStatus.data.status === "failed") {
+      setFailureMessage(jobStatus.data.error || "CV feedback failed. Please try again.");
       setPendingJobId(null);
     }
   }, [jobStatus.data, queryClient, documentId]);
@@ -65,7 +68,10 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
         <Button
           onClick={() =>
             requestFeedback.mutate(targetRole.trim() || undefined, {
-              onSuccess: (data) => setPendingJobId(data.jobId),
+              onSuccess: (data) => {
+                setFailureMessage(null);
+                setPendingJobId(data.jobId);
+              },
             })
           }
           disabled={requestFeedback.isPending}
@@ -79,6 +85,7 @@ export function CvFeedbackPanel({ documentId }: CvFeedbackPanelProps) {
               : "Couldn't request feedback, please try again."}
           </p>
         ) : null}
+        {failureMessage ? <p className="text-sm text-destructive">{failureMessage}</p> : null}
       </div>
     );
   }
