@@ -6,8 +6,7 @@
  * redirects must use an explicitly configured public origin instead.
  */
 export function getPublicAppOrigin(request?: { nextUrl: { origin: string } }): string {
-  const configured =
-    process.env.APP_PUBLIC_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const configured = process.env.APP_PUBLIC_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
 
   if (configured) {
     let parsed: URL;
@@ -34,10 +33,7 @@ export function getPublicAppOrigin(request?: { nextUrl: { origin: string } }): s
   throw new Error("APP_PUBLIC_URL must be set in production");
 }
 
-export function publicAppUrl(
-  path: string,
-  request?: { nextUrl: { origin: string } },
-): URL {
+export function publicAppUrl(path: string, request?: { nextUrl: { origin: string } }): URL {
   const origin = getPublicAppOrigin(request);
   return new URL(path, origin);
 }

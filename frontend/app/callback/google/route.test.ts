@@ -17,9 +17,7 @@ describe("GET /callback/google", () => {
 
   it("redirects access_denied to the public login origin", async () => {
     const response = await GET(
-      new NextRequest(
-        "https://localhost:3000/callback/google?error=access_denied",
-      ),
+      new NextRequest("https://localhost:3000/callback/google?error=access_denied"),
     );
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
@@ -28,9 +26,7 @@ describe("GET /callback/google", () => {
   });
 
   it("redirects missing code to google_oauth_denied on the public origin", async () => {
-    const response = await GET(
-      new NextRequest("https://localhost:3000/callback/google"),
-    );
+    const response = await GET(new NextRequest("https://localhost:3000/callback/google"));
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
       "https://app.hyerpath.com/login?error=google_oauth_denied",
@@ -48,9 +44,7 @@ describe("GET /callback/google", () => {
     );
 
     const response = await GET(
-      new NextRequest(
-        "https://localhost:3000/callback/google?code=abc&state=1.sig",
-      ),
+      new NextRequest("https://localhost:3000/callback/google?code=abc&state=1.sig"),
     );
 
     expect(response.status).toBe(307);
@@ -60,15 +54,10 @@ describe("GET /callback/google", () => {
   });
 
   it("redirects backend 500 failures to google_oauth_failed on the public origin", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response("boom", { status: 500 })),
-    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("boom", { status: 500 })));
 
     const response = await GET(
-      new NextRequest(
-        "https://localhost:3000/callback/google?code=abc&state=1.sig",
-      ),
+      new NextRequest("https://localhost:3000/callback/google?code=abc&state=1.sig"),
     );
 
     expect(response.headers.get("location")).toBe(
@@ -80,9 +69,7 @@ describe("GET /callback/google", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("timeout")));
 
     const response = await GET(
-      new NextRequest(
-        "https://localhost:3000/callback/google?code=abc&state=1.sig",
-      ),
+      new NextRequest("https://localhost:3000/callback/google?code=abc&state=1.sig"),
     );
 
     expect(response.headers.get("location")).toBe(
@@ -111,15 +98,11 @@ describe("GET /callback/google", () => {
     );
 
     const response = await GET(
-      new NextRequest(
-        "https://localhost:3000/callback/google?code=abc&state=1.sig",
-      ),
+      new NextRequest("https://localhost:3000/callback/google?code=abc&state=1.sig"),
     );
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "https://app.hyerpath.com/app/matches",
-    );
+    expect(response.headers.get("location")).toBe("https://app.hyerpath.com/app/matches");
     expect(response.headers.get("set-cookie")).toContain("access_token=tok");
   });
 
@@ -129,9 +112,7 @@ describe("GET /callback/google", () => {
     vi.stubEnv("NODE_ENV", "development");
 
     const response = await GET(
-      new NextRequest(
-        "http://localhost:3000/callback/google?error=access_denied",
-      ),
+      new NextRequest("http://localhost:3000/callback/google?error=access_denied"),
     );
 
     expect(response.headers.get("location")).toBe(

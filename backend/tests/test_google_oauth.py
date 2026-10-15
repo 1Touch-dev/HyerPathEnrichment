@@ -221,8 +221,10 @@ async def test_upsert_existing_google_user_no_duplicate(db: AsyncSession) -> Non
     )
     assert second.id == first.id
     count = (
-        await db.execute(select(OAuthAccount).where(OAuthAccount.account_id == "g-exist-1"))
-    ).scalars().all()
+        (await db.execute(select(OAuthAccount).where(OAuthAccount.account_id == "g-exist-1")))
+        .scalars()
+        .all()
+    )
     assert len(count) == 1
 
 

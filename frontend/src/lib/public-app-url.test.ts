@@ -9,9 +9,9 @@ describe("getPublicAppOrigin", () => {
   it("prefers APP_PUBLIC_URL over request origin", () => {
     vi.stubEnv("APP_PUBLIC_URL", "https://app.hyerpath.com/");
     vi.stubEnv("NODE_ENV", "production");
-    expect(
-      getPublicAppOrigin({ nextUrl: { origin: "https://localhost:3000" } }),
-    ).toBe("https://app.hyerpath.com");
+    expect(getPublicAppOrigin({ nextUrl: { origin: "https://localhost:3000" } })).toBe(
+      "https://app.hyerpath.com",
+    );
   });
 
   it("falls back to NEXT_PUBLIC_APP_URL when APP_PUBLIC_URL is unset", () => {
@@ -25,18 +25,18 @@ describe("getPublicAppOrigin", () => {
     vi.stubEnv("APP_PUBLIC_URL", "");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
     vi.stubEnv("NODE_ENV", "development");
-    expect(
-      getPublicAppOrigin({ nextUrl: { origin: "http://localhost:3000" } }),
-    ).toBe("http://localhost:3000");
+    expect(getPublicAppOrigin({ nextUrl: { origin: "http://localhost:3000" } })).toBe(
+      "http://localhost:3000",
+    );
   });
 
   it("rejects missing production configuration instead of localhost", () => {
     vi.stubEnv("APP_PUBLIC_URL", "");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
     vi.stubEnv("NODE_ENV", "production");
-    expect(() =>
-      getPublicAppOrigin({ nextUrl: { origin: "https://localhost:3000" } }),
-    ).toThrow(/APP_PUBLIC_URL must be set/);
+    expect(() => getPublicAppOrigin({ nextUrl: { origin: "https://localhost:3000" } })).toThrow(
+      /APP_PUBLIC_URL must be set/,
+    );
   });
 
   it("rejects localhost APP_PUBLIC_URL in production", () => {
