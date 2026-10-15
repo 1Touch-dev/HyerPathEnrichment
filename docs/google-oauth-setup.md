@@ -78,8 +78,13 @@ Add to `frontend/.env.local`:
 
 ```bash
 BACKEND_API_URL=http://localhost:8000
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+# Required in production. Server-side OAuth/billing redirects use this — not request.nextUrl.origin
+# (behind Caddy, Next binds to 127.0.0.1:3000 and origin becomes https://localhost:3000).
+APP_PUBLIC_URL=http://localhost:3000
 ```
+
+Identity is fetched from Google's OpenID userinfo endpoint (`openid` / `email` / `profile`
+scopes). The People API is **not** required and must not be used for login.
 
 ## Step 7: Test OAuth Flow
 

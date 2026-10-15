@@ -6,11 +6,12 @@ import {
   bffServiceUnavailable,
   handleBackendJson,
 } from "@/src/lib/bff-response";
+import { getPublicAppOrigin } from "@/src/lib/public-app-url";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const origin = request.nextUrl.origin;
+  const origin = getPublicAppOrigin(request);
   let body: { successUrl?: string; cancelUrl?: string } = {};
   try {
     body = (await request.json()) as typeof body;
