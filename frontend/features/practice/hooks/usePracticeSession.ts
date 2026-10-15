@@ -5,10 +5,9 @@ import { practiceKeys } from "../api/keys";
 const POLL_INTERVAL_MS = 3000;
 
 /**
- * Polls while any attempt in the session still has a `null` `aiScore` (i.e. its RQ
- * scoring job hasn't finished yet), mirroring `useJobQuery.ts`'s conditional
- * `refetchInterval`-function pattern adapted from "poll until terminal status" to
- * "poll until every attempt has been scored".
+ * Polls while any attempt still has a null score and no feedback. A null score
+ * with feedback is terminal (scoring failed, or there was no text to score),
+ * so those answers must not keep the report on "Pending...".
  */
 export function usePracticeSession(sessionId: string | undefined) {
   return useQuery({
@@ -22,7 +21,11 @@ export function usePracticeSession(sessionId: string | undefined) {
       const session = query.state.data;
       if (!session) return POLL_INTERVAL_MS;
 
-      const hasPendingScore = session.attempts.some((attempt) => attempt.aiScore === null);
+      // A null score with feedback is terminal (scoring failed or there was
+      // nothing to score). Keep polling only while a score is still expected.
+      const hasPendingScore = session.attempts.some(
+        (attempt) => attempt.aiScore === null && !attempt.aiFeedback,
+      );
       return hasPendingScore ? POLL_INTERVAL_MS : false;
     },
   });

@@ -19,6 +19,7 @@ from app.modules.sessions.schemas import (
     SessionResponse,
     SessionUpdateRequest,
 )
+from app.services.feedback_generator import UNSCORABLE_ANSWER_MESSAGE
 from app.workers.queue import enqueue_feedback
 
 logger = logging.getLogger(__name__)
@@ -317,6 +318,14 @@ class SessionManager:
                 self.db, user_id, request.audio_recording_id
             )
 
+        # No text means scoring can never start (failed/empty audio
+        # transcription, or an empty typed answer). Record that on the attempt
+        # now — nothing is enqueued below, so the report would otherwise stay
+        # on "Pending..." forever.
+        ai_feedback = request.ai_feedback
+        if not text_response and ai_feedback is None:
+            ai_feedback = UNSCORABLE_ANSWER_MESSAGE
+
         # Create attempt
         attempt = QuestionAttempt(
             id=uuid4(),
@@ -328,7 +337,7 @@ class SessionManager:
             audio_recording_id=request.audio_recording_id,
             ai_score=request.ai_score,
             score_breakdown=request.score_breakdown,
-            ai_feedback=request.ai_feedback,
+            ai_feedback=ai_feedback,
             time_taken_seconds=request.time_taken_seconds,
             attempted_at=datetime.now(UTC),
         )

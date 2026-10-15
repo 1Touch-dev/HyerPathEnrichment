@@ -9,6 +9,7 @@ longer exist in `app.workers.tasks.feedback`, so it failed to even import.
 
 from __future__ import annotations
 
+import inspect
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -104,6 +105,35 @@ def test_generate_feedback_sync_success(in_memory_db, sample_attempt, mock_feedb
             )
 
 
+def test_enqueue_feedback_timeout_covers_llm_retries(monkeypatch):
+    """Bug 4: some answers stay "Pending..." because the RQ job is killed
+    before scoring finishes.
+
+    generate_interview_feedback waits up to 60s per HTTP call and retries
+    twice. A 60s job timeout kills the slower attempts with no score saved.
+    """
+    captured: dict[str, object] = {}
+
+    class _Queue:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def enqueue(self, *args: object, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+    monkeypatch.setattr("app.workers.queue.Queue", _Queue)
+    monkeypatch.setattr("app.workers.queue.get_redis_connection", lambda: object())
+
+    from app.clients.retry import with_transient_retry
+    from app.services.feedback_generator import FEEDBACK_HTTP_TIMEOUT_SECONDS
+    from app.workers.queue import enqueue_feedback
+
+    enqueue_feedback("attempt-1")
+
+    max_retries = inspect.signature(with_transient_retry).parameters["max_retries"].default
+    assert captured["job_timeout"] >= FEEDBACK_HTTP_TIMEOUT_SECONDS * (max_retries + 1)
+
+
 def test_generate_feedback_sync_no_text_response(in_memory_db, sample_attempt):
     """Empty text response skips feedback generation."""
     sample_attempt.text_response = None
@@ -117,6 +147,10 @@ def test_generate_feedback_sync_no_text_response(in_memory_db, sample_attempt):
 
         # Should not call feedback service
         mock_generate.assert_not_called()
+
+    in_memory_db.refresh(sample_attempt)
+    assert sample_attempt.ai_score is None
+    assert sample_attempt.ai_feedback
 
 
 def test_generate_feedback_sync_invalid_uuid(in_memory_db):
@@ -224,6 +258,10 @@ def test_generate_feedback_job_api_failure_stores_error(sample_attempt):
                 # Verify attempt_metadata was updated with error
                 assert "feedback_error" in sample_attempt.attempt_metadata
                 assert "API Error" in sample_attempt.attempt_metadata["feedback_error"]
+                # The score stays unset, so the client must get a visible terminal
+                # message. Otherwise the report shows "Pending..." forever.
+                assert sample_attempt.ai_score is None
+                assert sample_attempt.ai_feedback
 
                 # DB should commit error and close
                 mock_db.commit.assert_called()

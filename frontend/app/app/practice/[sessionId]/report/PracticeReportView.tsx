@@ -23,11 +23,20 @@ import {
   useAudioStatus,
   usePracticeSession,
 } from "@/features/practice";
-import { PracticeAttempt } from "@/src/lib/types";
+import { PracticeAttempt, PracticeSession } from "@/src/lib/types";
 import { formatApiErrorMessage } from "@/src/lib/format-api-error";
 
 interface PracticeReportViewProps {
   sessionId: string;
+}
+
+function overallScoreLabel(session: PracticeSession): string | number {
+  const stillScoring = session.attempts.some(
+    (attempt) => attempt.aiScore === null && !attempt.aiFeedback,
+  );
+  if (session.attempts.length === 0 || stillScoring) return "Pending...";
+  if (session.overallScore === null) return "Unavailable";
+  return session.overallScore;
 }
 
 function AttemptReportRow({ attempt, index }: { attempt: PracticeAttempt; index: number }) {
@@ -101,7 +110,7 @@ export function PracticeReportView({ sessionId }: PracticeReportViewProps) {
         </ShellPageHeaderContent>
         <ShellPageHeaderActions className="items-start sm:items-center">
           <Badge variant={session.overallScore === null ? "outline" : "success"}>
-            Overall score: {session.overallScore === null ? "Pending..." : session.overallScore}
+            Overall score: {overallScoreLabel(session)}
           </Badge>
           <Link href="/app/practice" className="text-sm font-medium text-primary underline">
             Practice again

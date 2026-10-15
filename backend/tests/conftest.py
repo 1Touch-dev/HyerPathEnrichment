@@ -77,6 +77,17 @@ from tests.migration_helpers import upgrade_head
 get_settings.cache_clear()
 
 
+@pytest.fixture
+def pin_rate_limit_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hold ``check_rate_limit`` inside one window.
+
+    The weighted estimate of a full previous minute can be just under the
+    limit (for example ``3 * 0.9998 < 3``), so a test that crosses a real
+    minute boundary is allowed one extra request and sees 201 instead of 429.
+    """
+    monkeypatch.setattr("app.infrastructure.redis.time.time", lambda: 1_700_000_030.0)
+
+
 @pytest.fixture(autouse=True)
 def _clear_settings_cache() -> None:
     """Ensure env changes/monkeypatches are visible across tests."""

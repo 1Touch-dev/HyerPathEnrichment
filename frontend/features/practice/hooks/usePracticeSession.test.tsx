@@ -86,6 +86,31 @@ describe("usePracticeSession", () => {
     }
   });
 
+  it("stops polling when an unscored attempt already has terminal feedback", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const failed = makeSession([
+        makeAttempt({ aiScore: 9 }),
+        makeAttempt({
+          id: "attempt-2",
+          aiScore: null,
+          aiFeedback: "Scoring failed for this answer.",
+        }),
+      ]);
+      const getSpy = vi
+        .spyOn(apiClient, "getPracticeSession")
+        .mockResolvedValue({ success: true, data: failed });
+
+      renderHook(() => usePracticeSession("session-1"), { wrapper });
+      await waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(getSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("stops polling once every attempt has a non-null aiScore", async () => {
     const session = makeSession([
       makeAttempt({ aiScore: 9 }),

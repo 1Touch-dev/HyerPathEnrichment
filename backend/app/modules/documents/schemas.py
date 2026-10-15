@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class DocumentUploadResponse(BaseModel):
@@ -27,6 +27,21 @@ class JobStatusResponse(BaseModel):
     error: str | None = Field(None, description="Error message if failed")
     created_at: datetime = Field(..., description="Job creation timestamp")
     updated_at: datetime = Field(..., description="Job last update timestamp")
+
+    @field_validator("progress", mode="before")
+    @classmethod
+    def normalize_progress(cls, value: object) -> float:
+        """Accept the 0.0-1.0 fraction this field documents.
+
+        CV feedback jobs used to persist ``100.0`` for completion. That value
+        fails ``le=1.0``, so the status endpoint 500s and the CV panel stays on
+        "Analyzing your CV...". Values above 1 are percentages; scale them back
+        to a fraction. In-range values are unchanged.
+        """
+        number = float(value)  # type: ignore[arg-type]
+        if number > 1.0:
+            number = number / 100.0
+        return max(0.0, min(1.0, number))
 
 
 class SearchRequest(BaseModel):

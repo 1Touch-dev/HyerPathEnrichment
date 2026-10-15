@@ -417,6 +417,7 @@ class TestQuestionAttempts:
             response = await session_manager.add_attempt(sample_session.id, request, test_user_id)
 
         assert response.text_response is None
+        assert response.ai_feedback
         mock_enqueue.assert_not_called()
 
     async def test_add_attempt_updates_session_metrics(

@@ -57,6 +57,7 @@ async def test_rate_limit_error_envelope(
     monkeypatch: pytest.MonkeyPatch,
     db: AsyncSession,
     staff_auth_headers: dict[str, str],
+    pin_rate_limit_clock: None,
 ) -> None:
     from app.core.config import get_settings
     from app.modules.enrichment.models import JobRecord

@@ -46,7 +46,7 @@ function rawJobStatus(status: string) {
   return {
     job_id: "job1",
     status,
-    progress: status === "completed" ? 100 : 0,
+    progress: status === "completed" ? 1 : 0,
     document_id: "doc1",
     result: status === "completed" ? { report_id: "r1" } : null,
     error: status === "failed" ? "boom" : null,
@@ -120,6 +120,23 @@ describe("CvFeedbackPanel", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Get AI feedback" }));
 
     expect(await screen.findByText("75/100")).toBeInTheDocument();
+  });
+
+  it("shows the job error when feedback generation fails", async () => {
+    vi.spyOn(apiClient, "fetchCvFeedback").mockRejectedValue(
+      new ApiError("No feedback report yet", { code: "NOT_FOUND", statusCode: 404 }),
+    );
+    vi.spyOn(apiClient, "requestCvFeedback").mockResolvedValue(envelope({ jobId: "job1" }));
+    vi.spyOn(apiClient, "fetchDocumentJobStatus").mockResolvedValue(
+      envelope(adaptDocumentJobStatus(rawJobStatus("failed"))),
+    );
+
+    render(<CvFeedbackPanel documentId="doc1" />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Get AI feedback" }));
+
+    expect(await screen.findByText("boom")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Get AI feedback" })).toBeInTheDocument();
   });
 
   it("renders score, strengths, and rewritten bullets when a report already exists", async () => {
