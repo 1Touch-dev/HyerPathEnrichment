@@ -800,6 +800,21 @@ async def google_callback(
     settings = get_settings()
     ip = get_client_ip(request)
     user_agent = request.headers.get("User-Agent")
+    correlation_id = (
+        request.headers.get("x-correlation-id")
+        or request.headers.get("x-request-id")
+        or getattr(request.state, "request_id", None)
+        or "unknown"
+    )
+    logger.info(
+        "oauth_callback_received",
+        extra={
+            "correlation_id": correlation_id,
+            "has_code": bool(code),
+            "has_state": bool(state),
+            "provider_error": bool(error),
+        },
+    )
 
     if not oauth_configured(settings):
         raise HTTPException(
@@ -819,6 +834,7 @@ async def google_callback(
     if not code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing OAuth code")
 
+    logger.info("oauth_state_validation", extra={"correlation_id": correlation_id})
     if not verify_oauth_state(settings.SECRET_KEY, state):
         await log_auth_event(
             db, "oauth_login", False, ip, user_agent, None, None, "Invalid OAuth state"
@@ -828,6 +844,7 @@ async def google_callback(
             detail="Invalid or expired OAuth state",
         )
 
+    stage = "oauth_code_exchange_started"
     try:
         (
             google_id,
@@ -837,6 +854,8 @@ async def google_callback(
             google_refresh_token,
             expires_at,
         ) = await exchange_google_code(settings, code=code)
+        stage = "oauth_user_upsert"
+        logger.info("oauth_user_lookup", extra={"correlation_id": correlation_id})
         user = await upsert_google_user(
             db,
             google_id=google_id,
@@ -846,9 +865,27 @@ async def google_callback(
             expires_at=expires_at,
             profile=profile,
         )
+        stage = "oauth_session_created"
     except Exception as exc:
-        logger.exception("Google OAuth callback failed")
-        await log_auth_event(db, "oauth_login", False, ip, user_agent, None, None, str(exc)[:500])
+        # Never log tokens/codes; classify the failure stage only.
+        logger.exception(
+            "Google OAuth callback failed",
+            extra={
+                "correlation_id": correlation_id,
+                "stage": stage,
+                "exception_type": type(exc).__name__,
+            },
+        )
+        await log_auth_event(
+            db,
+            "oauth_login",
+            False,
+            ip,
+            user_agent,
+            None,
+            None,
+            f"{type(exc).__name__}:{stage}:{str(exc)[:180]}",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Google OAuth login failed",
@@ -885,6 +922,10 @@ async def google_callback(
     )
 
     await log_auth_event(db, "oauth_login", True, ip, user_agent, user.id, user.email)
+    logger.info(
+        "oauth_callback_completed",
+        extra={"correlation_id": correlation_id, "user_id": str(user.id)},
+    )
     return LoginResponse(
         user=await serialize_user_identity(db, user),
         message="Google login successful",

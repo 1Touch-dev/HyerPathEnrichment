@@ -8,6 +8,7 @@ import logging
 import time
 from typing import Any
 
+import httpx
 from httpx_oauth.clients.google import GoogleOAuth2
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,8 +18,11 @@ from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 
+# OpenID Connect scopes — match Google userinfo, not People API.
 GOOGLE_SCOPES = ["openid", "email", "profile"]
+GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 OAUTH_STATE_MAX_AGE_SECONDS = 600
+USERINFO_TIMEOUT_SECONDS = 15.0
 
 
 def _google_client(settings: Settings) -> GoogleOAuth2:
@@ -133,6 +137,8 @@ async def upsert_google_user(
         db.add(user)
         await db.flush()
     else:
+        # Existing password account with matching verified Google email:
+        # link the OAuth identity without overwriting the password hash.
         user.is_verified = True
         user.is_active = True
         if not user.oauth_provider:
@@ -157,6 +163,34 @@ async def upsert_google_user(
     return user
 
 
+async def fetch_google_userinfo(access_token: str) -> dict[str, Any]:
+    """
+    Fetch OpenID userinfo with the access token.
+
+    httpx_oauth's GoogleOAuth2.get_id_email/get_profile call the People API
+    (people.googleapis.com), which requires that API to be enabled and does not
+    match our openid/email/profile scopes. Use the OIDC userinfo endpoint instead.
+    """
+    async with httpx.AsyncClient(timeout=USERINFO_TIMEOUT_SECONDS) as client:
+        response = await client.get(
+            GOOGLE_USERINFO_URL,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if response.status_code >= 400:
+        logger.warning(
+            "oauth_google_userinfo_failed",
+            extra={
+                "stage": "oauth_google_identity_verified",
+                "status_code": response.status_code,
+            },
+        )
+        raise ValueError(f"Google userinfo failed with status {response.status_code}")
+    data = response.json()
+    if not isinstance(data, dict):
+        raise ValueError("Google userinfo returned an unexpected payload")
+    return data
+
+
 async def exchange_google_code(
     settings: Settings,
     *,
@@ -168,6 +202,7 @@ async def exchange_google_code(
     Returns (google_id, email, profile, access_token, refresh_token, expires_at).
     """
     client = _google_client(settings)
+    logger.info("oauth_code_exchange_started")
     token = await client.get_access_token(code, settings.GOOGLE_OAUTH_REDIRECT_URL)
     access_token = token["access_token"]
     refresh_token = token.get("refresh_token")
@@ -176,11 +211,19 @@ async def exchange_google_code(
     expires_at = token.get("expires_at")
     if isinstance(expires_at, float):
         expires_at = int(expires_at)
+    logger.info("oauth_code_exchange_completed")
 
-    google_id, email = await client.get_id_email(access_token)
+    profile = await fetch_google_userinfo(access_token)
+    google_id = str(profile.get("sub") or "").strip()
+    email = str(profile.get("email") or "").strip()
+    if not google_id:
+        raise ValueError("Google account did not return a subject id")
     if not email:
         raise ValueError("Google account did not return an email address")
-    profile = await client.get_profile(access_token)
+    if profile.get("email_verified") is False:
+        raise ValueError("Google email is not verified")
+
+    logger.info("oauth_google_identity_verified")
     return google_id, email, profile, access_token, refresh_token, expires_at
 
 
