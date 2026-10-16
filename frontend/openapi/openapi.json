@@ -6933,6 +6933,14 @@
       },
       "PortfolioEducation": {
         "properties": {
+          "activities": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 30,
+            "title": "Activities",
+            "type": "array"
+          },
           "degree": {
             "anyOf": [
               {

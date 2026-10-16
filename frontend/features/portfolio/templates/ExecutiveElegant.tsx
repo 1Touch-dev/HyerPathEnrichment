@@ -203,11 +203,24 @@ export function ExecutiveElegant({ model }: PortfolioTemplateProps) {
               </h2>
               <div className="space-y-4">
                 {content.education.map((ed) => (
-                  <div key={ed.id}>
+                  <div key={ed.id} className="space-y-1">
                     <h3 className="font-semibold">{ed.institution}</h3>
                     <p className="text-sm" style={{ color: "var(--pf-muted)" }}>
-                      {[ed.degree, ed.fieldOfStudy, ed.endYear].filter(Boolean).join(" · ")}
+                      {[ed.degree, ed.fieldOfStudy].filter(Boolean).join(" · ")}
                     </p>
+                    <p className="text-xs" style={{ color: "var(--pf-muted)" }}>
+                      {[ed.startYear, ed.endYear].filter(Boolean).join(" – ")}
+                    </p>
+                    {(ed.activities?.length ?? 0) > 0 && (
+                      <ul
+                        className="mt-1 list-disc space-y-0.5 pl-4 text-xs"
+                        style={{ color: "var(--pf-muted)" }}
+                      >
+                        {ed.activities.map((activity) => (
+                          <li key={activity}>{activity}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
               </div>

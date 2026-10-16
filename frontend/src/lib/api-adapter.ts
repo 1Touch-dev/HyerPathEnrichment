@@ -1418,6 +1418,7 @@ interface RawPortfolioContent {
     start_year?: string | null;
     end_year?: string | null;
     description?: string | null;
+    activities?: string[];
     display_order?: number;
   }>;
   skills?: Array<{
@@ -1751,6 +1752,7 @@ function adaptPortfolioContent(raw?: RawPortfolioContent): PortfolioContent {
       startYear: e.start_year ?? null,
       endYear: e.end_year ?? null,
       description: e.description ?? null,
+      activities: e.activities ?? [],
       displayOrder: e.display_order ?? 0,
     })),
     skills: (raw?.skills ?? []).map((s) => ({
@@ -1854,6 +1856,7 @@ export function toBackendPortfolioContent(content: PortfolioContent) {
       start_year: e.startYear,
       end_year: e.endYear,
       description: e.description,
+      activities: e.activities ?? [],
       display_order: e.displayOrder,
     })),
     skills: content.skills.map((s) => ({

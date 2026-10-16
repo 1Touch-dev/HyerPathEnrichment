@@ -171,11 +171,31 @@ export function MinimalProfessional({ model }: PortfolioTemplateProps) {
                   {[...content.education]
                     .sort((a, b) => a.displayOrder - b.displayOrder)
                     .map((ed) => (
-                      <div key={ed.id}>
-                        <h3 className="font-semibold">{ed.institution}</h3>
+                      <div key={ed.id} className="space-y-1">
+                        <div className="flex flex-wrap justify-between gap-2">
+                          <h3 className="font-semibold">{ed.institution}</h3>
+                          <span className="text-sm" style={{ color: "var(--pf-muted)" }}>
+                            {[ed.startYear, ed.endYear].filter(Boolean).join(" – ")}
+                          </span>
+                        </div>
                         <p className="text-sm" style={{ color: "var(--pf-muted)" }}>
-                          {[ed.degree, ed.fieldOfStudy, ed.endYear].filter(Boolean).join(" · ")}
+                          {[ed.degree, ed.fieldOfStudy].filter(Boolean).join(" · ")}
                         </p>
+                        {ed.description && (
+                          <p className="text-sm leading-6" style={{ color: "var(--pf-muted)" }}>
+                            {ed.description}
+                          </p>
+                        )}
+                        {(ed.activities?.length ?? 0) > 0 && (
+                          <ul
+                            className="list-disc space-y-1 pl-5 text-sm"
+                            style={{ color: "var(--pf-muted)" }}
+                          >
+                            {ed.activities.map((activity) => (
+                              <li key={activity}>{activity}</li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     ))}
                 </section>

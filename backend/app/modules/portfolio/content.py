@@ -111,7 +111,14 @@ class PortfolioEducation(BaseModel):
     start_year: str | None = Field(default=None, max_length=16)
     end_year: str | None = Field(default=None, max_length=16)
     description: str | None = Field(default=None, max_length=2000)
+    activities: list[str] = Field(default_factory=list, max_length=30)
     display_order: int = 0
+
+    @field_validator("activities")
+    @classmethod
+    def _trim_activities(cls, value: list[str]) -> list[str]:
+        cleaned = [a.strip()[:255] for a in value if a and a.strip()]
+        return cleaned[:30]
 
 
 class PortfolioSkill(BaseModel):

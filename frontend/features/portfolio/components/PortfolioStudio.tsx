@@ -12,8 +12,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   PortfolioContent,
+  PortfolioEducation,
+  PortfolioExperience,
   PortfolioProject,
   PortfolioSectionKey,
+  PortfolioSkill,
   PortfolioTemplateId,
   PortfolioThemeConfig,
 } from "@/src/lib/types";
@@ -183,6 +186,78 @@ export function PortfolioStudio() {
 
   function removeProject(id: string) {
     patchContent({ projects: content.projects.filter((p) => p.id !== id) });
+  }
+
+  function addExperience() {
+    const entry: PortfolioExperience = {
+      id: newEntityId(),
+      company: "Company",
+      title: "Role / title",
+      location: null,
+      startDate: "",
+      endDate: null,
+      isCurrent: false,
+      description: "",
+      achievements: [],
+      displayOrder: content.experience.length,
+    };
+    patchContent({ experience: [...content.experience, entry] });
+  }
+
+  function updateExperience(id: string, patch: Partial<PortfolioExperience>) {
+    patchContent({
+      experience: content.experience.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    });
+  }
+
+  function removeExperience(id: string) {
+    patchContent({ experience: content.experience.filter((e) => e.id !== id) });
+  }
+
+  function addEducation() {
+    const entry: PortfolioEducation = {
+      id: newEntityId(),
+      institution: "Institution",
+      degree: null,
+      fieldOfStudy: null,
+      startYear: "",
+      endYear: null,
+      description: null,
+      activities: [],
+      displayOrder: content.education.length,
+    };
+    patchContent({ education: [...content.education, entry] });
+  }
+
+  function updateEducation(id: string, patch: Partial<PortfolioEducation>) {
+    patchContent({
+      education: content.education.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    });
+  }
+
+  function removeEducation(id: string) {
+    patchContent({ education: content.education.filter((e) => e.id !== id) });
+  }
+
+  function addSkill() {
+    const skill: PortfolioSkill = {
+      id: newEntityId(),
+      name: "New skill",
+      category: null,
+      level: null,
+      displayOrder: content.skills.length,
+    };
+    patchContent({ skills: [...content.skills, skill] });
+  }
+
+  function updateSkill(id: string, patch: Partial<PortfolioSkill>) {
+    patchContent({
+      skills: content.skills.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    });
+  }
+
+  function removeSkill(id: string) {
+    patchContent({ skills: content.skills.filter((s) => s.id !== id) });
   }
 
   if (isLoading) {
@@ -411,105 +486,315 @@ export function PortfolioStudio() {
           </section>
 
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Skills</h3>
-            <Textarea
-              value={content.skills.map((s) => s.name).join(", ")}
-              onChange={(e) =>
-                patchContent({
-                  skills: e.target.value
-                    .split(",")
-                    .map((name) => name.trim())
-                    .filter(Boolean)
-                    .map((name, idx) => ({
-                      id: content.skills[idx]?.id || newEntityId(),
-                      name,
-                      category: null,
-                      level: null,
-                      displayOrder: idx,
-                    })),
-                })
-              }
-              placeholder="Python, FastAPI, React…"
-              rows={2}
-            />
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Experience</h3>
+              <Button type="button" size="sm" variant="outline" onClick={addExperience}>
+                Add experience
+              </Button>
+            </div>
+            {content.experience.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
+                No experience yet. Add a box for each role with company, duration, and details.
+              </p>
+            )}
+            <div className="space-y-4">
+              {content.experience.map((job) => (
+                <div key={job.id} className="space-y-3 rounded-xl border border-border/70 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="grid flex-1 gap-2 sm:grid-cols-2">
+                      <div>
+                        <Label htmlFor={`exp-company-${job.id}`}>Company</Label>
+                        <Input
+                          id={`exp-company-${job.id}`}
+                          value={job.company}
+                          onChange={(e) => updateExperience(job.id, { company: e.target.value })}
+                          placeholder="Company name"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`exp-title-${job.id}`}>Role / title</Label>
+                        <Input
+                          id={`exp-title-${job.id}`}
+                          value={job.title}
+                          onChange={(e) => updateExperience(job.id, { title: e.target.value })}
+                          placeholder="Job title"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Remove experience"
+                      onClick={() => removeExperience(job.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div>
+                      <Label htmlFor={`exp-start-${job.id}`}>Start</Label>
+                      <Input
+                        id={`exp-start-${job.id}`}
+                        value={job.startDate ?? ""}
+                        onChange={(e) =>
+                          updateExperience(job.id, { startDate: e.target.value || null })
+                        }
+                        placeholder="Jan 2022"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`exp-end-${job.id}`}>End</Label>
+                      <Input
+                        id={`exp-end-${job.id}`}
+                        value={job.isCurrent ? "Present" : (job.endDate ?? "")}
+                        onChange={(e) =>
+                          updateExperience(job.id, {
+                            endDate: e.target.value || null,
+                            isCurrent: false,
+                          })
+                        }
+                        placeholder="Dec 2024"
+                        disabled={job.isCurrent}
+                      />
+                    </div>
+                    <div className="flex items-end justify-between gap-2 rounded-lg border border-border/60 px-3 py-2">
+                      <Label htmlFor={`exp-current-${job.id}`}>Current role</Label>
+                      <Switch
+                        id={`exp-current-${job.id}`}
+                        checked={job.isCurrent}
+                        onCheckedChange={(checked) =>
+                          updateExperience(job.id, {
+                            isCurrent: checked,
+                            endDate: checked ? null : job.endDate,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor={`exp-location-${job.id}`}>Location (optional)</Label>
+                    <Input
+                      id={`exp-location-${job.id}`}
+                      value={job.location ?? ""}
+                      onChange={(e) =>
+                        updateExperience(job.id, { location: e.target.value || null })
+                      }
+                      placeholder="City, Country / Remote"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`exp-desc-${job.id}`}>What you did</Label>
+                    <Textarea
+                      id={`exp-desc-${job.id}`}
+                      value={job.description ?? ""}
+                      onChange={(e) =>
+                        updateExperience(job.id, { description: e.target.value || null })
+                      }
+                      placeholder="Describe your role, impact, and responsibilities…"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`exp-achievements-${job.id}`}>
+                      Achievements (one per line, optional)
+                    </Label>
+                    <Textarea
+                      id={`exp-achievements-${job.id}`}
+                      value={job.achievements.join("\n")}
+                      onChange={(e) =>
+                        updateExperience(job.id, {
+                          achievements: e.target.value
+                            .split("\n")
+                            .map((line) => line.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      placeholder={"Grew conversion 20%\nLed a team of 4"}
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
 
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold">
-              Experience (one per line: Title | Company | Dates)
-            </h3>
-            <Textarea
-              value={content.experience
-                .map((e) =>
-                  [
-                    e.title,
-                    e.company,
-                    [e.startDate, e.isCurrent ? "Present" : e.endDate].filter(Boolean).join("-"),
-                  ].join(" | "),
-                )
-                .join("\n")}
-              onChange={(e) => {
-                const lines = e.target.value
-                  .split("\n")
-                  .map((l) => l.trim())
-                  .filter(Boolean);
-                patchContent({
-                  experience: lines.map((line, idx) => {
-                    const [title, company, dates] = line.split("|").map((p) => p.trim());
-                    const [startDate, endDate] = (dates || "").split("-").map((p) => p.trim());
-                    const existing = content.experience[idx];
-                    return {
-                      id: existing?.id || newEntityId(),
-                      title: title || "Role",
-                      company: company || "Company",
-                      location: existing?.location ?? null,
-                      startDate: startDate || null,
-                      endDate: endDate && endDate.toLowerCase() !== "present" ? endDate : null,
-                      isCurrent: (endDate || "").toLowerCase() === "present",
-                      description: existing?.description ?? null,
-                      achievements: existing?.achievements ?? [],
-                      displayOrder: idx,
-                    };
-                  }),
-                });
-              }}
-              rows={4}
-              placeholder={"Backend Engineer | Acme | 2022-Present"}
-            />
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Education</h3>
+              <Button type="button" size="sm" variant="outline" onClick={addEducation}>
+                Add education
+              </Button>
+            </div>
+            {content.education.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
+                No education yet. Add a box for each school with duration, studies, and activities.
+              </p>
+            )}
+            <div className="space-y-4">
+              {content.education.map((ed) => (
+                <div key={ed.id} className="space-y-3 rounded-xl border border-border/70 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <Label htmlFor={`edu-inst-${ed.id}`}>Institute / school</Label>
+                      <Input
+                        id={`edu-inst-${ed.id}`}
+                        value={ed.institution}
+                        onChange={(e) => updateEducation(ed.id, { institution: e.target.value })}
+                        placeholder="University or school name"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Remove education"
+                      onClick={() => removeEducation(ed.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor={`edu-start-${ed.id}`}>Start year</Label>
+                      <Input
+                        id={`edu-start-${ed.id}`}
+                        value={ed.startYear ?? ""}
+                        onChange={(e) =>
+                          updateEducation(ed.id, { startYear: e.target.value || null })
+                        }
+                        placeholder="2019"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`edu-end-${ed.id}`}>End year</Label>
+                      <Input
+                        id={`edu-end-${ed.id}`}
+                        value={ed.endYear ?? ""}
+                        onChange={(e) =>
+                          updateEducation(ed.id, { endYear: e.target.value || null })
+                        }
+                        placeholder="2023"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor={`edu-degree-${ed.id}`}>Degree</Label>
+                      <Input
+                        id={`edu-degree-${ed.id}`}
+                        value={ed.degree ?? ""}
+                        onChange={(e) => updateEducation(ed.id, { degree: e.target.value || null })}
+                        placeholder="B.Sc, M.A, Diploma…"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`edu-field-${ed.id}`}>What you studied</Label>
+                      <Input
+                        id={`edu-field-${ed.id}`}
+                        value={ed.fieldOfStudy ?? ""}
+                        onChange={(e) =>
+                          updateEducation(ed.id, { fieldOfStudy: e.target.value || null })
+                        }
+                        placeholder="Computer Science, Design…"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor={`edu-desc-${ed.id}`}>Notes (optional)</Label>
+                    <Textarea
+                      id={`edu-desc-${ed.id}`}
+                      value={ed.description ?? ""}
+                      onChange={(e) =>
+                        updateEducation(ed.id, { description: e.target.value || null })
+                      }
+                      placeholder="Thesis, focus area, honors…"
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`edu-activities-${ed.id}`}>
+                      Activities you participated in (one per line)
+                    </Label>
+                    <Textarea
+                      id={`edu-activities-${ed.id}`}
+                      value={(ed.activities ?? []).join("\n")}
+                      onChange={(e) =>
+                        updateEducation(ed.id, {
+                          activities: e.target.value
+                            .split("\n")
+                            .map((line) => line.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      placeholder={"Student council\nDebate club\nHackathon organizer"}
+                      rows={3}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
 
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold">
-              Education (one per line: Institution | Degree | Year)
-            </h3>
-            <Textarea
-              value={content.education
-                .map((ed) => [ed.institution, ed.degree, ed.endYear].filter(Boolean).join(" | "))
-                .join("\n")}
-              onChange={(e) => {
-                const lines = e.target.value
-                  .split("\n")
-                  .map((l) => l.trim())
-                  .filter(Boolean);
-                patchContent({
-                  education: lines.map((line, idx) => {
-                    const [institution, degree, endYear] = line.split("|").map((p) => p.trim());
-                    const existing = content.education[idx];
-                    return {
-                      id: existing?.id || newEntityId(),
-                      institution: institution || "Institution",
-                      degree: degree || null,
-                      fieldOfStudy: existing?.fieldOfStudy ?? null,
-                      startYear: existing?.startYear ?? null,
-                      endYear: endYear || null,
-                      description: existing?.description ?? null,
-                      displayOrder: idx,
-                    };
-                  }),
-                });
-              }}
-              rows={3}
-            />
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Skills</h3>
+              <Button type="button" size="sm" variant="outline" onClick={addSkill}>
+                Add skill
+              </Button>
+            </div>
+            {content.skills.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
+                No skills yet. Add a box for each skill, optionally with category and level.
+              </p>
+            )}
+            <div className="space-y-3">
+              {content.skills.map((skill) => (
+                <div
+                  key={skill.id}
+                  className="grid gap-2 rounded-xl border border-border/70 p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
+                >
+                  <div>
+                    <Label htmlFor={`skill-name-${skill.id}`}>Skill</Label>
+                    <Input
+                      id={`skill-name-${skill.id}`}
+                      value={skill.name}
+                      onChange={(e) => updateSkill(skill.id, { name: e.target.value })}
+                      placeholder="Python"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`skill-cat-${skill.id}`}>Category</Label>
+                    <Input
+                      id={`skill-cat-${skill.id}`}
+                      value={skill.category ?? ""}
+                      onChange={(e) => updateSkill(skill.id, { category: e.target.value || null })}
+                      placeholder="Backend, Design…"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`skill-level-${skill.id}`}>Level</Label>
+                    <Input
+                      id={`skill-level-${skill.id}`}
+                      value={skill.level ?? ""}
+                      onChange={(e) => updateSkill(skill.id, { level: e.target.value || null })}
+                      placeholder="Expert, Intermediate…"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Remove skill"
+                      onClick={() => removeSkill(skill.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
 
           <section className="space-y-3">
