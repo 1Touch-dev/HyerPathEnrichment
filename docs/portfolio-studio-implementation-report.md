@@ -1,7 +1,7 @@
 # Portfolio Studio Implementation Report
 
-**Branch:** `feature/portfolio-studio`  
-**Date:** 2026-10-16  
+**Branch:** `feature/portfolio-studio`
+**Date:** 2026-10-16
 **Status:** Production-ready enhancement of the existing portfolio feature
 
 ## Summary
@@ -44,11 +44,11 @@ Portfolio content + theme + template_id
 
 ## Templates
 
-1. **Minimal Professional** — whitespace, uppercase section labels, elegant cards  
-2. **Creative Showcase** — gradient hero, image-forward project grid  
-3. **Developer Dark** — sidebar + monospace accents, stack badges, repo links  
-4. **Executive Elegant** — navy timeline experience, credentials sidebar  
-5. **Personal Story** — editorial journey / milestones narrative  
+1. **Minimal Professional** — whitespace, uppercase section labels, elegant cards
+2. **Creative Showcase** — gradient hero, image-forward project grid
+3. **Developer Dark** — sidebar + monospace accents, stack badges, repo links
+4. **Executive Elegant** — navy timeline experience, credentials sidebar
+5. **Personal Story** — editorial journey / milestones narrative
 
 Switching templates never mutates content; only `templateId` / theme defaults change.
 
@@ -79,9 +79,9 @@ Switching templates never mutates content; only `templateId` / theme defaults ch
 
 ## Changed files (high level)
 
-- Backend: portfolio module + Alembic `067` + studio tests + head pointer updates  
-- Frontend: Studio UI, 5 templates, renderer, types/adapters/BFF/hooks, OpenAPI regen  
-- Docs: this report  
+- Backend: portfolio module + Alembic `067` + studio tests + head pointer updates
+- Frontend: Studio UI, 5 templates, renderer, types/adapters/BFF/hooks, OpenAPI regen
+- Docs: this report
 
 ## Remaining limitations
 
@@ -92,7 +92,7 @@ Switching templates never mutates content; only `templateId` / theme defaults ch
 
 ## Deployment requirements
 
-1. Run Alembic to head (`067_portfolio_studio`) as part of normal migrate job.  
-2. Deploy API + frontend together (OpenAPI/BFF fields are additive).  
-3. No new env vars required; `PORTFOLIO_PUBLIC_BASE_URL` unchanged.  
+1. Run Alembic to head (`067_portfolio_studio`) as part of normal migrate job.
+2. Deploy API + frontend together (OpenAPI/BFF fields are additive).
+3. No new env vars required; `PORTFOLIO_PUBLIC_BASE_URL` unchanged.
 4. No feature flag — additive enhancement; unpublished portfolios remain private.
