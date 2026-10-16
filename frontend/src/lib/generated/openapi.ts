@@ -5743,6 +5743,8 @@ export interface components {
         };
         /** PortfolioEducation */
         PortfolioEducation: {
+            /** Activities */
+            activities?: string[];
             /** Degree */
             degree?: string | null;
             /** Description */

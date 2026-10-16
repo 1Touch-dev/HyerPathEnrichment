@@ -1074,6 +1074,7 @@ export interface PortfolioEducation {
   startYear: string | null;
   endYear: string | null;
   description: string | null;
+  activities: string[];
   displayOrder: number;
 }
 

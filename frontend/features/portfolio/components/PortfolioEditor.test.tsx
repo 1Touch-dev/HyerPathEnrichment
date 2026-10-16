@@ -168,4 +168,15 @@ describe("PortfolioEditor (Portfolio Studio)", () => {
     fireEvent.click(screen.getAllByText("Add project")[0]);
     expect(screen.getAllByDisplayValue("New project").length).toBeGreaterThan(0);
   });
+
+  it("adds experience, education, and skill boxes", () => {
+    mockUsePortfolioProfile({ data: sampleProfile, isLoading: false });
+    render(<PortfolioEditor />, { wrapper });
+    fireEvent.click(screen.getAllByText("Add experience")[0]);
+    expect(screen.getAllByDisplayValue("Company").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByText("Add education")[0]);
+    expect(screen.getAllByDisplayValue("Institution").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByText("Add skill")[0]);
+    expect(screen.getAllByDisplayValue("New skill").length).toBeGreaterThan(0);
+  });
 });
