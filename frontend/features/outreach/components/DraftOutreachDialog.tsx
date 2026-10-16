@@ -278,7 +278,7 @@ export function DraftOutreachDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] gap-0 overflow-hidden border-border/70 p-0 sm:max-w-lg">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden border-border/70 p-0 sm:max-w-lg">
         <div className="shrink-0 border-b border-border/60 bg-primary-soft/50 px-6 py-5">
           <DialogHeader className="space-y-2 text-left">
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-primary">
@@ -294,7 +294,7 @@ export function DraftOutreachDialog({
           </DialogHeader>
         </div>
 
-        <div className="max-h-[min(60vh,28rem)] space-y-4 overflow-y-auto bg-card px-6 py-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-card px-6 py-5">
           {!initialCompanyName ? (
             <div className="space-y-2">
               <Label htmlFor="draft-outreach-company">Company</Label>
