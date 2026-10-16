@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { GET } from "./route";
 import { backendFetchPublic } from "@/src/lib/backend-client";
 import { successEnvelope, errorEnvelope } from "@/src/lib/api-envelope";
+import { adaptPublicPortfolioProfile } from "@/src/lib/api-adapter";
 
 vi.mock("@/src/lib/backend-client", () => ({
   backendFetch: vi.fn(),
@@ -29,7 +30,7 @@ describe("GET /api/portfolio/public/[slug]", () => {
       items: [
         {
           item_id: "item-1",
-          item_type: "live_demo",
+          item_type: "live_demo" as const,
           title: "Demo",
           description: null,
           url: "https://x.com",
@@ -44,22 +45,7 @@ describe("GET /api/portfolio/public/[slug]", () => {
     expect(backendFetchPublic).toHaveBeenCalledWith("/api/portfolio/public/jane-doe");
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.data).toEqual({
-      slug: "jane-doe",
-      displayName: "Jane Doe",
-      headline: "Engineer",
-      summary: "A bio",
-      items: [
-        {
-          itemId: "item-1",
-          itemType: "live_demo",
-          title: "Demo",
-          description: null,
-          url: "https://x.com",
-          displayOrder: 0,
-        },
-      ],
-    });
+    expect(body.data).toEqual(adaptPublicPortfolioProfile(raw));
   });
 
   it("translates a failing backend response through backendFailureResponse", async () => {

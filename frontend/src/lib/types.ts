@@ -1014,6 +1014,121 @@ export interface PortfolioItem {
   displayOrder: number;
 }
 
+export type PortfolioTemplateId =
+  | "minimal_professional"
+  | "creative_showcase"
+  | "developer_dark"
+  | "executive_elegant"
+  | "personal_story";
+
+export type PortfolioPaletteId = "neutral" | "vibrant" | "ocean" | "forest" | "slate";
+export type PortfolioFontPairingId = "sans" | "serif" | "mono" | "editorial";
+export type PortfolioSocialPlatform =
+  "github" | "linkedin" | "behance" | "dribbble" | "twitter" | "website" | "other";
+
+export type PortfolioSectionKey =
+  | "about"
+  | "projects"
+  | "experience"
+  | "education"
+  | "skills"
+  | "certifications"
+  | "social"
+  | "contact";
+
+export interface PortfolioThemeConfig {
+  palette: PortfolioPaletteId;
+  accent: string | null;
+  fontPairing: PortfolioFontPairingId;
+}
+
+export interface PortfolioProject {
+  id: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  techStack: string[];
+  demoUrl: string | null;
+  repoUrl: string | null;
+  displayOrder: number;
+}
+
+export interface PortfolioExperience {
+  id: string;
+  company: string;
+  title: string;
+  location: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  isCurrent: boolean;
+  description: string | null;
+  achievements: string[];
+  displayOrder: number;
+}
+
+export interface PortfolioEducation {
+  id: string;
+  institution: string;
+  degree: string | null;
+  fieldOfStudy: string | null;
+  startYear: string | null;
+  endYear: string | null;
+  description: string | null;
+  displayOrder: number;
+}
+
+export interface PortfolioSkill {
+  id: string;
+  name: string;
+  category: string | null;
+  level: string | null;
+  displayOrder: number;
+}
+
+export interface PortfolioCertification {
+  id: string;
+  title: string;
+  issuer: string | null;
+  year: string | null;
+  credentialUrl: string | null;
+  displayOrder: number;
+}
+
+export interface PortfolioSocialLink {
+  id: string;
+  platform: PortfolioSocialPlatform;
+  label: string | null;
+  url: string;
+  displayOrder: number;
+}
+
+export interface PortfolioContent {
+  displayName: string | null;
+  professionalRole: string | null;
+  location: string | null;
+  headline: string | null;
+  summary: string | null;
+  about: string | null;
+  profileImageUrl: string | null;
+  coverImageUrl: string | null;
+  email: string | null;
+  resumeUrl: string | null;
+  projects: PortfolioProject[];
+  experience: PortfolioExperience[];
+  education: PortfolioEducation[];
+  skills: PortfolioSkill[];
+  certifications: PortfolioCertification[];
+  socialLinks: PortfolioSocialLink[];
+}
+
+export interface PortfolioRevision {
+  templateId: PortfolioTemplateId;
+  theme: PortfolioThemeConfig;
+  content: PortfolioContent;
+  sectionVisibility: Record<PortfolioSectionKey, boolean>;
+  sectionOrder: PortfolioSectionKey[];
+}
+
 export interface PortfolioProfile {
   profileId: string;
   userId: string;
@@ -1027,6 +1142,14 @@ export interface PortfolioProfile {
   items: PortfolioItem[];
   createdAt: string;
   updatedAt: string;
+  templateId: PortfolioTemplateId;
+  theme: PortfolioThemeConfig;
+  content: PortfolioContent;
+  sectionVisibility: Record<PortfolioSectionKey, boolean>;
+  sectionOrder: PortfolioSectionKey[];
+  hasUnpublishedChanges: boolean;
+  draftRevision: PortfolioRevision;
+  publishedRevision: PortfolioRevision | null;
 }
 
 export interface PublicPortfolioProfile {
@@ -1035,6 +1158,11 @@ export interface PublicPortfolioProfile {
   headline: string | null;
   summary: string | null;
   items: PortfolioItem[];
+  templateId: PortfolioTemplateId;
+  theme: PortfolioThemeConfig;
+  content: PortfolioContent;
+  sectionVisibility: Record<PortfolioSectionKey, boolean>;
+  sectionOrder: PortfolioSectionKey[];
   // Deliberately no profileId/userId/publicUrl/timestamps — public response never leaks
   // internal IDs (§9.6), and the visitor is already on the public URL so it isn't needed.
 }

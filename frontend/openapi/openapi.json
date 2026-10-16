@@ -6697,6 +6697,416 @@
         "title": "PortalSessionResponse",
         "type": "object"
       },
+      "PortfolioCertification": {
+        "properties": {
+          "credential_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Url"
+          },
+          "display_order": {
+            "default": 0,
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "PortfolioCertification",
+        "type": "object"
+      },
+      "PortfolioContent": {
+        "properties": {
+          "about": {
+            "anyOf": [
+              {
+                "maxLength": 8000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "About"
+          },
+          "certifications": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioCertification"
+            },
+            "maxItems": 40,
+            "title": "Certifications",
+            "type": "array"
+          },
+          "cover_image_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Image Url"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "education": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioEducation"
+            },
+            "maxItems": 20,
+            "title": "Education",
+            "type": "array"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "experience": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioExperience"
+            },
+            "maxItems": 40,
+            "title": "Experience",
+            "type": "array"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "professional_role": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Professional Role"
+          },
+          "profile_image_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Image Url"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioProject"
+            },
+            "maxItems": 50,
+            "title": "Projects",
+            "type": "array"
+          },
+          "resume_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume Url"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioSkill"
+            },
+            "maxItems": 80,
+            "title": "Skills",
+            "type": "array"
+          },
+          "social_links": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioSocialLink"
+            },
+            "maxItems": 20,
+            "title": "Social Links",
+            "type": "array"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          }
+        },
+        "title": "PortfolioContent",
+        "type": "object"
+      },
+      "PortfolioEducation": {
+        "properties": {
+          "degree": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degree"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "display_order": {
+            "default": 0,
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "end_year": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Year"
+          },
+          "field_of_study": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Of Study"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "institution": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Institution",
+            "type": "string"
+          },
+          "start_year": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Year"
+          }
+        },
+        "required": [
+          "institution"
+        ],
+        "title": "PortfolioEducation",
+        "type": "object"
+      },
+      "PortfolioExperience": {
+        "properties": {
+          "achievements": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Achievements",
+            "type": "array"
+          },
+          "company": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Company",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "display_order": {
+            "default": 0,
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_current": {
+            "default": false,
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "title"
+        ],
+        "title": "PortfolioExperience",
+        "type": "object"
+      },
       "PortfolioItemRequest": {
         "properties": {
           "description": {
@@ -6824,6 +7234,7 @@
         "type": "object"
       },
       "PortfolioProfileRequest": {
+        "description": "Upsert body. Legacy fields remain; studio fields are additive.\n\n- Saving without `publish=True` updates the draft revision only.\n- `is_published` alone still toggles visibility of the *published* revision\n  (backward compatible with the pre-studio editor).\n- `publish=True` copies the draft revision into the published snapshot and\n  sets `is_published=True`.",
         "properties": {
           "bio": {
             "anyOf": [
@@ -6836,6 +7247,16 @@
               }
             ],
             "title": "Bio"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortfolioContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "display_name": {
             "anyOf": [
@@ -6866,11 +7287,72 @@
             "title": "Is Published",
             "type": "boolean"
           },
+          "publish": {
+            "default": false,
+            "title": "Publish",
+            "type": "boolean"
+          },
+          "section_order": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Order"
+          },
+          "section_visibility": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Visibility"
+          },
           "slug": {
             "maxLength": 63,
             "minLength": 3,
             "title": "Slug",
             "type": "string"
+          },
+          "template_id": {
+            "anyOf": [
+              {
+                "enum": [
+                  "minimal_professional",
+                  "creative_showcase",
+                  "developer_dark",
+                  "executive_elegant",
+                  "personal_story"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
+          },
+          "theme": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortfolioThemeConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -6884,7 +7366,6 @@
           "bio": {
             "anyOf": [
               {
-                "maxLength": 5000,
                 "type": "string"
               },
               {
@@ -6892,6 +7373,9 @@
               }
             ],
             "title": "Bio"
+          },
+          "content": {
+            "$ref": "#/components/schemas/PortfolioContent"
           },
           "created_at": {
             "format": "date-time",
@@ -6901,7 +7385,6 @@
           "display_name": {
             "anyOf": [
               {
-                "maxLength": 255,
                 "type": "string"
               },
               {
@@ -6910,10 +7393,17 @@
             ],
             "title": "Display Name"
           },
+          "draft_revision": {
+            "$ref": "#/components/schemas/PortfolioRevision"
+          },
+          "has_unpublished_changes": {
+            "default": false,
+            "title": "Has Unpublished Changes",
+            "type": "boolean"
+          },
           "headline": {
             "anyOf": [
               {
-                "maxLength": 255,
                 "type": "string"
               },
               {
@@ -6923,7 +7413,6 @@
             "title": "Headline"
           },
           "is_published": {
-            "default": false,
             "title": "Is Published",
             "type": "boolean"
           },
@@ -6942,11 +7431,48 @@
             "title": "Public Url",
             "type": "string"
           },
+          "published_revision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortfolioRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "section_order": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Section Order",
+            "type": "array"
+          },
+          "section_visibility": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Section Visibility",
+            "type": "object"
+          },
           "slug": {
-            "maxLength": 63,
-            "minLength": 3,
             "title": "Slug",
             "type": "string"
+          },
+          "template_id": {
+            "default": "minimal_professional",
+            "enum": [
+              "minimal_professional",
+              "creative_showcase",
+              "developer_dark",
+              "executive_elegant",
+              "personal_story"
+            ],
+            "title": "Template Id",
+            "type": "string"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/PortfolioThemeConfig"
           },
           "updated_at": {
             "format": "date-time",
@@ -6959,15 +7485,277 @@
           }
         },
         "required": [
-          "slug",
           "profile_id",
           "user_id",
+          "slug",
+          "display_name",
+          "headline",
+          "bio",
+          "is_published",
           "public_url",
           "items",
           "created_at",
           "updated_at"
         ],
         "title": "PortfolioProfileResponse",
+        "type": "object"
+      },
+      "PortfolioProject": {
+        "properties": {
+          "demo_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Url"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "display_order": {
+            "default": 0,
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "repo_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo Url"
+          },
+          "tech_stack": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 30,
+            "title": "Tech Stack",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "PortfolioProject",
+        "type": "object"
+      },
+      "PortfolioRevision": {
+        "description": "One complete studio snapshot (draft or published).",
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/PortfolioContent"
+          },
+          "section_order": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Section Order",
+            "type": "array"
+          },
+          "section_visibility": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Section Visibility",
+            "type": "object"
+          },
+          "template_id": {
+            "default": "minimal_professional",
+            "enum": [
+              "minimal_professional",
+              "creative_showcase",
+              "developer_dark",
+              "executive_elegant",
+              "personal_story"
+            ],
+            "title": "Template Id",
+            "type": "string"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/PortfolioThemeConfig"
+          }
+        },
+        "title": "PortfolioRevision",
+        "type": "object"
+      },
+      "PortfolioSkill": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "display_order": {
+            "default": 0,
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PortfolioSkill",
+        "type": "object"
+      },
+      "PortfolioSocialLink": {
+        "properties": {
+          "display_order": {
+            "default": 0,
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "platform": {
+            "default": "other",
+            "enum": [
+              "github",
+              "linkedin",
+              "behance",
+              "dribbble",
+              "twitter",
+              "website",
+              "other"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "PortfolioSocialLink",
+        "type": "object"
+      },
+      "PortfolioThemeConfig": {
+        "properties": {
+          "accent": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent"
+          },
+          "font_pairing": {
+            "default": "sans",
+            "enum": [
+              "sans",
+              "serif",
+              "mono",
+              "editorial"
+            ],
+            "title": "Font Pairing",
+            "type": "string"
+          },
+          "palette": {
+            "default": "neutral",
+            "enum": [
+              "neutral",
+              "vibrant",
+              "ocean",
+              "forest",
+              "slate"
+            ],
+            "title": "Palette",
+            "type": "string"
+          }
+        },
+        "title": "PortfolioThemeConfig",
         "type": "object"
       },
       "PublicBrandResponse": {
@@ -7003,7 +7791,7 @@
         "type": "object"
       },
       "PublicPortfolioResponse": {
-        "description": "What an unauthenticated visitor to /p/{slug} sees \u2014 no user_id, no internal IDs beyond item_id.",
+        "description": "What an unauthenticated visitor to /p/{slug} sees \u2014 published revision only.",
         "properties": {
           "bio": {
             "anyOf": [
@@ -7015,6 +7803,9 @@
               }
             ],
             "title": "Bio"
+          },
+          "content": {
+            "$ref": "#/components/schemas/PortfolioContent"
           },
           "display_name": {
             "anyOf": [
@@ -7045,9 +7836,38 @@
             "title": "Items",
             "type": "array"
           },
+          "section_order": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Section Order",
+            "type": "array"
+          },
+          "section_visibility": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Section Visibility",
+            "type": "object"
+          },
           "slug": {
             "title": "Slug",
             "type": "string"
+          },
+          "template_id": {
+            "default": "minimal_professional",
+            "enum": [
+              "minimal_professional",
+              "creative_showcase",
+              "developer_dark",
+              "executive_elegant",
+              "personal_story"
+            ],
+            "title": "Template Id",
+            "type": "string"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/PortfolioThemeConfig"
           }
         },
         "required": [
@@ -35165,6 +35985,170 @@
           }
         },
         "summary": "Upsert Profile",
+        "tags": [
+          "portfolio"
+        ]
+      }
+    },
+    "/api/portfolio/profile/publish": {
+      "post": {
+        "description": "Promote the current draft revision to the public published snapshot.",
+        "operationId": "publish_profile_api_portfolio_profile_publish_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "access_token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Access Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PortfolioProfileResponse"
+                    },
+                    "message": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "meta": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "Publish Profile",
         "tags": [
           "portfolio"
         ]

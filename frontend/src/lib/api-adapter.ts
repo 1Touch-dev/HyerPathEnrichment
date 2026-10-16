@@ -79,8 +79,13 @@ import {
   ModerationStatus,
   OptOutInput,
   OutreachMessage,
+  PortfolioContent,
   PortfolioItem,
   PortfolioProfile,
+  PortfolioRevision,
+  PortfolioSectionKey,
+  PortfolioTemplateId,
+  PortfolioThemeConfig,
   PracticeAttempt,
   PracticeSession,
   PracticeSessionListResult,
@@ -1363,6 +1368,88 @@ interface RawPortfolioItemResponse {
   description: string | null;
   url: string;
   display_order: number;
+  image_url?: string | null;
+}
+
+interface RawPortfolioTheme {
+  palette?: string;
+  accent?: string | null;
+  font_pairing?: string;
+}
+
+interface RawPortfolioContent {
+  display_name?: string | null;
+  professional_role?: string | null;
+  location?: string | null;
+  headline?: string | null;
+  summary?: string | null;
+  about?: string | null;
+  profile_image_url?: string | null;
+  cover_image_url?: string | null;
+  email?: string | null;
+  resume_url?: string | null;
+  projects?: Array<{
+    id: string;
+    title: string;
+    description?: string | null;
+    image_url?: string | null;
+    tech_stack?: string[];
+    demo_url?: string | null;
+    repo_url?: string | null;
+    display_order?: number;
+  }>;
+  experience?: Array<{
+    id: string;
+    company: string;
+    title: string;
+    location?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    is_current?: boolean;
+    description?: string | null;
+    achievements?: string[];
+    display_order?: number;
+  }>;
+  education?: Array<{
+    id: string;
+    institution: string;
+    degree?: string | null;
+    field_of_study?: string | null;
+    start_year?: string | null;
+    end_year?: string | null;
+    description?: string | null;
+    display_order?: number;
+  }>;
+  skills?: Array<{
+    id: string;
+    name: string;
+    category?: string | null;
+    level?: string | null;
+    display_order?: number;
+  }>;
+  certifications?: Array<{
+    id: string;
+    title: string;
+    issuer?: string | null;
+    year?: string | null;
+    credential_url?: string | null;
+    display_order?: number;
+  }>;
+  social_links?: Array<{
+    id: string;
+    platform?: string;
+    label?: string | null;
+    url: string;
+    display_order?: number;
+  }>;
+}
+
+interface RawPortfolioRevision {
+  template_id?: string;
+  theme?: RawPortfolioTheme;
+  content?: RawPortfolioContent;
+  section_visibility?: Record<string, boolean>;
+  section_order?: string[];
 }
 
 interface RawPortfolioProfileResponse {
@@ -1377,6 +1464,14 @@ interface RawPortfolioProfileResponse {
   items: RawPortfolioItemResponse[];
   created_at: string;
   updated_at: string;
+  template_id?: string;
+  theme?: RawPortfolioTheme;
+  content?: RawPortfolioContent;
+  section_visibility?: Record<string, boolean>;
+  section_order?: string[];
+  has_unpublished_changes?: boolean;
+  draft_revision?: RawPortfolioRevision;
+  published_revision?: RawPortfolioRevision | null;
 }
 
 interface RawPublicPortfolioProfileResponse {
@@ -1385,6 +1480,11 @@ interface RawPublicPortfolioProfileResponse {
   headline: string | null;
   bio: string | null;
   items: RawPortfolioItemResponse[];
+  template_id?: string;
+  theme?: RawPortfolioTheme;
+  content?: RawPortfolioContent;
+  section_visibility?: Record<string, boolean>;
+  section_order?: string[];
 }
 
 /** Unwrapped PublicBrandResponse data (not the { success, data } envelope). */
@@ -1590,31 +1690,264 @@ export function adaptPortfolioItem(raw: RawPortfolioItemResponse): PortfolioItem
   };
 }
 
+const DEFAULT_SECTION_ORDER: PortfolioSectionKey[] = [
+  "about",
+  "projects",
+  "experience",
+  "education",
+  "skills",
+  "certifications",
+  "social",
+  "contact",
+];
+
+function adaptPortfolioTheme(raw?: RawPortfolioTheme): PortfolioThemeConfig {
+  return {
+    palette: (raw?.palette as PortfolioThemeConfig["palette"]) || "neutral",
+    accent: raw?.accent ?? null,
+    fontPairing: (raw?.font_pairing as PortfolioThemeConfig["fontPairing"]) || "sans",
+  };
+}
+
+function adaptPortfolioContent(raw?: RawPortfolioContent): PortfolioContent {
+  return {
+    displayName: raw?.display_name ?? null,
+    professionalRole: raw?.professional_role ?? null,
+    location: raw?.location ?? null,
+    headline: raw?.headline ?? null,
+    summary: raw?.summary ?? null,
+    about: raw?.about ?? null,
+    profileImageUrl: raw?.profile_image_url ?? null,
+    coverImageUrl: raw?.cover_image_url ?? null,
+    email: raw?.email ?? null,
+    resumeUrl: raw?.resume_url ?? null,
+    projects: (raw?.projects ?? []).map((p) => ({
+      id: p.id,
+      title: p.title,
+      description: p.description ?? null,
+      imageUrl: p.image_url ?? null,
+      techStack: p.tech_stack ?? [],
+      demoUrl: p.demo_url ?? null,
+      repoUrl: p.repo_url ?? null,
+      displayOrder: p.display_order ?? 0,
+    })),
+    experience: (raw?.experience ?? []).map((e) => ({
+      id: e.id,
+      company: e.company,
+      title: e.title,
+      location: e.location ?? null,
+      startDate: e.start_date ?? null,
+      endDate: e.end_date ?? null,
+      isCurrent: e.is_current ?? false,
+      description: e.description ?? null,
+      achievements: e.achievements ?? [],
+      displayOrder: e.display_order ?? 0,
+    })),
+    education: (raw?.education ?? []).map((e) => ({
+      id: e.id,
+      institution: e.institution,
+      degree: e.degree ?? null,
+      fieldOfStudy: e.field_of_study ?? null,
+      startYear: e.start_year ?? null,
+      endYear: e.end_year ?? null,
+      description: e.description ?? null,
+      displayOrder: e.display_order ?? 0,
+    })),
+    skills: (raw?.skills ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      category: s.category ?? null,
+      level: s.level ?? null,
+      displayOrder: s.display_order ?? 0,
+    })),
+    certifications: (raw?.certifications ?? []).map((c) => ({
+      id: c.id,
+      title: c.title,
+      issuer: c.issuer ?? null,
+      year: c.year ?? null,
+      credentialUrl: c.credential_url ?? null,
+      displayOrder: c.display_order ?? 0,
+    })),
+    socialLinks: (raw?.social_links ?? []).map((s) => ({
+      id: s.id,
+      platform: (s.platform as PortfolioContent["socialLinks"][number]["platform"]) || "other",
+      label: s.label ?? null,
+      url: s.url,
+      displayOrder: s.display_order ?? 0,
+    })),
+  };
+}
+
+function adaptSectionVisibility(
+  raw?: Record<string, boolean>,
+): Record<PortfolioSectionKey, boolean> {
+  const base = Object.fromEntries(DEFAULT_SECTION_ORDER.map((k) => [k, true])) as Record<
+    PortfolioSectionKey,
+    boolean
+  >;
+  if (!raw) return base;
+  for (const key of DEFAULT_SECTION_ORDER) {
+    if (key in raw) base[key] = Boolean(raw[key]);
+  }
+  return base;
+}
+
+function adaptSectionOrder(raw?: string[]): PortfolioSectionKey[] {
+  const known = new Set<string>(DEFAULT_SECTION_ORDER);
+  const cleaned = (raw ?? []).filter((k): k is PortfolioSectionKey => known.has(k));
+  for (const key of DEFAULT_SECTION_ORDER) {
+    if (!cleaned.includes(key)) cleaned.push(key);
+  }
+  return cleaned;
+}
+
+function adaptPortfolioRevision(raw?: RawPortfolioRevision | null): PortfolioRevision {
+  return {
+    templateId: (raw?.template_id as PortfolioTemplateId) || "minimal_professional",
+    theme: adaptPortfolioTheme(raw?.theme),
+    content: adaptPortfolioContent(raw?.content),
+    sectionVisibility: adaptSectionVisibility(raw?.section_visibility),
+    sectionOrder: adaptSectionOrder(raw?.section_order),
+  };
+}
+
+/** Serialize studio content for PUT /api/portfolio/profile (snake_case backend). */
+export function toBackendPortfolioContent(content: PortfolioContent) {
+  return {
+    display_name: content.displayName,
+    professional_role: content.professionalRole,
+    location: content.location,
+    headline: content.headline,
+    summary: content.summary,
+    about: content.about,
+    profile_image_url: content.profileImageUrl,
+    cover_image_url: content.coverImageUrl,
+    email: content.email,
+    resume_url: content.resumeUrl,
+    projects: content.projects.map((p) => ({
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      image_url: p.imageUrl,
+      tech_stack: p.techStack,
+      demo_url: p.demoUrl,
+      repo_url: p.repoUrl,
+      display_order: p.displayOrder,
+    })),
+    experience: content.experience.map((e) => ({
+      id: e.id,
+      company: e.company,
+      title: e.title,
+      location: e.location,
+      start_date: e.startDate,
+      end_date: e.endDate,
+      is_current: e.isCurrent,
+      description: e.description,
+      achievements: e.achievements,
+      display_order: e.displayOrder,
+    })),
+    education: content.education.map((e) => ({
+      id: e.id,
+      institution: e.institution,
+      degree: e.degree,
+      field_of_study: e.fieldOfStudy,
+      start_year: e.startYear,
+      end_year: e.endYear,
+      description: e.description,
+      display_order: e.displayOrder,
+    })),
+    skills: content.skills.map((s) => ({
+      id: s.id,
+      name: s.name,
+      category: s.category,
+      level: s.level,
+      display_order: s.displayOrder,
+    })),
+    certifications: content.certifications.map((c) => ({
+      id: c.id,
+      title: c.title,
+      issuer: c.issuer,
+      year: c.year,
+      credential_url: c.credentialUrl,
+      display_order: c.displayOrder,
+    })),
+    social_links: content.socialLinks.map((s) => ({
+      id: s.id,
+      platform: s.platform,
+      label: s.label,
+      url: s.url,
+      display_order: s.displayOrder,
+    })),
+  };
+}
+
+export function toBackendPortfolioTheme(theme: PortfolioThemeConfig) {
+  return {
+    palette: theme.palette,
+    accent: theme.accent,
+    font_pairing: theme.fontPairing,
+  };
+}
+
 export function adaptPortfolioProfile(raw: RawPortfolioProfileResponse): PortfolioProfile {
+  const draft = adaptPortfolioRevision(
+    raw.draft_revision ?? {
+      template_id: raw.template_id,
+      theme: raw.theme,
+      content: raw.content,
+      section_visibility: raw.section_visibility,
+      section_order: raw.section_order,
+    },
+  );
+  // Prefer nested content; fall back to legacy headline/bio columns.
+  if (!draft.content.headline && raw.headline) draft.content.headline = raw.headline;
+  if (!draft.content.summary && raw.bio) draft.content.summary = raw.bio;
+  if (!draft.content.displayName && raw.display_name) draft.content.displayName = raw.display_name;
+
   return {
     profileId: raw.profile_id,
     userId: raw.user_id,
     slug: raw.slug,
-    displayName: raw.display_name,
-    headline: raw.headline,
-    summary: raw.bio,
+    displayName: draft.content.displayName ?? raw.display_name,
+    headline: draft.content.headline ?? raw.headline,
+    summary: draft.content.summary ?? raw.bio,
     isPublished: raw.is_published,
     publicUrl: raw.public_url,
     items: raw.items.map(adaptPortfolioItem),
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
+    templateId: draft.templateId,
+    theme: draft.theme,
+    content: draft.content,
+    sectionVisibility: draft.sectionVisibility,
+    sectionOrder: draft.sectionOrder,
+    hasUnpublishedChanges: raw.has_unpublished_changes ?? false,
+    draftRevision: draft,
+    publishedRevision: raw.published_revision
+      ? adaptPortfolioRevision(raw.published_revision)
+      : null,
   };
 }
 
 export function adaptPublicPortfolioProfile(
   raw: RawPublicPortfolioProfileResponse,
 ): PublicPortfolioProfile {
+  const content = adaptPortfolioContent(raw.content);
+  if (!content.headline && raw.headline) content.headline = raw.headline;
+  if (!content.summary && raw.bio) content.summary = raw.bio;
+  if (!content.displayName && raw.display_name) content.displayName = raw.display_name;
+
   return {
     slug: raw.slug,
-    displayName: raw.display_name,
-    headline: raw.headline,
-    summary: raw.bio,
+    displayName: content.displayName ?? raw.display_name,
+    headline: content.headline ?? raw.headline,
+    summary: content.summary ?? raw.bio,
     items: raw.items.map(adaptPortfolioItem),
+    templateId: (raw.template_id as PortfolioTemplateId) || "minimal_professional",
+    theme: adaptPortfolioTheme(raw.theme),
+    content,
+    sectionVisibility: adaptSectionVisibility(raw.section_visibility),
+    sectionOrder: adaptSectionOrder(raw.section_order),
   };
 }
 

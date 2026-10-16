@@ -6,24 +6,32 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { PortfolioEditor } from "./PortfolioEditor";
 import * as hooks from "../hooks/usePortfolioProfile";
 import type { PortfolioProfile } from "@/src/lib/types";
-
-// jsdom doesn't implement these — Radix's Select needs them to open/scroll its
-// listbox in tests (same class of gap the shared vitest.setup.ts already patches
-// for ResizeObserver).
-if (typeof Element.prototype.scrollIntoView !== "function") {
-  Element.prototype.scrollIntoView = () => {};
-}
-if (typeof Element.prototype.hasPointerCapture !== "function") {
-  Element.prototype.hasPointerCapture = () => false;
-}
-if (typeof Element.prototype.releasePointerCapture !== "function") {
-  Element.prototype.releasePointerCapture = () => {};
-}
+import { emptyContent, defaultSectionVisibility, defaultTheme } from "../lib/defaults";
 
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
+
+const sampleContent = {
+  ...emptyContent(),
+  displayName: "Jane Doe",
+  headline: "Backend Engineer",
+  summary: "I build things.",
+  about: "I build things.",
+  projects: [
+    {
+      id: "i1",
+      title: "My repo",
+      description: null,
+      imageUrl: null,
+      techStack: ["Python"],
+      demoUrl: null,
+      repoUrl: "https://github.com/jane/repo",
+      displayOrder: 0,
+    },
+  ],
+};
 
 const sampleProfile: PortfolioProfile = {
   profileId: "p1",
@@ -46,11 +54,42 @@ const sampleProfile: PortfolioProfile = {
   ],
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
+  templateId: "minimal_professional",
+  theme: defaultTheme(),
+  content: sampleContent,
+  sectionVisibility: defaultSectionVisibility(),
+  sectionOrder: [
+    "about",
+    "projects",
+    "experience",
+    "education",
+    "skills",
+    "certifications",
+    "social",
+    "contact",
+  ],
+  hasUnpublishedChanges: false,
+  draftRevision: {
+    templateId: "minimal_professional",
+    theme: defaultTheme(),
+    content: sampleContent,
+    sectionVisibility: defaultSectionVisibility(),
+    sectionOrder: [
+      "about",
+      "projects",
+      "experience",
+      "education",
+      "skills",
+      "certifications",
+      "social",
+      "contact",
+    ],
+  },
+  publishedRevision: null,
 };
 
-const saveMutateMock = vi.fn();
-const addMutateMock = vi.fn();
-const deleteMutateMock = vi.fn();
+const saveMutateAsyncMock = vi.fn();
+const publishMutateAsyncMock = vi.fn();
 
 function mockUsePortfolioProfile(overrides: Partial<UseQueryResult<PortfolioProfile>> = {}) {
   vi.spyOn(hooks, "usePortfolioProfile").mockReturnValue({
@@ -62,132 +101,71 @@ function mockUsePortfolioProfile(overrides: Partial<UseQueryResult<PortfolioProf
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  saveMutateMock.mockReset();
-  addMutateMock.mockReset();
-  deleteMutateMock.mockReset();
+  saveMutateAsyncMock.mockReset().mockResolvedValue({ data: sampleProfile });
+  publishMutateAsyncMock.mockReset().mockResolvedValue({ data: sampleProfile });
   vi.spyOn(hooks, "useSavePortfolioProfile").mockReturnValue({
-    mutate: saveMutateMock,
+    mutate: vi.fn(),
+    mutateAsync: saveMutateAsyncMock,
     isPending: false,
   } as unknown as ReturnType<typeof hooks.useSavePortfolioProfile>);
-  vi.spyOn(hooks, "useAddPortfolioItem").mockReturnValue({
-    mutate: addMutateMock,
+  vi.spyOn(hooks, "usePublishPortfolioProfile").mockReturnValue({
+    mutate: vi.fn(),
+    mutateAsync: publishMutateAsyncMock,
     isPending: false,
-  } as unknown as ReturnType<typeof hooks.useAddPortfolioItem>);
-  vi.spyOn(hooks, "useDeletePortfolioItem").mockReturnValue({
-    mutate: deleteMutateMock,
-    isPending: false,
-  } as unknown as ReturnType<typeof hooks.useDeletePortfolioItem>);
+  } as unknown as ReturnType<typeof hooks.usePublishPortfolioProfile>);
   mockUsePortfolioProfile();
 });
 
-describe("PortfolioEditor", () => {
-  it("shows a disabled 'View public page' button when no profile exists yet", () => {
+describe("PortfolioEditor (Portfolio Studio)", () => {
+  it("shows Draft status when no profile exists yet", () => {
     mockUsePortfolioProfile({ data: undefined, isLoading: false });
     render(<PortfolioEditor />, { wrapper });
-
-    expect(screen.getByRole("button", { name: "View public page" })).toBeDisabled();
+    expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Save draft")[0]).toBeDisabled();
   });
 
-  it("shows an enabled 'View public page' link pointing at publicUrl once a profile exists", () => {
+  it("shows Open live page once a published profile exists", () => {
     mockUsePortfolioProfile({ data: sampleProfile, isLoading: false });
     render(<PortfolioEditor />, { wrapper });
-
-    const link = screen.getByRole("link", { name: "View public page" });
+    const link = screen.getAllByRole("link", { name: /Open live page/i })[0];
     expect(link).toHaveAttribute("href", "/p/jane-doe");
-    expect(link).toHaveAttribute("target", "_blank");
   });
 
-  it("disables the save button while the slug is shorter than 3 characters", () => {
+  it("enables save draft once a valid slug is entered", () => {
     mockUsePortfolioProfile({ data: undefined, isLoading: false });
     render(<PortfolioEditor />, { wrapper });
-
-    expect(screen.getByText("Save profile")).toBeDisabled();
-
-    fireEvent.change(screen.getByLabelText("Portfolio URL"), { target: { value: "ab" } });
-    expect(screen.getByText("Save profile")).toBeDisabled();
-
-    fireEvent.change(screen.getByLabelText("Portfolio URL"), { target: { value: "abc" } });
-    expect(screen.getByText("Save profile")).not.toBeDisabled();
+    expect(screen.getAllByText("Save draft")[0]).toBeDisabled();
+    const slugInput = screen.getAllByLabelText("Portfolio URL")[0];
+    fireEvent.change(slugInput, { target: { value: "abc" } });
+    expect(screen.getAllByText("Save draft")[0]).not.toBeDisabled();
   });
 
-  it("calls saveProfile.mutate with the current form values on submit", () => {
+  it("saves a draft with studio fields", async () => {
     mockUsePortfolioProfile({ data: sampleProfile, isLoading: false });
     render(<PortfolioEditor />, { wrapper });
-
-    const form = screen.getByText("Save profile").closest("form");
-    expect(form).not.toBeNull();
-    form!.requestSubmit();
-
-    expect(saveMutateMock).toHaveBeenCalledWith({
-      slug: "jane-doe",
-      headline: "Backend Engineer",
-      summary: "I build things.",
-      isPublished: true,
-    });
-  });
-
-  it("calls deleteItem.mutate with the item id when Remove is clicked", () => {
-    mockUsePortfolioProfile({ data: sampleProfile, isLoading: false });
-    render(<PortfolioEditor />, { wrapper });
-
-    fireEvent.click(screen.getByText("Remove"));
-    expect(deleteMutateMock).toHaveBeenCalledWith("i1");
-  });
-
-  it("clears the new-item fields when handleAddItem succeeds", async () => {
-    mockUsePortfolioProfile({ data: sampleProfile, isLoading: false });
-    addMutateMock.mockImplementation((_payload, options?: { onSuccess?: () => void }) => {
-      options?.onSuccess?.();
-    });
-    render(<PortfolioEditor />, { wrapper });
-
-    const titleInput = screen.getByPlaceholderText("Title");
-    const urlInput = screen.getByPlaceholderText("https://...");
-    fireEvent.change(titleInput, { target: { value: "New project" } });
-    fireEvent.change(urlInput, { target: { value: "https://example.com" } });
-
-    const addForm = screen.getByText("Add").closest("form");
-    addForm!.requestSubmit();
-
-    expect(addMutateMock).toHaveBeenCalledWith(
-      {
-        itemType: "other_link",
-        title: "New project",
-        description: null,
-        url: "https://example.com",
-      },
-      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    fireEvent.click(screen.getAllByText("Save draft")[0]);
+    await waitFor(() => expect(saveMutateAsyncMock).toHaveBeenCalled());
+    expect(saveMutateAsyncMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: "jane-doe",
+        templateId: "minimal_professional",
+        publish: false,
+      }),
     );
-    await waitFor(() => expect(titleInput).toHaveValue(""));
-    expect(urlInput).toHaveValue("");
   });
 
-  it("lets the candidate categorize a new item as a GitHub repo, live demo, or case study", async () => {
+  it("switches templates without clearing content", () => {
     mockUsePortfolioProfile({ data: sampleProfile, isLoading: false });
     render(<PortfolioEditor />, { wrapper });
+    fireEvent.click(screen.getAllByRole("button", { name: "Developer Dark" })[0]);
+    expect(screen.getAllByDisplayValue("My repo").length).toBeGreaterThan(0);
+    expect(screen.getAllByDisplayValue("Backend Engineer").length).toBeGreaterThan(0);
+  });
 
-    fireEvent.click(screen.getByLabelText("Item type"));
-    const caseStudyOption = await screen.findAllByRole("option", { name: "Case study" });
-    fireEvent.click(caseStudyOption[0]);
-
-    fireEvent.change(screen.getByPlaceholderText("Title"), {
-      target: { value: "Redesign project" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("https://..."), {
-      target: { value: "https://example.com/case-study" },
-    });
-
-    const addForm = screen.getByText("Add").closest("form");
-    addForm!.requestSubmit();
-
-    expect(addMutateMock).toHaveBeenCalledWith(
-      {
-        itemType: "case_study",
-        title: "Redesign project",
-        description: null,
-        url: "https://example.com/case-study",
-      },
-      expect.objectContaining({ onSuccess: expect.any(Function) }),
-    );
+  it("adds a project from the content tab", () => {
+    mockUsePortfolioProfile({ data: sampleProfile, isLoading: false });
+    render(<PortfolioEditor />, { wrapper });
+    fireEvent.click(screen.getAllByText("Add project")[0]);
+    expect(screen.getAllByDisplayValue("New project").length).toBeGreaterThan(0);
   });
 });

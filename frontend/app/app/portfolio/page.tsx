@@ -7,7 +7,7 @@ import {
   ShellPageHeaderTitle,
   ShellSection,
 } from "@/components/layout/ShellPage";
-import { PortfolioEditor } from "@/features/portfolio";
+import { PortfolioStudio } from "@/features/portfolio";
 
 export default function PortfolioPage() {
   return (
@@ -15,10 +15,10 @@ export default function PortfolioPage() {
       <ShellPageHeader>
         <ShellPageHeaderContent>
           <ShellPageHeaderEyebrow>Candidate workspace</ShellPageHeaderEyebrow>
-          <ShellPageHeaderTitle>Portfolio</ShellPageHeaderTitle>
+          <ShellPageHeaderTitle>Portfolio Studio</ShellPageHeaderTitle>
           <ShellPageHeaderDescription>
-            Shape the public story you want recruiters and hiring teams to see, then control when
-            the link is live.
+            Choose a template, shape your story, preview live, and publish a professional public
+            portfolio when you&apos;re ready.
           </ShellPageHeaderDescription>
         </ShellPageHeaderContent>
       </ShellPageHeader>
@@ -29,7 +29,7 @@ export default function PortfolioPage() {
             <div className="h-96 w-full animate-pulse rounded-xl border border-border/70 bg-surface shadow-panel" />
           }
         >
-          <PortfolioEditor />
+          <PortfolioStudio />
         </Suspense>
       </ShellSection>
     </div>

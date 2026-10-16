@@ -14,7 +14,7 @@ from tests.migration_helpers import alembic_config, sqlite_file_url, sync_engine
 
 REV_BEFORE = "060_merge_security_p1_and_billing_heads"
 REV_THIS = "061_team_owner_full_desk_grants"
-APPROVED_HEAD = "066_privileged_idempotency_records"
+APPROVED_HEAD = "067_portfolio_studio"
 TRACKING_TABLE = "migration_061_team_owner_grants"
 
 EXPECTED_DESK_PERMISSIONS = {

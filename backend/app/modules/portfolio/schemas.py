@@ -8,6 +8,15 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.modules.portfolio.content import (
+    PortfolioContent,
+    PortfolioRevision,
+    PortfolioTemplateId,
+    PortfolioThemeConfig,
+    default_section_order,
+    default_section_visibility,
+)
+
 PORTFOLIO_SLUG_PATTERN = re.compile(
     r"^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$"
 )  # RFC 1035 label charset (Decision 4)
@@ -41,11 +50,28 @@ class PortfolioItemResponse(BaseModel):
 
 
 class PortfolioProfileRequest(BaseModel):
+    """Upsert body. Legacy fields remain; studio fields are additive.
+
+    - Saving without `publish=True` updates the draft revision only.
+    - `is_published` alone still toggles visibility of the *published* revision
+      (backward compatible with the pre-studio editor).
+    - `publish=True` copies the draft revision into the published snapshot and
+      sets `is_published=True`.
+    """
+
     slug: str = Field(..., min_length=3, max_length=63)
     display_name: str | None = Field(default=None, max_length=255)
     headline: str | None = Field(default=None, max_length=255)
     bio: str | None = Field(default=None, max_length=5000)
     is_published: bool = False
+    # Studio fields (optional — omitted means "leave draft studio fields alone"
+    # except when creating a new profile, in which case defaults apply).
+    template_id: PortfolioTemplateId | None = None
+    theme: PortfolioThemeConfig | None = None
+    content: PortfolioContent | None = None
+    section_visibility: dict[str, bool] | None = None
+    section_order: list[str] | None = None
+    publish: bool = False
 
     @field_validator("slug")
     @classmethod
@@ -59,20 +85,45 @@ class PortfolioProfileRequest(BaseModel):
         return v
 
 
-class PortfolioProfileResponse(PortfolioProfileRequest):
+class PortfolioProfileResponse(BaseModel):
     profile_id: str
     user_id: str
+    slug: str
+    display_name: str | None
+    headline: str | None
+    bio: str | None
+    is_published: bool
     public_url: str
     items: list[PortfolioItemResponse]
     created_at: datetime
     updated_at: datetime
+    # Studio draft state (what the editor edits / previews)
+    template_id: PortfolioTemplateId = "minimal_professional"
+    theme: PortfolioThemeConfig = Field(default_factory=PortfolioThemeConfig)
+    content: PortfolioContent = Field(default_factory=PortfolioContent)
+    section_visibility: dict[str, bool] = Field(default_factory=default_section_visibility)
+    section_order: list[str] = Field(default_factory=default_section_order)
+    # True when draft differs from the last published snapshot
+    has_unpublished_changes: bool = False
+    draft_revision: PortfolioRevision = Field(default_factory=PortfolioRevision)
+    published_revision: PortfolioRevision | None = None
 
 
 class PublicPortfolioResponse(BaseModel):
-    """What an unauthenticated visitor to /p/{slug} sees — no user_id, no internal IDs beyond item_id."""
+    """What an unauthenticated visitor to /p/{slug} sees — published revision only."""
 
     slug: str
     display_name: str | None
     headline: str | None
     bio: str | None
     items: list[PortfolioItemResponse]
+    template_id: PortfolioTemplateId = "minimal_professional"
+    theme: PortfolioThemeConfig = Field(default_factory=PortfolioThemeConfig)
+    content: PortfolioContent = Field(default_factory=PortfolioContent)
+    section_visibility: dict[str, bool] = Field(default_factory=default_section_visibility)
+    section_order: list[str] = Field(default_factory=default_section_order)
+
+
+class PublishPortfolioResponse(BaseModel):
+    profile: PortfolioProfileResponse
+    published: bool = True
