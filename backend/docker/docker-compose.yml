@@ -377,10 +377,12 @@ services:
       RCH_HTTP_HOST: 0.0.0.0
     restart: unless-stopped
   litellm:
-    # Do NOT env_file the whole backend/.env â€” it injects Hyrepath DATABASE_URL
+    # Do NOT env_file the whole backend/.env — it injects Hyrepath DATABASE_URL
     # (sqlite) and crash-loops the proxy. Pass vendor keys via compose
     # --env-file ../.env interpolation only. Chat completions need no LiteLLM DB.
-    # Newer proxy images require an explicit model_list (see litellm_config.yaml).
+    # Newer proxy images require an explicit model_list (see litellm_config.yaml)
+    # and refuse to start without LITELLM_MASTER_KEY (or a dangerous override).
+    # Set the same value as LITELLM_API_KEY so api/workers can Bearer-auth.
     image: ghcr.io/berriai/litellm:main-latest
     profiles: ["llm", "paid"]
     ports:
@@ -388,12 +390,15 @@ services:
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      # Only set LITELLM_MASTER_KEY in .env if you want proxy auth; an empty
-      # value still enables "api key required" and breaks unauthenticated curls.
-      # LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
     volumes:
       - ./litellm_config.yaml:/app/config.yaml:ro
     command: ["--config", "/app/config.yaml", "--port", "4000"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     restart: unless-stopped
   ollama:
     image: ollama/ollama:latest
