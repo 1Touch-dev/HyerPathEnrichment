@@ -39,6 +39,14 @@ async def get_my_profile(
     return await PortfolioService(db).get_my_profile(current_user.id)
 
 
+@router.post("/profile/publish", response_model=PortfolioProfileResponse)
+async def publish_profile(
+    current_user: CurrentUser, db: AsyncSession = Depends(get_db_session)
+) -> PortfolioProfileResponse:
+    """Promote the current draft revision to the public published snapshot."""
+    return await PortfolioService(db).publish_profile(current_user.id)
+
+
 @router.post("/items", response_model=PortfolioItemResponse, status_code=status.HTTP_201_CREATED)
 async def add_item(
     body: PortfolioItemRequest,

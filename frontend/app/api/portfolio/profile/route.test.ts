@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { GET, PUT } from "./route";
 import { backendFetch } from "@/src/lib/backend-client";
 import { successEnvelope, errorEnvelope } from "@/src/lib/api-envelope";
+import { adaptPortfolioProfile } from "@/src/lib/api-adapter";
 
 vi.mock("@/src/lib/backend-client", () => ({
   backendFetch: vi.fn(),
@@ -35,19 +36,7 @@ const rawProfile = {
   updated_at: "2024-01-02",
 };
 
-const adaptedProfile = {
-  profileId: "prof-1",
-  userId: "user-1",
-  slug: "jane-doe",
-  displayName: "Jane Doe",
-  headline: "Engineer",
-  summary: "A bio",
-  isPublished: true,
-  publicUrl: "https://example.com/p/jane-doe",
-  items: [],
-  createdAt: "2024-01-01",
-  updatedAt: "2024-01-02",
-};
+const adaptedProfile = adaptPortfolioProfile(rawProfile);
 
 describe("GET /api/portfolio/profile", () => {
   beforeEach(() => {
@@ -106,14 +95,53 @@ describe("PUT /api/portfolio/profile", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         slug: "jane-doe",
+        display_name: null,
         headline: "Engineer",
         bio: "A bio",
         is_published: true,
+        publish: false,
       }),
     });
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.data).toEqual(adaptedProfile);
+  });
+
+  it("forwards studio fields when provided", async () => {
+    vi.mocked(backendFetch).mockResolvedValue(jsonResponse(successEnvelope(rawProfile)));
+
+    await PUT(
+      putRequest({
+        slug: "jane-doe",
+        templateId: "developer_dark",
+        theme: { palette: "ocean", accent: null, fontPairing: "mono" },
+        content: {
+          displayName: "Jane",
+          professionalRole: null,
+          location: null,
+          headline: "Hi",
+          summary: null,
+          about: null,
+          profileImageUrl: null,
+          coverImageUrl: null,
+          email: null,
+          resumeUrl: null,
+          projects: [],
+          experience: [],
+          education: [],
+          skills: [],
+          certifications: [],
+          socialLinks: [],
+        },
+        isPublished: false,
+      }),
+    );
+
+    const call = vi.mocked(backendFetch).mock.calls[0];
+    const forwarded = JSON.parse(String(call[1]?.body));
+    expect(forwarded.template_id).toBe("developer_dark");
+    expect(forwarded.theme.font_pairing).toBe("mono");
+    expect(forwarded.content.display_name).toBe("Jane");
   });
 
   it("returns a validation error when slug is missing", async () => {

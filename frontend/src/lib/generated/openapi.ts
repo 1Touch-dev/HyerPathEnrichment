@@ -2464,6 +2464,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portfolio/profile/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Profile
+         * @description Promote the current draft revision to the public published snapshot.
+         */
+        post: operations["publish_profile_api_portfolio_profile_publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portfolio/public/{slug}": {
         parameters: {
             query?: never;
@@ -5668,6 +5688,110 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** PortfolioCertification */
+        PortfolioCertification: {
+            /** Credential Url */
+            credential_url?: string | null;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /** Id */
+            id?: string;
+            /** Issuer */
+            issuer?: string | null;
+            /** Title */
+            title: string;
+            /** Year */
+            year?: string | null;
+        };
+        /** PortfolioContent */
+        PortfolioContent: {
+            /** About */
+            about?: string | null;
+            /** Certifications */
+            certifications?: components["schemas"]["PortfolioCertification"][];
+            /** Cover Image Url */
+            cover_image_url?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Education */
+            education?: components["schemas"]["PortfolioEducation"][];
+            /** Email */
+            email?: string | null;
+            /** Experience */
+            experience?: components["schemas"]["PortfolioExperience"][];
+            /** Headline */
+            headline?: string | null;
+            /** Location */
+            location?: string | null;
+            /** Professional Role */
+            professional_role?: string | null;
+            /** Profile Image Url */
+            profile_image_url?: string | null;
+            /** Projects */
+            projects?: components["schemas"]["PortfolioProject"][];
+            /** Resume Url */
+            resume_url?: string | null;
+            /** Skills */
+            skills?: components["schemas"]["PortfolioSkill"][];
+            /** Social Links */
+            social_links?: components["schemas"]["PortfolioSocialLink"][];
+            /** Summary */
+            summary?: string | null;
+        };
+        /** PortfolioEducation */
+        PortfolioEducation: {
+            /** Degree */
+            degree?: string | null;
+            /** Description */
+            description?: string | null;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /** End Year */
+            end_year?: string | null;
+            /** Field Of Study */
+            field_of_study?: string | null;
+            /** Id */
+            id?: string;
+            /** Institution */
+            institution: string;
+            /** Start Year */
+            start_year?: string | null;
+        };
+        /** PortfolioExperience */
+        PortfolioExperience: {
+            /** Achievements */
+            achievements?: string[];
+            /** Company */
+            company: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /** End Date */
+            end_date?: string | null;
+            /** Id */
+            id?: string;
+            /**
+             * Is Current
+             * @default false
+             */
+            is_current: boolean;
+            /** Location */
+            location?: string | null;
+            /** Start Date */
+            start_date?: string | null;
+            /** Title */
+            title: string;
+        };
         /** PortfolioItemRequest */
         PortfolioItemRequest: {
             /** Description */
@@ -5716,10 +5840,20 @@ export interface components {
             /** Url */
             url: string;
         };
-        /** PortfolioProfileRequest */
+        /**
+         * PortfolioProfileRequest
+         * @description Upsert body. Legacy fields remain; studio fields are additive.
+         *
+         *     - Saving without `publish=True` updates the draft revision only.
+         *     - `is_published` alone still toggles visibility of the *published* revision
+         *       (backward compatible with the pre-studio editor).
+         *     - `publish=True` copies the draft revision into the published snapshot and
+         *       sets `is_published=True`.
+         */
         PortfolioProfileRequest: {
             /** Bio */
             bio?: string | null;
+            content?: components["schemas"]["PortfolioContent"] | null;
             /** Display Name */
             display_name?: string | null;
             /** Headline */
@@ -5729,26 +5863,44 @@ export interface components {
              * @default false
              */
             is_published: boolean;
+            /**
+             * Publish
+             * @default false
+             */
+            publish: boolean;
+            /** Section Order */
+            section_order?: string[] | null;
+            /** Section Visibility */
+            section_visibility?: {
+                [key: string]: boolean;
+            } | null;
             /** Slug */
             slug: string;
+            /** Template Id */
+            template_id?: ("minimal_professional" | "creative_showcase" | "developer_dark" | "executive_elegant" | "personal_story") | null;
+            theme?: components["schemas"]["PortfolioThemeConfig"] | null;
         };
         /** PortfolioProfileResponse */
         PortfolioProfileResponse: {
             /** Bio */
-            bio?: string | null;
+            bio: string | null;
+            content?: components["schemas"]["PortfolioContent"];
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
             /** Display Name */
-            display_name?: string | null;
-            /** Headline */
-            headline?: string | null;
+            display_name: string | null;
+            draft_revision?: components["schemas"]["PortfolioRevision"];
             /**
-             * Is Published
+             * Has Unpublished Changes
              * @default false
              */
+            has_unpublished_changes: boolean;
+            /** Headline */
+            headline: string | null;
+            /** Is Published */
             is_published: boolean;
             /** Items */
             items: components["schemas"]["PortfolioItemResponse"][];
@@ -5756,8 +5908,22 @@ export interface components {
             profile_id: string;
             /** Public Url */
             public_url: string;
+            published_revision?: components["schemas"]["PortfolioRevision"] | null;
+            /** Section Order */
+            section_order?: string[];
+            /** Section Visibility */
+            section_visibility?: {
+                [key: string]: boolean;
+            };
             /** Slug */
             slug: string;
+            /**
+             * Template Id
+             * @default minimal_professional
+             * @enum {string}
+             */
+            template_id: "minimal_professional" | "creative_showcase" | "developer_dark" | "executive_elegant" | "personal_story";
+            theme?: components["schemas"]["PortfolioThemeConfig"];
             /**
              * Updated At
              * Format: date-time
@@ -5765,6 +5931,101 @@ export interface components {
             updated_at: string;
             /** User Id */
             user_id: string;
+        };
+        /** PortfolioProject */
+        PortfolioProject: {
+            /** Demo Url */
+            demo_url?: string | null;
+            /** Description */
+            description?: string | null;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /** Id */
+            id?: string;
+            /** Image Url */
+            image_url?: string | null;
+            /** Repo Url */
+            repo_url?: string | null;
+            /** Tech Stack */
+            tech_stack?: string[];
+            /** Title */
+            title: string;
+        };
+        /**
+         * PortfolioRevision
+         * @description One complete studio snapshot (draft or published).
+         */
+        PortfolioRevision: {
+            content?: components["schemas"]["PortfolioContent"];
+            /** Section Order */
+            section_order?: string[];
+            /** Section Visibility */
+            section_visibility?: {
+                [key: string]: boolean;
+            };
+            /**
+             * Template Id
+             * @default minimal_professional
+             * @enum {string}
+             */
+            template_id: "minimal_professional" | "creative_showcase" | "developer_dark" | "executive_elegant" | "personal_story";
+            theme?: components["schemas"]["PortfolioThemeConfig"];
+        };
+        /** PortfolioSkill */
+        PortfolioSkill: {
+            /** Category */
+            category?: string | null;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /** Id */
+            id?: string;
+            /** Level */
+            level?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** PortfolioSocialLink */
+        PortfolioSocialLink: {
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /** Id */
+            id?: string;
+            /** Label */
+            label?: string | null;
+            /**
+             * Platform
+             * @default other
+             * @enum {string}
+             */
+            platform: "github" | "linkedin" | "behance" | "dribbble" | "twitter" | "website" | "other";
+            /** Url */
+            url: string;
+        };
+        /** PortfolioThemeConfig */
+        PortfolioThemeConfig: {
+            /** Accent */
+            accent?: string | null;
+            /**
+             * Font Pairing
+             * @default sans
+             * @enum {string}
+             */
+            font_pairing: "sans" | "serif" | "mono" | "editorial";
+            /**
+             * Palette
+             * @default neutral
+             * @enum {string}
+             */
+            palette: "neutral" | "vibrant" | "ocean" | "forest" | "slate";
         };
         /**
          * PublicBrandResponse
@@ -5785,19 +6046,33 @@ export interface components {
         };
         /**
          * PublicPortfolioResponse
-         * @description What an unauthenticated visitor to /p/{slug} sees — no user_id, no internal IDs beyond item_id.
+         * @description What an unauthenticated visitor to /p/{slug} sees — published revision only.
          */
         PublicPortfolioResponse: {
             /** Bio */
             bio: string | null;
+            content?: components["schemas"]["PortfolioContent"];
             /** Display Name */
             display_name: string | null;
             /** Headline */
             headline: string | null;
             /** Items */
             items: components["schemas"]["PortfolioItemResponse"][];
+            /** Section Order */
+            section_order?: string[];
+            /** Section Visibility */
+            section_visibility?: {
+                [key: string]: boolean;
+            };
             /** Slug */
             slug: string;
+            /**
+             * Template Id
+             * @default minimal_professional
+             * @enum {string}
+             */
+            template_id: "minimal_professional" | "creative_showcase" | "developer_dark" | "executive_elegant" | "personal_story";
+            theme?: components["schemas"]["PortfolioThemeConfig"];
         };
         /**
          * PublicStaffInviteResponse
@@ -22913,6 +23188,117 @@ export interface operations {
                 "application/json": components["schemas"]["PortfolioProfileRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PortfolioProfileResponse"];
+                        message?: string | null;
+                        meta?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @constant */
+                        success: true;
+                    };
+                };
+            };
+            /** @description Error response envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+            /** @description Error response envelope */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseEnvelope"];
+                };
+            };
+        };
+    };
+    publish_profile_api_portfolio_profile_publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                access_token?: string | null;
+            };
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

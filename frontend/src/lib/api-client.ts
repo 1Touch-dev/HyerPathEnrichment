@@ -287,12 +287,18 @@ export async function fetchPortfolioProfile(): Promise<SuccessEnvelope<Portfolio
 }
 
 export async function savePortfolioProfile(
-  payload: Partial<PortfolioProfile> & { slug: string },
+  payload: Partial<PortfolioProfile> & { slug: string; publish?: boolean },
 ): Promise<SuccessEnvelope<PortfolioProfile>> {
   return request<PortfolioProfile>("/api/portfolio/profile", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+}
+
+export async function publishPortfolioProfile(): Promise<SuccessEnvelope<PortfolioProfile>> {
+  return request<PortfolioProfile>("/api/portfolio/profile/publish", {
+    method: "POST",
   });
 }
 

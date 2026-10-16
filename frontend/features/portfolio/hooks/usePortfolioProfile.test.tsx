@@ -17,7 +17,7 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
-const sampleProfile: PortfolioProfile = {
+const sampleProfile = {
   profileId: "p1",
   userId: "u1",
   slug: "jane-doe",
@@ -29,7 +29,50 @@ const sampleProfile: PortfolioProfile = {
   items: [],
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
-};
+  templateId: "minimal_professional",
+  theme: { palette: "neutral", accent: null, fontPairing: "sans" },
+  content: {
+    displayName: "Jane Doe",
+    professionalRole: null,
+    location: null,
+    headline: "Backend Engineer",
+    summary: "I build things.",
+    about: null,
+    profileImageUrl: null,
+    coverImageUrl: null,
+    email: null,
+    resumeUrl: null,
+    projects: [],
+    experience: [],
+    education: [],
+    skills: [],
+    certifications: [],
+    socialLinks: [],
+  },
+  sectionVisibility: {
+    about: true,
+    projects: true,
+    experience: true,
+    education: true,
+    skills: true,
+    certifications: true,
+    social: true,
+    contact: true,
+  },
+  sectionOrder: [
+    "about",
+    "projects",
+    "experience",
+    "education",
+    "skills",
+    "certifications",
+    "social",
+    "contact",
+  ],
+  hasUnpublishedChanges: false,
+  draftRevision: null,
+  publishedRevision: null,
+} as unknown as PortfolioProfile;
 
 function envelope<T>(data: T): SuccessEnvelope<T> {
   return { success: true, data, message: null, meta: null };

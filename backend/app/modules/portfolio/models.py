@@ -1,18 +1,19 @@
-"""ORM models for candidate portfolio pages (Decision 4)."""
+"""ORM models for candidate portfolio pages (Decision 4 + Portfolio Studio)."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database.base import Base
+from app.database.base import Base, JsonDoc
 
 
 class PortfolioProfile(Base):
-    """One per candidate — holds the public slug and page copy."""
+    """One per candidate — holds the public slug, legacy copy, and studio revisions."""
 
     __tablename__ = "portfolio_profiles"
 
@@ -26,6 +27,10 @@ class PortfolioProfile(Base):
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     admin_hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Portfolio Studio: independently persisted draft vs published snapshots.
+    # Shape: PortfolioRevision (see content.py). Templates read these only.
+    draft_revision: Mapped[dict[str, Any]] = mapped_column(JsonDoc, default=dict, nullable=False)
+    published_revision: Mapped[dict[str, Any] | None] = mapped_column(JsonDoc, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
@@ -37,7 +42,11 @@ class PortfolioProfile(Base):
 
 
 class PortfolioItem(Base):
-    """A single project/link on a candidate's portfolio page."""
+    """A single project/link on a candidate's portfolio page (legacy link cards).
+
+    Studio projects live in draft/published revision JSON; items remain for
+    backward-compatible CRUD and admin moderation.
+    """
 
     __tablename__ = "portfolio_items"
 

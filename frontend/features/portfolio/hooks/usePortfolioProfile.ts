@@ -3,6 +3,7 @@ import {
   addPortfolioItem,
   deletePortfolioItem,
   fetchPortfolioProfile,
+  publishPortfolioProfile,
   savePortfolioProfile,
 } from "@/src/lib/api-client";
 import type { PortfolioItem, PortfolioProfile } from "@/src/lib/types";
@@ -22,8 +23,16 @@ export function usePortfolioProfile() {
 export function useSavePortfolioProfile() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Partial<PortfolioProfile> & { slug: string }) =>
+    mutationFn: (payload: Partial<PortfolioProfile> & { slug: string; publish?: boolean }) =>
       savePortfolioProfile(payload),
+    onSuccess: (response) => queryClient.setQueryData(portfolioKeys.profile(), response.data),
+  });
+}
+
+export function usePublishPortfolioProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => publishPortfolioProfile(),
     onSuccess: (response) => queryClient.setQueryData(portfolioKeys.profile(), response.data),
   });
 }

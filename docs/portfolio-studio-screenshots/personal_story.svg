@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+  <rect width="960" height="540" fill="#f4f7f4"/>
+  <rect x="48" y="48" width="864" height="444" rx="24" fill="none" stroke="#2f6f4e" stroke-width="2" opacity="0.35"/>
+  <text x="72" y="120" font-family="Georgia, serif" font-size="36" fill="#1c1917">Personal Story</text>
+  <text x="72" y="168" font-family="sans-serif" font-size="18" fill="#2f6f4e">Editorial · journey narrative</text>
+  <rect x="72" y="220" width="280" height="160" rx="16" fill="#2f6f4e" opacity="0.15"/>
+  <rect x="372" y="220" width="280" height="160" rx="16" fill="#2f6f4e" opacity="0.1"/>
+  <rect x="672" y="220" width="200" height="160" rx="16" fill="#2f6f4e" opacity="0.08"/>
+  <text x="72" y="460" font-family="monospace" font-size="14" fill="#2f6f4e">template: personal_story</text>
+</svg>
