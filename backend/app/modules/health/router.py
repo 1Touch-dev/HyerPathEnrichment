@@ -25,6 +25,7 @@ from app.database.session import SessionLocal, database_schema_at_head
 from app.domain.enrichment import HealthResponse
 from app.infrastructure.redis import get_redis_client
 from app.observability.error_tracking import capture_exception, flush_error_tracking
+from app.observability.http_metrics import refresh_queue_depth_metric
 
 router = APIRouter(tags=["health"], route_class=EnvelopeAPIRoute)
 
@@ -88,6 +89,7 @@ async def metrics(
         if not expected or not provided or not hmac.compare_digest(provided, expected):
             raise UnauthorizedError("metrics scrape token required")
     _ = request  # reserved for future scrape IP allowlists
+    refresh_queue_depth_metric()
     return PlainTextResponse(generate_latest().decode("utf-8"), media_type=CONTENT_TYPE_LATEST)
 
 

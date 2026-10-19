@@ -52,12 +52,16 @@ async def get_system_health(db: AsyncSession) -> SystemHealthResponse:
 
 async def _query_golden_signals(base_url: str) -> dict[str, float | None]:
     """Latency, traffic, errors, saturation — per docs/admin-module-research.md
-    §2's SRE-book citation. Queries this repo's own existing Prometheus metrics
-    (tier_metrics, job_matching_metrics), never invents new metric names."""
+    §2's SRE-book citation. Queries HTTP/RQ metrics exported on GET /metrics."""
     queries = {
-        "latency_p95_seconds": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+        "latency_p95_seconds": (
+            "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))"
+        ),
         "traffic_requests_per_sec": "sum(rate(http_requests_total[5m]))",
-        "error_rate": 'sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))',
+        "error_rate": (
+            'sum(rate(http_requests_total{status=~"5.."}[5m])) / '
+            "clamp_min(sum(rate(http_requests_total[5m])), 1e-9)"
+        ),
         "queue_depth_saturation": "sum(rq_queue_length)",
     }
     results: dict[str, float | None] = {}

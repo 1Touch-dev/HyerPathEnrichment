@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/_common.sh"
 API_PORT="$(api_host_port)"
 GT_PORT="$(glitchtip_host_port)"
 LF_PORT="$(langfuse_host_port)"
+PROM_PORT="$(prometheus_host_port)"
 # Frontend may still be warming if called outside 08-redeploy; bounded retry.
 FRONTEND_HEALTH_TIMEOUT_S="${FRONTEND_HEALTH_TIMEOUT_S:-30}"
 fail=0
@@ -33,6 +34,7 @@ fi
 probe "langfuse"    "http://127.0.0.1:${LF_PORT}/"
 probe "glitchtip"   "http://127.0.0.1:${GT_PORT}/"
 probe "changedetection" "http://127.0.0.1:5000/"
+probe "prometheus" "http://127.0.0.1:${PROM_PORT}/-/ready"
 
 if [[ "$fail" -ne 0 ]]; then
   echo "Health check FAILED" >&2

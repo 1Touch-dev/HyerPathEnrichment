@@ -18,9 +18,13 @@ function StatusBadge({ ok }: { ok: boolean }) {
 
 const SIGNAL_LABELS: Record<string, string> = {
   latency: "Latency",
+  latency_p95_seconds: "Latency p95",
   traffic: "Traffic",
+  traffic_requests_per_sec: "Traffic",
   errors: "Errors",
+  error_rate: "Error rate",
   saturation: "Saturation",
+  queue_depth_saturation: "Queue depth",
 };
 
 /**

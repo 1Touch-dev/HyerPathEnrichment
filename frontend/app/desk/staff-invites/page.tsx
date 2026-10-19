@@ -25,8 +25,13 @@ import {
   SectionHeaderDescription,
   SectionHeaderTitle,
 } from "@/components/ui/section-header";
+import { parseResponseEnvelopeError, unwrapEnvelopeData } from "@/src/lib/api-envelope";
+import { withIdempotencyHeaders } from "@/src/lib/idempotency";
 
 const DESK_KPI_CARD_CLASS = "border-border/70 bg-card";
+const STAFF_INVITE_ROLE = "recruiter" as const;
+const MFA_CODE_MIN_LENGTH = 6;
+const MFA_CODE_MAX_LENGTH = 8;
 
 type StaffInvite = {
   id: string;
@@ -34,6 +39,7 @@ type StaffInvite = {
   roleName: string;
   expiresAt: string;
   acceptedAt: string | null;
+  inviteToken: string | null;
 };
 
 type BackendStaffInviteResponse = {
@@ -42,23 +48,32 @@ type BackendStaffInviteResponse = {
   role_name: string;
   expires_at: string;
   accepted_at: string | null;
+  invite_token?: string | null;
 };
 
-async function createStaffInvite(body: { email: string; role_name: string }): Promise<StaffInvite> {
+type StaffInviteCreatePayload = {
+  email: string;
+  confirmation_email: string;
+  mfa_code: string;
+  role_name: typeof STAFF_INVITE_ROLE;
+};
+
+async function createStaffInvite(body: StaffInviteCreatePayload): Promise<StaffInvite> {
   const res = await fetch("/api/admin/staff-invites", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: withIdempotencyHeaders("staff-invite", { "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Failed to create staff invite: ${res.status}`);
-  const json = await res.json();
-  const raw = json.data as BackendStaffInviteResponse;
+  if (!res.ok) throw await parseResponseEnvelopeError(res);
+  const json: unknown = await res.json();
+  const raw = unwrapEnvelopeData<BackendStaffInviteResponse>(json);
   return {
     id: raw.id,
     email: raw.email,
     roleName: raw.role_name,
     expiresAt: raw.expires_at,
     acceptedAt: raw.accepted_at,
+    inviteToken: raw.invite_token ?? null,
   };
 }
 
@@ -93,9 +108,21 @@ export default function AdminStaffInvitesPage() {
         <AlertTitle>Session-only roster</AlertTitle>
         <AlertDescription>
           No historical list endpoint exists yet. This page only shows invites created during the
-          current session.
+          current session. Recipients register with the recruiter role after redeeming the invite
+          token.
         </AlertDescription>
       </Alert>
+
+      {createInviteMutation.isError ? (
+        <Alert variant="destructive">
+          <AlertTitle>Invite was not sent</AlertTitle>
+          <AlertDescription>
+            {createInviteMutation.error instanceof Error
+              ? createInviteMutation.error.message
+              : "Failed to create staff invite."}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <DeskMetricGrid className="xl:grid-cols-3">
         <DeskMetricCard
@@ -112,8 +139,8 @@ export default function AdminStaffInvitesPage() {
         />
         <DeskMetricCard
           label="Role assignment"
-          value="Preset on create"
-          hint="Recipients register with the assigned staff role"
+          value="recruiter"
+          hint="Backend issuance only allows the recruiter role"
           className={DESK_KPI_CARD_CLASS}
         />
       </DeskMetricGrid>
@@ -148,10 +175,15 @@ export default function AdminStaffInvitesPage() {
                   </CardTitle>
                   <p className="text-sm text-muted-foreground">Role: {invite.roleName}</p>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-2">
                   <p className="text-xs text-muted-foreground">
                     Expires {new Date(invite.expiresAt).toLocaleString()}
                   </p>
+                  {invite.inviteToken ? (
+                    <p className="break-all text-xs text-muted-foreground">
+                      Invite path: /invite/{invite.inviteToken}
+                    </p>
+                  ) : null}
                 </CardContent>
               </Card>
             ))}
@@ -173,7 +205,7 @@ interface CreateStaffInviteDialogProps {
   open: boolean;
   isPending?: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (payload: { email: string; role_name: string }) => void;
+  onConfirm: (payload: StaffInviteCreatePayload) => void;
 }
 
 function CreateStaffInviteDialog({
@@ -183,21 +215,36 @@ function CreateStaffInviteDialog({
   onConfirm,
 }: CreateStaffInviteDialogProps) {
   const [email, setEmail] = useState("");
-  const [roleName, setRoleName] = useState("recruiter");
+  const [confirmationEmail, setConfirmationEmail] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
 
   function handleOpenChange(next: boolean) {
     if (!next) {
       setEmail("");
-      setRoleName("recruiter");
+      setConfirmationEmail("");
+      setMfaCode("");
     }
     onOpenChange(next);
   }
 
-  function handleConfirm() {
-    onConfirm({ email: email.trim(), role_name: roleName.trim() || "recruiter" });
-  }
+  const trimmedEmail = email.trim();
+  const trimmedConfirmation = confirmationEmail.trim();
+  const trimmedMfa = mfaCode.trim();
+  const emailsMatch =
+    trimmedEmail.length > 0 && trimmedEmail.toLowerCase() === trimmedConfirmation.toLowerCase();
+  const mfaValid =
+    trimmedMfa.length >= MFA_CODE_MIN_LENGTH && trimmedMfa.length <= MFA_CODE_MAX_LENGTH;
+  const canSubmit = emailsMatch && mfaValid && !isPending;
 
-  const isEmailInvalid = email.trim().length === 0;
+  function handleConfirm() {
+    if (!canSubmit) return;
+    onConfirm({
+      email: trimmedEmail,
+      confirmation_email: trimmedConfirmation,
+      mfa_code: trimmedMfa,
+      role_name: STAFF_INVITE_ROLE,
+    });
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -209,7 +256,8 @@ function CreateStaffInviteDialog({
             </p>
             <DialogTitle>Invite staff member</DialogTitle>
             <DialogDescription>
-              Sends an invite the recipient can use to register with a staff role already assigned.
+              Sends an invite the recipient can use to register as a recruiter. Confirm the email
+              and enter your authenticator code — the API rejects issuance without both.
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -227,12 +275,35 @@ function CreateStaffInviteDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="invite-role">Role name</Label>
+            <Label htmlFor="invite-confirmation-email">Confirm email</Label>
             <Input
-              id="invite-role"
-              placeholder="recruiter"
-              value={roleName}
-              onChange={(e) => setRoleName(e.target.value)}
+              id="invite-confirmation-email"
+              type="email"
+              placeholder="Retype the invite email"
+              value={confirmationEmail}
+              onChange={(e) => setConfirmationEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="invite-role">Role name</Label>
+            <Input id="invite-role" value={STAFF_INVITE_ROLE} readOnly disabled />
+            <p className="text-xs text-muted-foreground">
+              Staff invites can only assign the recruiter role.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="invite-mfa-code">Your 2FA code</Label>
+            <Input
+              id="invite-mfa-code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="123456"
+              minLength={MFA_CODE_MIN_LENGTH}
+              maxLength={MFA_CODE_MAX_LENGTH}
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value)}
             />
           </div>
 
@@ -240,7 +311,7 @@ function CreateStaffInviteDialog({
             <Button variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={handleConfirm} disabled={isPending || isEmailInvalid}>
+            <Button onClick={handleConfirm} disabled={!canSubmit}>
               {isPending ? "Sending..." : "Send invite"}
             </Button>
           </DialogFooter>
