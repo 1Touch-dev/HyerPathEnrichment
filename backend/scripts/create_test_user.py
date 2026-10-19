@@ -25,7 +25,12 @@ from collections.abc import Awaitable, Callable
 from contextlib import contextmanager
 from pathlib import Path
 
-_BACKEND_ROOT = Path(__file__).resolve().parents[1]
+# `python -` (stdin) sets __file__ to "<stdin>"; keep PYTHONPATH as the backend root.
+if "__file__" in globals() and not str(__file__).startswith("<"):
+    _BACKEND_ROOT = Path(__file__).resolve().parents[1]
+else:
+    _pythonpath = os.environ.get("PYTHONPATH", "").split(os.pathsep)[0].strip()
+    _BACKEND_ROOT = Path(_pythonpath or "/app/backend")
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
