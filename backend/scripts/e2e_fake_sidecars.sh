@@ -25,6 +25,10 @@ COMPOSE_FILES=(--profile paid -f docker-compose.yml -f docker-compose.fake-sidec
 
 cd "$COMPOSE_DIR"
 
+# shellcheck source=_e2e_common.sh
+source "$SCRIPT_DIR/_e2e_common.sh"
+e2e_export_compose_defaults
+
 # `docker compose` only auto-merges docker-compose.override.yml when no -f flag
 # is given; this script passes explicit -f flags above, so re-add it manually
 # if present (e.g. a local port-remap override to avoid colliding with another
@@ -51,12 +55,9 @@ docker compose "${COMPOSE_FILES[@]}" up --build -d \
   api worker redis postgres social-analyzer google-maps-scraper email-verifier reacher
 
 echo "== waiting for API health =="
-for i in $(seq 1 60); do
-  code="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/health" || true)"
-  [ "$code" = "200" ] && break
-  sleep 2
-done
-[ "$code" = "200" ] || fail "health never returned 200 (last=$code)"
+if ! e2e_wait_for_health "$BASE" "${COMPOSE_FILES[@]}"; then
+  fail "health never returned 200 (last=${E2E_LAST_HEALTH_CODE:-000})"
+fi
 pass "health 200"
 
 echo "== worker reachability to sidecars =="

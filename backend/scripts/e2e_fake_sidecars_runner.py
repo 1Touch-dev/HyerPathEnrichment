@@ -47,6 +47,10 @@ def curl_code(url: str) -> str:
 
 def main() -> int:
     RESULTS.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault(
+        "OUTREACH_PHYSICAL_ADDRESS",
+        "123 Main St, Suite 100, San Francisco, CA 94105",
+    )
     try:
         run(
             COMPOSE
@@ -73,6 +77,11 @@ def main() -> int:
                 break
             time.sleep(2)
         if code != "200":
+            subprocess.run(
+                [*COMPOSE, "logs", "--tail", "120", "api"],
+                cwd=str(COMPOSE_DIR),
+                check=False,
+            )
             raise SystemExit(f"API health never returned 200 (last={code})")
         print("PASS  health 200")
 

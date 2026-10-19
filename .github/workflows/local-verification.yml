@@ -10,6 +10,13 @@ on:
       - "scripts/prod_full_acceptance.sh"
       - "Makefile"
 
+env:
+  # Compose defaults OUTREACH_ENABLED=true. Without this, API lifespan exits
+  # before /health binds (same as ci.yml docker-smoke).
+  OUTREACH_PHYSICAL_ADDRESS: "123 Main St, Suite 100, San Francisco, CA 94105"
+  DOCKER_BUILDKIT: "0"
+  COMPOSE_DOCKER_CLI_BUILD: "0"
+
 jobs:
   e2e-full-path:
     runs-on: ubuntu-latest
@@ -25,7 +32,6 @@ jobs:
 
       - name: Full-path E2E (CI)
         run: |
-          export DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0
           make setup
           make e2e-full-path
 
@@ -51,7 +57,6 @@ jobs:
 
       - name: Tier 2-4 live proof
         run: |
-          export DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0
           make setup
           make up
           cd backend
@@ -85,7 +90,6 @@ jobs:
 
       - name: Local prod acceptance (no frontend)
         run: |
-          export DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0
           export RUN_FULLSTACK=0
           bash scripts/prod_full_acceptance.sh --local
 
@@ -112,7 +116,6 @@ jobs:
       - name: Scrapoxy staging proof
         continue-on-error: true
         run: |
-          export DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0
           make setup
           bash backend/scripts/e2e_scrapoxy.sh
 

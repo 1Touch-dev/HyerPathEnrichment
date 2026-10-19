@@ -30,6 +30,10 @@ AUTH="Authorization: Bearer $TOKEN"
 
 cd "$COMPOSE_DIR"
 
+# shellcheck source=_e2e_common.sh
+source "$SCRIPT_DIR/_e2e_common.sh"
+e2e_export_compose_defaults
+
 pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1" >&2; exit 1; }
 
@@ -45,12 +49,9 @@ IDENT="compose-e2e-$(date +%s)"
 echo "  using identifier: $IDENT"
 
 echo "== waiting for API health =="
-for i in $(seq 1 60); do
-  code="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/health" || true)"
-  [ "$code" = "200" ] && break
-  sleep 2
-done
-[ "$code" = "200" ] || fail "health never returned 200 (last=$code)"
+if ! e2e_wait_for_health "$BASE"; then
+  fail "health never returned 200 (last=${E2E_LAST_HEALTH_CODE:-000})"
+fi
 pass "health 200"
 
 # API routes wrap successful JSON bodies in the shared `{success, data}`
