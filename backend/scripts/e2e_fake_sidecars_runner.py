@@ -51,6 +51,7 @@ def main() -> int:
         "OUTREACH_PHYSICAL_ADDRESS",
         "123 Main St, Suite 100, San Francisco, CA 94105",
     )
+    os.environ.setdefault("WORKER_QUEUE_MODE", "single")
     try:
         run(
             COMPOSE
