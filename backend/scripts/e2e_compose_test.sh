@@ -88,7 +88,11 @@ for i in $(seq 1 40); do
   [ "$final" != "queued" ] && [ "$final" != "running" ] && break
   sleep 2
 done
-[ "$final" = "completed" ] || fail "job did not complete (last=$final)"
+if [ "$final" != "completed" ]; then
+  echo "== worker logs (job last=$final) ==" >&2
+  docker compose logs --tail 80 worker >&2 || true
+  fail "job did not complete (last=$final)"
+fi
 pass "async poll completed"
 
 echo "== opt-out suppression (unauthenticated) =="

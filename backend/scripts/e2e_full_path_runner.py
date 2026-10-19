@@ -217,9 +217,14 @@ def resolve_mode(args: argparse.Namespace) -> str:
 
 
 def ensure_e2e_compose_defaults(env: dict[str, str] | None = None) -> dict[str, str]:
-    """Keep compose-backed stages from failing closed on a missing CAN-SPAM address."""
+    """Keep compose-backed stages from failing closed on a missing CAN-SPAM address.
+
+    Also pin WORKER_QUEUE_MODE=single so the API enqueues onto `enrichment`,
+    matching the generic worker that full-path E2E actually starts.
+    """
     target = os.environ if env is None else env
     target.setdefault("OUTREACH_PHYSICAL_ADDRESS", DEFAULT_OUTREACH_PHYSICAL_ADDRESS)
+    target.setdefault("WORKER_QUEUE_MODE", "single")
     return target
 
 

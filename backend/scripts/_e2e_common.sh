@@ -16,6 +16,10 @@ e2e_export_staff_defaults() {
 
 e2e_export_compose_defaults() {
   export OUTREACH_PHYSICAL_ADDRESS="${OUTREACH_PHYSICAL_ADDRESS:-$(e2e_default_outreach_address)}"
+  # Base compose brings up the generic worker, which listens on `enrichment`.
+  # API compose defaults WORKER_QUEUE_MODE=per_tier, which enqueues onto
+  # tier234 (no consumer in this stack) so jobs stay queued forever.
+  export WORKER_QUEUE_MODE="${WORKER_QUEUE_MODE:-single}"
   e2e_export_staff_defaults
 }
 

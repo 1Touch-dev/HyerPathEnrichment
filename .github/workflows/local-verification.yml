@@ -14,6 +14,9 @@ env:
   # Compose defaults OUTREACH_ENABLED=true. Without this, API lifespan exits
   # before /health binds (same as ci.yml docker-smoke).
   OUTREACH_PHYSICAL_ADDRESS: "123 Main St, Suite 100, San Francisco, CA 94105"
+  # Full-path E2E starts the generic worker (enrichment). Compose API defaults
+  # per_tier, which enqueues onto tier234 with no consumer in this stack.
+  WORKER_QUEUE_MODE: single
   DOCKER_BUILDKIT: "0"
   COMPOSE_DOCKER_CLI_BUILD: "0"
 

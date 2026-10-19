@@ -12,12 +12,14 @@ def test_ensure_e2e_compose_defaults_fills_missing_address() -> None:
     env: dict[str, str] = {}
     ensure_e2e_compose_defaults(env)
     assert env["OUTREACH_PHYSICAL_ADDRESS"] == DEFAULT_OUTREACH_PHYSICAL_ADDRESS
+    assert env["WORKER_QUEUE_MODE"] == "single"
 
 
 def test_ensure_e2e_compose_defaults_preserves_explicit_address() -> None:
-    env = {"OUTREACH_PHYSICAL_ADDRESS": "1 Explicit Ave"}
+    env = {"OUTREACH_PHYSICAL_ADDRESS": "1 Explicit Ave", "WORKER_QUEUE_MODE": "per_tier"}
     ensure_e2e_compose_defaults(env)
     assert env["OUTREACH_PHYSICAL_ADDRESS"] == "1 Explicit Ave"
+    assert env["WORKER_QUEUE_MODE"] == "per_tier"
 
 
 def test_compose_e2e_scripts_export_outreach_address() -> None:
@@ -33,6 +35,7 @@ def test_e2e_common_helper_defaults_can_spam_address() -> None:
     text = (SCRIPTS / "_e2e_common.sh").read_text(encoding="utf-8")
     assert "OUTREACH_PHYSICAL_ADDRESS" in text
     assert DEFAULT_OUTREACH_PHYSICAL_ADDRESS in text
+    assert 'WORKER_QUEUE_MODE="${WORKER_QUEUE_MODE:-single}"' in text
     assert "e2e_seed_verified_staff" in text
     assert "e2e_login_cookie_header" in text
     assert "ALLOW_E2E_SUPERUSER_BOOTSTRAP=1" in text
@@ -43,6 +46,7 @@ def test_compose_e2e_uses_staff_cookie_not_legacy_api_token() -> None:
     compose = (SCRIPTS / "e2e_compose_test.sh").read_text(encoding="utf-8")
     assert "Authorization: Bearer" not in compose
     assert "e2e_login_cookie_header" in compose
+    assert "docker compose logs --tail 80 worker" in compose
     assert "Cookie: access_token=" in (SCRIPTS / "_e2e_common.sh").read_text(encoding="utf-8")
 
     fake_sh = (SCRIPTS / "e2e_fake_sidecars.sh").read_text(encoding="utf-8")
@@ -57,3 +61,4 @@ def test_compose_e2e_uses_staff_cookie_not_legacy_api_token() -> None:
     runner = (SCRIPTS / "e2e_fake_sidecars_runner.py").read_text(encoding="utf-8")
     assert "create_test_user.py" in runner
     assert "ALLOW_E2E_SUPERUSER_BOOTSTRAP=1" in runner
+    assert 'setdefault("WORKER_QUEUE_MODE", "single")' in runner
