@@ -39,9 +39,7 @@ async def test_fake_sidecar_probe_authenticates_via_login(
                 "email": "verified@example.com",
                 "password": "VerifiedPassword123",
             }
-            return _Response(
-                200, {"success": True, "data": {}}, cookies={"access_token": "jwt"}
-            )
+            return _Response(200, {"success": True, "data": {}}, cookies={"access_token": "jwt"})
 
     monkeypatch.setenv("E2E_USER_EMAIL", "verified@example.com")
     monkeypatch.setenv("E2E_USER_PASSWORD", "VerifiedPassword123")
