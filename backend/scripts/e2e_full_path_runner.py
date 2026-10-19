@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 RESULTS = ROOT / ".e2e-results"
 REPORT_PATH = RESULTS / "full-path-report.json"
+DEFAULT_OUTREACH_PHYSICAL_ADDRESS = "123 Main St, Suite 100, San Francisco, CA 94105"
 
 CHILD_REPORTS: dict[str, str] = {
     "fake_sidecars": "fake-sidecars-report.json",
@@ -215,9 +216,17 @@ def resolve_mode(args: argparse.Namespace) -> str:
     return "ci"
 
 
+def ensure_e2e_compose_defaults(env: dict[str, str] | None = None) -> dict[str, str]:
+    """Keep compose-backed stages from failing closed on a missing CAN-SPAM address."""
+    target = os.environ if env is None else env
+    target.setdefault("OUTREACH_PHYSICAL_ADDRESS", DEFAULT_OUTREACH_PHYSICAL_ADDRESS)
+    return target
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     mode = resolve_mode(args)
+    ensure_e2e_compose_defaults()
 
     bash_prefix = resolve_bash()
     if not bash_prefix:
