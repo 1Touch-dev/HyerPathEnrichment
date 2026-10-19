@@ -79,14 +79,19 @@ describe("SystemHealthPanel", () => {
       data: {
         ...baseSnapshot,
         prometheusConfigured: true,
-        signals: { latency: 120, traffic: 42, errors: 0, saturation: null },
+        signals: {
+          latency_p95_seconds: 0.12,
+          traffic_requests_per_sec: 42,
+          error_rate: 0,
+          queue_depth_saturation: null,
+        },
       },
     });
     render(<SystemHealthPanel />, { wrapper });
-    expect(screen.getByText("Latency")).toBeInTheDocument();
-    expect(screen.getByText("120")).toBeInTheDocument();
+    expect(screen.getByText("Latency p95")).toBeInTheDocument();
+    expect(screen.getByText("0.12")).toBeInTheDocument();
     expect(screen.getByText("Traffic")).toBeInTheDocument();
-    expect(screen.getByText("Saturation")).toBeInTheDocument();
+    expect(screen.getByText("Queue depth")).toBeInTheDocument();
     expect(screen.queryByText("Golden signals not configured")).not.toBeInTheDocument();
   });
 

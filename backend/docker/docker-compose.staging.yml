@@ -5,7 +5,7 @@
 # Optional profiles (same as base):
 #   --profile paid        scrapoxy (PROXY_MODE=scrapoxy)
 #   --profile llm         litellm
-#   --profile observability langfuse, changedetection
+#   --profile observability langfuse, changedetection, prometheus
 #
 # Supported Linux Tier 1 path: also pass
 #   -f docker-compose.foundation.yml

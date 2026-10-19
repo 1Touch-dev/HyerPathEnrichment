@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 RULES_PATH = Path(__file__).resolve().parents[1] / "observability" / "alerts" / "hyrepath.rules.yml"
+SCRAPE_PATH = Path(__file__).resolve().parents[1] / "observability" / "prometheus.yml"
 
 # Metric / selector names that must appear in the rules file (existing /metrics surface).
 EXPECTED_METRIC_SNIPPETS = (
@@ -56,3 +57,11 @@ def test_prometheus_rules_reference_known_metrics() -> None:
     text = RULES_PATH.read_text(encoding="utf-8")
     for snippet in EXPECTED_METRIC_SNIPPETS:
         assert snippet in text, f"expected metric snippet {snippet!r} in rules"
+
+
+def test_prometheus_scrape_config_parses_and_targets_api_metrics() -> None:
+    yaml = pytest.importorskip("yaml")
+    data = yaml.safe_load(SCRAPE_PATH.read_text(encoding="utf-8"))
+    assert data["scrape_configs"][0]["job_name"] == "hyrepath-api"
+    assert data["scrape_configs"][0]["metrics_path"] == "/metrics"
+    assert data["scrape_configs"][0]["static_configs"][0]["targets"] == ["api:8000"]

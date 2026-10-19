@@ -13,6 +13,7 @@ from app.core.lifespan import lifespan
 from app.core.logging import RequestContextMiddleware
 from app.core.openapi import install_envelope_openapi
 from app.dependencies.rate_limit import enforce_compliance_rate_limit
+from app.middleware.http_metrics import HttpMetricsMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.modules.admin import router as admin_router
 from app.modules.admin.audit import AdminAuditFallbackMiddleware
@@ -81,6 +82,7 @@ app = FastAPI(
 # Security middleware
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestContextMiddleware)
+app.add_middleware(HttpMetricsMiddleware)
 app.add_middleware(AdminAuditFallbackMiddleware)
 
 # CORS configuration for frontend. `CORS_ORIGINS` is the same list object

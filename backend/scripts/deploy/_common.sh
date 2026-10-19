@@ -42,7 +42,7 @@ DAY1_SERVICES=(
   social-analyzer google-maps-scraper email-verifier
   worker-document worker-embedding worker-job-matching worker-interview-ai
   reacher litellm scrapoxy
-  langfuse changedetection
+  langfuse changedetection prometheus
   glitchtip-migrate glitchtip-web glitchtip-worker
 )
 
@@ -80,6 +80,12 @@ langfuse_host_port() {
   local p
   p="$(env_get LANGFUSE_HOST_PORT)"
   echo "${p:-3002}"
+}
+
+prometheus_host_port() {
+  local p
+  p="$(env_get PROMETHEUS_HOST_PORT)"
+  echo "${p:-9090}"
 }
 
 # Bounded HTTP readiness poll. Returns 0 when curl succeeds, 1 on timeout.
