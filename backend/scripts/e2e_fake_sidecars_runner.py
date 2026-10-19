@@ -105,12 +105,42 @@ def main() -> int:
         )
         print("PASS  worker can reach all fake sidecars")
 
+        email = os.environ.setdefault("E2E_USER_EMAIL", "e2e-fullpath@example.com")
+        password = os.environ.setdefault("E2E_USER_PASSWORD", "IntegrationTest123")
+        create_user = (ROOT / "scripts" / "create_test_user.py").read_text(encoding="utf-8")
+        run(
+            COMPOSE
+            + [
+                "exec",
+                "-T",
+                "-e",
+                f"E2E_USER_EMAIL={email}",
+                "-e",
+                f"E2E_USER_PASSWORD={password}",
+                "-e",
+                "ALLOW_E2E_SUPERUSER_BOOTSTRAP=1",
+                "-e",
+                "PYTHONPATH=/app/backend",
+                "api",
+                "sh",
+                "-c",
+                'python - --email "$E2E_USER_EMAIL" --password "$E2E_USER_PASSWORD" --is-superuser',
+            ],
+            cwd=COMPOSE_DIR,
+            input_text=create_user,
+        )
+        print("PASS  verified staff user ready")
+
         probe = SCRIPT.read_text(encoding="utf-8")
         run(
             COMPOSE
             + [
                 "exec",
                 "-T",
+                "-e",
+                f"E2E_USER_EMAIL={email}",
+                "-e",
+                f"E2E_USER_PASSWORD={password}",
                 "api",
                 "sh",
                 "-c",

@@ -64,8 +64,7 @@ class FakeSidecarProbe:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.base_url = os.getenv("E2E_BASE_URL", "http://localhost:8000").rstrip("/")
-        self.token = self.settings.api_token
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        self.headers: dict[str, str] = {}
         self.results: list[CheckResult] = []
 
     def record(self, name: str, ok: bool, detail: str, **data: Any) -> None:
@@ -78,8 +77,12 @@ class FakeSidecarProbe:
         await self.check_api_health()
         await self.check_sidecar_health()
         await self.check_enrichers()
-        await self.check_api_async_tier4()
-        await self.check_sse_job_events()
+        if await self.authenticate():
+            await self.check_api_async_tier4()
+            await self.check_sse_job_events()
+        else:
+            self.record("api_async_tier4", False, "skipped: cookie authentication failed")
+            self.record("sse_job_events", False, "skipped: cookie authentication failed")
 
         report = {
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -95,6 +98,37 @@ class FakeSidecarProbe:
         print(f"\nReport written to {report_path}")
         print(f"Summary: {report['passed']} passed, {report['failed']} failed")
         return 0 if report["failed"] == 0 else 1
+
+    async def authenticate(self) -> bool:
+        """/enrich requires a verified staff cookie, not the legacy API token."""
+        email = os.getenv("E2E_USER_EMAIL", "").strip()
+        password = os.getenv("E2E_USER_PASSWORD", "").strip()
+        if not email or not password:
+            self.record(
+                "api_cookie_auth",
+                False,
+                "E2E_USER_EMAIL and E2E_USER_PASSWORD must identify a verified staff user",
+            )
+            return False
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                login = await client.post(
+                    f"{self.base_url}/auth/login",
+                    json={"email": email, "password": password},
+                )
+            token = login.cookies.get("access_token")
+            ok = login.status_code == 200 and bool(token)
+            self.record(
+                "api_cookie_auth",
+                ok,
+                f"status={login.status_code} access_cookie={'present' if token else 'missing'}",
+            )
+            if ok and token:
+                self.headers = {"Cookie": f"access_token={token}"}
+            return ok
+        except httpx.HTTPError as exc:
+            self.record("api_cookie_auth", False, str(exc))
+            return False
 
     async def check_api_health(self) -> None:
         try:

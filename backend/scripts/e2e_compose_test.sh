@@ -25,8 +25,6 @@ COMPOSE_DIR="$(cd "$SCRIPT_DIR/../docker" && pwd)"
 # a local docker-compose.override.yml to avoid colliding with another compose
 # project already bound to :8000 on the same Docker host).
 BASE="${E2E_BASE_URL:-http://localhost:8000}"
-TOKEN="change-me"
-AUTH="Authorization: Bearer $TOKEN"
 
 cd "$COMPOSE_DIR"
 
@@ -54,9 +52,24 @@ if ! e2e_wait_for_health "$BASE"; then
 fi
 pass "health 200"
 
+echo "== seed verified staff user =="
+e2e_seed_verified_staff
+pass "verified staff user ready"
+
+AUTH="$(e2e_login_cookie_header "$BASE")" || fail "could not log in staff user"
+pass "staff cookie auth"
+
 # API routes wrap successful JSON bodies in the shared `{success, data}`
 # envelope (app/core/api_route.py::EnvelopeAPIRoute) — unwrap before reading fields.
-unwrap() { python3 -c 'import sys,json; b=json.load(sys.stdin); print(json.dumps(b.get("data", b) if isinstance(b, dict) and b.get("success") is True else b))'; }
+unwrap() {
+  python3 -c '
+import json, sys
+body = json.load(sys.stdin)
+if isinstance(body, dict) and body.get("success") is False:
+    raise SystemExit("API error: " + json.dumps(body.get("error") or body))
+print(json.dumps(body.get("data", body) if isinstance(body, dict) and body.get("success") is True else body))
+'
+}
 
 echo "== enqueue async job (ident=$IDENT) =="
 resp="$(curl -s -X POST "$BASE/enrich" -H "$AUTH" -H 'Content-Type: application/json' \

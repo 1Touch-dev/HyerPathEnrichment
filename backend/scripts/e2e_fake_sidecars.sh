@@ -60,6 +60,10 @@ if ! e2e_wait_for_health "$BASE" "${COMPOSE_FILES[@]}"; then
 fi
 pass "health 200"
 
+echo "== seed verified staff user =="
+e2e_seed_verified_staff "${COMPOSE_FILES[@]}"
+pass "verified staff user ready"
+
 echo "== worker reachability to sidecars =="
 docker compose "${COMPOSE_FILES[@]}" exec -T worker sh -c '
   set -e
@@ -71,7 +75,10 @@ docker compose "${COMPOSE_FILES[@]}" exec -T worker sh -c '
 pass "worker can reach all fake sidecars"
 
 echo "== fake sidecar probe inside api =="
-docker compose "${COMPOSE_FILES[@]}" exec -T api sh -c '
+docker compose "${COMPOSE_FILES[@]}" exec -T \
+  -e E2E_USER_EMAIL="$E2E_USER_EMAIL" \
+  -e E2E_USER_PASSWORD="$E2E_USER_PASSWORD" \
+  api sh -c '
   set -e
   export E2E_BASE_URL=http://127.0.0.1:8000
   export E2E_BACKEND_ROOT=/app/backend
