@@ -77,6 +77,28 @@ describe("GET /callback/google", () => {
     );
   });
 
+  it("sends an enrolled MFA user back to login without opening the app", async () => {
+    const backendHeaders = new Headers({ "Content-Type": "application/json" });
+    backendHeaders.append("Set-Cookie", "mfa_login=challenge; Path=/; HttpOnly; SameSite=Strict");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ mfa_required: true, user: null, message: "code" }), {
+          status: 200,
+          headers: backendHeaders,
+        }),
+      ),
+    );
+
+    const response = await GET(
+      new NextRequest("https://localhost:3000/callback/google?code=abc&state=1.sig"),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://app.hyerpath.com/login?mfa=required");
+    expect(response.headers.get("set-cookie")).toContain("mfa_login=challenge");
+  });
+
   it("on success redirects to the post-login path and forwards cookies", async () => {
     vi.stubGlobal(
       "fetch",

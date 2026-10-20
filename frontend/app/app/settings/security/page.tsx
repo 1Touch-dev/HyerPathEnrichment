@@ -16,8 +16,7 @@ export default function SecuritySettingsPage() {
           <ShellPageHeaderEyebrow>Candidate workspace</ShellPageHeaderEyebrow>
           <ShellPageHeaderTitle>Security</ShellPageHeaderTitle>
           <ShellPageHeaderDescription>
-            Strengthen your account with multi-factor authentication while keeping the existing auth
-            flow unchanged.
+            Turn on an authenticator code so password sign-in also asks for that code.
           </ShellPageHeaderDescription>
         </ShellPageHeaderContent>
       </ShellPageHeader>

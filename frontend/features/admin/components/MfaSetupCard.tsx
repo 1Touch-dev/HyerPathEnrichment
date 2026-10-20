@@ -119,7 +119,7 @@ export function MfaSetupCard() {
             Two-factor authentication
           </CardTitle>
           <CardDescription>
-            Protect your account with a time-based one-time code (TOTP) from an authenticator app.
+            When this is on, sign-in asks for a 6-digit code from your authenticator app.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -22,14 +22,18 @@ export interface User {
 }
 
 type LoginResponse = {
-  user: User;
+  user: User | null;
   message: string;
+  mfa_required?: boolean;
 };
+
+export type LoginResult = { mfaRequired: true } | { mfaRequired: false; user: User };
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<User>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  completeLoginMfa: (code: string) => Promise<User>;
   logout: () => Promise<void>;
   register: (
     email: string,
@@ -88,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<LoginResult> => {
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -103,6 +107,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const body = await response.json();
     const data = unwrapEnvelopeData<LoginResponse>(body);
+    if (data.mfa_required) {
+      return { mfaRequired: true };
+    }
+    if (!data.user) {
+      throw new Error("Login failed");
+    }
+    setUser(data.user);
+    return { mfaRequired: false, user: data.user };
+  };
+
+  const completeLoginMfa = async (code: string) => {
+    const response = await fetch("/api/auth/login/mfa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const body = await response.json();
+      throw parseEnvelopeError(body, response.status);
+    }
+
+    const body = await response.json();
+    const data = unwrapEnvelopeData<LoginResponse>(body);
+    if (!data.user) {
+      throw new Error("Login failed");
+    }
     setUser(data.user);
     return data.user;
   };
@@ -167,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         login,
+        completeLoginMfa,
         logout,
         register,
         deleteAccount,

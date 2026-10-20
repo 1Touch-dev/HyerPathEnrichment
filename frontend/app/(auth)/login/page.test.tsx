@@ -15,10 +15,13 @@ vi.mock("@/providers/auth-provider", () => ({
 beforeEach(() => {
   pushMock.mockReset();
   loginMock.mockReset().mockResolvedValue({
-    is_superuser: false,
-    role_id: "role-1",
-    role_name: "recruiter",
-    permissions: [{ resource: "linkedin_sourcing", action: "write" }],
+    mfaRequired: false,
+    user: {
+      is_superuser: false,
+      role_id: "role-1",
+      role_name: "recruiter",
+      permissions: [{ resource: "linkedin_sourcing", action: "write" }],
+    },
   });
   window.history.replaceState({}, "", "/login");
 });
@@ -44,10 +47,13 @@ describe("login navigation", () => {
 
   it("sends staff to desk home when redirect points at Candidate /app", async () => {
     loginMock.mockResolvedValue({
-      is_superuser: true,
-      role_id: "role-admin",
-      role_name: "admin",
-      permissions: [{ resource: "system_health", action: "read" }],
+      mfaRequired: false,
+      user: {
+        is_superuser: true,
+        role_id: "role-admin",
+        role_name: "admin",
+        permissions: [{ resource: "system_health", action: "read" }],
+      },
     });
     window.history.replaceState({}, "", "/login?redirect=%2Fapp");
     render(<LoginPage />);
