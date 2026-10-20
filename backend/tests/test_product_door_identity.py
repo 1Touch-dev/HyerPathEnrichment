@@ -69,11 +69,13 @@ async def _identity_round_trip(user: User) -> tuple[dict, dict, dict]:
     me_body = me.json()
 
     assert set(login_body) == {"success", "data", "message", "meta"}
-    assert set(login_body["data"]) == {"user", "message"}
+    assert set(login_body["data"]) == {"user", "message", "mfa_required"}
+    assert login_body["data"]["mfa_required"] is False
     assert login_body["success"] is True
     assert login_body["data"]["message"] == "Login successful"
     assert set(refresh_body) == {"success", "data", "message", "meta"}
-    assert set(refresh_body["data"]) == {"user", "message"}
+    assert set(refresh_body["data"]) == {"user", "message", "mfa_required"}
+    assert refresh_body["data"]["mfa_required"] is False
     assert refresh_body["success"] is True
     assert refresh_body["data"]["message"] == "Token refreshed successfully"
     assert set(me_body) == {"success", "data", "message", "meta"}
