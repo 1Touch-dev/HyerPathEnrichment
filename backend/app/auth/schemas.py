@@ -111,10 +111,25 @@ class LoginRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    """Login response with user info."""
+    """Login response with user info, or a pending authenticator challenge."""
 
-    user: UserRead
+    user: UserRead | None = None
     message: str = "Login successful"
+    mfa_required: bool = False
+
+
+class LoginMfaRequest(BaseModel):
+    """Second step of password or Google sign-in when TOTP is enrolled."""
+
+    code: str
+
+    @field_validator("code")
+    @classmethod
+    def six_digit_code(cls, value: str) -> str:
+        cleaned = "".join(value.split())
+        if len(cleaned) != 6 or not cleaned.isdigit():
+            raise ValueError("Enter the 6-digit code from your authenticator app")
+        return cleaned
 
 
 class RefreshTokenRequest(BaseModel):
