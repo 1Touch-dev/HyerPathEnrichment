@@ -2089,7 +2089,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -2109,8 +2109,8 @@
       "Body_upload_document_api_documents_upload_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
             "description": "Document file (PDF, DOCX)",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -5725,6 +5725,20 @@
         "title": "LinkedInTaskListResponse",
         "type": "object"
       },
+      "LoginMfaRequest": {
+        "description": "Second step of password or Google sign-in when TOTP is enrolled.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "LoginMfaRequest",
+        "type": "object"
+      },
       "LoginRequest": {
         "description": "Login credentials.",
         "properties": {
@@ -5746,20 +5760,29 @@
         "type": "object"
       },
       "LoginResponse": {
-        "description": "Login response with user info.",
+        "description": "Login response with user info, or a pending authenticator challenge.",
         "properties": {
           "message": {
             "default": "Login successful",
             "title": "Message",
             "type": "string"
           },
+          "mfa_required": {
+            "default": false,
+            "title": "Mfa Required",
+            "type": "boolean"
+          },
           "user": {
-            "$ref": "#/components/schemas/UserRead"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": [
-          "user"
-        ],
         "title": "LoginResponse",
         "type": "object"
       },
@@ -10611,13 +10634,6 @@
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [
@@ -40458,6 +40474,196 @@
           }
         },
         "summary": "Login",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/login/mfa": {
+      "post": {
+        "description": "Finish sign-in for an account that already enrolled TOTP.",
+        "operationId": "login_mfa_auth_login_mfa_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "mfa_login",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mfa Login"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginMfaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/LoginResponse"
+                    },
+                    "message": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "meta": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseEnvelope"
+                }
+              }
+            },
+            "description": "Error response envelope"
+          }
+        },
+        "summary": "Login Mfa",
         "tags": [
           "Authentication"
         ]
