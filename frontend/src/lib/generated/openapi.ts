@@ -4055,10 +4055,7 @@ export interface components {
              * @default audio/webm
              */
             audio_format: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Practice Session Id
@@ -4070,7 +4067,6 @@ export interface components {
         Body_upload_document_api_documents_upload_post: {
             /**
              * File
-             * Format: binary
              * @description Document file (PDF, DOCX)
              */
             file: string;
@@ -7179,6 +7175,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */

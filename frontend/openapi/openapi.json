@@ -2089,7 +2089,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -2109,8 +2109,8 @@
       "Body_upload_document_api_documents_upload_post": {
         "properties": {
           "file": {
+            "contentMediaType": "application/octet-stream",
             "description": "Document file (PDF, DOCX)",
-            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -10634,6 +10634,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
