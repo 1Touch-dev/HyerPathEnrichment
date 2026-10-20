@@ -3,7 +3,7 @@
 Hyrepath Enrichment backend — architecture reference for the FastAPI service under `backend/`.
 
 **Version:** 0.5 (September 2026)
-**Last verified against code:** 2026-09-03
+**Last verified against code:** 2026-10-20
 **Repo layout:** `HyerEnrichment/backend/` (split from the Next.js frontend in `frontend/`)
 
 ---
@@ -47,6 +47,7 @@ Hyrepath Enrichment backend — architecture reference for the FastAPI service u
 | R2 uploads go to Cloudflare | **R2 when `R2_*` creds set** (`aioboto3` PutObject + HeadObject); else local `backend/.asset-cache/` |
 | LiteLLM disambiguation is live | Config-selected via `LLM_MODE`; **default is the heuristic stub** (no keys). `ollama`/`litellm` opt-in. Pipeline walks handles below `DISAMBIGUATION_THRESHOLD` via `enrichers/disambiguate.py` → LLM client |
 | Authentication is API token only | **Cookie-based auth** with FastAPI-Users (ADR 0009); enrichment and DSAR require **authenticated + verified users**; opt-out remains public |
+| Enrolled TOTP only gates impersonation and staff invites | Password and Google sign-in also withhold session cookies until the current TOTP code matches (ADR 0022). ADR 0021 step-up still applies after login |
 | Opt-out / DSAR are unauthenticated | **Opt-out is public** (IP rate-limited); **DSAR requires authenticated verified user**; enrich routes require authenticated verified user |
 | Email verification is optional | **Required** — unverified users blocked from enrichment and DSAR; only opt-out accessible without verification |
 | Logout is stateless | **Token blacklist** (Redis + PostgreSQL dual-write); logged-out tokens trigger security alerts if reused |
@@ -699,7 +700,7 @@ AGPL tools (`social-analyzer`, Reacher) run as **isolated sidecars** called over
 | Area | Target (v0.2 guide) | Current scaffold |
 |------|---------------------|------------------|
 | API routes + auth | FastAPI + Bearer | Implemented — JSON responses use shared success/error envelopes (`app/core/`) |
-| Cookie-based authentication | Google OAuth + email/password with verification | **Implemented (ADR 0009)** — `app/auth/` with FastAPI-Users, email verification (24h expiry), logged-out token detection (dual Redis+PostgreSQL), bcrypt password hashing (12 rounds), httpOnly cookies, rate limiting, audit logging, unverified user access control; enrichment + DSAR require verified users; opt-out remains public |
+| Cookie-based authentication | Google OAuth + email/password with verification | **Implemented (ADR 0009, ADR 0022)** — `app/auth/` with FastAPI-Users, email verification (24h expiry), logged-out token detection (dual Redis+PostgreSQL), bcrypt password hashing (12 rounds), httpOnly cookies, rate limiting, audit logging, unverified user access control; enrolled TOTP must succeed before session cookies are issued on password and Google sign-in; enrichment + DSAR require verified users; opt-out remains public |
 | Orchestrator + tier dispatch | `runner.py` | Implemented |
 | Enricher modules (11) | Real tool integrations | Real subprocess/library/sidecar calls behind `app/clients/` and `app/integrations/`; degrade to empty fragments when a backend is absent |
 | External clients layer | Config-selected free/paid backends | `app/clients/` (proxy, llm, email_verify, sidecar, process) + `app/integrations/` (linkedin, multilogin, browser); mode flags in `core/config.py` |
