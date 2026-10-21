@@ -60,7 +60,17 @@ export async function GET(request: NextRequest) {
       return redirectToLogin(request, "google_oauth_failed");
     }
 
-    const data = (await response.json()) as { user?: ProductDoorUser };
+    const data = (await response.json()) as {
+      user?: ProductDoorUser;
+      mfa_required?: boolean;
+    };
+    if (data.mfa_required) {
+      const login = publicAppUrl("/login", request);
+      login.searchParams.set("mfa", "required");
+      const pending = NextResponse.redirect(login);
+      forwardBackendSetCookies(response, pending);
+      return pending;
+    }
     const user: ProductDoorUser = data.user ?? { is_superuser: false };
     const destination = resolvePostLoginPath(user, null);
     const nextResponse = NextResponse.redirect(publicAppUrl(destination, request));

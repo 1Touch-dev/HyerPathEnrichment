@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { AuthProvider, useAuth, type User } from "./auth-provider";
+import { AuthProvider, useAuth, type LoginResult, type User } from "./auth-provider";
 import { successEnvelope } from "@/src/lib/api-envelope";
 
 // auth-provider.tsx's register() talks to /api/auth/register via the global
@@ -126,13 +126,13 @@ describe("AuthProvider login()", () => {
     });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    let returnedUser: User | undefined;
+    let returnedUser: LoginResult | undefined;
     await act(async () => {
       returnedUser = await result.current.login("recruiter@example.com", "password");
     });
 
-    expect(returnedUser?.role_name).toBe("recruiter");
-    expect(result.current.user).toEqual(returnedUser);
+    expect(returnedUser).toEqual({ mfaRequired: false, user: result.current.user });
+    expect(result.current.user?.role_name).toBe("recruiter");
   });
 });
 

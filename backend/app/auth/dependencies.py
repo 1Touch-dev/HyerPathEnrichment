@@ -101,6 +101,8 @@ async def get_current_user_from_cookie(
     try:
         # Decode JWT (HS256 only)
         payload = decode_access_token(access_token, settings.SECRET_KEY)
+        if payload.get("purpose") is not None:
+            raise PyJWTError("Invalid token purpose")
         user_id_claim = payload.get("sub")
         jti_claim = payload.get("jti")
         impersonated_by_claim = payload.get("imp")

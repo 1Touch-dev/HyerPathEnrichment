@@ -19,7 +19,13 @@ from app.auth.google_oauth import (
     upsert_google_user,
     verify_oauth_state,
 )
-from app.auth.jwt_tokens import PyJWTError, create_user_access_token, decode_access_token
+from app.auth.jwt_tokens import (
+    PyJWTError,
+    create_login_mfa_token,
+    create_user_access_token,
+    decode_access_token,
+    login_mfa_subject,
+)
 from app.auth.logged_out_tokens import LoggedOutTokenService
 from app.auth.models import AuthAuditLog, User
 from app.auth.password import hash_password, verify_password
@@ -34,6 +40,7 @@ from app.auth.refresh_tokens import (
     validate_refresh_token,
 )
 from app.auth.schemas import (
+    LoginMfaRequest,
     LoginRequest,
     LoginResponse,
     MessageResponse,
@@ -53,8 +60,13 @@ from app.auth.verification import (
 from app.core.api_route import EnvelopeAPIRoute
 from app.core.config import get_settings
 from app.database.session import get_db_session
-from app.dependencies.rate_limit import enforce_auth_rate_limit, enforce_auth_refresh_rate_limit
+from app.dependencies.rate_limit import (
+    enforce_admin_mfa_verify_rate_limit,
+    enforce_auth_rate_limit,
+    enforce_auth_refresh_rate_limit,
+)
 from app.infrastructure.redis import get_redis_client
+from app.modules.admin.mfa import verify_mfa_code
 from app.modules.admin.models import Permission, Role, RolePermission
 from app.modules.staff_invites import redemption as staff_invites_redemption
 from app.modules.staff_invites import repository as staff_invites_repository
@@ -137,6 +149,64 @@ def create_access_token(user_id: str, email: str) -> tuple[str, str]:
         secret_key=settings.SECRET_KEY,
         expires_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
     )
+
+
+MFA_LOGIN_COOKIE = "mfa_login"
+MFA_LOGIN_TTL_MINUTES = 5
+
+
+def _cookie_domain() -> str | None:
+    return get_settings().COOKIE_DOMAIN or None
+
+
+def _set_session_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    settings = get_settings()
+    domain = _cookie_domain()
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        domain=domain,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="strict",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        domain=domain,
+        path="/",
+    )
+
+
+def _begin_mfa_challenge(response: Response, user: User) -> None:
+    settings = get_settings()
+    token = create_login_mfa_token(
+        str(user.id),
+        secret_key=settings.SECRET_KEY,
+        expires_minutes=MFA_LOGIN_TTL_MINUTES,
+    )
+    response.set_cookie(
+        key=MFA_LOGIN_COOKIE,
+        value=token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="strict",
+        max_age=MFA_LOGIN_TTL_MINUTES * 60,
+        domain=_cookie_domain(),
+        path="/",
+    )
+
+
+async def _issue_login_session(response: Response, db: AsyncSession, user: User) -> None:
+    access_token, _jti = create_access_token(str(user.id), user.email)
+    refresh_token_value, _ = await create_refresh_token(db, user.id)
+    _set_session_cookies(response, access_token, refresh_token_value)
 
 
 async def log_auth_event(
@@ -340,38 +410,85 @@ async def login(
             detail="Account is inactive",
         )
 
-    # Create access token
-    access_token, _jti = create_access_token(str(user.id), user.email)
+    if user.mfa_enabled:
+        _begin_mfa_challenge(response, user)
+        await log_auth_event(db, "login_mfa_challenge", True, ip, user_agent, user.id, user.email)
+        return LoginResponse(
+            mfa_required=True,
+            message="Enter the code from your authenticator app",
+        )
 
-    # Create refresh token
-    refresh_token_value, _ = await create_refresh_token(db, user.id)
-
-    # Set HttpOnly cookies for both tokens
-    settings = get_settings()
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite="lax",
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        domain=settings.COOKIE_DOMAIN,
-        path="/",  # Ensure cookie is available for all paths
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token_value,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite="strict",
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        domain=settings.COOKIE_DOMAIN,
-        path="/",
-    )
-
-    # Log successful login
+    await _issue_login_session(response, db, user)
     await log_auth_event(db, "login", True, ip, user_agent, user.id, user.email)
 
+    return LoginResponse(
+        user=await serialize_user_identity(db, user),
+        message="Login successful",
+    )
+
+
+@identity_router.post(
+    "/login/mfa",
+    response_model=LoginResponse,
+    dependencies=[
+        Depends(enforce_auth_rate_limit),
+        Depends(enforce_admin_mfa_verify_rate_limit),
+    ],
+)
+async def login_mfa(
+    request: Request,
+    body: LoginMfaRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db_session),
+    mfa_login: Annotated[str | None, Cookie(alias=MFA_LOGIN_COOKIE)] = None,
+) -> LoginResponse:
+    """Finish sign-in for an account that already enrolled TOTP."""
+    ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent")
+    settings = get_settings()
+
+    if not mfa_login:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sign in again and enter your authentication code",
+        )
+
+    try:
+        user_id = UUID(login_mfa_subject(mfa_login, settings.SECRET_KEY))
+    except (PyJWTError, ValueError):
+        response.delete_cookie(key=MFA_LOGIN_COOKIE, domain=_cookie_domain(), path="/")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sign in again and enter your authentication code",
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if (
+        user is None
+        or user.deleted_at is not None
+        or not user.is_active
+        or not user.mfa_enabled
+        or not verify_mfa_code(user, body.code)
+    ):
+        await log_auth_event(
+            db,
+            "login",
+            False,
+            ip,
+            user_agent,
+            user.id if user is not None else None,
+            user.email if user is not None else None,
+            "Invalid MFA code",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication code",
+        )
+
+    await _issue_login_session(response, db, user)
+    response.delete_cookie(key=MFA_LOGIN_COOKIE, domain=_cookie_domain(), path="/")
+    await log_auth_event(db, "login", True, ip, user_agent, user.id, user.email)
     return LoginResponse(
         user=await serialize_user_identity(db, user),
         message="Login successful",
@@ -455,7 +572,6 @@ async def refresh_token(
     Implements token rotation - issues new refresh token and invalidates old one.
     Detects token reuse and revokes entire token family for security.
     """
-    settings = get_settings()
     ip = get_client_ip(request)
     user_agent = request.headers.get("User-Agent")
 
@@ -559,30 +675,8 @@ async def refresh_token(
             detail="Failed to rotate refresh token",
         )
 
-    # Create new access token
     new_access_token, _jti = create_access_token(str(user.id), user.email)
-
-    # Set new cookies
-    response.set_cookie(
-        key="access_token",
-        value=new_access_token,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite="lax",
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        domain=settings.COOKIE_DOMAIN,
-        path="/",
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=new_refresh_token_value,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite="strict",
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        domain=settings.COOKIE_DOMAIN,
-        path="/",
-    )
+    _set_session_cookies(response, new_access_token, new_refresh_token_value)
 
     # Log successful refresh
     await log_auth_event(
@@ -897,30 +991,17 @@ async def google_callback(
         )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
 
-    access_token_jwt, _jti = create_access_token(str(user.id), user.email)
-    refresh_token_value, _ = await create_refresh_token(db, user.id)
+    if user.mfa_enabled:
+        _begin_mfa_challenge(response, user)
+        await log_auth_event(
+            db, "oauth_login_mfa_challenge", True, ip, user_agent, user.id, user.email
+        )
+        return LoginResponse(
+            mfa_required=True,
+            message="Enter the code from your authenticator app",
+        )
 
-    response.set_cookie(
-        key="access_token",
-        value=access_token_jwt,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite="lax",
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        domain=settings.COOKIE_DOMAIN or None,
-        path="/",
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token_value,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite="strict",
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        domain=settings.COOKIE_DOMAIN or None,
-        path="/",
-    )
-
+    await _issue_login_session(response, db, user)
     await log_auth_event(db, "oauth_login", True, ip, user_agent, user.id, user.email)
     logger.info(
         "oauth_callback_completed",

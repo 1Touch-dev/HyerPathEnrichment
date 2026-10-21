@@ -17,6 +17,7 @@ function mockUseAuth(overrides: Partial<ReturnType<typeof authProvider.useAuth>>
     user: null,
     loading: false,
     login: vi.fn(),
+    completeLoginMfa: vi.fn(),
     logout: vi.fn(),
     register: vi.fn(),
     deleteAccount: vi.fn(),
@@ -69,10 +70,13 @@ describe("StaffGuard", () => {
     guard.unmount();
 
     const login = vi.fn().mockResolvedValue({
-      is_superuser: false,
-      role_id: "role-1",
-      role_name: "recruiter",
-      permissions: [],
+      mfaRequired: false,
+      user: {
+        is_superuser: false,
+        role_id: "role-1",
+        role_name: "recruiter",
+        permissions: [],
+      },
     });
     mockUseAuth({ login });
     window.history.replaceState({}, "", loginUrl);

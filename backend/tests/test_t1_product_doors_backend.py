@@ -152,6 +152,13 @@ async def test_impersonation_start_status_end_http_lifecycle(db: AsyncSession) -
             json={"email": admin.email, "password": PASSWORD},
         )
         assert login.status_code == 200
+        assert login.json()["data"]["mfa_required"] is True
+
+        verified = await client.post(
+            "/auth/login/mfa",
+            json={"code": pyotp.TOTP(secret).now()},
+        )
+        assert verified.status_code == 200
 
         start = await client.post(
             f"/api/admin/impersonation/start/{candidate.id}",

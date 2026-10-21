@@ -1,7 +1,8 @@
-"""TOTP MFA: enroll/verify/disable for any user's own account. Enforcement is
-NOT wired into the main login flow in this plan (Decision 5) — the one place
-it IS enforced is impersonation start (§8.14), per docs/admin-module-research.md
-§11.5's explicit requirement."""
+"""TOTP MFA: enroll/verify/disable for any user's own account.
+
+Sign-in enforcement lives in ``app.auth.router`` (ADR 0022): an enrolled user
+does not receive session cookies until ``verify_mfa_code`` succeeds. Impersonation
+and staff invites still require their own step-up code (ADR 0021)."""
 
 from __future__ import annotations
 

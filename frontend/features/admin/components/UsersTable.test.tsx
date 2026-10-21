@@ -71,6 +71,7 @@ function mockUseAuth(overrides: Partial<ReturnType<typeof authProvider.useAuth>>
     },
     loading: false,
     login: vi.fn(),
+    completeLoginMfa: vi.fn(),
     logout: vi.fn(),
     register: vi.fn(),
     deleteAccount: vi.fn(),

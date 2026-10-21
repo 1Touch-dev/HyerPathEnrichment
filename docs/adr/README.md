@@ -55,3 +55,4 @@ Add or update an ADR when you:
 | [0019](0019-tenancy-model.md) | Brand as a presentation-only concept; no cross-brand data isolation | Accepted | 2026-08-26 |
 | [0020](0020-billing-provider.md) | Stripe over Paddle/Chargebee; subscription-per-candidate; webhook event-ledger idempotency | Accepted | 2026-08-27 |
 | [0021](0021-privileged-operation-controls.md) | Privileged-operation controls and replay safety | Accepted | 2026-09-03 |
+| [0022](0022-login-mfa.md) | Login MFA when TOTP is enrolled | Accepted | 2026-10-20 |
