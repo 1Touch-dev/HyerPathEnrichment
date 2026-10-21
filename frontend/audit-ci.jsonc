@@ -21,6 +21,7 @@
     "GHSA-mh99-v99m-4gvg",
     "GHSA-p9j2-gv94-2wf4",
     "GHSA-r28c-9q8g-f849",
+    "GHSA-587h-7wmj-h5pm",
     // braces 3.0.3 is the newest release and is still <=3.0.3. npm's only
     // suggested fix is downgrading eslint-config-next to 14, which breaks Next 15.
     "GHSA-vfj7-8cjw-p6xm",
