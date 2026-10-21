@@ -106,6 +106,9 @@ frontend/e2e/integration/.auth/
 # Agent local session notes (not for org repo)
 memory/
 
+# Personal resume (local download only; contains contact details)
+Mohd_Naved_Resume_HyrePath.pdf
+
 # Orchestrator-managed git worktrees (kept inside workspace for file-write approval scoping)
 .worktrees-m2/
 .worktrees/
